@@ -46,3 +46,16 @@ oss:
   get_request_count: 50         # GET请求数低于50次
   put_request_count: 10         # PUT请求数低于10次
 
+# SLB负载均衡阈值
+slb:
+  backend_server_count: 0          # 后端服务器数 <= 0
+  traffic_mb_per_day: 10           # 日均流量 < 10MB
+  active_connections: 10           # 活跃连接数 < 10
+  new_connections_per_day: 100     # 日均新建连接 < 100
+
+# EIP弹性公网IP阈值
+eip:
+  unbound: true                    # 未绑定时判定为闲置
+  traffic_mb_total: 1              # 14天总流量 < 1MB
+  bandwidth_usage: 5                # 带宽使用率 < 5%
+  instance_stopped: true            # 绑定实例已停止时判定为闲置

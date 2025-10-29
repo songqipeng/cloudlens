@@ -124,3 +124,85 @@
 
 ---
 
+## Phase 5: SLB和EIP分析器开发（已完成）
+
+### 2025-01-XX
+
+**完成的功能：**
+- ✅ 完善OSS分析器（支持从参数传入配置，而非直接读取config.json）
+- ✅ 创建SLB（负载均衡）分析器模块（resource_modules/slb_analyzer.py）
+  - 支持分析SLB实例的闲置情况
+  - 基于后端服务器数、流量、连接数等指标判断闲置
+  - 生成HTML和Excel报告
+- ✅ 创建EIP（弹性公网IP）分析器模块（resource_modules/eip_analyzer.py）
+  - 支持分析EIP实例的闲置情况
+  - 基于绑定状态、流量、带宽使用率等指标判断闲置
+  - 生成HTML和Excel报告
+- ✅ 更新main.py，添加SLB和EIP分析函数
+- ✅ 更新thresholds.yaml，添加SLB和EIP阈值配置
+
+**SLB闲置判断标准（或关系）：**
+- 后端服务器数 <= 0
+- 日均流量 < 10MB
+- 活跃连接数 < 10
+- 日均新建连接 < 100
+
+**EIP闲置判断标准（或关系）：**
+- 未绑定任何实例
+- 绑定实例已停止/删除
+- 14天总流量 < 1MB
+- 带宽使用率 < 5%
+- 几乎无流量（出带宽 < 1Mbps 且总流量 < 0.1MB）
+
+**遇到的问题：**
+- 无
+
+**下一步：**
+- 继续开发其他资源模块（NAS、ACK等）
+- 考虑重构现有分析器使用BaseResourceAnalyzer基类
+
+---
+
+## Phase 6: 折扣分析扩展（已完成）
+
+### 2025-10-29
+
+**完成的功能：**
+- ✅ RDS折扣分析（resource_modules/discount_analyzer.py）
+  - 支持查询RDS包年包月实例的续费价格
+  - 支持折扣率计算和统计
+  - 生成HTML和PDF报告
+  - 支持多租户分析
+
+**技术实现：**
+- 使用`DescribeRenewalPrice` API查询RDS续费价格
+- RDS API需要`DBInstanceId`、`UsedTime`、`TimeType`参数
+- 响应结构与ECS不同，需要适配解析逻辑
+
+**遇到的问题：**
+
+1. **RDS API域名问题**
+   - 问题：使用`rds.{region}.aliyuncs.com`连接失败
+   - 解决：改为使用`rds.aliyuncs.com`（自动使用HTTPS）
+
+2. **RDS API参数缺失**
+   - 问题：`MissingParameter: UsedTime`
+   - 解决：添加`UsedTime=1`和`TimeType=Month`参数
+
+3. **RDS API响应结构不同**
+   - 问题：响应结构与ECS不同
+   - 解决：适配解析逻辑，正确提取`PriceInfo.Price`
+
+**已完成功能总结：**
+- Phase 1: 并发处理、重试机制、日志系统 ✅
+- Phase 2: 核心管理器、基类 ✅
+- Phase 3: 凭证管理 ✅
+- Phase 4: 可配置阈值 ✅
+- Phase 5: SLB和EIP分析器 ✅
+- Phase 6: RDS折扣分析 ✅
+
+**下一步：**
+- 继续扩展折扣分析到Redis和MongoDB
+- 优化折扣分析性能（批量查询）
+- 添加折扣对比功能（历史对比）
+

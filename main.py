@@ -54,7 +54,7 @@ def show_help():
 参数说明:
     租户          - 租户名称（如：ydzn），默认为default_tenant
     操作          - 操作类型：cru（资源利用率）、discount（折扣分析）
-    资源类型      - 资源类型：ecs、rds、redis、mongodb、oss、all（全部）
+    资源类型      - 资源类型：ecs、rds、redis、mongodb、oss、slb、eip、all（全部）
 
 凭证管理:
     python main.py setup-credentials     - 交互式设置凭证（保存到系统密钥环）
@@ -145,13 +145,61 @@ def run_oss_analysis(args, tenant_config=None):
     """运行OSS分析"""
     print("☁️ 启动OSS对象存储分析...")
     try:
-        from oss_analyzer import main as oss_main
-        oss_main()
+        from resource_modules.oss_analyzer import main as oss_main
+        if tenant_config:
+            oss_main(
+                access_key_id=tenant_config.get('access_key_id'),
+                access_key_secret=tenant_config.get('access_key_secret')
+            )
+        else:
+            oss_main()
     except ImportError as e:
         print(f"❌ OSS分析模块导入失败: {e}")
         return False
     except Exception as e:
         print(f"❌ OSS分析失败: {e}")
+        return False
+    return True
+
+
+def run_slb_analysis(args, tenant_config=None):
+    """运行SLB分析"""
+    print("⚖️ 启动SLB负载均衡分析...")
+    try:
+        from resource_modules.slb_analyzer import main as slb_main
+        if tenant_config:
+            slb_main(
+                access_key_id=tenant_config.get('access_key_id'),
+                access_key_secret=tenant_config.get('access_key_secret')
+            )
+        else:
+            slb_main()
+    except ImportError as e:
+        print(f"❌ SLB分析模块导入失败: {e}")
+        return False
+    except Exception as e:
+        print(f"❌ SLB分析失败: {e}")
+        return False
+    return True
+
+
+def run_eip_analysis(args, tenant_config=None):
+    """运行EIP分析"""
+    print("🌐 启动EIP弹性公网IP分析...")
+    try:
+        from resource_modules.eip_analyzer import main as eip_main
+        if tenant_config:
+            eip_main(
+                access_key_id=tenant_config.get('access_key_id'),
+                access_key_secret=tenant_config.get('access_key_secret')
+            )
+        else:
+            eip_main()
+    except ImportError as e:
+        print(f"❌ EIP分析模块导入失败: {e}")
+        return False
+    except Exception as e:
+        print(f"❌ EIP分析失败: {e}")
         return False
     return True
 
@@ -166,6 +214,8 @@ def run_all_cru_analysis(args, tenant_name, tenant_config):
         ("Redis", run_redis_analysis),
         ("MongoDB", run_mongodb_analysis),
         ("OSS", run_oss_analysis),
+        ("SLB", run_slb_analysis),
+        ("EIP", run_eip_analysis),
     ]
     
     results = {}
@@ -193,7 +243,7 @@ def run_discount_analysis(args, tenant_name, tenant_config, resource_type='all')
     print("💰 启动折扣分析...")
     
     try:
-        from discount_analyzer import DiscountAnalyzer
+        from resource_modules.discount_analyzer import DiscountAnalyzer
         
         analyzer = DiscountAnalyzer(
             tenant_name,
@@ -203,9 +253,28 @@ def run_discount_analysis(args, tenant_name, tenant_config, resource_type='all')
         
         if resource_type == 'ecs':
             analyzer.analyze_ecs_discounts(output_base_dir=".")
+        elif resource_type == 'rds':
+            analyzer.analyze_rds_discounts(output_base_dir=".")
+        elif resource_type == 'redis':
+            analyzer.analyze_redis_discounts(output_base_dir=".")
+        elif resource_type == 'mongodb':
+            analyzer.analyze_mongodb_discounts(output_base_dir=".")
+        elif resource_type in ['oss', 'slb', 'eip']:
+            print(f"⚠️ {resource_type.upper()}暂不支持包年包月模式，无法进行折扣分析")
+            print(f"   这些服务通常采用按量付费模式")
         else:
-            print(f"⚠️ 目前仅支持ECS折扣分析")
-            analyzer.analyze_ecs_discounts(output_base_dir=".")
+            print(f"⚠️ 支持的折扣分析类型: ECS, RDS, Redis, MongoDB")
+            if resource_type == 'all':
+                print("分析ECS折扣...")
+                analyzer.analyze_ecs_discounts(output_base_dir=".")
+                print("\n分析RDS折扣...")
+                analyzer.analyze_rds_discounts(output_base_dir=".")
+                print("\n分析Redis折扣...")
+                analyzer.analyze_redis_discounts(output_base_dir=".")
+                print("\n分析MongoDB折扣...")
+                analyzer.analyze_mongodb_discounts(output_base_dir=".")
+            else:
+                print(f"不支持的资源类型: {resource_type}")
         
         return True
     except ImportError as e:
@@ -328,6 +397,10 @@ def main():
             success = run_mongodb_analysis(None, tenant_config)
         elif resource_type == 'oss':
             success = run_oss_analysis(None, tenant_config)
+        elif resource_type == 'slb':
+            success = run_slb_analysis(None, tenant_config)
+        elif resource_type == 'eip':
+            success = run_eip_analysis(None, tenant_config)
         elif resource_type == 'all':
             success = run_all_cru_analysis(None, tenant_name, tenant_config)
         else:

@@ -70,6 +70,183 @@ class DiscountAnalyzer:
         print(f"✅ 总共获取到 {len(all_instances)} 个实例")
         return all_instances
     
+    def get_all_rds_instances(self):
+        """获取所有RDS实例"""
+        from aliyunsdkrds.request.v20140815 import DescribeDBInstancesRequest
+        
+        all_instances = []
+        regions = ['cn-beijing', 'cn-hangzhou', 'cn-shanghai', 'cn-shenzhen', 
+                   'cn-qingdao', 'cn-zhangjiakou', 'cn-huhehaote', 'cn-chengdu',
+                   'cn-hongkong', 'ap-southeast-1', 'us-east-1', 'eu-west-1']
+        
+        print(f"📊 获取{self.tenant_name}的RDS实例列表...")
+        
+        for region in regions:
+            try:
+                client = AcsClient(self.access_key_id, self.access_key_secret, region)
+                request = DescribeDBInstancesRequest.DescribeDBInstancesRequest()
+                request.set_PageSize(100)
+                request.set_PageNumber(1)
+                
+                page_number = 1
+                while True:
+                    request.set_PageNumber(page_number)
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                    if 'Items' in data and 'DBInstance' in data['Items']:
+                        instances = data['Items']['DBInstance']
+                        if not isinstance(instances, list):
+                            instances = [instances]
+                        
+                        if len(instances) == 0:
+                            break
+                        
+                        for inst in instances:
+                            all_instances.append({
+                                'DBInstanceId': inst.get('DBInstanceId', ''),
+                                'DBInstanceDescription': inst.get('DBInstanceDescription', ''),
+                                'DBInstanceType': inst.get('DBInstanceType', ''),
+                                'PayType': inst.get('PayType', ''),
+                                'Engine': inst.get('Engine', ''),
+                                'EngineVersion': inst.get('EngineVersion', ''),
+                                'DBInstanceClass': inst.get('DBInstanceClass', ''),
+                                'ZoneId': inst.get('ZoneId', ''),
+                                'RegionId': region
+                            })
+                        
+                        total_count = data.get('TotalRecordCount', 0)
+                        if len(all_instances) >= total_count or len(instances) < 100:
+                            break
+                        
+                        page_number += 1
+                    else:
+                        break
+                        
+            except Exception as e:
+                # 某个区域失败，继续下一个
+                continue
+        
+        print(f"✅ 总共获取到 {len(all_instances)} 个RDS实例")
+        return all_instances
+    
+    def get_all_redis_instances(self):
+        """获取所有Redis实例"""
+        from aliyunsdkr_kvstore.request.v20150101 import DescribeInstancesRequest
+        
+        all_instances = []
+        regions = ['cn-beijing', 'cn-hangzhou', 'cn-shanghai', 'cn-shenzhen', 
+                   'cn-qingdao', 'cn-zhangjiakou', 'cn-huhehaote', 'cn-chengdu',
+                   'cn-hongkong', 'ap-southeast-1', 'us-east-1', 'eu-west-1']
+        
+        print(f"📊 获取{self.tenant_name}的Redis实例列表...")
+        
+        for region in regions:
+            try:
+                client = AcsClient(self.access_key_id, self.access_key_secret, region)
+                request = DescribeInstancesRequest.DescribeInstancesRequest()
+                request.set_PageSize(100)
+                request.set_PageNumber(1)
+                
+                page_number = 1
+                while True:
+                    request.set_PageNumber(page_number)
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                    if 'Instances' in data and 'KVStoreInstance' in data['Instances']:
+                        instances = data['Instances']['KVStoreInstance']
+                        if not isinstance(instances, list):
+                            instances = [instances]
+                        
+                        if len(instances) == 0:
+                            break
+                        
+                        for inst in instances:
+                            all_instances.append({
+                                'InstanceId': inst.get('InstanceId', ''),
+                                'InstanceName': inst.get('InstanceName', ''),
+                                'InstanceClass': inst.get('InstanceClass', ''),
+                                'InstanceType': inst.get('InstanceType', ''),
+                                'ChargeType': inst.get('ChargeType', ''),
+                                'RegionId': region
+                            })
+                        
+                        total_count = data.get('TotalCount', 0)
+                        if len(all_instances) >= total_count or len(instances) < 100:
+                            break
+                        
+                        page_number += 1
+                    else:
+                        break
+                        
+            except Exception as e:
+                # 某个区域失败，继续下一个
+                continue
+        
+        print(f"✅ 总共获取到 {len(all_instances)} 个Redis实例")
+        return all_instances
+    
+    def get_all_mongodb_instances(self):
+        """获取所有MongoDB实例"""
+        from aliyunsdkdds.request.v20151201 import DescribeDBInstancesRequest
+        
+        all_instances = []
+        regions = ['cn-beijing', 'cn-hangzhou', 'cn-shanghai', 'cn-shenzhen', 
+                   'cn-qingdao', 'cn-zhangjiakou', 'cn-huhehaote', 'cn-chengdu',
+                   'cn-hongkong', 'ap-southeast-1', 'us-east-1', 'eu-west-1']
+        
+        print(f"📊 获取{self.tenant_name}的MongoDB实例列表...")
+        
+        for region in regions:
+            try:
+                client = AcsClient(self.access_key_id, self.access_key_secret, region)
+                request = DescribeDBInstancesRequest.DescribeDBInstancesRequest()
+                request.set_PageSize(100)
+                request.set_PageNumber(1)
+                
+                page_number = 1
+                while True:
+                    request.set_PageNumber(page_number)
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                    if 'DBInstances' in data and 'DBInstance' in data['DBInstances']:
+                        instances = data['DBInstances']['DBInstance']
+                        if not isinstance(instances, list):
+                            instances = [instances]
+                        
+                        if len(instances) == 0:
+                            break
+                        
+                        for inst in instances:
+                            all_instances.append({
+                                'DBInstanceId': inst.get('DBInstanceId', ''),
+                                'DBInstanceDescription': inst.get('DBInstanceDescription', ''),
+                                'DBInstanceType': inst.get('DBInstanceType', ''),
+                                'ChargeType': inst.get('ChargeType', ''),
+                                'Engine': inst.get('Engine', ''),
+                                'EngineVersion': inst.get('EngineVersion', ''),
+                                'DBInstanceClass': inst.get('DBInstanceClass', ''),
+                                'ZoneId': inst.get('ZoneId', ''),
+                                'RegionId': region
+                            })
+                        
+                        total_count = data.get('TotalRecordCount', 0)
+                        if len(all_instances) >= total_count or len(instances) < 100:
+                            break
+                        
+                        page_number += 1
+                    else:
+                        break
+                        
+            except Exception as e:
+                # 某个区域失败，继续下一个
+                continue
+        
+        print(f"✅ 总共获取到 {len(all_instances)} 个MongoDB实例")
+        return all_instances
+    
     def get_renewal_prices(self, instances, resource_type='ecs'):
         """获取续费价格"""
         results = []
@@ -84,6 +261,28 @@ class DiscountAnalyzer:
                 zone = instance.get('ZoneId', '')
                 instance_type = instance.get('InstanceType', '')
                 charge_type = instance.get('InstanceChargeType', '')
+                region = self.region
+            elif resource_type == 'rds':
+                instance_id = instance.get('DBInstanceId', '')
+                instance_name = instance.get('DBInstanceDescription', '') or instance_id
+                zone = instance.get('ZoneId', '')
+                instance_type = f"{instance.get('Engine', '')} {instance.get('DBInstanceClass', '')}"
+                charge_type = instance.get('PayType', '')
+                region = instance.get('RegionId', self.region)
+            elif resource_type == 'redis':
+                instance_id = instance.get('InstanceId', '')
+                instance_name = instance.get('InstanceName', '') or instance_id
+                zone = ''  # Redis可能没有ZoneId
+                instance_type = instance.get('InstanceClass', '')
+                charge_type = instance.get('ChargeType', '')
+                region = instance.get('RegionId', self.region)
+            elif resource_type == 'mongodb':
+                instance_id = instance.get('DBInstanceId', '')
+                instance_name = instance.get('DBInstanceDescription', '') or instance_id
+                zone = instance.get('ZoneId', '')
+                instance_type = f"{instance.get('Engine', '')} {instance.get('DBInstanceClass', '')}"
+                charge_type = instance.get('ChargeType', '')
+                region = instance.get('RegionId', self.region)
             else:
                 # 其他资源类型可以在这里扩展
                 instance_id = instance.get('InstanceId', '')
@@ -91,29 +290,108 @@ class DiscountAnalyzer:
                 zone = instance.get('ZoneId', '')
                 instance_type = instance.get('InstanceType', '')
                 charge_type = instance.get('InstanceChargeType', '')
+                region = self.region
             
             print(f"[{i}/{total}] {instance_name} ({charge_type})", end=' ')
             
             # 只处理包年包月实例
-            if charge_type != 'PrePaid':
-                print("⏭️  跳过（按量付费）")
-                continue
+            # RDS的PayType: Prepaid表示包年包月，Postpaid表示按量付费
+            # ECS的InstanceChargeType: PrePaid表示包年包月
+            # Redis/MongoDB的ChargeType: PrePaid表示包年包月
+            if resource_type == 'rds':
+                if charge_type != 'Prepaid':
+                    print("⏭️  跳过（按量付费）")
+                    continue
+            elif resource_type in ['redis', 'mongodb']:
+                if charge_type != 'PrePaid':
+                    print("⏭️  跳过（按量付费）")
+                    continue
+            else:
+                if charge_type != 'PrePaid':
+                    print("⏭️  跳过（按量付费）")
+                    continue
             
             try:
                 request = CommonRequest()
-                request.set_domain(f'ecs.{self.region}.aliyuncs.com')
-                request.set_method('POST')
-                request.set_version('2014-05-26')
-                request.set_action_name('DescribeRenewalPrice')
-                request.add_query_param('ResourceId', instance_id)
-                request.add_query_param('Period', 1)
-                request.add_query_param('PriceUnit', 'Month')
+                if resource_type == 'rds':
+                    # RDS使用通用域名
+                    request.set_domain('rds.aliyuncs.com')
+                    request.set_version('2014-08-15')
+                    request.set_action_name('DescribeRenewalPrice')
+                    request.add_query_param('RegionId', region)
+                    request.add_query_param('DBInstanceId', instance_id)
+                    request.add_query_param('Period', 1)
+                    request.add_query_param('TimeType', 'Month')  # 时间单位：Month或Year
+                    request.add_query_param('UsedTime', 1)  # 已使用月数
+                elif resource_type == 'redis':
+                    # Redis使用KVStore API（使用通用域名）
+                    request.set_domain('r-kvstore.aliyuncs.com')
+                    request.set_version('2015-01-01')
+                    request.set_action_name('DescribeRenewalPrice')
+                    request.add_query_param('RegionId', region)
+                    request.add_query_param('InstanceId', instance_id)
+                    request.add_query_param('Period', 1)
+                elif resource_type == 'mongodb':
+                    # MongoDB使用DDS API（使用通用域名）
+                    request.set_domain('dds.aliyuncs.com')
+                    request.set_version('2015-12-01')
+                    request.set_action_name('DescribeRenewalPrice')
+                    request.add_query_param('RegionId', region)
+                    request.add_query_param('DBInstanceId', instance_id)
+                    request.add_query_param('Period', 1)
+                    request.add_query_param('TimeType', 'Month')
+                    request.add_query_param('UsedTime', 1)
+                else:
+                    # ECS
+                    request.set_domain(f'ecs.{region}.aliyuncs.com')
+                    request.set_version('2014-05-26')
+                    request.set_action_name('DescribeRenewalPrice')
+                    request.add_query_param('ResourceId', instance_id)
+                    request.add_query_param('Period', 1)
+                    request.add_query_param('PriceUnit', 'Month')
                 
-                response = self.client.do_action_with_exception(request)
+                request.set_method('POST')
+                
+                client = AcsClient(self.access_key_id, self.access_key_secret, region)
+                
+                response = client.do_action_with_exception(request)
                 data = json.loads(response)
                 
-                if 'PriceInfo' in data and 'Price' in data['PriceInfo']:
-                    price_info = data['PriceInfo']['Price']
+                # 不同资源类型的响应格式可能不同
+                price_info = None
+                if resource_type == 'rds':
+                    # RDS响应格式
+                    if 'PriceInfo' in data:
+                        if isinstance(data['PriceInfo'], dict) and 'Price' in data['PriceInfo']:
+                            price_info = data['PriceInfo']['Price']
+                        elif isinstance(data['PriceInfo'], dict):
+                            price_info = data['PriceInfo']
+                    if not price_info:
+                        price_info = data.get('Price', {})
+                elif resource_type == 'redis':
+                    # Redis响应格式
+                    if 'PriceInfo' in data:
+                        if isinstance(data['PriceInfo'], dict) and 'Price' in data['PriceInfo']:
+                            price_info = data['PriceInfo']['Price']
+                        elif isinstance(data['PriceInfo'], dict):
+                            price_info = data['PriceInfo']
+                    if not price_info:
+                        price_info = data.get('Price', {})
+                elif resource_type == 'mongodb':
+                    # MongoDB响应格式（类似RDS）
+                    if 'PriceInfo' in data:
+                        if isinstance(data['PriceInfo'], dict) and 'Price' in data['PriceInfo']:
+                            price_info = data['PriceInfo']['Price']
+                        elif isinstance(data['PriceInfo'], dict):
+                            price_info = data['PriceInfo']
+                    if not price_info:
+                        price_info = data.get('Price', {})
+                else:
+                    # ECS格式
+                    if 'PriceInfo' in data and 'Price' in data['PriceInfo']:
+                        price_info = data['PriceInfo']['Price']
+                
+                if price_info:
                     original_price = float(price_info.get('OriginalPrice', 0) or 0)
                     trade_price = float(price_info.get('TradePrice', 0) or 0)
                     
@@ -135,7 +413,7 @@ class DiscountAnalyzer:
                     else:
                         print("❌ 无法获取价格信息")
                 else:
-                    print("❌ 价格信息格式错误")
+                    print(f"❌ 价格信息格式错误 (响应键: {list(data.keys())})")
                     
             except Exception as e:
                 print(f"❌ 获取价格失败: {e}")
@@ -281,6 +559,164 @@ class DiscountAnalyzer:
         
         # 生成HTML报告
         html_file = self.generate_html_report(results, 'ecs', output_dir)
+        print(f"\n✅ HTML报告已生成: {html_file}")
+        
+        # 生成PDF报告
+        pdf_file = self.generate_pdf(html_file)
+        if pdf_file:
+            print(f"✅ PDF报告已生成: {pdf_file}")
+        
+        # 显示统计信息
+        print(f"\n📊 折扣统计:")
+        print(f"• 总实例数: {len(results)} 个")
+        if results:
+            avg_discount = sum(r['discount_rate'] for r in results) / len(results)
+            min_discount = min(r['discount_rate'] for r in results)
+            max_discount = max(r['discount_rate'] for r in results)
+            current_total = sum(r['trade_price'] for r in results)
+            
+            print(f"• 平均折扣: {avg_discount:.1f}折 ({avg_discount*100:.1f}%)")
+            print(f"• 最低折扣: {min_discount:.1f}折 ({min_discount*100:.1f}%)")
+            print(f"• 最高折扣: {max_discount:.1f}折 ({max_discount*100:.1f}%)")
+            print(f"• 当前月总成本: ¥{current_total:,.2f}")
+    
+    def analyze_rds_discounts(self, output_base_dir='.'):
+        """分析RDS折扣"""
+        print(f"🔍 开始分析{self.tenant_name}的RDS折扣...")
+        print("=" * 80)
+        
+        # 创建输出目录结构
+        output_dir = os.path.join(output_base_dir, self.tenant_name, "discount")
+        os.makedirs(output_dir, exist_ok=True)
+        print(f"📁 输出目录: {output_dir}")
+        
+        # 获取所有RDS实例
+        instances = self.get_all_rds_instances()
+        
+        # 筛选包年包月实例
+        prepaid_instances = [i for i in instances if i.get('PayType') == 'Prepaid']
+        
+        print(f"\n📋 计费方式分布:")
+        print(f"• 包年包月 (Prepaid): {len(prepaid_instances)} 个")
+        print(f"• 按量付费 (Postpaid): {len(instances) - len(prepaid_instances)} 个")
+        
+        # 获取续费价格
+        results = self.get_renewal_prices(prepaid_instances, 'rds')
+        
+        if not results:
+            print("❌ 未获取到任何折扣数据")
+            return
+        
+        # 生成HTML报告
+        html_file = self.generate_html_report(results, 'rds', output_dir)
+        print(f"\n✅ HTML报告已生成: {html_file}")
+        
+        # 生成PDF报告
+        pdf_file = self.generate_pdf(html_file)
+        if pdf_file:
+            print(f"✅ PDF报告已生成: {pdf_file}")
+        
+        # 显示统计信息
+        print(f"\n📊 折扣统计:")
+        print(f"• 总实例数: {len(results)} 个")
+        if results:
+            avg_discount = sum(r['discount_rate'] for r in results) / len(results)
+            min_discount = min(r['discount_rate'] for r in results)
+            max_discount = max(r['discount_rate'] for r in results)
+            current_total = sum(r['trade_price'] for r in results)
+            
+            print(f"• 平均折扣: {avg_discount:.1f}折 ({avg_discount*100:.1f}%)")
+            print(f"• 最低折扣: {min_discount:.1f}折 ({min_discount*100:.1f}%)")
+            print(f"• 最高折扣: {max_discount:.1f}折 ({max_discount*100:.1f}%)")
+            print(f"• 当前月总成本: ¥{current_total:,.2f}")
+    
+    def analyze_redis_discounts(self, output_base_dir='.'):
+        """分析Redis折扣"""
+        print(f"🔍 开始分析{self.tenant_name}的Redis折扣...")
+        print("=" * 80)
+        
+        # 创建输出目录结构
+        output_dir = os.path.join(output_base_dir, self.tenant_name, "discount")
+        os.makedirs(output_dir, exist_ok=True)
+        print(f"📁 输出目录: {output_dir}")
+        
+        # 获取所有Redis实例
+        instances = self.get_all_redis_instances()
+        
+        # 筛选包年包月实例
+        prepaid_instances = [i for i in instances if i.get('ChargeType') == 'PrePaid']
+        
+        print(f"\n📋 计费方式分布:")
+        print(f"• 包年包月 (PrePaid): {len(prepaid_instances)} 个")
+        print(f"• 按量付费 (PostPaid): {len(instances) - len(prepaid_instances)} 个")
+        
+        if len(prepaid_instances) == 0:
+            print("⚠️ 未找到包年包月Redis实例")
+            return
+        
+        # 获取续费价格
+        results = self.get_renewal_prices(prepaid_instances, 'redis')
+        
+        if not results:
+            print("❌ 未获取到任何折扣数据")
+            return
+        
+        # 生成HTML报告
+        html_file = self.generate_html_report(results, 'redis', output_dir)
+        print(f"\n✅ HTML报告已生成: {html_file}")
+        
+        # 生成PDF报告
+        pdf_file = self.generate_pdf(html_file)
+        if pdf_file:
+            print(f"✅ PDF报告已生成: {pdf_file}")
+        
+        # 显示统计信息
+        print(f"\n📊 折扣统计:")
+        print(f"• 总实例数: {len(results)} 个")
+        if results:
+            avg_discount = sum(r['discount_rate'] for r in results) / len(results)
+            min_discount = min(r['discount_rate'] for r in results)
+            max_discount = max(r['discount_rate'] for r in results)
+            current_total = sum(r['trade_price'] for r in results)
+            
+            print(f"• 平均折扣: {avg_discount:.1f}折 ({avg_discount*100:.1f}%)")
+            print(f"• 最低折扣: {min_discount:.1f}折 ({min_discount*100:.1f}%)")
+            print(f"• 最高折扣: {max_discount:.1f}折 ({max_discount*100:.1f}%)")
+            print(f"• 当前月总成本: ¥{current_total:,.2f}")
+    
+    def analyze_mongodb_discounts(self, output_base_dir='.'):
+        """分析MongoDB折扣"""
+        print(f"🔍 开始分析{self.tenant_name}的MongoDB折扣...")
+        print("=" * 80)
+        
+        # 创建输出目录结构
+        output_dir = os.path.join(output_base_dir, self.tenant_name, "discount")
+        os.makedirs(output_dir, exist_ok=True)
+        print(f"📁 输出目录: {output_dir}")
+        
+        # 获取所有MongoDB实例
+        instances = self.get_all_mongodb_instances()
+        
+        # 筛选包年包月实例
+        prepaid_instances = [i for i in instances if i.get('ChargeType') == 'PrePaid']
+        
+        print(f"\n📋 计费方式分布:")
+        print(f"• 包年包月 (PrePaid): {len(prepaid_instances)} 个")
+        print(f"• 按量付费 (PostPaid): {len(instances) - len(prepaid_instances)} 个")
+        
+        if len(prepaid_instances) == 0:
+            print("⚠️ 未找到包年包月MongoDB实例")
+            return
+        
+        # 获取续费价格
+        results = self.get_renewal_prices(prepaid_instances, 'mongodb')
+        
+        if not results:
+            print("❌ 未获取到任何折扣数据")
+            return
+        
+        # 生成HTML报告
+        html_file = self.generate_html_report(results, 'mongodb', output_dir)
         print(f"\n✅ HTML报告已生成: {html_file}")
         
         # 生成PDF报告

@@ -1,0 +1,10 @@
+{
+  "default_tenant": "zmyc",
+  "tenants": {
+    "zmyc": {
+      "access_key_id": "your_access_key_id_here",
+      "access_key_secret": "your_access_key_secret_here",
+      "display_name": "zmyc租户"
+    }
+  }
+}

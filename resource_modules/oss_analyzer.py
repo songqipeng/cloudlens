@@ -17,15 +17,23 @@ from aliyunsdkcore.request import CommonRequest
 import oss2
 
 class OSSAnalyzer:
-    def __init__(self):
+    def __init__(self, access_key_id=None, access_key_secret=None):
         """初始化OSS分析器"""
-        # 读取配置文件
-        with open('config.json', 'r') as f:
-            config = json.load(f)
+        # 如果没有传入参数，尝试从配置文件读取
+        if access_key_id is None or access_key_secret is None:
+            try:
+                with open('config.json', 'r') as f:
+                    config = json.load(f)
+                    access_key_id = access_key_id or config.get('access_key_id')
+                    access_key_secret = access_key_secret or config.get('access_key_secret')
+            except FileNotFoundError:
+                raise ValueError("必须提供access_key_id和access_key_secret，或配置文件config.json")
         
+        self.access_key_id = access_key_id
+        self.access_key_secret = access_key_secret
         self.client = AcsClient(
-            config['access_key_id'],
-            config['access_key_secret'],
+            access_key_id,
+            access_key_secret,
             'cn-hangzhou'  # OSS默认区域
         )
         
@@ -87,10 +95,6 @@ class OSSAnalyzer:
         """获取所有OSS存储桶"""
         print("🔍 开始获取OSS存储桶信息...")
         
-        # 读取配置
-        with open('config.json', 'r') as f:
-            config = json.load(f)
-        
         all_buckets = []
         
         # OSS支持的区域列表（主要区域）
@@ -103,7 +107,7 @@ class OSSAnalyzer:
         # 使用OSS2 SDK获取存储桶列表
         try:
             # 创建OSS服务对象
-            auth = oss2.Auth(config['access_key_id'], config['access_key_secret'])
+            auth = oss2.Auth(self.access_key_id, self.access_key_secret)
             
             # 只检查第一个区域，因为OSS存储桶是全局的
             region = regions[0]
@@ -562,9 +566,9 @@ class OSSAnalyzer:
         except ImportError:
             print("⚠️  pandas未安装，跳过Excel报告生成")
 
-def main():
+def main(access_key_id=None, access_key_secret=None):
     """主函数"""
-    analyzer = OSSAnalyzer()
+    analyzer = OSSAnalyzer(access_key_id, access_key_secret)
     analyzer.analyze_oss_buckets()
 
 if __name__ == "__main__":
