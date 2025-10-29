@@ -848,19 +848,44 @@ class DiscountAnalyzer:
                             raise renew_error
                             
                 elif resource_type == 'mongodb':
-                    # MongoDB使用DDS API（使用通用域名）
+                    # MongoDB使用DDS API的DescribePrice接口
+                    # 尝试两种方式：1) RENEW续费 2) BUY购买（如果续费失败）
                     request.set_domain('dds.aliyuncs.com')
                     request.set_version('2015-12-01')
-                    request.set_action_name('DescribeRenewalPrice')
+                    request.set_action_name('DescribePrice')
                     request.add_query_param('RegionId', region)
                     request.add_query_param('DBInstanceId', instance_id)
-                    request.add_query_param('Period', 1)
-                    request.add_query_param('TimeType', 'Month')
-                    request.add_query_param('UsedTime', 1)
-                    
+                    request.add_query_param('Period', 1)  # 周期（月）
+                    request.add_query_param('Quantity', 1)  # 数量
+
+                    # 首先尝试RENEW续费
+                    request.add_query_param('OrderType', 'RENEW')
                     request.set_method('POST')
-                    response = client.do_action_with_exception(request)
-                    data = json.loads(response)
+
+                    try:
+                        response = client.do_action_with_exception(request)
+                        data = json.loads(response)
+                    except Exception as renew_error:
+                        # 如果RENEW失败，尝试使用BUY查询相同规格的价格
+                        if 'CAN_NOT_FIND_SUBSCRIPTION' in str(renew_error) or '找不到订购信息' in str(renew_error) or 'InvalidAction' in str(renew_error):
+                            # 创建新的request，使用BUY订单类型
+                            request = CommonRequest()
+                            request.set_domain('dds.aliyuncs.com')
+                            request.set_version('2015-12-01')
+                            request.set_action_name('DescribePrice')
+                            request.set_method('POST')
+                            request.add_query_param('RegionId', region)
+                            request.add_query_param('DBInstanceId', instance_id)
+                            request.add_query_param('OrderType', 'BUY')  # 购买订单
+                            request.add_query_param('Period', 1)
+                            request.add_query_param('Quantity', 1)
+                            # BUY方式可能需要DBInstanceClass参数
+                            if instance_type:
+                                request.add_query_param('DBInstanceClass', instance_type)
+                            response = client.do_action_with_exception(request)
+                            data = json.loads(response)
+                        else:
+                            raise renew_error
                     
                 else:
                     # ECS
@@ -912,14 +937,36 @@ class DiscountAnalyzer:
                         # 尝试其他可能的字段
                         price_info = data.get('Price', {}) or data.get('PriceInfo', {})
                 elif resource_type == 'mongodb':
-                    # MongoDB响应格式（类似RDS）
-                    if 'PriceInfo' in data:
-                        if isinstance(data['PriceInfo'], dict) and 'Price' in data['PriceInfo']:
-                            price_info = data['PriceInfo']['Price']
-                        elif isinstance(data['PriceInfo'], dict):
-                            price_info = data['PriceInfo']
-                    if not price_info:
-                        price_info = data.get('Price', {})
+                    # MongoDB响应格式（使用DescribePrice后，类似Redis）
+                    # 响应包含: Order, SubOrders, Rules等
+                    if 'Order' in data:
+                        order = data['Order']
+                        price_info = {}
+                        # Order中可能包含OriginalPrice和TradePrice
+                        price_info['OriginalPrice'] = order.get('OriginalAmount', 0) or order.get('OriginalPrice', 0) or 0
+                        price_info['TradePrice'] = order.get('TradeAmount', 0) or order.get('TradePrice', 0) or 0
+
+                        # 如果没有，尝试从SubOrders中提取
+                        if price_info['TradePrice'] == 0 and 'SubOrders' in data and 'SubOrder' in data['SubOrders']:
+                            sub_orders = data['SubOrders']['SubOrder']
+                            if not isinstance(sub_orders, list):
+                                sub_orders = [sub_orders]
+                            total_trade = 0
+                            total_original = 0
+                            for sub_order in sub_orders:
+                                total_trade += float(sub_order.get('TradeAmount', 0) or 0)
+                                total_original += float(sub_order.get('OriginalAmount', 0) or 0)
+                            price_info['TradePrice'] = total_trade
+                            price_info['OriginalPrice'] = total_original
+                    else:
+                        # 尝试其他可能的字段（向后兼容旧API格式）
+                        if 'PriceInfo' in data:
+                            if isinstance(data['PriceInfo'], dict) and 'Price' in data['PriceInfo']:
+                                price_info = data['PriceInfo']['Price']
+                            elif isinstance(data['PriceInfo'], dict):
+                                price_info = data['PriceInfo']
+                        else:
+                            price_info = data.get('Price', {})
                 else:
                     # ECS格式
                     if 'PriceInfo' in data and 'Price' in data['PriceInfo']:
