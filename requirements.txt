@@ -7,4 +7,8 @@ aliyun-python-sdk-dds>=2.0.0
 aliyun-python-sdk-oss2>=2.15.0
 pandas>=1.3.0
 openpyxl>=3.0.0
+tenacity>=8.2.0
+PyYAML>=6.0
+
+
 

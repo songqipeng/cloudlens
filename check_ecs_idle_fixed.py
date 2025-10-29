@@ -12,9 +12,23 @@ from aliyunsdkcore.client import AcsClient
 from aliyunsdkcore.request import CommonRequest
 import pandas as pd
 
+# 导入新的工具模块
+try:
+    from utils.logger import setup_logger
+    from utils.concurrent_helper import process_concurrently
+    from utils.retry_helper import retry_api_call
+    USE_NEW_UTILS = True
+except ImportError:
+    # 如果工具模块不存在，使用兼容模式
+    USE_NEW_UTILS = False
+    print("⚠️  工具模块未找到，使用兼容模式（无并发和重试）")
+
 # 配置信息 - 将从main函数参数传入
 access_key_id = None
 access_key_secret = None
+
+# 日志记录器（延迟初始化）
+logger = None
 
 def set_credentials(key_id, key_secret):
     """设置访问凭证"""
@@ -133,34 +147,58 @@ def get_all_instances(client, region_id):
     
     return all_instances
 
-def get_instance_eip_info(client, region_id, instance_id):
-    """获取实例的EIP信息"""
-    try:
-        request = CommonRequest()
-        request.set_domain(f'ecs.{region_id}.aliyuncs.com')
-        request.set_method('POST')
-        request.set_version('2014-05-26')
-        request.set_action_name('DescribeEipAddresses')
-        request.add_query_param('AssociatedInstanceId', instance_id)
+def _get_instance_eip_info_internal(client, region_id, instance_id):
+    """获取实例的EIP信息（内部实现）"""
+    request = CommonRequest()
+    request.set_domain(f'ecs.{region_id}.aliyuncs.com')
+    request.set_method('POST')
+    request.set_version('2014-05-26')
+    request.set_action_name('DescribeEipAddresses')
+    request.add_query_param('AssociatedInstanceId', instance_id)
+    
+    response = client.do_action_with_exception(request)
+    data = json.loads(response)
+    
+    if 'EipAddresses' in data and 'EipAddress' in data['EipAddresses']:
+        eip_list = data['EipAddresses']['EipAddress']
+        if not isinstance(eip_list, list):
+            eip_list = [eip_list]
         
-        response = client.do_action_with_exception(request)
-        data = json.loads(response)
-        
-        if 'EipAddresses' in data and 'EipAddress' in data['EipAddresses']:
-            eip_list = data['EipAddresses']['EipAddress']
-            if not isinstance(eip_list, list):
-                eip_list = [eip_list]
-            
-            if eip_list:
-                eip = eip_list[0]
-                return {
-                    'Bandwidth': eip.get('Bandwidth', 0),
-                    'EipAddress': eip.get('IpAddress', '')
-                }
-    except Exception as e:
-        pass
+        if eip_list:
+            eip = eip_list[0]
+            return {
+                'Bandwidth': eip.get('Bandwidth', 0),
+                'EipAddress': eip.get('IpAddress', '')
+            }
     
     return None
+
+
+def get_instance_eip_info(client, region_id, instance_id):
+    """获取实例的EIP信息（带重试，仅对网络错误重试）"""
+    def _call():
+        return _get_instance_eip_info_internal(client, region_id, instance_id)
+    
+    if USE_NEW_UTILS:
+        # 只对网络错误重试，业务错误（400/403等）直接返回None
+        wrapped_call = retry_api_call(max_attempts=3, retry_exceptions=(ConnectionError, TimeoutError))(_call)
+        try:
+            return wrapped_call()
+        except Exception as e:
+            # 400/403等业务错误不重试，直接返回None
+            error_str = str(e)
+            if any(code in error_str for code in ['400', '403', 'Invalid', 'Forbidden']):
+                if logger:
+                    logger.debug(f"获取EIP信息业务错误（预期） {instance_id}: {error_str[:100]}")
+            else:
+                if logger:
+                    logger.warning(f"获取EIP信息失败 {instance_id}: {e}")
+            return None
+    else:
+        try:
+            return _get_instance_eip_info_internal(client, region_id, instance_id)
+        except Exception as e:
+            return None
 
 def get_comprehensive_metrics_from_db(instance_id):
     """从数据库获取实例的全面监控数据"""
@@ -316,29 +354,53 @@ def get_comprehensive_metrics(client, region_id, instance_id, show_progress=Fals
     
     return result
 
-def get_instance_monthly_cost(client, region_id, instance_id):
-    """获取实例的月度续费成本"""
-    try:
-        request = CommonRequest()
-        request.set_domain(f'ecs.{region_id}.aliyuncs.com')
-        request.set_method('POST')
-        request.set_version('2014-05-26')
-        request.set_action_name('DescribeRenewalPrice')
-        request.add_query_param('ResourceId', instance_id)
-        request.add_query_param('Period', 1)
-        request.add_query_param('PriceUnit', 'Month')
-        
-        response = client.do_action_with_exception(request)
-        data = json.loads(response)
-        
-        if 'PriceInfo' in data and 'Price' in data['PriceInfo']:
-            price_info = data['PriceInfo']['Price']
-            if 'TradePrice' in price_info:
-                return float(price_info['TradePrice'])
-    except Exception as e:
-        pass
+def _get_instance_monthly_cost_internal(client, region_id, instance_id):
+    """获取实例的月度续费成本（内部实现）"""
+    request = CommonRequest()
+    request.set_domain(f'ecs.{region_id}.aliyuncs.com')
+    request.set_method('POST')
+    request.set_version('2014-05-26')
+    request.set_action_name('DescribeRenewalPrice')
+    request.add_query_param('ResourceId', instance_id)
+    request.add_query_param('Period', 1)
+    request.add_query_param('PriceUnit', 'Month')
+    
+    response = client.do_action_with_exception(request)
+    data = json.loads(response)
+    
+    if 'PriceInfo' in data and 'Price' in data['PriceInfo']:
+        price_info = data['PriceInfo']['Price']
+        if 'TradePrice' in price_info:
+            return float(price_info['TradePrice'])
     
     return 0
+
+
+def get_instance_monthly_cost(client, region_id, instance_id):
+    """获取实例的月度续费成本（带重试，仅对网络错误重试）"""
+    def _call():
+        return _get_instance_monthly_cost_internal(client, region_id, instance_id)
+    
+    if USE_NEW_UTILS:
+        # 只对网络错误重试，业务错误（400/403等）直接返回0
+        wrapped_call = retry_api_call(max_attempts=3, retry_exceptions=(ConnectionError, TimeoutError))(_call)
+        try:
+            return wrapped_call()
+        except Exception as e:
+            # 400/403等业务错误不重试，直接返回0（按量付费实例会返回错误，这是正常的）
+            error_str = str(e)
+            if any(code in error_str for code in ['400', '403', 'Invalid', 'Forbidden']):
+                if logger:
+                    logger.debug(f"获取成本信息业务错误（按量付费实例预期） {instance_id}: {error_str[:100]}")
+            else:
+                if logger:
+                    logger.warning(f"获取成本信息失败 {instance_id}: {e}")
+            return 0
+    else:
+        try:
+            return _get_instance_monthly_cost_internal(client, region_id, instance_id)
+        except Exception as e:
+            return 0
 
 def save_to_database(instance_data, metrics_data, cost_data):
     """保存数据到本地数据库"""
@@ -876,7 +938,24 @@ def generate_html_report(idle_instances, has_agent=True, output_dir="."):
 
 def main(tenant_name=None, output_base_dir=".", tenant_config=None):
     """主函数"""
-    print("🚀 启动阿里云ECS闲置实例分析程序（修复版）")
+    global logger
+    
+    # 初始化日志系统
+    if USE_NEW_UTILS:
+        log_dir = os.path.join(output_base_dir, 'logs')
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, 'ecs_analysis.log')
+        logger = setup_logger(
+            name='aliyunidle',
+            log_file=log_file,
+            level='INFO',
+            console=True
+        )
+        logger.info("=" * 60)
+        logger.info("启动阿里云ECS闲置实例分析程序（优化版 - 支持并发和重试）")
+        logger.info("=" * 60)
+    
+    print("🚀 启动阿里云ECS闲置实例分析程序（优化版 - 支持并发和重试）")
     print("=" * 60)
     
     # 从tenant_config或config.json获取凭证
@@ -992,73 +1071,188 @@ def main(tenant_name=None, output_base_dir=".", tenant_config=None):
     
     print(f"📋 步骤5/8: 开始详细检查 {len(regions_with_ecs)} 个Region的ECS实例...")
     
-    # 第二遍：只对有ECS实例的region进行详细检查
-    all_instances_data = []
-    total_instances = sum(len(instances) for _, instances in regions_with_ecs)
-    processed_count = 0
-    
+    # 准备所有实例数据（用于并发处理）
+    all_instances_to_process = []
     for region_idx, (region, instances) in enumerate(regions_with_ecs, 1):
-        print(f"\n[{region_idx}/{len(regions_with_ecs)}] 正在检查Region: {region} ({len(instances)}台实例)")
+        for instance in instances:
+            all_instances_to_process.append({
+                'region': region,
+                'instance': instance,
+                'region_idx': region_idx,
+                'total_regions': len(regions_with_ecs)
+            })
+    
+    total_instances = len(all_instances_to_process)
+    print(f"📊 准备并发处理 {total_instances} 台ECS实例...")
+    
+    # 定义单个实例处理函数
+    def process_single_instance(item):
+        """处理单个实例（用于并发）"""
+        region = item['region']
+        instance = item['instance']
+        iid = instance['InstanceId']
+        instance_name = instance['InstanceName']
+        
+        # 为每个线程创建独立的客户端（线程安全）
         region_client = AcsClient(access_key_id, access_key_secret, region)
         
-        for i, instance in enumerate(instances, 1):
-            iid = instance['InstanceId']
-            instance_name = instance['InstanceName']
-            processed_count += 1
+        try:
+            # 获取全面监控数据（从API获取）
+            metrics = get_comprehensive_metrics(region_client, region, iid, show_progress=False)
             
-            # 显示进度信息
-            progress_pct = processed_count / total_instances * 100
-            print(f"  [{i}/{len(instances)}] 📊 总进度: {processed_count}/{total_instances} ({progress_pct:.1f}%) - {instance_name}")
+            # 获取EIP信息
+            eip_info = get_instance_eip_info(region_client, region, iid)
             
-            try:
-                # 获取全面监控数据（从API获取）
-                print(f"    📡 正在获取监控数据...", end="", flush=True)
-                metrics = get_comprehensive_metrics(region_client, region, iid, show_progress=True)
-                
-                # 获取EIP信息
-                print(f"    🔗 获取EIP信息...", end="", flush=True)
-                eip_info = get_instance_eip_info(region_client, region, iid)
-                print(" ✅")
-                
-                # 获取成本信息
-                print(f"    💰 获取成本信息...", end="", flush=True)
-                monthly_cost = get_instance_monthly_cost(region_client, region, iid)
-                print(" ✅")
-                
-                # 准备实例数据
-                instance_data = {
-                    'InstanceId': iid,
-                    'InstanceName': instance_name,
-                    'Region': region,
-                    'Status': instance['Status'],
-                    'InstanceType': instance['InstanceType'],
-                    'CreationTime': instance['CreationTime'],
-                    'Cpu': instance['Cpu'],
-                    'Memory': instance['Memory'],
-                    'EipBandwidth': eip_info.get('Bandwidth', 0) if eip_info else 0,
-                    'EipAddress': eip_info.get('EipAddress', '') if eip_info else ''
-                }
-                
-                # 保存到数据库
-                print(f"    💾 保存数据到数据库...", end="", flush=True)
-                save_to_database(instance_data, metrics, monthly_cost)
-                print(" ✅")
-                
-                # 添加到总数据
+            # 获取成本信息
+            monthly_cost = get_instance_monthly_cost(region_client, region, iid)
+            
+            # 准备实例数据
+            instance_data = {
+                'InstanceId': iid,
+                'InstanceName': instance_name,
+                'Region': region,
+                'Status': instance['Status'],
+                'InstanceType': instance['InstanceType'],
+                'CreationTime': instance['CreationTime'],
+                'Cpu': instance['Cpu'],
+                'Memory': instance['Memory'],
+                'EipBandwidth': eip_info.get('Bandwidth', 0) if eip_info else 0,
+                'EipAddress': eip_info.get('EipAddress', '') if eip_info else ''
+            }
+            
+            # 保存到数据库
+            save_to_database(instance_data, metrics, monthly_cost)
+            
+            # 返回结果
+            return {
+                'InstanceData': instance_data,
+                'Metrics': metrics,
+                'EipInfo': eip_info,
+                'MonthlyCost': monthly_cost,
+                'success': True,
+                'instance_name': instance_name
+            }
+        except Exception as e:
+            error_msg = str(e)
+            if logger:
+                logger.error(f"处理实例失败 {instance_name} ({iid}): {error_msg}")
+            return {
+                'success': False,
+                'instance_name': instance_name,
+                'error': error_msg
+            }
+    
+    # 使用并发处理
+    if USE_NEW_UTILS and total_instances > 1:
+        print(f"🚀 使用并发处理（最多10个并发线程）...")
+        if logger:
+            logger.info(f"开始并发处理 {total_instances} 台实例")
+        
+        # 进度回调函数
+        def progress_callback(completed, total):
+            progress_pct = completed / total * 100
+            sys.stdout.write(f'\r📊 总进度: {completed}/{total} ({progress_pct:.1f}%)')
+            sys.stdout.flush()
+        
+        # 并发处理
+        results = process_concurrently(
+            all_instances_to_process,
+            process_single_instance,
+            max_workers=10,
+            description="ECS实例分析",
+            progress_callback=progress_callback
+        )
+        
+        # 整理结果
+        all_instances_data = []
+        success_count = 0
+        fail_count = 0
+        
+        for result in results:
+            if result and result.get('success'):
                 all_instances_data.append({
-                    'InstanceData': instance_data,
-                    'Metrics': metrics,
-                    'EipInfo': eip_info,
-                    'MonthlyCost': monthly_cost
+                    'InstanceData': result['InstanceData'],
+                    'Metrics': result['Metrics'],
+                    'EipInfo': result['EipInfo'],
+                    'MonthlyCost': result['MonthlyCost']
                 })
-                
-                has_agent = "有插件" if metrics.get('_has_agent', False) else "无插件"
-                print(f"    ✅ 完成 ({has_agent})")
-                
-            except Exception as e:
-                print(f"\n    ❌ 检查失败: {str(e)}")
+                success_count += 1
+            else:
+                fail_count += 1
+        
+        print(f"\n✅ 并发处理完成: 成功 {success_count} 台, 失败 {fail_count} 台")
+        if logger:
+            logger.info(f"并发处理完成: 成功 {success_count} 台, 失败 {fail_count} 台")
+    else:
+        # 兼容模式：串行处理
+        if USE_NEW_UTILS:
+            print("⚠️  并发工具可用，但实例数量为1，使用串行处理")
+        
+        all_instances_data = []
+        processed_count = 0
+        
+        for region_idx, (region, instances) in enumerate(regions_with_ecs, 1):
+            print(f"\n[{region_idx}/{len(regions_with_ecs)}] 正在检查Region: {region} ({len(instances)}台实例)")
+            region_client = AcsClient(access_key_id, access_key_secret, region)
             
-            time.sleep(0.2)
+            for i, instance in enumerate(instances, 1):
+                iid = instance['InstanceId']
+                instance_name = instance['InstanceName']
+                processed_count += 1
+                
+                # 显示进度信息
+                progress_pct = processed_count / total_instances * 100
+                print(f"  [{i}/{len(instances)}] 📊 总进度: {processed_count}/{total_instances} ({progress_pct:.1f}%) - {instance_name}")
+                
+                try:
+                    # 获取全面监控数据（从API获取）
+                    print(f"    📡 正在获取监控数据...", end="", flush=True)
+                    metrics = get_comprehensive_metrics(region_client, region, iid, show_progress=True)
+                    
+                    # 获取EIP信息
+                    print(f"    🔗 获取EIP信息...", end="", flush=True)
+                    eip_info = get_instance_eip_info(region_client, region, iid)
+                    print(" ✅")
+                    
+                    # 获取成本信息
+                    print(f"    💰 获取成本信息...", end="", flush=True)
+                    monthly_cost = get_instance_monthly_cost(region_client, region, iid)
+                    print(" ✅")
+                    
+                    # 准备实例数据
+                    instance_data = {
+                        'InstanceId': iid,
+                        'InstanceName': instance_name,
+                        'Region': region,
+                        'Status': instance['Status'],
+                        'InstanceType': instance['InstanceType'],
+                        'CreationTime': instance['CreationTime'],
+                        'Cpu': instance['Cpu'],
+                        'Memory': instance['Memory'],
+                        'EipBandwidth': eip_info.get('Bandwidth', 0) if eip_info else 0,
+                        'EipAddress': eip_info.get('EipAddress', '') if eip_info else ''
+                    }
+                    
+                    # 保存到数据库
+                    print(f"    💾 保存数据到数据库...", end="", flush=True)
+                    save_to_database(instance_data, metrics, monthly_cost)
+                    print(" ✅")
+                    
+                    # 添加到总数据
+                    all_instances_data.append({
+                        'InstanceData': instance_data,
+                        'Metrics': metrics,
+                        'EipInfo': eip_info,
+                        'MonthlyCost': monthly_cost
+                    })
+                    
+                    has_agent = "有插件" if metrics.get('_has_agent', False) else "无插件"
+                    print(f"    ✅ 完成 ({has_agent})")
+                    
+                except Exception as e:
+                    print(f"\n    ❌ 检查失败: {str(e)}")
+                
+                time.sleep(0.2)  # 避免API限流
     
     print(f"\n✅ 步骤5/8完成: 数据收集完成，共处理 {len(all_instances_data)} 台实例\n")
     
