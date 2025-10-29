@@ -10,11 +10,13 @@ import json
 import sqlite3
 import pickle
 import time
+import sys
 from datetime import datetime, timedelta
 from aliyunsdkcore.client import AcsClient
 from aliyunsdkcore.acs_exception.exceptions import ClientException, ServerException
 from aliyunsdkcore.request import CommonRequest
 import oss2
+from utils.concurrent_helper import process_concurrently
 
 class OSSAnalyzer:
     def __init__(self, access_key_id=None, access_key_secret=None):
@@ -377,22 +379,73 @@ class OSSAnalyzer:
         
         # 获取监控数据
         print("📊 开始获取监控数据...")
-        for i, bucket in enumerate(buckets, 1):
+        
+        # 定义单个存储桶处理函数（用于并发）
+        def process_single_bucket(bucket_item):
+            """处理单个存储桶（用于并发）"""
+            bucket = bucket_item
             bucket_name = bucket['BucketName']
             region = bucket['Region']
             
-            print(f"  📈 [{i}/{len(buckets)}] 获取 {bucket_name} 监控数据...")
-            
-            if bucket_name not in metrics_data:
+            try:
                 metrics = self.get_oss_metrics(bucket_name, region)
-                metrics_data[bucket_name] = metrics
-            else:
-                metrics = metrics_data[bucket_name]
+                is_idle = self.is_oss_idle(metrics)
+                
+                bucket['is_idle'] = is_idle
+                bucket['metrics'] = metrics
+                
+                return {
+                    'success': True,
+                    'bucket_name': bucket_name,
+                    'metrics': metrics
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'bucket_name': bucket_name,
+                    'metrics': {},
+                    'error': str(e)
+                }
+        
+        # 并发获取监控数据
+        print(f"🚀 并发获取监控数据（最多10个并发线程）...")
+        
+        def progress_callback(completed, total):
+            progress_pct = completed / total * 100
+            sys.stdout.write(f'\r📊 监控数据进度: {completed}/{total} ({progress_pct:.1f}%)')
+            sys.stdout.flush()
+        
+        monitoring_results = process_concurrently(
+            buckets,
+            process_single_bucket,
+            max_workers=10,
+            description="OSS监控数据采集",
+            progress_callback=progress_callback
+        )
+        
+        print()  # 换行
+        
+        # 整理监控数据
+        metrics_data = {}
+        success_count = 0
+        fail_count = 0
+        
+        for i, result in enumerate(monitoring_results):
+            bucket = buckets[i]
+            bucket_name = bucket['BucketName']
             
-            # 判断是否闲置
-            is_idle = self.is_oss_idle(metrics)
-            bucket['is_idle'] = is_idle
-            bucket['metrics'] = metrics
+            if result and result.get('success'):
+                metrics_data[bucket_name] = result['metrics']
+                bucket['metrics'] = result['metrics']
+                bucket['is_idle'] = self.is_oss_idle(result['metrics'])
+                success_count += 1
+            else:
+                metrics_data[bucket_name] = {}
+                bucket['metrics'] = {}
+                bucket['is_idle'] = False
+                fail_count += 1
+        
+        print(f"✅ 监控数据获取完成: 成功 {success_count} 个, 失败 {fail_count} 个")
         
         # 保存数据
         self.save_to_database(buckets, metrics_data)

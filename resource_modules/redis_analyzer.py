@@ -9,10 +9,12 @@ import json
 import time
 import sqlite3
 import pandas as pd
+import sys
 from datetime import datetime
 from aliyunsdkcore.client import AcsClient
 from aliyunsdkcore.request import CommonRequest
 from aliyunsdkr_kvstore.request.v20150101 import DescribeInstancesRequest
+from utils.concurrent_helper import process_concurrently
 
 
 class RedisAnalyzer:
@@ -322,24 +324,96 @@ class RedisAnalyzer:
         regions = self.get_all_regions()
         print(f"✅ 获取到 {len(regions)} 个区域")
         
-        # 收集Redis实例和监控数据
-        all_instances = []
-        all_monitoring_data = {}
+        # 并发获取所有区域的实例
+        print("🔍 并发获取所有区域的Redis实例...")
         
-        for region in regions:
-            print(f"🔍 检查区域: {region}")
-            instances = self.get_redis_instances(region)
+        def get_region_instances(region_item):
+            """获取单个区域的实例（用于并发）"""
+            region = region_item
+            try:
+                instances = self.get_redis_instances(region)
+                return {'region': region, 'instances': instances}
+            except Exception as e:
+                print(f"  ❌ 区域 {region} 获取实例失败: {e}")
+                return {'region': region, 'instances': []}
+        
+        # 并发获取所有区域的实例
+        region_results = process_concurrently(
+            regions,
+            get_region_instances,
+            max_workers=10,
+            description="获取Redis实例"
+        )
+        
+        # 整理所有实例
+        all_instances = []
+        for result in region_results:
+            if result and result.get('instances'):
+                all_instances.extend(result['instances'])
+                print(f"  ✅ {result['region']}: {len(result['instances'])} 个实例")
+        
+        if not all_instances:
+            print("⚠️ 未发现任何Redis实例")
+            return []
+        
+        print(f"✅ 总共获取到 {len(all_instances)} 个Redis实例")
+        
+        # 定义单个实例处理函数（用于并发）
+        def process_single_instance(instance_item):
+            """处理单个实例（用于并发）"""
+            instance = instance_item
+            instance_id = instance['InstanceId']
+            region = instance['Region']
             
-            if instances:
-                print(f"  发现 {len(instances)} 个Redis实例")
-                all_instances.extend(instances)
-                
-                # 获取监控数据
-                for instance in instances:
-                    instance_id = instance['InstanceId']
-                    print(f"  获取监控数据: {instance_id}")
-                    metrics = self.get_redis_metrics(region, instance_id)
-                    all_monitoring_data[instance_id] = metrics
+            try:
+                metrics = self.get_redis_metrics(region, instance_id)
+                return {
+                    'success': True,
+                    'instance_id': instance_id,
+                    'metrics': metrics
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'instance_id': instance_id,
+                    'metrics': {},
+                    'error': str(e)
+                }
+        
+        # 并发获取监控数据
+        print(f"🚀 并发获取监控数据（最多10个并发线程）...")
+        
+        def progress_callback(completed, total):
+            progress_pct = completed / total * 100
+            sys.stdout.write(f'\r📊 监控数据进度: {completed}/{total} ({progress_pct:.1f}%)')
+            sys.stdout.flush()
+        
+        monitoring_results = process_concurrently(
+            all_instances,
+            process_single_instance,
+            max_workers=10,
+            description="Redis监控数据采集",
+            progress_callback=progress_callback
+        )
+        
+        print()  # 换行
+        
+        # 整理监控数据
+        all_monitoring_data = {}
+        success_count = 0
+        fail_count = 0
+        
+        for result in monitoring_results:
+            if result and result.get('success'):
+                all_monitoring_data[result['instance_id']] = result['metrics']
+                success_count += 1
+            else:
+                if result:
+                    instance_id = result.get('instance_id', 'unknown')
+                    all_monitoring_data[instance_id] = {}
+                    fail_count += 1
+        
+        print(f"✅ 监控数据获取完成: 成功 {success_count} 个, 失败 {fail_count} 个")
         
         # 保存数据
         self.save_redis_data(all_instances, all_monitoring_data)

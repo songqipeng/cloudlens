@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from aliyunsdkcore.client import AcsClient
 from aliyunsdkcore.acs_exception.exceptions import ClientException, ServerException
 from aliyunsdkcore.request import CommonRequest
+from utils.concurrent_helper import process_concurrently
 
 class MongoDBAnalyzer:
     def __init__(self):
@@ -364,27 +365,81 @@ class MongoDBAnalyzer:
         
         # 获取监控数据
         print("📊 开始获取监控数据...")
-        for i, instance in enumerate(instances, 1):
-            # 处理不同的字段名格式
+        
+        # 定义单个实例处理函数（用于并发）
+        def process_single_instance(instance_item):
+            """处理单个实例（用于并发）"""
+            instance = instance_item
             instance_id = instance.get('InstanceId') or instance.get('DBInstanceId')
             region = instance.get('Region') or instance.get('RegionId')
             
             if not instance_id or not region:
-                print(f"  ⚠️  跳过无效实例: {instance}")
-                continue
+                return {
+                    'success': False,
+                    'instance_id': 'unknown',
+                    'metrics': {},
+                    'error': '无效实例'
+                }
             
-            print(f"  📈 [{i}/{len(instances)}] 获取 {instance_id} 监控数据...")
-            
-            if instance_id not in metrics_data:
+            try:
                 metrics = self.get_mongodb_metrics(instance_id, region)
-                metrics_data[instance_id] = metrics
-            else:
-                metrics = metrics_data[instance_id]
+                return {
+                    'success': True,
+                    'instance_id': instance_id,
+                    'metrics': metrics
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'instance_id': instance_id,
+                    'metrics': {},
+                    'error': str(e)
+                }
+        
+        # 并发获取监控数据
+        print(f"🚀 并发获取监控数据（最多10个并发线程）...")
+        
+        def progress_callback(completed, total):
+            progress_pct = completed / total * 100
+            sys.stdout.write(f'\r📊 监控数据进度: {completed}/{total} ({progress_pct:.1f}%)')
+            sys.stdout.flush()
+        
+        monitoring_results = process_concurrently(
+            instances,
+            process_single_instance,
+            max_workers=10,
+            description="MongoDB监控数据采集",
+            progress_callback=progress_callback
+        )
+        
+        print()  # 换行
+        
+        # 整理监控数据
+        metrics_data = {}
+        success_count = 0
+        fail_count = 0
+        
+        for i, result in enumerate(monitoring_results):
+            instance = instances[i]
+            instance_id = instance.get('InstanceId') or instance.get('DBInstanceId')
             
-            # 判断是否闲置
-            is_idle = self.is_mongodb_idle(metrics)
-            instance['is_idle'] = is_idle
-            instance['metrics'] = metrics
+            if result and result.get('success'):
+                metrics_data[instance_id] = result['metrics']
+                success_count += 1
+            else:
+                metrics_data[instance_id] = {}
+                fail_count += 1
+        
+        print(f"✅ 监控数据获取完成: 成功 {success_count} 个, 失败 {fail_count} 个")
+        
+        # 更新实例数据
+        for instance in instances:
+            instance_id = instance.get('InstanceId') or instance.get('DBInstanceId')
+            if instance_id in metrics_data:
+                metrics = metrics_data[instance_id]
+                is_idle = self.is_mongodb_idle(metrics)
+                instance['is_idle'] = is_idle
+                instance['metrics'] = metrics
         
         # 保存数据
         self.save_to_database(instances, metrics_data)

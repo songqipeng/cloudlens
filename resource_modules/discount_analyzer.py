@@ -8,10 +8,12 @@ import json
 import time
 import re
 import os
+import sys
 import subprocess
 from datetime import datetime
 from aliyunsdkcore.client import AcsClient
 from aliyunsdkcore.request import CommonRequest
+from utils.concurrent_helper import process_concurrently
 
 
 class DiscountAnalyzer:
@@ -169,6 +171,8 @@ class DiscountAnalyzer:
                                 'InstanceClass': inst.get('InstanceClass', ''),
                                 'InstanceType': inst.get('InstanceType', ''),
                                 'ChargeType': inst.get('ChargeType', ''),
+                                'Capacity': inst.get('Capacity', 0),  # 容量
+                                'Bandwidth': inst.get('Bandwidth', 0),  # 带宽
                                 'RegionId': region
                             })
                         
@@ -248,7 +252,265 @@ class DiscountAnalyzer:
         return all_instances
     
     def get_renewal_prices(self, instances, resource_type='ecs'):
-        """获取续费价格"""
+        """获取续费价格（并发处理）"""
+        total = len(instances)
+        
+        print(f"\n🔍 获取{resource_type.upper()}实例的续费价格...")
+        
+        if total == 0:
+            return []
+        
+        # 定义单个实例处理函数（用于并发）
+        def process_single_instance(instance_item):
+            """处理单个实例的价格查询（用于并发）"""
+            instance = instance_item
+            try:
+                if resource_type == 'ecs':
+                    instance_id = instance.get('InstanceId', '')
+                    instance_name = instance.get('InstanceName', '')
+                    zone = instance.get('ZoneId', '')
+                    instance_type = instance.get('InstanceType', '')
+                    charge_type = instance.get('InstanceChargeType', '')
+                    region = self.region
+                elif resource_type == 'rds':
+                    instance_id = instance.get('DBInstanceId', '')
+                    instance_name = instance.get('DBInstanceDescription', '') or instance_id
+                    zone = instance.get('ZoneId', '')
+                    instance_type = f"{instance.get('Engine', '')} {instance.get('DBInstanceClass', '')}"
+                    charge_type = instance.get('PayType', '')
+                    region = instance.get('RegionId', self.region)
+                elif resource_type == 'redis':
+                    instance_id = instance.get('InstanceId', '')
+                    instance_name = instance.get('InstanceName', '') or instance_id
+                    zone = ''
+                    instance_type = instance.get('InstanceClass', '')
+                    charge_type = instance.get('ChargeType', '')
+                    capacity = instance.get('Capacity', 0)
+                    region = instance.get('RegionId', self.region)
+                elif resource_type == 'mongodb':
+                    instance_id = instance.get('DBInstanceId', '')
+                    instance_name = instance.get('DBInstanceDescription', '') or instance_id
+                    zone = instance.get('ZoneId', '')
+                    instance_type = f"{instance.get('Engine', '')} {instance.get('DBInstanceClass', '')}"
+                    charge_type = instance.get('ChargeType', '')
+                    region = instance.get('RegionId', self.region)
+                else:
+                    instance_id = instance.get('InstanceId', '')
+                    instance_name = instance.get('InstanceName', '')
+                    zone = instance.get('ZoneId', '')
+                    instance_type = instance.get('InstanceType', '')
+                    charge_type = instance.get('InstanceChargeType', '')
+                    region = self.region
+                
+                # 只处理包年包月实例
+                if resource_type == 'rds':
+                    if charge_type != 'Prepaid':
+                        return {'skip': True, 'reason': '按量付费'}
+                elif resource_type in ['redis', 'mongodb']:
+                    if charge_type != 'PrePaid':
+                        return {'skip': True, 'reason': '按量付费'}
+                else:
+                    if charge_type != 'PrePaid':
+                        return {'skip': True, 'reason': '按量付费'}
+                
+                request = CommonRequest()
+                client = AcsClient(self.access_key_id, self.access_key_secret, region)
+                
+                if resource_type == 'rds':
+                    request.set_domain('rds.aliyuncs.com')
+                    request.set_version('2014-08-15')
+                    request.set_action_name('DescribeRenewalPrice')
+                    request.add_query_param('RegionId', region)
+                    request.add_query_param('DBInstanceId', instance_id)
+                    request.add_query_param('Period', 1)
+                    request.add_query_param('TimeType', 'Month')
+                    request.add_query_param('UsedTime', 1)
+                    request.set_method('POST')
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                elif resource_type == 'redis':
+                    request.set_domain('r-kvstore.aliyuncs.com')
+                    request.set_version('2015-01-01')
+                    request.set_action_name('DescribePrice')
+                    request.add_query_param('RegionId', region)
+                    request.add_query_param('InstanceId', instance_id)
+                    request.add_query_param('Period', 1)
+                    request.add_query_param('Quantity', 1)
+                    request.add_query_param('OrderType', 'RENEW')
+                    if capacity and capacity > 0:
+                        request.add_query_param('Capacity', capacity)
+                    request.set_method('POST')
+                    
+                    try:
+                        response = client.do_action_with_exception(request)
+                        data = json.loads(response)
+                    except Exception as renew_error:
+                        if 'CAN_NOT_FIND_SUBSCRIPTION' in str(renew_error) or '找不到订购信息' in str(renew_error):
+                            request = CommonRequest()
+                            request.set_domain('r-kvstore.aliyuncs.com')
+                            request.set_version('2015-01-01')
+                            request.set_action_name('DescribePrice')
+                            request.set_method('POST')
+                            request.add_query_param('RegionId', region)
+                            request.add_query_param('InstanceId', instance_id)
+                            request.add_query_param('OrderType', 'BUY')
+                            request.add_query_param('Period', 1)
+                            request.add_query_param('Quantity', 1)
+                            if instance_type:
+                                request.add_query_param('InstanceClass', instance_type)
+                            response = client.do_action_with_exception(request)
+                            data = json.loads(response)
+                        else:
+                            raise renew_error
+                            
+                elif resource_type == 'mongodb':
+                    request.set_domain('dds.aliyuncs.com')
+                    request.set_version('2015-12-01')
+                    request.set_action_name('DescribeRenewalPrice')
+                    request.add_query_param('RegionId', region)
+                    request.add_query_param('DBInstanceId', instance_id)
+                    request.add_query_param('Period', 1)
+                    request.add_query_param('TimeType', 'Month')
+                    request.add_query_param('UsedTime', 1)
+                    request.set_method('POST')
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                else:
+                    # ECS
+                    request.set_domain(f'ecs.{region}.aliyuncs.com')
+                    request.set_version('2014-05-26')
+                    request.set_action_name('DescribeRenewalPrice')
+                    request.add_query_param('ResourceId', instance_id)
+                    request.add_query_param('Period', 1)
+                    request.add_query_param('PriceUnit', 'Month')
+                    request.set_method('POST')
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                
+                # 解析价格信息
+                price_info = None
+                if resource_type == 'rds':
+                    if 'PriceInfo' in data:
+                        if isinstance(data['PriceInfo'], dict) and 'Price' in data['PriceInfo']:
+                            price_info = data['PriceInfo']['Price']
+                        elif isinstance(data['PriceInfo'], dict):
+                            price_info = data['PriceInfo']
+                    if not price_info:
+                        price_info = data.get('Price', {})
+                elif resource_type == 'redis':
+                    if 'Order' in data:
+                        order = data['Order']
+                        price_info = {}
+                        price_info['OriginalPrice'] = order.get('OriginalAmount', 0) or order.get('OriginalPrice', 0) or 0
+                        price_info['TradePrice'] = order.get('TradeAmount', 0) or order.get('TradePrice', 0) or 0
+                        
+                        if price_info['TradePrice'] == 0 and 'SubOrders' in data and 'SubOrder' in data['SubOrders']:
+                            sub_orders = data['SubOrders']['SubOrder']
+                            if not isinstance(sub_orders, list):
+                                sub_orders = [sub_orders]
+                            total_trade = 0
+                            total_original = 0
+                            for sub_order in sub_orders:
+                                total_trade += float(sub_order.get('TradeAmount', 0) or 0)
+                                total_original += float(sub_order.get('OriginalAmount', 0) or 0)
+                            price_info['TradePrice'] = total_trade
+                            price_info['OriginalPrice'] = total_original
+                    else:
+                        price_info = data.get('Price', {}) or data.get('PriceInfo', {})
+                elif resource_type == 'mongodb':
+                    if 'PriceInfo' in data:
+                        if isinstance(data['PriceInfo'], dict) and 'Price' in data['PriceInfo']:
+                            price_info = data['PriceInfo']['Price']
+                        elif isinstance(data['PriceInfo'], dict):
+                            price_info = data['PriceInfo']
+                    if not price_info:
+                        price_info = data.get('Price', {})
+                else:
+                    # ECS格式
+                    if 'PriceInfo' in data and 'Price' in data['PriceInfo']:
+                        price_info = data['PriceInfo']['Price']
+                
+                if price_info:
+                    original_price = float(price_info.get('OriginalPrice', 0) or 0)
+                    trade_price = float(price_info.get('TradePrice', 0) or 0)
+                    
+                    if original_price > 0:
+                        discount_rate = trade_price / original_price
+                        
+                        return {
+                            'success': True,
+                            'name': instance_name,
+                            'id': instance_id,
+                            'zone': zone,
+                            'type': instance_type,
+                            'original_price': original_price,
+                            'trade_price': trade_price,
+                            'discount_rate': discount_rate
+                        }
+                    else:
+                        return {'success': False, 'error': '无法获取价格信息', 'instance_name': instance_name}
+                else:
+                    return {'success': False, 'error': f'价格信息格式错误 (响应键: {list(data.keys())})', 'instance_name': instance_name}
+                    
+            except Exception as e:
+                instance_name = instance.get('InstanceName', '') or instance.get('DBInstanceDescription', '') or instance.get('InstanceId', 'unknown')
+                return {'success': False, 'error': str(e), 'instance_name': instance_name}
+        
+        # 并发处理
+        print(f"🚀 并发查询价格（最多10个并发线程）...")
+        
+        def progress_callback(completed, total):
+            progress_pct = completed / total * 100
+            sys.stdout.write(f'\r📊 价格查询进度: {completed}/{total} ({progress_pct:.1f}%)')
+            sys.stdout.flush()
+        
+        results_raw = process_concurrently(
+            instances,
+            process_single_instance,
+            max_workers=10,
+            description="价格查询",
+            progress_callback=progress_callback
+        )
+        
+        print()  # 换行
+        
+        # 整理结果
+        results = []
+        skip_count = 0
+        success_count = 0
+        fail_count = 0
+        
+        for result in results_raw:
+            if result:
+                if result.get('skip'):
+                    skip_count += 1
+                elif result.get('success'):
+                    results.append({
+                        'name': result['name'],
+                        'id': result['id'],
+                        'zone': result['zone'],
+                        'type': result['type'],
+                        'original_price': result['original_price'],
+                        'trade_price': result['trade_price'],
+                        'discount_rate': result['discount_rate']
+                    })
+                    success_count += 1
+                    discount_text = f"{result['discount_rate']*100:.1f}% ({result['discount_rate']:.1f}折)"
+                    print(f"  ✅ {result['name']}: {discount_text}")
+                else:
+                    fail_count += 1
+                    instance_name = result.get('instance_name', 'unknown')
+                    error = result.get('error', 'unknown error')
+                    print(f"  ❌ {instance_name}: {error}")
+        
+        print(f"\n✅ 价格查询完成: 成功 {success_count} 个, 跳过 {skip_count} 个, 失败 {fail_count} 个")
+        
+        return results
+    
+    def get_renewal_prices_old(self, instances, resource_type='ecs'):
+        """获取续费价格（旧版本，保留作为参考）"""
         results = []
         total = len(instances)
         
@@ -275,6 +537,7 @@ class DiscountAnalyzer:
                 zone = ''  # Redis可能没有ZoneId
                 instance_type = instance.get('InstanceClass', '')
                 charge_type = instance.get('ChargeType', '')
+                capacity = instance.get('Capacity', 0)
                 region = instance.get('RegionId', self.region)
             elif resource_type == 'mongodb':
                 instance_id = instance.get('DBInstanceId', '')
@@ -313,6 +576,10 @@ class DiscountAnalyzer:
             
             try:
                 request = CommonRequest()
+                
+                # 创建client（所有资源类型都需要）
+                client = AcsClient(self.access_key_id, self.access_key_secret, region)
+                
                 if resource_type == 'rds':
                     # RDS使用通用域名
                     request.set_domain('rds.aliyuncs.com')
@@ -323,14 +590,54 @@ class DiscountAnalyzer:
                     request.add_query_param('Period', 1)
                     request.add_query_param('TimeType', 'Month')  # 时间单位：Month或Year
                     request.add_query_param('UsedTime', 1)  # 已使用月数
+                    
+                    request.set_method('POST')
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
                 elif resource_type == 'redis':
-                    # Redis使用KVStore API（使用通用域名）
+                    # Redis使用KVStore API查询续费价格
+                    # 尝试两种方式：1) RENEW续费 2) BUY购买（如果续费失败）
                     request.set_domain('r-kvstore.aliyuncs.com')
                     request.set_version('2015-01-01')
-                    request.set_action_name('DescribeRenewalPrice')
+                    request.set_action_name('DescribePrice')
                     request.add_query_param('RegionId', region)
                     request.add_query_param('InstanceId', instance_id)
-                    request.add_query_param('Period', 1)
+                    request.add_query_param('Period', 1)  # 周期（月）
+                    request.add_query_param('Quantity', 1)  # 数量
+                    
+                    # 首先尝试RENEW续费
+                    request.add_query_param('OrderType', 'RENEW')
+                    if capacity and capacity > 0:
+                        request.add_query_param('Capacity', capacity)
+                    
+                    request.set_method('POST')
+                    
+                    try:
+                        response = client.do_action_with_exception(request)
+                        data = json.loads(response)
+                    except Exception as renew_error:
+                        # 如果RENEW失败，尝试使用BUY查询相同规格的价格
+                        if 'CAN_NOT_FIND_SUBSCRIPTION' in str(renew_error) or '找不到订购信息' in str(renew_error):
+                            # 创建新的request，使用BUY订单类型
+                            request = CommonRequest()
+                            request.set_domain('r-kvstore.aliyuncs.com')
+                            request.set_version('2015-01-01')
+                            request.set_action_name('DescribePrice')
+                            request.set_method('POST')
+                            request.add_query_param('RegionId', region)
+                            request.add_query_param('InstanceId', instance_id)
+                            request.add_query_param('OrderType', 'BUY')  # 购买订单
+                            request.add_query_param('Period', 1)
+                            request.add_query_param('Quantity', 1)
+                            # BUY方式需要InstanceClass参数
+                            if instance_type:
+                                request.add_query_param('InstanceClass', instance_type)
+                            response = client.do_action_with_exception(request)
+                            data = json.loads(response)
+                        else:
+                            raise renew_error
+                            
                 elif resource_type == 'mongodb':
                     # MongoDB使用DDS API（使用通用域名）
                     request.set_domain('dds.aliyuncs.com')
@@ -341,6 +648,11 @@ class DiscountAnalyzer:
                     request.add_query_param('Period', 1)
                     request.add_query_param('TimeType', 'Month')
                     request.add_query_param('UsedTime', 1)
+                    
+                    request.set_method('POST')
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
                 else:
                     # ECS
                     request.set_domain(f'ecs.{region}.aliyuncs.com')
@@ -349,13 +661,10 @@ class DiscountAnalyzer:
                     request.add_query_param('ResourceId', instance_id)
                     request.add_query_param('Period', 1)
                     request.add_query_param('PriceUnit', 'Month')
-                
-                request.set_method('POST')
-                
-                client = AcsClient(self.access_key_id, self.access_key_secret, region)
-                
-                response = client.do_action_with_exception(request)
-                data = json.loads(response)
+                    
+                    request.set_method('POST')
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
                 
                 # 不同资源类型的响应格式可能不同
                 price_info = None
@@ -369,14 +678,30 @@ class DiscountAnalyzer:
                     if not price_info:
                         price_info = data.get('Price', {})
                 elif resource_type == 'redis':
-                    # Redis响应格式
-                    if 'PriceInfo' in data:
-                        if isinstance(data['PriceInfo'], dict) and 'Price' in data['PriceInfo']:
-                            price_info = data['PriceInfo']['Price']
-                        elif isinstance(data['PriceInfo'], dict):
-                            price_info = data['PriceInfo']
-                    if not price_info:
-                        price_info = data.get('Price', {})
+                    # Redis响应格式（DescribePrice返回的结构不同）
+                    # 响应包含: Order, SubOrders, Rules等
+                    if 'Order' in data:
+                        order = data['Order']
+                        price_info = {}
+                        # Order中可能包含OriginalPrice和TradePrice
+                        price_info['OriginalPrice'] = order.get('OriginalAmount', 0) or order.get('OriginalPrice', 0) or 0
+                        price_info['TradePrice'] = order.get('TradeAmount', 0) or order.get('TradePrice', 0) or 0
+                        
+                        # 如果没有，尝试从SubOrders中提取
+                        if price_info['TradePrice'] == 0 and 'SubOrders' in data and 'SubOrder' in data['SubOrders']:
+                            sub_orders = data['SubOrders']['SubOrder']
+                            if not isinstance(sub_orders, list):
+                                sub_orders = [sub_orders]
+                            total_trade = 0
+                            total_original = 0
+                            for sub_order in sub_orders:
+                                total_trade += float(sub_order.get('TradeAmount', 0) or 0)
+                                total_original += float(sub_order.get('OriginalAmount', 0) or 0)
+                            price_info['TradePrice'] = total_trade
+                            price_info['OriginalPrice'] = total_original
+                    else:
+                        # 尝试其他可能的字段
+                        price_info = data.get('Price', {}) or data.get('PriceInfo', {})
                 elif resource_type == 'mongodb':
                     # MongoDB响应格式（类似RDS）
                     if 'PriceInfo' in data:

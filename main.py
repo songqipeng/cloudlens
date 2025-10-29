@@ -54,7 +54,7 @@ def show_help():
 参数说明:
     租户          - 租户名称（如：ydzn），默认为default_tenant
     操作          - 操作类型：cru（资源利用率）、discount（折扣分析）
-    资源类型      - 资源类型：ecs、rds、redis、mongodb、oss、slb、eip、all（全部）
+    资源类型      - 资源类型：ecs、rds、redis、mongodb、clickhouse、oss、slb、eip、all（全部）
 
 凭证管理:
     python main.py setup-credentials     - 交互式设置凭证（保存到系统密钥环）
@@ -141,6 +141,34 @@ def run_mongodb_analysis(args, tenant_config=None):
     return True
 
 
+def run_clickhouse_analysis(args, tenant_config=None, tenant_name=None):
+    """运行ClickHouse分析"""
+    print("📊 启动ClickHouse数据库分析...")
+    try:
+        from resource_modules.clickhouse_analyzer import ClickHouseAnalyzer
+        if not tenant_config:
+            print("❌ 缺少租户配置")
+            return False
+        
+        analyzer = ClickHouseAnalyzer(
+            tenant_config.get('access_key_id'),
+            tenant_config.get('access_key_secret')
+        )
+        idle_instances = analyzer.analyze_clickhouse_resources()
+        
+        analyzer.generate_clickhouse_report(idle_instances, tenant_name=tenant_name)
+        return True
+    except ImportError as e:
+        print(f"❌ ClickHouse分析模块导入失败: {e}")
+        return False
+    except Exception as e:
+        print(f"❌ ClickHouse分析失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+    return True
+
+
 def run_oss_analysis(args, tenant_config=None):
     """运行OSS分析"""
     print("☁️ 启动OSS对象存储分析...")
@@ -213,6 +241,7 @@ def run_all_cru_analysis(args, tenant_name, tenant_config):
         ("RDS", run_rds_analysis),
         ("Redis", run_redis_analysis),
         ("MongoDB", run_mongodb_analysis),
+        ("ClickHouse", run_clickhouse_analysis),
         ("OSS", run_oss_analysis),
         ("SLB", run_slb_analysis),
         ("EIP", run_eip_analysis),
@@ -395,6 +424,8 @@ def main():
             success = run_redis_analysis(None, tenant_config)
         elif resource_type == 'mongodb':
             success = run_mongodb_analysis(None, tenant_config)
+        elif resource_type == 'clickhouse':
+            success = run_clickhouse_analysis(None, tenant_config, tenant_name)
         elif resource_type == 'oss':
             success = run_oss_analysis(None, tenant_config)
         elif resource_type == 'slb':

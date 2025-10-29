@@ -9,10 +9,12 @@ import json
 import time
 import sqlite3
 import pandas as pd
+import sys
 from datetime import datetime, timedelta
 from aliyunsdkcore.client import AcsClient
 from aliyunsdkcore.request import CommonRequest
 from aliyunsdkvpc.request.v20160428 import DescribeEipAddressesRequest
+from utils.concurrent_helper import process_concurrently
 
 
 class EIPAnalyzer:
@@ -318,18 +320,50 @@ class EIPAnalyzer:
         print("🚀 开始EIP资源分析...")
         
         regions = self.get_all_regions()
-        all_instances = []
-        metrics_data = {}
         
-        for region in regions:
-            print(f"  📍 检查区域: {region}")
-            instances = self.get_eip_instances(region)
+        # 并发获取所有区域的实例
+        print("🔍 并发获取所有区域的EIP实例...")
+        
+        def get_region_instances(region_item):
+            """获取单个区域的实例（用于并发）"""
+            region = region_item
+            try:
+                instances = self.get_eip_instances(region)
+                return {'region': region, 'instances': instances}
+            except Exception as e:
+                print(f"  ❌ 区域 {region} 获取实例失败: {e}")
+                return {'region': region, 'instances': []}
+        
+        # 并发获取所有区域的实例
+        region_results = process_concurrently(
+            regions,
+            get_region_instances,
+            max_workers=10,
+            description="获取EIP实例"
+        )
+        
+        # 整理所有实例
+        all_instances_raw = []
+        for result in region_results:
+            if result and result.get('instances'):
+                all_instances_raw.extend(result['instances'])
+                print(f"  ✅ {result['region']}: {len(result['instances'])} 个实例")
+        
+        if not all_instances_raw:
+            print("⚠️ 未发现任何EIP实例")
+            return
+        
+        print(f"✅ 总共获取到 {len(all_instances_raw)} 个EIP实例")
+        
+        # 定义单个实例处理函数（用于并发）
+        def process_single_instance(instance_item):
+            """处理单个实例（用于并发）"""
+            instance = instance_item
+            allocation_id = instance['AllocationId']
+            ip_address = instance['IpAddress']
+            region = instance['Region']
             
-            for instance in instances:
-                allocation_id = instance['AllocationId']
-                ip_address = instance['IpAddress']
-                print(f"    📈 分析EIP实例: {allocation_id} ({ip_address})")
-                
+            try:
                 metrics = self.get_eip_metrics(region, allocation_id, ip_address)
                 
                 # 计算带宽使用率
@@ -340,17 +374,59 @@ class EIPAnalyzer:
                 else:
                     metrics['带宽使用率'] = 0
                 
-                metrics_data[allocation_id] = metrics
-                instance['metrics'] = metrics
-                
                 is_idle, conditions = self.is_eip_idle(instance, metrics)
+                optimization = self.get_optimization_suggestion(instance, metrics)
+                
+                instance['metrics'] = metrics
                 instance['is_idle'] = is_idle
                 instance['idle_conditions'] = conditions
-                instance['optimization'] = self.get_optimization_suggestion(instance, metrics)
+                instance['optimization'] = optimization
                 
+                return {
+                    'success': True,
+                    'instance': instance
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'instance': instance,
+                    'error': str(e)
+                }
+        
+        # 并发处理所有实例
+        print(f"🚀 并发获取监控数据并分析（最多10个并发线程）...")
+        
+        def progress_callback(completed, total):
+            progress_pct = completed / total * 100
+            sys.stdout.write(f'\r📊 处理进度: {completed}/{total} ({progress_pct:.1f}%)')
+            sys.stdout.flush()
+        
+        processing_results = process_concurrently(
+            all_instances_raw,
+            process_single_instance,
+            max_workers=10,
+            description="EIP实例分析",
+            progress_callback=progress_callback
+        )
+        
+        print()  # 换行
+        
+        # 整理结果
+        all_instances = []
+        metrics_data = {}
+        success_count = 0
+        fail_count = 0
+        
+        for result in processing_results:
+            if result and result.get('success'):
+                instance = result['instance']
                 all_instances.append(instance)
-            
-            time.sleep(0.5)  # 避免API限流
+                metrics_data[instance['AllocationId']] = instance.get('metrics', {})
+                success_count += 1
+            else:
+                fail_count += 1
+        
+        print(f"✅ 处理完成: 成功 {success_count} 个, 失败 {fail_count} 个")
         
         # 保存数据
         self.save_to_database(all_instances, metrics_data)

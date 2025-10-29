@@ -38,6 +38,19 @@ mongodb:
   connection_utilization: 20   # 连接数使用率低于20%
   qps: 100                      # QPS低于100
 
+# ClickHouse数据库阈值
+clickhouse:
+  cpu_utilization: 10          # CPU利用率低于10%
+  memory_utilization: 20        # 内存利用率低于20%
+  disk_utilization: 20          # 磁盘利用率低于20%
+  connection_count: 10         # 连接数低于10
+  query_count: 100             # 查询数低于100
+  insert_count: 50             # 插入数低于50
+  network_in_kbps: 1           # 网络入流量低于1KB/s
+  network_out_kbps: 1          # 网络出流量低于1KB/s
+  disk_read_iops: 100          # 磁盘读IOPS低于100
+  disk_write_iops: 100         # 磁盘写IOPS低于100
+
 # OSS对象存储阈值
 oss:
   storage_capacity_gb: 1       # 存储容量低于1GB

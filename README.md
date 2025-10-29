@@ -12,7 +12,7 @@
 | **RDS** | ✅ 已完成 | 云数据库RDS - 关系型数据库分析 |
 | **Redis** | ✅ 已完成 | 云数据库Redis - 缓存数据库分析 |
 | **MongoDB** | ✅ 已完成 | 云数据库MongoDB - 文档数据库分析 |
-| **ClickHouse** | 📋 计划中 | 云数据库ClickHouse - 分析型数据库分析 |
+| **ClickHouse** | ✅ 已完成 | 云数据库ClickHouse - 分析型数据库分析 |
 | **OSS** | ✅ 已完成 | 对象存储服务 - 文件存储分析 |
 | **SLB** | ✅ 已完成 | 负载均衡 - 流量分发分析 |
 | **EIP** | ✅ 已完成 | 弹性公网IP - 公网访问分析 |
@@ -95,6 +95,9 @@ python main.py cru redis
 
 # 分析MongoDB数据库
 python main.py cru mongodb
+
+# 分析ClickHouse数据库
+python main.py cru clickhouse
 
 # 分析OSS对象存储
 python main.py cru oss
@@ -287,7 +290,8 @@ def run_new_resource_analysis(args):
 ### 支持的资源类型
 - ✅ **ECS**: 分析包年包月实例的续费折扣
 - ✅ **RDS**: 分析包年包月实例的续费折扣
-- 📋 **Redis/MongoDB**: 计划中
+- ✅ **Redis**: 分析包年包月实例的续费折扣
+- ⚠️ **MongoDB**: 部分完成（API调用问题，待修复）
 
 ### 分析内容
 - 基准价格 vs 实际续费价格
@@ -358,6 +362,8 @@ python main.py list-credentials
 - **开发日志**: [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) - 详细的开发记录和问题解决
 - **重构指南**: [REFACTORING_GUIDE.md](REFACTORING_GUIDE.md) - 架构优化和扩展规划
 - **项目总结**: [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md) - 完整的产品和技术文档总结
+- **产品技术规划**: [PRODUCT_TECH_PLAN.md](PRODUCT_TECH_PLAN.md) - 产品功能现状、改进建议和开发计划
+- **待开发功能**: [TODO_FEATURES.md](TODO_FEATURES.md) - 详细的功能清单和优先级
 
 ## 📞 技术支持
 
