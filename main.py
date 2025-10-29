@@ -56,6 +56,10 @@ def show_help():
     操作          - 操作类型：cru（资源利用率）、discount（折扣分析）
     资源类型      - 资源类型：ecs、rds、redis、mongodb、oss、all（全部）
 
+凭证管理:
+    python main.py setup-credentials     - 交互式设置凭证（保存到系统密钥环）
+    python main.py list-credentials      - 列出所有凭证
+
 示例:
     资源利用率分析:
     python main.py ydzn cru              # ydzn租户所有资源利用率
@@ -227,6 +231,29 @@ def main():
         print("支持多租户、资源利用率分析、折扣分析")
         return
     
+    # 处理凭证管理命令
+    if args_list[0] == 'setup-credentials':
+        try:
+            from utils.credential_manager import setup_credentials_interactive
+            setup_credentials_interactive()
+        except ImportError:
+            print("❌ 凭证管理功能需要安装keyring库: pip install keyring")
+        return
+    
+    if args_list[0] == 'list-credentials':
+        try:
+            from utils.credential_manager import CredentialManager
+            config = load_config()
+            tenants = config.get('tenants', {})
+            print("📋 已配置的租户:")
+            for tenant, tenant_config in tenants.items():
+                use_keyring = tenant_config.get('use_keyring', False)
+                status = "🔐 Keyring" if use_keyring else "📄 配置文件"
+                print(f"  - {tenant}: {status}")
+        except Exception as e:
+            print(f"❌ 列出凭证失败: {e}")
+        return
+    
     # 加载配置
     config = load_config()
     default_tenant = config.get('default_tenant')
@@ -261,6 +288,20 @@ def main():
     
     # 获取租户配置
     tenant_config = get_tenant_config(config, tenant_name)
+    
+    # 尝试从Keyring获取凭证（如果配置了use_keyring）
+    try:
+        from utils.credential_manager import get_credentials_from_config_or_keyring
+        cloud_credentials = get_credentials_from_config_or_keyring('aliyun', tenant_name, config)
+        if cloud_credentials:
+            # 使用Keyring中的凭证更新tenant_config
+            tenant_config.update(cloud_credentials)
+    except ImportError:
+        # keyring未安装，使用配置文件中的凭证
+        pass
+    except Exception as e:
+        print(f"⚠️  从Keyring获取凭证失败，使用配置文件: {e}")
+    
     tenant_display_name = tenant_config.get('display_name', tenant_name)
     
     # 显示开始信息

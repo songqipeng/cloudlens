@@ -59,9 +59,21 @@
 - 重试机制只应对网络错误（ConnectionError, TimeoutError）
 - 按量付费实例调用DescribeRenewalPrice会返回400错误，这是正常的
 
+### 2025-10-29 20:50
+
+**Phase 3开发中：**
+- ✅ 凭证管理器（utils/credential_manager.py）
+  - 基于Keyring的凭证管理
+  - 交互式设置凭证
+  - 自动从Keyring或配置文件读取
+  - 集成到main.py
+
+**遇到的问题：**
+- 无
+
 **下一步：**
-- 继续完善Phase 2：重构ECS分析器（可选，保持向后兼容）
-- 或者直接完善其他功能（密钥管理、可配置阈值等）
+- 创建thresholds.yaml配置文件
+- 集成阈值管理器到现有分析器
 
 ---
 
