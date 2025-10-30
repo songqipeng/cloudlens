@@ -36,10 +36,21 @@ def set_credentials(key_id, key_secret):
     access_key_id = key_id
     access_key_secret = key_secret
 
-# 数据库配置
+# 数据库/缓存配置（默认全局，运行时按租户重写）
 DB_FILE = "ecs_monitoring_data_fixed.db"
 CACHE_FILE = "ecs_data_cache_fixed.pkl"
 CACHE_EXPIRE_HOURS = 24
+
+def set_storage_paths(tenant_name: str = None, base_dir: str = "."):
+    """按租户设置数据库与缓存文件路径"""
+    global DB_FILE, CACHE_FILE
+    if tenant_name:
+        tenant_data_dir = os.path.join(base_dir, "data", tenant_name, "ecs")
+    else:
+        tenant_data_dir = os.path.join(base_dir, "data", "default", "ecs")
+    os.makedirs(tenant_data_dir, exist_ok=True)
+    DB_FILE = os.path.join(tenant_data_dir, "ecs_monitoring_data_fixed.db")
+    CACHE_FILE = os.path.join(tenant_data_dir, "ecs_data_cache_fixed.pkl")
 
 def init_database():
     """初始化本地数据库"""
@@ -235,10 +246,11 @@ def get_comprehensive_metrics_from_db(instance_id):
     conn.close()
     return result
 
-def get_comprehensive_metrics(client, region_id, instance_id, show_progress=False, metric_index=0, total_metrics=18):
+def get_comprehensive_metrics(client, region_id, instance_id, show_progress=False, metric_index=0, total_metrics=18, days: int = 14):
     """获取实例的全面监控数据"""
     end_time = int(round(time.time() * 1000))
-    start_time = end_time - 14 * 24 * 60 * 60 * 1000  # 14天前
+    # 支持可配置窗口（默认14天），按小时聚合后取平均
+    start_time = end_time - days * 24 * 60 * 60 * 1000
     
     # 定义所有可能的监控指标 - 修复版本
     # 基础指标（acs_ecs_dashboard命名空间）
@@ -249,10 +261,12 @@ def get_comprehensive_metrics(client, region_id, instance_id, show_progress=Fals
         'DiskReadIOPS': ('磁盘读IOPS', 'acs_ecs_dashboard'),
         'DiskWriteIOPS': ('磁盘写IOPS', 'acs_ecs_dashboard'),
         'ConnectionUtilization': ('网络连接数', 'acs_ecs_dashboard'),
-        'InternetInRate': ('入网流量', 'acs_ecs_dashboard'),
-        'InternetOutRate': ('出网流量', 'acs_ecs_dashboard'),
-        'IntranetInRate': ('内网入带宽', 'acs_ecs_dashboard'),
-        'IntranetOutRate': ('内网出带宽', 'acs_ecs_dashboard'),
+        # 改为默认采集内网带宽作为“入网流量/出网流量”
+        'IntranetInRate': ('入网流量', 'acs_ecs_dashboard'),
+        'IntranetOutRate': ('出网流量', 'acs_ecs_dashboard'),
+        # 公网带宽保留，若需要可用于对照
+        'InternetInRate': ('公网入带宽', 'acs_ecs_dashboard'),
+        'InternetOutRate': ('公网出带宽', 'acs_ecs_dashboard'),
         'StatusCheck': ('状态检查', 'acs_ecs_dashboard'),
         'DiskIOQueueSize': ('磁盘IO队列长度', 'acs_ecs_dashboard')
     }
@@ -291,7 +305,8 @@ def get_comprehensive_metrics(client, region_id, instance_id, show_progress=Fals
             request.add_query_param('MetricName', metric_name)
             request.add_query_param('StartTime', start_time)
             request.add_query_param('EndTime', end_time)
-            request.add_query_param('Period', '86400')  # 1天聚合
+            # 使用每小时粒度，避免按天聚合导致无数据
+            request.add_query_param('Period', '3600')
             request.add_query_param('Dimensions', f'[{{"instanceId":"{instance_id}"}}]')
             
             response = client.do_action_with_exception(request)
@@ -983,6 +998,9 @@ def main(tenant_name=None, output_base_dir=".", tenant_config=None):
         print("❌ 未设置访问凭证，请检查配置")
         return
     
+    # 按租户设置存储路径（数据库/缓存）
+    set_storage_paths(tenant_name, output_base_dir)
+
     # 创建输出目录结构
     if tenant_name:
         output_dir = os.path.join(output_base_dir, tenant_name, "cru")
@@ -997,9 +1015,10 @@ def main(tenant_name=None, output_base_dir=".", tenant_config=None):
     init_database()
     print("✅ 数据库初始化完成\n")
     
-    # 检查缓存
+    # 检查缓存（支持通过环境变量强制禁用缓存）
     print("📦 步骤2/8: 检查缓存状态...")
-    if is_cache_valid():
+    force_no_cache = os.getenv('ALIYUNIDLE_NO_CACHE') == '1'
+    if not force_no_cache and is_cache_valid():
         print("📦 使用缓存数据...")
         cached_data = load_cache_data()
         if cached_data:
@@ -1009,7 +1028,10 @@ def main(tenant_name=None, output_base_dir=".", tenant_config=None):
             print("❌ 缓存数据损坏，重新获取数据...")
             cached_data = None
     else:
-        print("🔄 缓存已过期，重新获取数据...")
+        if force_no_cache:
+            print("🚫 已禁用缓存（ALIYUNIDLE_NO_CACHE=1），重新获取数据...")
+        else:
+            print("🔄 缓存已过期，重新获取数据...")
         cached_data = None
     print("✅ 缓存检查完成\n")
     
@@ -1071,6 +1093,14 @@ def main(tenant_name=None, output_base_dir=".", tenant_config=None):
     
     print(f"📋 步骤5/8: 开始详细检查 {len(regions_with_ecs)} 个Region的ECS实例...")
     
+    # 采集时间窗口（天）支持通过环境变量配置，默认14天
+    try:
+        metrics_days = int(os.getenv('ALIYUNIDLE_DAYS', '14'))
+        if metrics_days <= 0:
+            metrics_days = 14
+    except Exception:
+        metrics_days = 14
+
     # 准备所有实例数据（用于并发处理）
     all_instances_to_process = []
     for region_idx, (region, instances) in enumerate(regions_with_ecs, 1):
@@ -1098,7 +1128,7 @@ def main(tenant_name=None, output_base_dir=".", tenant_config=None):
         
         try:
             # 获取全面监控数据（从API获取）
-            metrics = get_comprehensive_metrics(region_client, region, iid, show_progress=False)
+            metrics = get_comprehensive_metrics(region_client, region, iid, show_progress=False, days=metrics_days)
             
             # 获取EIP信息
             eip_info = get_instance_eip_info(region_client, region, iid)
@@ -1207,7 +1237,7 @@ def main(tenant_name=None, output_base_dir=".", tenant_config=None):
                 try:
                     # 获取全面监控数据（从API获取）
                     print(f"    📡 正在获取监控数据...", end="", flush=True)
-                    metrics = get_comprehensive_metrics(region_client, region, iid, show_progress=True)
+                    metrics = get_comprehensive_metrics(region_client, region, iid, show_progress=True, days=metrics_days)
                     
                     # 获取EIP信息
                     print(f"    🔗 获取EIP信息...", end="", flush=True)
