@@ -1,0 +1,30 @@
+[run]
+# 覆盖率运行配置
+source = core,utils
+omit =
+    */tests/*
+    */test_*
+    */__pycache__/*
+    */site-packages/*
+    */venv/*
+
+[report]
+# 报告配置
+precision = 2
+show_missing = True
+skip_covered = False
+
+exclude_lines =
+    # 标准排除
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstractmethod
+    @abc.abstractmethod
+
+[html]
+# HTML报告配置
+directory = htmlcov
