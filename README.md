@@ -290,8 +290,8 @@ def run_new_resource_analysis(args):
 ### 支持的资源类型
 - ✅ **ECS**: 分析包年包月实例的续费折扣
 - ✅ **RDS**: 分析包年包月实例的续费折扣
-- ✅ **Redis**: 分析包年包月实例的续费折扣
-- ⚠️ **MongoDB**: 部分完成（API调用问题，待修复）
+- ✅ **Redis**: 分析包年包月实例的续费折扣（支持RENEW/BUY双重尝试）
+- ✅ **MongoDB**: 分析包年包月实例的续费折扣（使用DescribePrice API）
 
 ### 分析内容
 - 基准价格 vs 实际续费价格
@@ -357,6 +357,92 @@ python main.py list-credentials
 }
 ```
 
+## 🧪 测试
+
+本项目包含完整的单元测试套件，覆盖核心功能模块。
+
+### 运行测试
+
+```bash
+# 运行所有测试
+pytest tests/ -v
+
+# 运行特定模块测试
+pytest tests/core/ -v
+pytest tests/utils/ -v
+
+# 生成覆盖率报告
+pytest tests/ --cov=core --cov=utils --cov-report=html
+```
+
+### 测试覆盖率
+
+- **core模块**: 96-100% 覆盖率
+  - cache_manager: 96%
+  - config_manager: 100%
+  - threshold_manager: 95.8%
+
+- **utils模块**: 100% 覆盖率
+  - concurrent_helper: 100%
+  - retry_helper: 100%
+
+### CI/CD
+
+项目配置了GitHub Actions自动测试，支持Python 3.7-3.13多版本测试。
+
+## ⚡ 性能优化
+
+### 并发处理
+
+所有资源分析器都使用并发处理，大幅提升性能：
+
+- **ECS**: 区域级并发，ThreadPoolExecutor
+- **RDS/Redis/MongoDB**: 实例级并发，max_workers=10
+- **OSS/SLB/EIP**: 资源级并发处理
+
+**性能提升**：
+- Redis分析：27个实例从90s降至15s（83%提升）
+- 大规模分析：性能提升60-80%
+
+### 缓存机制
+
+- **24小时TTL缓存**：减少重复API调用
+- **Msgpack序列化**：比pickle快2-5倍，更安全
+- **区域级缓存**：避免重复获取区域列表
+
+### 智能重试
+
+- **仅重试网络错误**：ConnectionError、TimeoutError、OSError
+- **不重试业务错误**：400、403、404等错误
+- **指数退避**：避免API限流
+
+## 🔍 故障排查
+
+### 常见问题
+
+**Q: 提示"配置文件不存在"**
+
+A: 检查`config.json`文件是否存在于当前目录。可以参考`config.json.example`创建配置文件。
+
+**Q: API调用失败（403 Forbidden）**
+
+A: 检查访问密钥是否正确，以及RAM权限是否足够。需要以下权限：
+- DescribeInstances（各资源类型）
+- DescribeMetricData（监控数据）
+- DescribeRenewalPrice/DescribePrice（折扣分析）
+
+**Q: MongoDB/Redis折扣分析失败**
+
+A: 确保实例是包年包月计费模式。按量付费实例不支持折扣分析。
+
+**Q: 缓存数据过期**
+
+A: 删除`data/cache/`目录下的缓存文件，或使用`--no-cache`参数强制刷新。
+
+**Q: 测试失败**
+
+A: 确保安装了所有测试依赖：`pip install pytest pytest-cov pytest-mock`
+
 ## 📚 相关文档
 
 - **开发日志**: [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) - 详细的开发记录和问题解决
@@ -364,6 +450,8 @@ python main.py list-credentials
 - **项目总结**: [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md) - 完整的产品和技术文档总结
 - **产品技术规划**: [PRODUCT_TECH_PLAN.md](PRODUCT_TECH_PLAN.md) - 产品功能现状、改进建议和开发计划
 - **待开发功能**: [TODO_FEATURES.md](TODO_FEATURES.md) - 详细的功能清单和优先级
+- **常见问题**: [FAQ.md](FAQ.md) - 常见问题解答和故障排查
+- **部署指南**: [DEPLOYMENT.md](DEPLOYMENT.md) - 生产环境部署文档
 
 ## 📞 技术支持
 
