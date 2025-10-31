@@ -53,8 +53,8 @@ def show_help():
 
 参数说明:
     租户          - 租户名称（如：ydzn），默认为default_tenant
-    操作          - 操作类型：cru（资源利用率）、discount（折扣分析）
-    资源类型      - 资源类型：ecs、rds、redis、mongodb、clickhouse、oss、slb、eip、all（全部）
+    操作          - 操作类型：cru（资源利用率）、discount（折扣分析）、cost（费用分析）
+    资源类型      - 资源类型：ecs、rds、redis、mongodb、clickhouse、oss、slb、eip、nas、ack、eci、polardb、all（全部）
 
 凭证管理:
     python main.py setup-credentials     - 交互式设置凭证（保存到系统密钥环）
@@ -80,20 +80,33 @@ def show_help():
 """)
 
 
-# 原有分析函数保持不变
+# ECS分析函数（支持新旧两种方式）
 def run_ecs_analysis(args, tenant_name=None, tenant_config=None):
-    """运行ECS分析"""
+    """运行ECS分析（优先使用新的统一架构）"""
     print("🖥️ 启动ECS实例分析...")
     try:
-        from check_ecs_idle_fixed import main as ecs_main
-        ecs_main(tenant_name=tenant_name, output_base_dir=".", tenant_config=tenant_config)
+        # 优先使用新的基于BaseResourceAnalyzer的ECS分析器
+        try:
+            from resource_modules.ecs_analyzer import ECSAnalyzer
+            analyzer = ECSAnalyzer(
+                tenant_config['access_key_id'],
+                tenant_config['access_key_secret'],
+                tenant_name
+            )
+            idle_instances = analyzer.analyze_ecs_resources()
+            analyzer.generate_ecs_report(idle_instances, output_dir=".")
+            return True
+        except ImportError:
+            # 如果新分析器不存在，回退到旧版本
+            from check_ecs_idle_fixed import main as ecs_main
+            ecs_main(tenant_name=tenant_name, output_base_dir=".", tenant_config=tenant_config)
+            return True
     except ImportError as e:
         print(f"❌ ECS分析模块导入失败: {e}")
         return False
     except Exception as e:
         print(f"❌ ECS分析失败: {e}")
         return False
-    return True
 
 
 def run_rds_analysis(args, tenant_config=None):
@@ -237,14 +250,18 @@ def run_all_cru_analysis(args, tenant_name, tenant_config):
     print("🌍 启动全资源利用率分析...")
     
     analyzers = [
-        ("ECS", run_ecs_analysis),
-        ("RDS", run_rds_analysis),
-        ("Redis", run_redis_analysis),
-        ("MongoDB", run_mongodb_analysis),
-        ("ClickHouse", run_clickhouse_analysis),
-        ("OSS", run_oss_analysis),
-        ("SLB", run_slb_analysis),
-        ("EIP", run_eip_analysis),
+        ("ECS", lambda a, tc, tn: run_ecs_analysis(a, tn, tc)),
+        ("RDS", lambda a, tc, tn: run_rds_analysis(a, tc)),
+        ("Redis", lambda a, tc, tn: run_redis_analysis(a, tc)),
+        ("MongoDB", lambda a, tc, tn: run_mongodb_analysis(a, tc)),
+        ("ClickHouse", lambda a, tc, tn: run_clickhouse_analysis(a, tc, tn)),
+        ("OSS", lambda a, tc, tn: run_oss_analysis(a, tc)),
+        ("SLB", lambda a, tc, tn: run_slb_analysis(a, tc)),
+        ("EIP", lambda a, tc, tn: run_eip_analysis(a, tc)),
+        ("NAS", lambda a, tc, tn: run_nas_analysis(a, tc, tn)),
+        ("ACK", lambda a, tc, tn: run_ack_analysis(a, tc, tn)),
+        ("ECI", lambda a, tc, tn: run_eci_analysis(a, tc, tn)),
+        ("PolarDB", lambda a, tc, tn: run_polardb_analysis(a, tc, tn)),
     ]
     
     results = {}
@@ -252,7 +269,7 @@ def run_all_cru_analysis(args, tenant_name, tenant_config):
         print(f"\n{'='*50}")
         print(f"开始分析 {name} 资源...")
         try:
-            success = analyzer_func(args, tenant_config)
+            success = analyzer_func(args, tenant_config, tenant_name)
             results[name] = "✅ 成功" if success else "❌ 失败"
         except Exception as e:
             print(f"❌ {name} 分析异常: {e}")
@@ -265,6 +282,30 @@ def run_all_cru_analysis(args, tenant_name, tenant_config):
         print(f"  {name}: {result}")
     
     return True
+
+
+def run_cost_analysis(tenant_name, tenant_config):
+    """运行费用分析"""
+    print("💰 启动费用分布分析...")
+    try:
+        from resource_modules.cost_analyzer import CostAnalyzer
+        
+        analyzer = CostAnalyzer(
+            tenant_name,
+            tenant_config['access_key_id'],
+            tenant_config['access_key_secret']
+        )
+        
+        result = analyzer.generate_cost_report()
+        return True
+    except ImportError as e:
+        print(f"❌ 费用分析模块导入失败: {e}")
+        return False
+    except Exception as e:
+        print(f"❌ 费用分析失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 def run_discount_analysis(args, tenant_name, tenant_config, resource_type='all'):
@@ -288,11 +329,21 @@ def run_discount_analysis(args, tenant_name, tenant_config, resource_type='all')
             analyzer.analyze_redis_discounts(output_base_dir=".")
         elif resource_type == 'mongodb':
             analyzer.analyze_mongodb_discounts(output_base_dir=".")
+        elif resource_type == 'clickhouse':
+            analyzer.analyze_clickhouse_discounts(output_base_dir=".")
+        elif resource_type == 'nas':
+            analyzer.analyze_nas_discounts(output_base_dir=".")
+        elif resource_type == 'polardb':
+            analyzer.analyze_polardb_discounts(output_base_dir=".")
+        elif resource_type == 'ack':
+            analyzer.analyze_ack_discounts(output_base_dir=".")
+        elif resource_type == 'eci':
+            analyzer.analyze_eci_discounts(output_base_dir=".")
         elif resource_type in ['oss', 'slb', 'eip']:
             print(f"⚠️ {resource_type.upper()}暂不支持包年包月模式，无法进行折扣分析")
             print(f"   这些服务通常采用按量付费模式")
         else:
-            print(f"⚠️ 支持的折扣分析类型: ECS, RDS, Redis, MongoDB")
+            print(f"⚠️ 支持的折扣分析类型: ECS, RDS, Redis, MongoDB, ClickHouse, NAS, PolarDB")
             if resource_type == 'all':
                 print("分析ECS折扣...")
                 analyzer.analyze_ecs_discounts(output_base_dir=".")
@@ -302,6 +353,12 @@ def run_discount_analysis(args, tenant_name, tenant_config, resource_type='all')
                 analyzer.analyze_redis_discounts(output_base_dir=".")
                 print("\n分析MongoDB折扣...")
                 analyzer.analyze_mongodb_discounts(output_base_dir=".")
+                print("\n分析ClickHouse折扣...")
+                analyzer.analyze_clickhouse_discounts(output_base_dir=".")
+                print("\n分析NAS折扣...")
+                analyzer.analyze_nas_discounts(output_base_dir=".")
+                print("\n分析PolarDB折扣...")
+                analyzer.analyze_polardb_discounts(output_base_dir=".")
             else:
                 print(f"不支持的资源类型: {resource_type}")
         
@@ -432,6 +489,14 @@ def main():
             success = run_slb_analysis(None, tenant_config)
         elif resource_type == 'eip':
             success = run_eip_analysis(None, tenant_config)
+        elif resource_type == 'nas':
+            success = run_nas_analysis(None, tenant_config, tenant_name)
+        elif resource_type == 'ack':
+            success = run_ack_analysis(None, tenant_config, tenant_name)
+        elif resource_type == 'eci':
+            success = run_eci_analysis(None, tenant_config, tenant_name)
+        elif resource_type == 'polardb':
+            success = run_polardb_analysis(None, tenant_config, tenant_name)
         elif resource_type == 'all':
             success = run_all_cru_analysis(None, tenant_name, tenant_config)
         else:
@@ -443,9 +508,13 @@ def main():
         # 折扣分析
         success = run_discount_analysis(None, tenant_name, tenant_config, resource_type)
     
+    elif action == 'cost':
+        # 费用分析
+        success = run_cost_analysis(tenant_name, tenant_config)
+    
     else:
         print(f"❌ 不支持的操作类型: {action}")
-        print(f"支持的操作: cru（资源利用率）、discount（折扣分析）")
+        print(f"支持的操作: cru（资源利用率）、discount（折扣分析）、cost（费用分析）")
         show_help()
         return
     

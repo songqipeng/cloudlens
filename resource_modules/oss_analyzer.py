@@ -8,7 +8,7 @@ OSS对象存储分析模块
 import os
 import json
 import sqlite3
-import pickle
+import msgpack
 import time
 import sys
 from datetime import datetime, timedelta
@@ -17,6 +17,8 @@ from aliyunsdkcore.acs_exception.exceptions import ClientException, ServerExcept
 from aliyunsdkcore.request import CommonRequest
 import oss2
 from utils.concurrent_helper import process_concurrently
+from utils.logger import get_logger
+from utils.error_handler import ErrorHandler
 
 class OSSAnalyzer:
     def __init__(self, access_key_id=None, access_key_secret=None):
@@ -41,6 +43,7 @@ class OSSAnalyzer:
         
         # 数据库文件
         self.db_path = 'oss_monitoring_data.db'
+        self.logger = get_logger(\'oss_analyzer')
         self.cache_file = 'oss_data_cache.pkl'
         
         # 初始化数据库
@@ -95,7 +98,7 @@ class OSSAnalyzer:
     
     def get_all_oss_buckets(self):
         """获取所有OSS存储桶"""
-        print("🔍 开始获取OSS存储桶信息...")
+        self.logger.info("🔍 开始获取OSS存储桶信息...")
         
         all_buckets = []
         
@@ -113,7 +116,7 @@ class OSSAnalyzer:
             
             # 只检查第一个区域，因为OSS存储桶是全局的
             region = regions[0]
-            print(f"  📍 检查区域: {region}")
+            self.logger.info(f"  📍 检查区域: {region}")
             
             # 创建服务端点
             service = oss2.Service(auth, f'https://oss-{region}.aliyuncs.com')
@@ -121,7 +124,7 @@ class OSSAnalyzer:
             # 获取存储桶列表
             result = service.list_buckets()
             
-            print(f"    📊 找到 {len(result.buckets)} 个存储桶")
+            self.logger.info(f"    📊 找到 {len(result.buckets)} 个存储桶")
             
             for bucket in result.buckets:
                 bucket_info = {
@@ -137,13 +140,14 @@ class OSSAnalyzer:
                     'UpdatedTime': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 }
                 all_buckets.append(bucket_info)
-                print(f"    ✅ 找到存储桶: {bucket_info['BucketName']}")
+                self.logger.info(f"    ✅ 找到存储桶: {bucket_info['BucketName']}")
         
         except Exception as e:
-            print(f"❌ OSS SDK获取存储桶失败: {e}")
+            error = ErrorHandler.handle_api_error(e, "OSS", region_id)
+            ErrorHandler.handle_region_error(e, region_id, "OSS")
             return []
         
-        print(f"✅ 共找到 {len(all_buckets)} 个OSS存储桶")
+        self.logger.info(f"共找到 {len(all_buckets)} 个OSS存储桶")
         return all_buckets
     
     def get_oss_metrics(self, bucket_name, region):
@@ -217,12 +221,12 @@ class OSSAnalyzer:
                         metrics_data[metric_desc] = 0
                         
                 except Exception as e:
-                    print(f"    ⚠️  指标 {metric_name} 获取失败: {e}")
+                    self.logger.info(f"    ⚠️  指标 {metric_name} 获取失败: {e}")
                     metrics_data[metric_desc] = 0
             
             # 如果所有指标都是0，使用模拟数据
             if all(v == 0 for v in metrics_data.values()):
-                print(f"    ⚠️  所有监控指标为0，使用模拟数据")
+                self.logger.info(f"    ⚠️  所有监控指标为0，使用模拟数据")
                 metrics_data = {
                     '存储容量': 1024 * 1024 * 1024,  # 1GB
                     '对象数量': 1000,
@@ -242,7 +246,7 @@ class OSSAnalyzer:
             return metrics_data
             
         except Exception as e:
-            print(f"    ❌ 获取监控数据失败: {e}")
+            self.logger.info(f"    ❌ 获取监控数据失败: {e}")
             return {}
     
     def is_oss_idle(self, metrics):
@@ -353,32 +357,32 @@ class OSSAnalyzer:
     
     def analyze_oss_buckets(self):
         """分析OSS存储桶"""
-        print("🚀 开始OSS资源分析...")
+        self.logger.info("开始OSS资源分析...")
         
         # 检查缓存
         if os.path.exists(self.cache_file):
             cache_time = os.path.getmtime(self.cache_file)
             if time.time() - cache_time < 86400:  # 24小时内
-                print("📦 使用缓存数据...")
+                self.logger.info("使用缓存数据...")
                 with open(self.cache_file, 'rb') as f:
-                    cached_data = pickle.load(f)
+                    cached_data = msgpack.unpack(f, raw=False, strict_map_key=False)
                     buckets = cached_data.get('buckets', [])
                     metrics_data = cached_data.get('metrics', {})
             else:
-                print("🔄 缓存过期，重新获取数据...")
+                self.logger.info("缓存过期，重新获取数据...")
                 buckets = self.get_all_oss_buckets()
                 metrics_data = {}
         else:
-            print("🔄 首次运行，获取数据...")
+            self.logger.info("首次运行，获取数据...")
             buckets = self.get_all_oss_buckets()
             metrics_data = {}
         
         if not buckets:
-            print("❌ 未找到OSS存储桶")
+            self.logger.error("未找到OSS存储桶")
             return
         
         # 获取监控数据
-        print("📊 开始获取监控数据...")
+        self.logger.info("开始获取监控数据...")
         
         # 定义单个存储桶处理函数（用于并发）
         def process_single_bucket(bucket_item):
@@ -400,6 +404,8 @@ class OSSAnalyzer:
                     'metrics': metrics
                 }
             except Exception as e:
+                error = ErrorHandler.handle_api_error(e, "OSS", region, instance_id)
+                ErrorHandler.handle_instance_error(e, instance_id, region, "OSS", continue_on_error=True)
                 return {
                     'success': False,
                     'bucket_name': bucket_name,
@@ -408,7 +414,7 @@ class OSSAnalyzer:
                 }
         
         # 并发获取监控数据
-        print(f"🚀 并发获取监控数据（最多10个并发线程）...")
+        self.logger.info("并发获取监控数据（最多10个并发线程）...")
         
         def progress_callback(completed, total):
             progress_pct = completed / total * 100
@@ -423,7 +429,7 @@ class OSSAnalyzer:
             progress_callback=progress_callback
         )
         
-        print()  # 换行
+          # 换行
         
         # 整理监控数据
         metrics_data = {}
@@ -445,7 +451,7 @@ class OSSAnalyzer:
                 bucket['is_idle'] = False
                 fail_count += 1
         
-        print(f"✅ 监控数据获取完成: 成功 {success_count} 个, 失败 {fail_count} 个")
+        self.logger.info(f"监控数据获取完成: 成功 {success_count} 个, 失败 {fail_count} 个")
         
         # 保存数据
         self.save_to_database(buckets, metrics_data)
@@ -457,12 +463,12 @@ class OSSAnalyzer:
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         with open(self.cache_file, 'wb') as f:
-            pickle.dump(cache_data, f)
+            msgpack.pack(cache_data, f)
         
         # 生成报告
         self.generate_oss_report(buckets)
         
-        print("✅ OSS分析完成")
+        self.logger.info("OSS分析完成")
     
     def generate_oss_report(self, buckets):
         """生成OSS报告"""
@@ -471,10 +477,10 @@ class OSSAnalyzer:
         # 筛选闲置存储桶
         idle_buckets = [bucket for bucket in buckets if bucket.get('is_idle', False)]
         
-        print(f"📊 分析结果: 共 {len(buckets)} 个OSS存储桶，其中 {len(idle_buckets)} 个闲置")
+        self.logger.info(f"分析结果: 共 {len(buckets)} 个OSS存储桶，其中 {len(idle_buckets)} 个闲置")
         
         if not idle_buckets:
-            print("✅ 没有发现闲置的OSS存储桶")
+            self.logger.info("没有发现闲置的OSS存储桶")
             return
         
         # 生成HTML报告
@@ -485,9 +491,9 @@ class OSSAnalyzer:
         excel_file = f'oss_idle_report_{timestamp}.xlsx'
         self.generate_excel_report(idle_buckets, excel_file)
         
-        print(f"📄 报告已生成:")
-        print(f"  HTML: {html_file}")
-        print(f"  Excel: {excel_file}")
+        self.logger.info(f"📄 报告已生成:")
+        self.logger.info(f"  HTML: {html_file}")
+        self.logger.info(f"  Excel: {excel_file}")
     
     def generate_html_report(self, idle_buckets, filename):
         """生成HTML报告"""
@@ -617,7 +623,7 @@ class OSSAnalyzer:
             df.to_excel(filename, index=False, engine='openpyxl')
             
         except ImportError:
-            print("⚠️  pandas未安装，跳过Excel报告生成")
+            self.logger.warning(" pandas未安装，跳过Excel报告生成")
 
 def main(access_key_id=None, access_key_secret=None):
     """主函数"""

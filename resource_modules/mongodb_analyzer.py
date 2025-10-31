@@ -9,13 +9,15 @@ import os
 import sys
 import json
 import sqlite3
-import pickle
+import msgpack
 import time
 from datetime import datetime, timedelta
 from aliyunsdkcore.client import AcsClient
 from aliyunsdkcore.acs_exception.exceptions import ClientException, ServerException
 from aliyunsdkcore.request import CommonRequest
 from utils.concurrent_helper import process_concurrently
+from utils.logger import get_logger
+from utils.error_handler import ErrorHandler
 
 class MongoDBAnalyzer:
     def __init__(self):
@@ -26,6 +28,7 @@ class MongoDBAnalyzer:
         
         self.access_key_id = config['access_key_id']
         self.access_key_secret = config['access_key_secret']
+        self.logger = get_logger('mongodb_analyzer')
         
         # 初始化客户端
         self.client = AcsClient(self.access_key_id, self.access_key_secret, 'cn-hangzhou')
@@ -85,12 +88,12 @@ class MongoDBAnalyzer:
     
     def get_all_mongodb_instances(self):
         """获取所有MongoDB实例"""
-        print("🔍 开始获取MongoDB实例信息...")
+        self.logger.info("🔍 开始获取MongoDB实例信息...")
         all_instances = []
         
         for region in self.regions:
             try:
-                print(f"  📍 检查区域: {region}")
+                self.logger.info(f"  📍 检查区域: {region}")
                 
                 # 设置区域
                 self.client.set_region_id(region)
@@ -141,14 +144,14 @@ class MongoDBAnalyzer:
                             break
                             
                     except (ClientException, ServerException) as e:
-                        print(f"    ⚠️  区域 {region} API调用失败: {e}")
+                        self.logger.info(f"    ⚠️  区域 {region} API调用失败: {e}")
                         break
                 
             except Exception as e:
-                print(f"    ❌ 区域 {region} 处理失败: {e}")
+                self.logger.info(f"    ❌ 区域 {region} 处理失败: {e}")
                 continue
         
-        print(f"✅ 共找到 {len(all_instances)} 个MongoDB实例")
+        self.logger.info(f"共找到 {len(all_instances)} 个MongoDB实例")
         return all_instances
     
     def get_mongodb_metrics(self, instance_id, region):
@@ -215,13 +218,13 @@ class MongoDBAnalyzer:
                         metrics_data[metric_desc] = 0
                         
                 except Exception as e:
-                    print(f"    ⚠️  指标 {metric_name} 获取失败: {e}")
+                    self.logger.info(f"    ⚠️  指标 {metric_name} 获取失败: {e}")
                     metrics_data[metric_desc] = 0
             
             return metrics_data
             
         except Exception as e:
-            print(f"    ❌ 获取监控数据失败: {e}")
+            self.logger.info(f"    ❌ 获取监控数据失败: {e}")
             return {}
     
     def is_mongodb_idle(self, metrics):
@@ -339,32 +342,32 @@ class MongoDBAnalyzer:
     
     def analyze_mongodb_instances(self):
         """分析MongoDB实例"""
-        print("🚀 开始MongoDB资源分析...")
+        self.logger.info("开始MongoDB资源分析...")
         
         # 检查缓存
         if os.path.exists(self.cache_file):
             cache_time = os.path.getmtime(self.cache_file)
             if time.time() - cache_time < 86400:  # 24小时内
-                print("📦 使用缓存数据...")
+                self.logger.info("使用缓存数据...")
                 with open(self.cache_file, 'rb') as f:
-                    cached_data = pickle.load(f)
+                    cached_data = msgpack.unpack(f, raw=False, strict_map_key=False)
                     instances = cached_data.get('instances', [])
                     metrics_data = cached_data.get('metrics', {})
             else:
-                print("🔄 缓存过期，重新获取数据...")
+                self.logger.info("缓存过期，重新获取数据...")
                 instances = self.get_all_mongodb_instances()
                 metrics_data = {}
         else:
-            print("🔄 首次运行，获取数据...")
+            self.logger.info("首次运行，获取数据...")
             instances = self.get_all_mongodb_instances()
             metrics_data = {}
         
         if not instances:
-            print("❌ 未找到MongoDB实例")
+            self.logger.error("未找到MongoDB实例")
             return
         
         # 获取监控数据
-        print("📊 开始获取监控数据...")
+        self.logger.info("开始获取监控数据...")
         
         # 定义单个实例处理函数（用于并发）
         def process_single_instance(instance_item):
@@ -389,6 +392,8 @@ class MongoDBAnalyzer:
                     'metrics': metrics
                 }
             except Exception as e:
+                error = ErrorHandler.handle_api_error(e, "MongoDB", region, instance_id)
+                ErrorHandler.handle_instance_error(e, instance_id, region, "MongoDB", continue_on_error=True)
                 return {
                     'success': False,
                     'instance_id': instance_id,
@@ -397,7 +402,7 @@ class MongoDBAnalyzer:
                 }
         
         # 并发获取监控数据
-        print(f"🚀 并发获取监控数据（最多10个并发线程）...")
+        self.logger.info("并发获取监控数据（最多10个并发线程）...")
         
         def progress_callback(completed, total):
             progress_pct = completed / total * 100
@@ -412,7 +417,7 @@ class MongoDBAnalyzer:
             progress_callback=progress_callback
         )
         
-        print()  # 换行
+          # 换行
         
         # 整理监控数据
         metrics_data = {}
@@ -430,7 +435,7 @@ class MongoDBAnalyzer:
                 metrics_data[instance_id] = {}
                 fail_count += 1
         
-        print(f"✅ 监控数据获取完成: 成功 {success_count} 个, 失败 {fail_count} 个")
+        self.logger.info(f"监控数据获取完成: 成功 {success_count} 个, 失败 {fail_count} 个")
         
         # 更新实例数据
         for instance in instances:
@@ -451,12 +456,12 @@ class MongoDBAnalyzer:
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         with open(self.cache_file, 'wb') as f:
-            pickle.dump(cache_data, f)
+            msgpack.pack(cache_data, f)
         
         # 生成报告
         self.generate_mongodb_report(instances)
         
-        print("✅ MongoDB分析完成")
+        self.logger.info("MongoDB分析完成")
     
     def generate_mongodb_report(self, instances):
         """生成MongoDB报告"""
@@ -465,10 +470,10 @@ class MongoDBAnalyzer:
         # 筛选闲置实例
         idle_instances = [inst for inst in instances if inst.get('is_idle', False)]
         
-        print(f"📊 分析结果: 共 {len(instances)} 个MongoDB实例，其中 {len(idle_instances)} 个闲置")
+        self.logger.info(f"分析结果: 共 {len(instances)} 个MongoDB实例，其中 {len(idle_instances)} 个闲置")
         
         if not idle_instances:
-            print("✅ 没有发现闲置的MongoDB实例")
+            self.logger.info("没有发现闲置的MongoDB实例")
             return
         
         # 生成HTML报告
@@ -479,9 +484,9 @@ class MongoDBAnalyzer:
         excel_file = f'mongodb_idle_report_{timestamp}.xlsx'
         self.generate_excel_report(idle_instances, excel_file)
         
-        print(f"📄 报告已生成:")
-        print(f"  HTML: {html_file}")
-        print(f"  Excel: {excel_file}")
+        self.logger.info(f"📄 报告已生成:")
+        self.logger.info(f"  HTML: {html_file}")
+        self.logger.info(f"  Excel: {excel_file}")
     
     def generate_html_report(self, idle_instances, filename):
         """生成HTML报告"""
@@ -630,7 +635,7 @@ class MongoDBAnalyzer:
             df.to_excel(filename, index=False, engine='openpyxl')
             
         except ImportError:
-            print("⚠️  pandas未安装，跳过Excel报告生成")
+            self.logger.warning(" pandas未安装，跳过Excel报告生成")
 
 def main():
     """主函数"""

@@ -15,6 +15,8 @@ from aliyunsdkcore.client import AcsClient
 from aliyunsdkcore.request import CommonRequest
 from aliyunsdkslb.request.v20140515 import DescribeLoadBalancersRequest, DescribeLoadBalancerAttributeRequest
 from utils.concurrent_helper import process_concurrently
+from utils.logger import get_logger
+from utils.error_handler import ErrorHandler
 
 
 class SLBAnalyzer:
@@ -24,6 +26,7 @@ class SLBAnalyzer:
         self.access_key_id = access_key_id
         self.access_key_secret = access_key_secret
         self.db_name = 'slb_monitoring_data.db'
+        self.logger = get_logger(\'slb_analyzer')
         self.init_database()
         
     def init_database(self):
@@ -60,7 +63,7 @@ class SLBAnalyzer:
         
         conn.commit()
         conn.close()
-        print("✅ SLB数据库初始化完成")
+        self.logger.info("SLB数据库初始化完成")
     
     def get_all_regions(self):
         """获取所有可用区域"""
@@ -112,7 +115,7 @@ class SLBAnalyzer:
             
             return instances
         except Exception as e:
-            print(f"获取SLB实例失败 {region_id}: {str(e)}")
+            self.logger.info(f"获取SLB实例失败 {region_id}: {str(e)}")
             return []
     
     def get_slb_detail(self, region_id, instance_id):
@@ -131,7 +134,7 @@ class SLBAnalyzer:
                 'ListenerPortsAndProtocols': data.get('ListenerPortsAndProtocols', {})
             }
         except Exception as e:
-            print(f"获取SLB详情失败 {instance_id}: {str(e)}")
+            self.logger.info(f"获取SLB详情失败 {instance_id}: {str(e)}")
             return {}
     
     def get_slb_metrics(self, region_id, instance_id):
@@ -190,7 +193,7 @@ class SLBAnalyzer:
                     result[display_name] = 0
                     
             except Exception as e:
-                print(f"    ⚠️  指标 {metric_name} 获取失败: {e}")
+                self.logger.info(f"    ⚠️  指标 {metric_name} 获取失败: {e}")
                 result[display_name] = 0
         
         # 计算流量总和（MB）
@@ -308,12 +311,12 @@ class SLBAnalyzer:
     
     def analyze_slb_instances(self):
         """分析SLB实例"""
-        print("🚀 开始SLB资源分析...")
+        self.logger.info("开始SLB资源分析...")
         
         regions = self.get_all_regions()
         
         # 并发获取所有区域的实例
-        print("🔍 并发获取所有区域的SLB实例...")
+        self.logger.info("🔍 并发获取所有区域的SLB实例...")
         
         def get_region_instances(region_item):
             """获取单个区域的实例（用于并发）"""
@@ -322,7 +325,7 @@ class SLBAnalyzer:
                 instances = self.get_slb_instances(region)
                 return {'region': region, 'instances': instances}
             except Exception as e:
-                print(f"  ❌ 区域 {region} 获取实例失败: {e}")
+                self.logger.warning(f"区域 {region} 获取实例失败: {e}")
                 return {'region': region, 'instances': []}
         
         # 并发获取所有区域的实例
@@ -338,13 +341,13 @@ class SLBAnalyzer:
         for result in region_results:
             if result and result.get('instances'):
                 all_instances_raw.extend(result['instances'])
-                print(f"  ✅ {result['region']}: {len(result['instances'])} 个实例")
+                self.logger.info(f"{result['region']}: {len(result['instances'])} 个实例")
         
         if not all_instances_raw:
-            print("⚠️ 未发现任何SLB实例")
+            self.logger.warning("未发现任何SLB实例")
             return
         
-        print(f"✅ 总共获取到 {len(all_instances_raw)} 个SLB实例")
+        self.logger.info(f"总共获取到 {len(all_instances_raw)} 个SLB实例")
         
         # 定义单个实例处理函数（用于并发）
         def process_single_instance(instance_item):
@@ -369,6 +372,8 @@ class SLBAnalyzer:
                     'instance': instance
                 }
             except Exception as e:
+                error = ErrorHandler.handle_api_error(e, "SLB", region, instance_id)
+                ErrorHandler.handle_instance_error(e, instance_id, region, "SLB", continue_on_error=True)
                 return {
                     'success': False,
                     'instance': instance,
@@ -376,7 +381,7 @@ class SLBAnalyzer:
                 }
         
         # 并发处理所有实例
-        print(f"🚀 并发获取监控数据并分析（最多10个并发线程）...")
+        self.logger.info("并发获取监控数据并分析（最多10个并发线程）...")
         
         def progress_callback(completed, total):
             progress_pct = completed / total * 100
@@ -391,7 +396,7 @@ class SLBAnalyzer:
             progress_callback=progress_callback
         )
         
-        print()  # 换行
+          # 换行
         
         # 整理结果
         all_instances = []
@@ -408,7 +413,7 @@ class SLBAnalyzer:
             else:
                 fail_count += 1
         
-        print(f"✅ 处理完成: 成功 {success_count} 个, 失败 {fail_count} 个")
+        self.logger.info(f"处理完成: 成功 {success_count} 个, 失败 {fail_count} 个")
         
         # 保存数据
         self.save_to_database(all_instances, metrics_data)
@@ -416,7 +421,7 @@ class SLBAnalyzer:
         # 生成报告
         self.generate_slb_report(all_instances)
         
-        print("✅ SLB分析完成")
+        self.logger.info("SLB分析完成")
     
     def generate_slb_report(self, instances):
         """生成SLB报告"""
@@ -424,10 +429,10 @@ class SLBAnalyzer:
         
         idle_instances = [inst for inst in instances if inst.get('is_idle', False)]
         
-        print(f"📊 分析结果: 共 {len(instances)} 个SLB实例，其中 {len(idle_instances)} 个闲置")
+        self.logger.info(f"分析结果: 共 {len(instances)} 个SLB实例，其中 {len(idle_instances)} 个闲置")
         
         if not idle_instances:
-            print("✅ 没有发现闲置的SLB实例")
+            self.logger.info("没有发现闲置的SLB实例")
             return
         
         # 生成HTML报告
@@ -438,9 +443,9 @@ class SLBAnalyzer:
         excel_file = f'slb_idle_report_{timestamp}.xlsx'
         self.generate_excel_report(idle_instances, excel_file)
         
-        print(f"📄 报告已生成:")
-        print(f"  HTML: {html_file}")
-        print(f"  Excel: {excel_file}")
+        self.logger.info(f"📄 报告已生成:")
+        self.logger.info(f"  HTML: {html_file}")
+        self.logger.info(f"  Excel: {excel_file}")
     
     def generate_html_report(self, idle_instances, filename):
         """生成HTML报告"""
@@ -566,7 +571,7 @@ class SLBAnalyzer:
             df.to_excel(filename, index=False, engine='openpyxl')
             
         except ImportError:
-            print("⚠️  pandas未安装，跳过Excel报告生成")
+            self.logger.warning(" pandas未安装，跳过Excel报告生成")
 
 
 def main(access_key_id=None, access_key_secret=None):

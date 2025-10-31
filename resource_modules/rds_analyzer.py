@@ -16,53 +16,36 @@ from aliyunsdkcore.request import CommonRequest
 from aliyunsdkrds.request.v20140815 import DescribeDBInstancesRequest
 from aliyunsdkcms.request.v20190101 import DescribeMetricDataRequest
 from utils.concurrent_helper import process_concurrently
+from utils.logger import get_logger
+from utils.error_handler import ErrorHandler
+from core.report_generator import ReportGenerator
+from core.db_manager import DatabaseManager
 
 
 class RDSAnalyzer:
     """RDS资源分析器"""
     
-    def __init__(self, access_key_id, access_key_secret):
+    def __init__(self, access_key_id, access_key_secret, tenant_name=None):
         self.access_key_id = access_key_id
         self.access_key_secret = access_key_secret
+        self.tenant_name = tenant_name or "default"
         self.db_name = 'rds_monitoring_data.db'
+        self.logger = get_logger('rds_analyzer')
+        # 使用统一数据库管理器
+        self.db_manager = DatabaseManager(self.db_name)
         
     def init_database(self):
-        """初始化RDS数据库"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
+        """初始化RDS数据库（使用统一DatabaseManager）"""
+        # 定义额外列
+        extra_columns = {
+            'engine': 'TEXT',
+            'engine_version': 'TEXT',
+            'instance_class': 'TEXT'
+        }
         
-        # 创建RDS实例表
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS rds_instances (
-            instance_id TEXT PRIMARY KEY,
-            instance_name TEXT,
-            instance_type TEXT,
-            engine TEXT,
-            engine_version TEXT,
-            instance_class TEXT,
-            region TEXT,
-            status TEXT,
-            creation_time TEXT,
-            expire_time TEXT,
-            monthly_cost REAL DEFAULT 0
-        )
-        ''')
-        
-        # 创建RDS监控数据表
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS rds_monitoring_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            instance_id TEXT,
-            metric_name TEXT,
-            metric_value REAL,
-            timestamp INTEGER,
-            FOREIGN KEY (instance_id) REFERENCES rds_instances (instance_id)
-        )
-        ''')
-        
-        conn.commit()
-        conn.close()
-        print("✅ RDS数据库初始化完成")
+        self.db_manager.create_resource_table("rds", extra_columns)
+        self.db_manager.create_monitoring_table("rds")
+        self.logger.info("RDS数据库初始化完成")
     
     def get_all_regions(self):
         """获取所有可用区域"""
@@ -110,7 +93,8 @@ class RDSAnalyzer:
             
             return instances
         except Exception as e:
-            print(f"获取RDS实例失败 {region_id}: {str(e)}")
+            error = ErrorHandler.handle_api_error(e, "RDS", region_id)
+            ErrorHandler.handle_region_error(e, region_id, "RDS")
             return []
     
     def get_rds_metrics(self, region_id, instance_id):
@@ -189,42 +173,28 @@ class RDSAnalyzer:
         return result
     
     def save_rds_data(self, instances_data, monitoring_data):
-        """保存RDS数据到数据库"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-        
-        # 保存实例数据
+        """保存RDS数据到数据库（使用统一DatabaseManager）"""
+        # 转换实例数据格式
         for instance in instances_data:
-            cursor.execute('''
-            INSERT OR REPLACE INTO rds_instances 
-            (instance_id, instance_name, instance_type, engine, engine_version, 
-             instance_class, region, status, creation_time, expire_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                instance['InstanceId'],
-                instance['DBInstanceDescription'],
-                instance['DBInstanceType'],
-                instance['Engine'],
-                instance['EngineVersion'],
-                instance['DBInstanceClass'],
-                instance['Region'],
-                instance['DBInstanceStatus'],
-                instance['CreateTime'],
-                instance['ExpireTime']
-            ))
+            instance_dict = {
+                'InstanceId': instance['InstanceId'],
+                'InstanceName': instance.get('DBInstanceDescription', ''),
+                'InstanceType': instance.get('DBInstanceType', ''),
+                'Region': instance.get('Region', ''),
+                'Status': instance.get('DBInstanceStatus', ''),
+                'CreationTime': instance.get('CreateTime', ''),
+                'ExpireTime': instance.get('ExpireTime', ''),
+                'engine': instance.get('Engine', ''),
+                'engine_version': instance.get('EngineVersion', ''),
+                'instance_class': instance.get('DBInstanceClass', '')
+            }
+            self.db_manager.save_instance("rds", instance_dict)
         
         # 保存监控数据
         for instance_id, metrics in monitoring_data.items():
-            for metric_name, metric_value in metrics.items():
-                cursor.execute('''
-                INSERT INTO rds_monitoring_data 
-                (instance_id, metric_name, metric_value, timestamp)
-                VALUES (?, ?, ?, ?)
-                ''', (instance_id, metric_name, metric_value, int(time.time())))
+            self.db_manager.save_metrics_batch("rds", instance_id, metrics)
         
-        conn.commit()
-        conn.close()
-        print(f"✅ RDS数据保存完成: {len(instances_data)}个实例")
+        self.logger.info(f"RDS数据保存完成: {len(instances_data)}个实例")
     
     def is_rds_idle(self, metrics):
         """判断RDS实例是否闲置"""
@@ -323,17 +293,17 @@ class RDSAnalyzer:
     
     def analyze_rds_resources(self):
         """分析RDS资源"""
-        print("🚀 开始RDS资源分析...")
+        self.logger.info("开始RDS资源分析...")
         
         # 初始化数据库
         self.init_database()
         
         # 获取所有区域
         regions = self.get_all_regions()
-        print(f"✅ 获取到 {len(regions)} 个区域")
+        self.logger.info(f"获取到 {len(regions)} 个区域")
         
         # 并发获取所有区域的实例
-        print("🔍 并发获取所有区域的RDS实例...")
+        self.logger.info("并发获取所有区域的RDS实例...")
         
         def get_region_instances(region_item):
             """获取单个区域的实例（用于并发）"""
@@ -342,7 +312,7 @@ class RDSAnalyzer:
                 instances = self.get_rds_instances(region)
                 return {'region': region, 'instances': instances}
             except Exception as e:
-                print(f"  ❌ 区域 {region} 获取实例失败: {e}")
+                self.logger.warning(f"区域 {region} 获取实例失败: {e}")
                 return {'region': region, 'instances': []}
         
         # 并发获取所有区域的实例
@@ -358,13 +328,13 @@ class RDSAnalyzer:
         for result in region_results:
             if result and result.get('instances'):
                 all_instances.extend(result['instances'])
-                print(f"  ✅ {result['region']}: {len(result['instances'])} 个实例")
+                self.logger.info(f"{result['region']}: {len(result['instances'])} 个实例")
         
         if not all_instances:
-            print("⚠️ 未发现任何RDS实例")
+            self.logger.warning("未发现任何RDS实例")
             return []
         
-        print(f"✅ 总共获取到 {len(all_instances)} 个RDS实例")
+        self.logger.info(f"总共获取到 {len(all_instances)} 个RDS实例")
         
         # 定义单个实例处理函数（用于并发）
         def process_single_instance(instance_item):
@@ -381,6 +351,8 @@ class RDSAnalyzer:
                     'metrics': metrics
                 }
             except Exception as e:
+                error = ErrorHandler.handle_api_error(e, "RDS", region, instance_id)
+                ErrorHandler.handle_instance_error(e, instance_id, region, "RDS", continue_on_error=True)
                 return {
                     'success': False,
                     'instance_id': instance_id,
@@ -389,7 +361,7 @@ class RDSAnalyzer:
                 }
         
         # 并发获取监控数据
-        print(f"🚀 并发获取监控数据（最多10个并发线程）...")
+        self.logger.info("并发获取监控数据（最多10个并发线程）...")
         
         def progress_callback(completed, total):
             progress_pct = completed / total * 100
@@ -403,8 +375,6 @@ class RDSAnalyzer:
             description="RDS监控数据采集",
             progress_callback=progress_callback
         )
-        
-        print()  # 换行
         
         # 整理监控数据
         all_monitoring_data = {}
@@ -421,7 +391,7 @@ class RDSAnalyzer:
                     all_monitoring_data[instance_id] = {}
                     fail_count += 1
         
-        print(f"✅ 监控数据获取完成: 成功 {success_count} 个, 失败 {fail_count} 个")
+        self.logger.info(f"监控数据获取完成: 成功 {success_count} 个, 失败 {fail_count} 个")
         
         # 保存数据
         self.save_rds_data(all_instances, all_monitoring_data)
@@ -464,145 +434,34 @@ class RDSAnalyzer:
                     '月成本(¥)': monthly_cost
                 })
         
-        print(f"✅ RDS分析完成: 发现 {len(idle_instances)} 个闲置实例")
+        self.logger.info(f"RDS分析完成: 发现 {len(idle_instances)} 个闲置实例")
         return idle_instances
     
     def generate_rds_report(self, idle_instances):
-        """生成RDS报告"""
+        """生成RDS报告（使用统一ReportGenerator）"""
         if not idle_instances:
-            print("⚠️ 没有发现闲置的RDS实例")
+            self.logger.info("没有发现闲置的RDS实例")
             return
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
-        # 生成Excel报告
-        df = pd.DataFrame(idle_instances)
-        excel_file = f'rds_idle_report_{timestamp}.xlsx'
-        df.to_excel(excel_file, index=False)
-        print(f"✅ Excel报告已生成: {excel_file}")
+        # 使用统一报告生成器
+        reports = ReportGenerator.generate_combined_report(
+            resource_type="RDS",
+            idle_instances=idle_instances,
+            output_dir=".",
+            tenant_name=self.tenant_name,
+            timestamp=timestamp
+        )
         
-        # 生成HTML报告
-        html_file = f'rds_idle_report_{timestamp}.html'
-        self.generate_html_report(idle_instances, html_file)
-        print(f"✅ HTML报告已生成: {html_file}")
+        self.logger.info(f"Excel报告已生成: {reports['excel']}")
+        self.logger.info(f"HTML报告已生成: {reports['html']}")
         
         # 统计信息
-        total_cost = sum(instance['月成本(¥)'] for instance in idle_instances)
-        print(f"📊 RDS闲置实例统计:")
-        print(f"  总数量: {len(idle_instances)} 个")
-        print(f"  总月成本: {total_cost:,.2f} 元")
-        print(f"  预计年节省: {total_cost * 12:,.2f} 元")
+        total_cost = sum(instance.get('月成本(¥)', 0) for instance in idle_instances)
+        self.logger.info(f"RDS闲置实例统计: 总数量={len(idle_instances)}个, 总月成本={total_cost:,.2f}元, 预计年节省={total_cost * 12:,.2f}元")
     
-    def generate_html_report(self, idle_instances, filename):
-        """生成HTML报告"""
-        html_content = f"""
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RDS闲置实例分析报告</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }}
-        .container {{ max-width: 1400px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
-        h1 {{ color: #2c3e50; text-align: center; margin-bottom: 30px; }}
-        .summary {{ background: #ecf0f1; padding: 15px; border-radius: 5px; margin-bottom: 20px; }}
-        table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-        th {{ background-color: #3498db; color: white; }}
-        tr:nth-child(even) {{ background-color: #f2f2f2; }}
-        .metric {{ font-weight: bold; color: #e74c3c; }}
-        .low-utilization {{ background-color: #fff3cd; }}
-        .footer {{ margin-top: 30px; padding: 15px; background: #34495e; color: white; text-align: center; border-radius: 5px; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🗄️ RDS闲置实例分析报告</h1>
-        
-        <div class="summary">
-            <h3>📊 报告摘要</h3>
-            <p><strong>生成时间:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-            <p><strong>闲置实例数量:</strong> {len(idle_instances)} 个</p>
-            <p><strong>总月成本:</strong> {sum(instance['月成本(¥)'] for instance in idle_instances):,.2f} 元</p>
-            <p><strong>预计年节省:</strong> {sum(instance['月成本(¥)'] for instance in idle_instances) * 12:,.2f} 元</p>
-        </div>
-        
-        <table>
-            <thead>
-                <tr>
-                    <th>实例名称</th>
-                    <th>实例ID</th>
-                    <th>实例类型</th>
-                    <th>引擎</th>
-                    <th>区域</th>
-                    <th>状态</th>
-                    <th>CPU利用率(%)</th>
-                    <th>内存利用率(%)</th>
-                    <th>连接数使用率(%)</th>
-                    <th>QPS</th>
-                    <th>TPS</th>
-                    <th>连接线程数</th>
-                    <th>运行线程数</th>
-                    <th>慢查询数</th>
-                    <th>打开文件数</th>
-                    <th>打开表数</th>
-                    <th>SELECT查询数</th>
-                    <th>INSERT操作数</th>
-                    <th>UPDATE操作数</th>
-                    <th>DELETE操作数</th>
-                    <th>闲置原因</th>
-                    <th>优化建议</th>
-                    <th>月成本(¥)</th>
-                </tr>
-            </thead>
-            <tbody>
-"""
-        
-        for instance in idle_instances:
-            html_content += f"""
-                <tr>
-                    <td>{instance['实例名称']}</td>
-                    <td>{instance['实例ID']}</td>
-                    <td>{instance['实例类型']}</td>
-                    <td>{instance['引擎']}</td>
-                    <td>{instance['区域']}</td>
-                    <td>{instance['状态']}</td>
-                    <td><span class="metric">{instance['CPU利用率(%)']:.1f}%</span></td>
-                    <td><span class="metric">{instance['内存利用率(%)']:.1f}%</span></td>
-                    <td><span class="metric">{instance['连接数使用率(%)']:.1f}%</span></td>
-                    <td><span class="metric">{instance['QPS']:.0f}</span></td>
-                    <td><span class="metric">{instance['TPS']:.0f}</span></td>
-                    <td><span class="metric">{instance['连接线程数']:.0f}</span></td>
-                    <td><span class="metric">{instance['运行线程数']:.0f}</span></td>
-                    <td><span class="metric">{instance['慢查询数']:.0f}</span></td>
-                    <td><span class="metric">{instance['打开文件数']:.0f}</span></td>
-                    <td><span class="metric">{instance['打开表数']:.0f}</span></td>
-                    <td><span class="metric">{instance['SELECT查询数']:.0f}</span></td>
-                    <td><span class="metric">{instance['INSERT操作数']:.0f}</span></td>
-                    <td><span class="metric">{instance['UPDATE操作数']:.0f}</span></td>
-                    <td><span class="metric">{instance['DELETE操作数']:.0f}</span></td>
-                    <td>{instance['闲置原因']}</td>
-                    <td>{instance['优化建议']}</td>
-                    <td>{instance['月成本(¥)']:,.2f}</td>
-                </tr>
-"""
-        
-        html_content += """
-            </tbody>
-        </table>
-        
-        <div class="footer">
-            <p>📋 闲置判断标准: CPU利用率 < 10% 或 内存利用率 < 20% 或 连接数使用率 < 20% 或 QPS < 100 或 TPS < 10 或 连接线程数 < 10 或 运行线程数 < 5</p>
-            <p>💡 建议: 根据优化建议进行资源配置调整，预计可节省成本30-50%</p>
-        </div>
-    </div>
-</body>
-</html>
-"""
-        
-        with open(filename, 'w', encoding='utf-8') as f:
-            f.write(html_content)
+    # generate_html_report方法已移除，改用ReportGenerator.generate_combined_report
 
 
 def main():
@@ -614,7 +473,8 @@ def main():
         access_key_id = config['access_key_id']
         access_key_secret = config['access_key_secret']
     except FileNotFoundError:
-        print("❌ 配置文件 config.json 不存在")
+        import logging
+        logging.error("配置文件 config.json 不存在")
         return
     
     # 创建RDS分析器

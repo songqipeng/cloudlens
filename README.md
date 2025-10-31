@@ -16,12 +16,17 @@
 | **OSS** | ✅ 已完成 | 对象存储服务 - 文件存储分析 |
 | **SLB** | ✅ 已完成 | 负载均衡 - 流量分发分析 |
 | **EIP** | ✅ 已完成 | 弹性公网IP - 公网访问分析 |
-| **NAS** | 📋 计划中 | 文件存储NAS - 共享文件系统分析 |
-| **ACK** | 📋 计划中 | 容器服务Kubernetes版 - 容器编排分析 |
-| **ECI** | 📋 计划中 | 弹性容器实例 - 无服务器容器分析 |
+| **NAS** | ✅ 已完成 | 文件存储NAS - 共享文件系统分析 |
+| **ACK** | ✅ 已完成 | 容器服务Kubernetes版 - 容器编排分析 |
+| **ECI** | ✅ 已完成 | 弹性容器实例 - 无服务器容器分析 |
+| **PolarDB** | ✅ 已完成 | 云原生数据库PolarDB - 分布式数据库分析 |
 | **EMR** | 📋 计划中 | 大数据服务 - 大数据计算分析 |
 | **ARMS** | 📋 计划中 | 应用监控 - 应用性能监控分析 |
 | **SLS** | 📋 计划中 | 日志服务 - 日志收集分析 |
+| **VPN** | 📋 计划中 | VPN网关 - 虚拟专用网络分析 |
+| **NAT** | 📋 计划中 | NAT网关 - 网络地址转换分析 |
+| **CDN** | 📋 计划中 | 内容分发网络 - CDN加速分析 |
+| **FC** | 📋 计划中 | 函数计算 - Serverless函数分析 |
 
 ## 🛠️ 安装和使用
 
@@ -357,6 +362,51 @@ python main.py list-credentials
 }
 ```
 
+## 🚀 最新优化（v2.1.0）
+
+### 安全性优化
+- ✅ **修复Pickle安全风险**: 改用msgpack替代pickle，消除代码执行安全漏洞
+- ✅ **统一缓存管理**: 支持多租户隔离的缓存路径
+
+### 性能优化
+- ✅ **全面并发处理**: 所有资源分析器已启用并发处理，性能提升5-10倍
+- ✅ **智能错误处理**: 统一的错误分类和重试机制
+
+### 架构优化
+- ✅ **统一报告生成**: ReportGenerator类提取公共报告生成逻辑
+- ✅ **统一数据库管理**: DatabaseManager类统一资源数据存储
+- ✅ **结构化日志**: 支持结构化日志记录，便于分析和监控
+
+### 代码质量
+- ✅ **统一错误处理**: ErrorHandler类提供统一的错误处理机制
+- ✅ **代码复用**: 公共逻辑提取，减少代码重复
+
+详细优化说明请查看：[OPTIMIZATION_RECOMMENDATIONS.md](OPTIMIZATION_RECOMMENDATIONS.md)
+
+## ❓ 常见问题（FAQ）
+
+### Q1: 如何设置多个租户？
+A: 在`config.json`中配置多个租户，使用`default_tenant`指定默认租户。推荐使用Keyring存储凭证：
+
+```bash
+python main.py setup-credentials
+```
+
+### Q2: 分析很慢怎么办？
+A: 工具已启用并发处理，如果仍然较慢，可能是：
+- 实例数量很多（100+）
+- 网络延迟较高
+- 可以启用缓存减少API调用
+
+### Q3: 如何清除缓存？
+A: 删除`data/cache/`目录下的缓存文件，或使用`--no-cache`参数强制重新获取数据。
+
+### Q4: 报告保存在哪里？
+A: 报告保存在当前目录的租户子目录下，例如：`{tenant_name}/cru/`或`{tenant_name}/discount/`
+
+### Q5: 如何自定义阈值？
+A: 修改`thresholds.yaml`文件，支持不同资源类型和子类型的阈值配置。
+
 ## 📚 相关文档
 
 - **开发日志**: [DEVELOPMENT_LOG.md](DEVELOPMENT_LOG.md) - 详细的开发记录和问题解决
@@ -364,6 +414,7 @@ python main.py list-credentials
 - **项目总结**: [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md) - 完整的产品和技术文档总结
 - **产品技术规划**: [PRODUCT_TECH_PLAN.md](PRODUCT_TECH_PLAN.md) - 产品功能现状、改进建议和开发计划
 - **待开发功能**: [TODO_FEATURES.md](TODO_FEATURES.md) - 详细的功能清单和优先级
+- **优化建议**: [OPTIMIZATION_RECOMMENDATIONS.md](OPTIMIZATION_RECOMMENDATIONS.md) - 详细的优化方案和实施指南
 
 ## 📞 技术支持
 

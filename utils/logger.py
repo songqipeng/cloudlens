@@ -2,14 +2,16 @@
 # -*- coding: utf-8 -*-
 """
 日志管理工具
-统一日志配置，支持文件和控制台输出
+统一日志配置，支持文件和控制台输出，支持结构化日志
 """
 
 import logging
+import json
 import sys
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
+from typing import Dict, Any, Optional
 
 
 def setup_logger(
@@ -88,4 +90,94 @@ def get_logger(name: str = 'aliyunidle') -> logging.Logger:
         Logger对象
     """
     return logging.getLogger(name)
+
+
+class StructuredLogger:
+    """结构化日志记录器"""
+    
+    def __init__(self, logger: Optional[logging.Logger] = None):
+        """
+        初始化结构化日志记录器
+        
+        Args:
+            logger: 基础Logger对象（None则使用默认logger）
+        """
+        self.logger = logger or get_logger()
+    
+    def _log_event(self, level: str, event: str, **kwargs):
+        """记录结构化日志事件"""
+        log_data = {
+            'event': event,
+            'timestamp': datetime.now().isoformat(),
+            **kwargs
+        }
+        
+        message = json.dumps(log_data, ensure_ascii=False)
+        log_func = getattr(self.logger, level.lower())
+        log_func(message)
+    
+    def log_analysis_start(self, resource_type: str, tenant: str, 
+                           regions_count: int, **kwargs):
+        """记录分析开始事件"""
+        self._log_event('info', 'analysis_start',
+                       resource_type=resource_type,
+                       tenant=tenant,
+                       regions_count=regions_count,
+                       **kwargs)
+    
+    def log_analysis_complete(self, resource_type: str, tenant: str,
+                             total_instances: int, idle_count: int,
+                             duration_seconds: float, **kwargs):
+        """记录分析完成事件"""
+        self._log_event('info', 'analysis_complete',
+                       resource_type=resource_type,
+                       tenant=tenant,
+                       total_instances=total_instances,
+                       idle_count=idle_count,
+                       duration_seconds=duration_seconds,
+                       **kwargs)
+    
+    def log_instance_processed(self, resource_type: str, instance_id: str,
+                               region: str, is_idle: bool, **kwargs):
+        """记录实例处理事件"""
+        self._log_event('debug', 'instance_processed',
+                       resource_type=resource_type,
+                       instance_id=instance_id,
+                       region=region,
+                       is_idle=is_idle,
+                       **kwargs)
+    
+    def log_api_call(self, resource_type: str, api_name: str,
+                    region: str = None, success: bool = True,
+                    duration_ms: float = None, **kwargs):
+        """记录API调用事件"""
+        self._log_event('debug', 'api_call',
+                       resource_type=resource_type,
+                       api_name=api_name,
+                       region=region,
+                       success=success,
+                       duration_ms=duration_ms,
+                       **kwargs)
+    
+    def log_error(self, resource_type: str, error_type: str,
+                 error_message: str, region: str = None,
+                 instance_id: str = None, **kwargs):
+        """记录错误事件"""
+        self._log_event('error', 'error_occurred',
+                       resource_type=resource_type,
+                       error_type=error_type,
+                       error_message=error_message,
+                       region=region,
+                       instance_id=instance_id,
+                       **kwargs)
+    
+    def log_metric(self, resource_type: str, metric_name: str,
+                  metric_value: float, instance_id: str = None, **kwargs):
+        """记录指标事件"""
+        self._log_event('debug', 'metric_recorded',
+                       resource_type=resource_type,
+                       metric_name=metric_name,
+                       metric_value=metric_value,
+                       instance_id=instance_id,
+                       **kwargs)
 

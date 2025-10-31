@@ -15,6 +15,8 @@ from aliyunsdkcore.client import AcsClient
 from aliyunsdkcore.request import CommonRequest
 from aliyunsdkr_kvstore.request.v20150101 import DescribeInstancesRequest
 from utils.concurrent_helper import process_concurrently
+from utils.logger import get_logger
+from utils.error_handler import ErrorHandler
 
 
 class RedisAnalyzer:
@@ -24,6 +26,7 @@ class RedisAnalyzer:
         self.access_key_id = access_key_id
         self.access_key_secret = access_key_secret
         self.db_name = 'redis_monitoring_data.db'
+        self.logger = get_logger('redis_analyzer')
         
     def init_database(self):
         """初始化Redis数据库"""
@@ -60,7 +63,7 @@ class RedisAnalyzer:
         
         conn.commit()
         conn.close()
-        print("✅ Redis数据库初始化完成")
+        self.logger.info("Redis数据库初始化完成")
     
     def get_all_regions(self):
         """获取所有可用区域"""
@@ -107,7 +110,8 @@ class RedisAnalyzer:
             
             return instances
         except Exception as e:
-            print(f"获取Redis实例失败 {region_id}: {str(e)}")
+            error = ErrorHandler.handle_api_error(e, "Redis", region_id)
+            ErrorHandler.handle_region_error(e, region_id, "Redis")
             return []
     
     def get_redis_metrics(self, region_id, instance_id):
@@ -211,7 +215,7 @@ class RedisAnalyzer:
         
         conn.commit()
         conn.close()
-        print(f"✅ Redis数据保存完成: {len(instances_data)}个实例")
+        self.logger.info(f"Redis数据保存完成: {len(instances_data)}个实例")
     
     def is_redis_idle(self, metrics):
         """判断Redis实例是否闲置"""
@@ -315,17 +319,17 @@ class RedisAnalyzer:
     
     def analyze_redis_resources(self):
         """分析Redis资源"""
-        print("🚀 开始Redis资源分析...")
+        self.logger.info("开始Redis资源分析...")
         
         # 初始化数据库
         self.init_database()
         
         # 获取所有区域
         regions = self.get_all_regions()
-        print(f"✅ 获取到 {len(regions)} 个区域")
+        self.logger.info(f"获取到 {len(regions)} 个区域")
         
         # 并发获取所有区域的实例
-        print("🔍 并发获取所有区域的Redis实例...")
+        self.logger.info("并发获取所有区域的Redis实例...")
         
         def get_region_instances(region_item):
             """获取单个区域的实例（用于并发）"""
@@ -334,7 +338,7 @@ class RedisAnalyzer:
                 instances = self.get_redis_instances(region)
                 return {'region': region, 'instances': instances}
             except Exception as e:
-                print(f"  ❌ 区域 {region} 获取实例失败: {e}")
+                self.logger.warning(f"区域 {region} 获取实例失败: {e}")
                 return {'region': region, 'instances': []}
         
         # 并发获取所有区域的实例
@@ -350,13 +354,13 @@ class RedisAnalyzer:
         for result in region_results:
             if result and result.get('instances'):
                 all_instances.extend(result['instances'])
-                print(f"  ✅ {result['region']}: {len(result['instances'])} 个实例")
+                self.logger.info(f"{result['region']}: {len(result['instances'])} 个实例")
         
         if not all_instances:
-            print("⚠️ 未发现任何Redis实例")
+            self.logger.warning("未发现任何Redis实例")
             return []
         
-        print(f"✅ 总共获取到 {len(all_instances)} 个Redis实例")
+        self.logger.info(f"总共获取到 {len(all_instances)} 个Redis实例")
         
         # 定义单个实例处理函数（用于并发）
         def process_single_instance(instance_item):
@@ -373,6 +377,8 @@ class RedisAnalyzer:
                     'metrics': metrics
                 }
             except Exception as e:
+                error = ErrorHandler.handle_api_error(e, "Redis", region, instance_id)
+                ErrorHandler.handle_instance_error(e, instance_id, region, "Redis", continue_on_error=True)
                 return {
                     'success': False,
                     'instance_id': instance_id,
@@ -381,7 +387,7 @@ class RedisAnalyzer:
                 }
         
         # 并发获取监控数据
-        print(f"🚀 并发获取监控数据（最多10个并发线程）...")
+        self.logger.info("并发获取监控数据（最多10个并发线程）...")
         
         def progress_callback(completed, total):
             progress_pct = completed / total * 100
@@ -396,7 +402,7 @@ class RedisAnalyzer:
             progress_callback=progress_callback
         )
         
-        print()  # 换行
+          # 换行
         
         # 整理监控数据
         all_monitoring_data = {}
@@ -413,7 +419,7 @@ class RedisAnalyzer:
                     all_monitoring_data[instance_id] = {}
                     fail_count += 1
         
-        print(f"✅ 监控数据获取完成: 成功 {success_count} 个, 失败 {fail_count} 个")
+        self.logger.info(f"监控数据获取完成: 成功 {success_count} 个, 失败 {fail_count} 个")
         
         # 保存数据
         self.save_redis_data(all_instances, all_monitoring_data)
@@ -447,13 +453,13 @@ class RedisAnalyzer:
                     '月成本(¥)': monthly_cost
                 })
         
-        print(f"✅ Redis分析完成: 发现 {len(idle_instances)} 个闲置实例")
+        self.logger.info(f"Redis分析完成: 发现 {len(idle_instances)} 个闲置实例")
         return idle_instances
     
     def generate_redis_report(self, idle_instances):
         """生成Redis报告"""
         if not idle_instances:
-            print("⚠️ 没有发现闲置的Redis实例")
+            self.logger.warning("没有发现闲置的Redis实例")
             return
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -462,19 +468,16 @@ class RedisAnalyzer:
         df = pd.DataFrame(idle_instances)
         excel_file = f'redis_idle_report_{timestamp}.xlsx'
         df.to_excel(excel_file, index=False)
-        print(f"✅ Excel报告已生成: {excel_file}")
+        self.logger.info(f"Excel报告已生成: {excel_file}")
         
         # 生成HTML报告
         html_file = f'redis_idle_report_{timestamp}.html'
         self.generate_html_report(idle_instances, html_file)
-        print(f"✅ HTML报告已生成: {html_file}")
+        self.logger.info(f"HTML报告已生成: {html_file}")
         
         # 统计信息
         total_cost = sum(instance['月成本(¥)'] for instance in idle_instances)
-        print(f"📊 Redis闲置实例统计:")
-        print(f"  总数量: {len(idle_instances)} 个")
-        print(f"  总月成本: {total_cost:,.2f} 元")
-        print(f"  预计年节省: {total_cost * 12:,.2f} 元")
+        self.logger.info(f"Redis闲置实例统计: 总数量={len(idle_instances)}个, 总月成本={total_cost:,.2f}元, 预计年节省={total_cost * 12:,.2f}元")
     
     def generate_html_report(self, idle_instances, filename):
         """生成HTML报告"""
@@ -581,7 +584,7 @@ def main():
         access_key_id = config['access_key_id']
         access_key_secret = config['access_key_secret']
     except FileNotFoundError:
-        print("❌ 配置文件 config.json 不存在")
+        self.logger.error("配置文件 config.json 不存在")
         return
     
     # 创建Redis分析器

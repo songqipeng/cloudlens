@@ -14,6 +14,8 @@ from datetime import datetime
 from aliyunsdkcore.client import AcsClient
 from aliyunsdkcore.request import CommonRequest
 from utils.concurrent_helper import process_concurrently
+from utils.logger import get_logger
+from utils.error_handler import ErrorHandler
 
 
 class ClickHouseAnalyzer:
@@ -23,6 +25,7 @@ class ClickHouseAnalyzer:
         self.access_key_id = access_key_id
         self.access_key_secret = access_key_secret
         self.db_name = 'clickhouse_monitoring_data.db'
+        self.logger = get_logger(\'clickhouse_analyzer')
         
     def init_database(self):
         """初始化ClickHouse数据库"""
@@ -59,7 +62,7 @@ class ClickHouseAnalyzer:
         
         conn.commit()
         conn.close()
-        print("✅ ClickHouse数据库初始化完成")
+        self.logger.info("ClickHouse数据库初始化完成")
     
     def get_all_regions(self):
         """获取所有可用区域"""
@@ -240,7 +243,7 @@ class ClickHouseAnalyzer:
         
         conn.commit()
         conn.close()
-        print(f"✅ ClickHouse数据保存完成: {len(instances_data)}个实例")
+        self.logger.info(f"ClickHouse数据保存完成: {len(instances_data)}个实例")
     
     def is_clickhouse_idle(self, metrics):
         """判断ClickHouse实例是否闲置"""
@@ -358,17 +361,17 @@ class ClickHouseAnalyzer:
     
     def analyze_clickhouse_resources(self):
         """分析ClickHouse资源"""
-        print("🚀 开始ClickHouse资源分析...")
+        self.logger.info("开始ClickHouse资源分析...")
         
         # 初始化数据库
         self.init_database()
         
         # 获取所有区域
         regions = self.get_all_regions()
-        print(f"✅ 获取到 {len(regions)} 个区域")
+        self.logger.info(f"获取到 {len(regions)} 个区域")
         
         # 并发获取所有区域的实例
-        print("🔍 并发获取所有区域的ClickHouse实例...")
+        self.logger.info("🔍 并发获取所有区域的ClickHouse实例...")
         
         def get_region_instances(region_item):
             """获取单个区域的实例（用于并发）"""
@@ -392,13 +395,13 @@ class ClickHouseAnalyzer:
         for result in region_results:
             if result and result.get('instances'):
                 all_instances.extend(result['instances'])
-                print(f"  ✅ {result['region']}: {len(result['instances'])} 个实例")
+                self.logger.info(f"{result['region']}: {len(result['instances'])} 个实例")
         
         if not all_instances:
-            print("⚠️ 未发现任何ClickHouse实例")
+            self.logger.warning("未发现任何ClickHouse实例")
             return []
         
-        print(f"✅ 总共获取到 {len(all_instances)} 个ClickHouse实例")
+        self.logger.info(f"总共获取到 {len(all_instances)} 个ClickHouse实例")
         
         # 定义单个实例处理函数（用于并发）
         def process_single_instance(instance_item):
@@ -415,6 +418,8 @@ class ClickHouseAnalyzer:
                     'metrics': metrics
                 }
             except Exception as e:
+                error = ErrorHandler.handle_api_error(e, "ClickHouse", region, instance_id)
+                ErrorHandler.handle_instance_error(e, instance_id, region, "ClickHouse", continue_on_error=True)
                 return {
                     'success': False,
                     'instance_id': instance_id,
@@ -423,7 +428,7 @@ class ClickHouseAnalyzer:
                 }
         
         # 并发获取监控数据
-        print(f"🚀 并发获取监控数据（最多10个并发线程）...")
+        self.logger.info("并发获取监控数据（最多10个并发线程）...")
         
         def progress_callback(completed, total):
             progress_pct = completed / total * 100
@@ -438,7 +443,7 @@ class ClickHouseAnalyzer:
             progress_callback=progress_callback
         )
         
-        print()  # 换行
+          # 换行
         
         # 整理监控数据
         all_monitoring_data = {}
@@ -455,7 +460,7 @@ class ClickHouseAnalyzer:
                     all_monitoring_data[instance_id] = {}
                     fail_count += 1
         
-        print(f"✅ 监控数据获取完成: 成功 {success_count} 个, 失败 {fail_count} 个")
+        self.logger.info(f"监控数据获取完成: 成功 {success_count} 个, 失败 {fail_count} 个")
         
         # 保存数据
         self.save_clickhouse_data(all_instances, all_monitoring_data)
@@ -493,13 +498,13 @@ class ClickHouseAnalyzer:
                     '月成本(¥)': monthly_cost
                 })
         
-        print(f"✅ ClickHouse分析完成: 发现 {len(idle_instances)} 个闲置实例")
+        self.logger.info(f"ClickHouse分析完成: 发现 {len(idle_instances)} 个闲置实例")
         return idle_instances
     
     def generate_clickhouse_report(self, idle_instances, tenant_name=None, output_base_dir="."):
         """生成ClickHouse报告"""
         if not idle_instances:
-            print("⚠️ 没有发现闲置的ClickHouse实例")
+            self.logger.warning("没有发现闲置的ClickHouse实例")
             return
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -509,19 +514,19 @@ class ClickHouseAnalyzer:
         df = pd.DataFrame(idle_instances)
         excel_file = f'{output_base_dir}/{tenant_prefix}clickhouse_idle_report_{timestamp}.xlsx'
         df.to_excel(excel_file, index=False)
-        print(f"✅ Excel报告已生成: {excel_file}")
+        self.logger.info(f"Excel报告已生成: {excel_file}")
         
         # 生成HTML报告
         html_file = f'{output_base_dir}/{tenant_prefix}clickhouse_idle_report_{timestamp}.html'
         self.generate_html_report(idle_instances, html_file, tenant_name)
-        print(f"✅ HTML报告已生成: {html_file}")
+        self.logger.info(f"HTML报告已生成: {html_file}")
         
         # 统计信息
         total_cost = sum(instance['月成本(¥)'] for instance in idle_instances)
-        print(f"📊 ClickHouse闲置实例统计:")
-        print(f"  总数量: {len(idle_instances)} 个")
-        print(f"  总月成本: {total_cost:,.2f} 元")
-        print(f"  预计年节省: {total_cost * 12:,.2f} 元")
+        self.logger.info("ClickHouse闲置实例统计:")
+        self.logger.info(f"  总数量: {len(idle_instances)} 个")
+        self.logger.info(f"  总月成本: {total_cost:,.2f} 元")
+        self.logger.info(f"  预计年节省: {total_cost * 12:,.2f} 元")
     
     def generate_html_report(self, idle_instances, filename, tenant_name=None):
         """生成HTML报告"""
@@ -632,7 +637,7 @@ def main():
     import sys
     
     if len(sys.argv) < 3:
-        print("用法: python clickhouse_analyzer.py <access_key_id> <access_key_secret>")
+        self.logger.info("用法: python clickhouse_analyzer.py <access_key_id> <access_key_secret>")
         sys.exit(1)
     
     access_key_id = sys.argv[1]

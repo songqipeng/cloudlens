@@ -13,6 +13,7 @@ openpyxl>=3.0.0
 tenacity>=8.2.0
 PyYAML>=6.0
 keyring>=23.0.0
+msgpack>=1.0.0
 
 
 

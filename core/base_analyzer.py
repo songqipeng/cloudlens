@@ -140,7 +140,8 @@ class BaseResourceAnalyzer(ABC):
                         })
             except Exception as e:
                 # 记录错误但继续处理其他区域
-                print(f"⚠️  区域 {region} 分析失败: {e}")
+                from utils.error_handler import ErrorHandler
+                ErrorHandler.handle_region_error(e, region, self.get_resource_type())
                 continue
 
         return idle_resources

@@ -5,7 +5,7 @@ import os
 import sys
 import time
 import json
-import pickle
+import msgpack
 import datetime
 import sqlite3
 from aliyunsdkcore.client import AcsClient
@@ -471,23 +471,23 @@ def is_cache_valid():
     return (current_time - cache_time) < (CACHE_EXPIRE_HOURS * 3600)
 
 def save_cache_data(data):
-    """保存数据到缓存"""
+    """保存数据到缓存（使用msgpack，安全高效）"""
     cache_data = {
         'timestamp': time.time(),
         'data': data
     }
     with open(CACHE_FILE, 'wb') as f:
-        pickle.dump(cache_data, f)
+        msgpack.pack(cache_data, f)
     print(f"✅ 数据已缓存到 {CACHE_FILE}")
 
 def load_cache_data():
-    """从缓存加载数据"""
+    """从缓存加载数据（使用msgpack，安全高效）"""
     if not os.path.exists(CACHE_FILE):
         return None
     
     try:
         with open(CACHE_FILE, 'rb') as f:
-            cache_data = pickle.load(f)
+            cache_data = msgpack.unpack(f, raw=False, strict_map_key=False)
         print(f"✅ 从缓存加载数据 (缓存时间: {datetime.datetime.fromtimestamp(cache_data['timestamp']).strftime('%Y-%m-%d %H:%M:%S')})")
         return cache_data['data']
     except Exception as e:

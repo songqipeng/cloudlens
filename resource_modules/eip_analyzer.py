@@ -15,6 +15,8 @@ from aliyunsdkcore.client import AcsClient
 from aliyunsdkcore.request import CommonRequest
 from aliyunsdkvpc.request.v20160428 import DescribeEipAddressesRequest
 from utils.concurrent_helper import process_concurrently
+from utils.logger import get_logger
+from utils.error_handler import ErrorHandler
 
 
 class EIPAnalyzer:
@@ -24,6 +26,7 @@ class EIPAnalyzer:
         self.access_key_id = access_key_id
         self.access_key_secret = access_key_secret
         self.db_name = 'eip_monitoring_data.db'
+        self.logger = get_logger(\'eip_analyzer')
         self.init_database()
         
     def init_database(self):
@@ -62,7 +65,7 @@ class EIPAnalyzer:
         
         conn.commit()
         conn.close()
-        print("✅ EIP数据库初始化完成")
+        self.logger.info("EIP数据库初始化完成")
     
     def get_all_regions(self):
         """获取所有可用区域"""
@@ -129,7 +132,7 @@ class EIPAnalyzer:
             
             return all_eips
         except Exception as e:
-            print(f"获取EIP实例失败 {region_id}: {str(e)}")
+            self.logger.info(f"获取EIP实例失败 {region_id}: {str(e)}")
             return []
     
     def get_eip_metrics(self, region_id, allocation_id, ip_address):
@@ -186,7 +189,7 @@ class EIPAnalyzer:
                     result[display_name] = 0
                     
             except Exception as e:
-                print(f"    ⚠️  指标 {metric_name} 获取失败: {e}")
+                self.logger.info(f"    ⚠️  指标 {metric_name} 获取失败: {e}")
                 result[display_name] = 0
         
         # 计算总流量（字节）
@@ -317,12 +320,12 @@ class EIPAnalyzer:
     
     def analyze_eip_instances(self):
         """分析EIP实例"""
-        print("🚀 开始EIP资源分析...")
+        self.logger.info("开始EIP资源分析...")
         
         regions = self.get_all_regions()
         
         # 并发获取所有区域的实例
-        print("🔍 并发获取所有区域的EIP实例...")
+        self.logger.info("🔍 并发获取所有区域的EIP实例...")
         
         def get_region_instances(region_item):
             """获取单个区域的实例（用于并发）"""
@@ -331,7 +334,7 @@ class EIPAnalyzer:
                 instances = self.get_eip_instances(region)
                 return {'region': region, 'instances': instances}
             except Exception as e:
-                print(f"  ❌ 区域 {region} 获取实例失败: {e}")
+                self.logger.warning(f"区域 {region} 获取实例失败: {e}")
                 return {'region': region, 'instances': []}
         
         # 并发获取所有区域的实例
@@ -347,13 +350,13 @@ class EIPAnalyzer:
         for result in region_results:
             if result and result.get('instances'):
                 all_instances_raw.extend(result['instances'])
-                print(f"  ✅ {result['region']}: {len(result['instances'])} 个实例")
+                self.logger.info(f"{result['region']}: {len(result['instances'])} 个实例")
         
         if not all_instances_raw:
-            print("⚠️ 未发现任何EIP实例")
+            self.logger.warning("未发现任何EIP实例")
             return
         
-        print(f"✅ 总共获取到 {len(all_instances_raw)} 个EIP实例")
+        self.logger.info(f"总共获取到 {len(all_instances_raw)} 个EIP实例")
         
         # 定义单个实例处理函数（用于并发）
         def process_single_instance(instance_item):
@@ -387,6 +390,8 @@ class EIPAnalyzer:
                     'instance': instance
                 }
             except Exception as e:
+                error = ErrorHandler.handle_api_error(e, "EIP", region, allocation_id)
+                ErrorHandler.handle_instance_error(e, allocation_id, region, "EIP", continue_on_error=True)
                 return {
                     'success': False,
                     'instance': instance,
@@ -394,7 +399,7 @@ class EIPAnalyzer:
                 }
         
         # 并发处理所有实例
-        print(f"🚀 并发获取监控数据并分析（最多10个并发线程）...")
+        self.logger.info("并发获取监控数据并分析（最多10个并发线程）...")
         
         def progress_callback(completed, total):
             progress_pct = completed / total * 100
@@ -409,7 +414,7 @@ class EIPAnalyzer:
             progress_callback=progress_callback
         )
         
-        print()  # 换行
+          # 换行
         
         # 整理结果
         all_instances = []
@@ -426,7 +431,7 @@ class EIPAnalyzer:
             else:
                 fail_count += 1
         
-        print(f"✅ 处理完成: 成功 {success_count} 个, 失败 {fail_count} 个")
+        self.logger.info(f"处理完成: 成功 {success_count} 个, 失败 {fail_count} 个")
         
         # 保存数据
         self.save_to_database(all_instances, metrics_data)
@@ -434,7 +439,7 @@ class EIPAnalyzer:
         # 生成报告
         self.generate_eip_report(all_instances)
         
-        print("✅ EIP分析完成")
+        self.logger.info("EIP分析完成")
     
     def generate_eip_report(self, instances):
         """生成EIP报告"""
@@ -442,10 +447,10 @@ class EIPAnalyzer:
         
         idle_instances = [inst for inst in instances if inst.get('is_idle', False)]
         
-        print(f"📊 分析结果: 共 {len(instances)} 个EIP实例，其中 {len(idle_instances)} 个闲置")
+        self.logger.info(f"分析结果: 共 {len(instances)} 个EIP实例，其中 {len(idle_instances)} 个闲置")
         
         if not idle_instances:
-            print("✅ 没有发现闲置的EIP实例")
+            self.logger.info("没有发现闲置的EIP实例")
             return
         
         # 生成HTML报告
@@ -456,9 +461,9 @@ class EIPAnalyzer:
         excel_file = f'eip_idle_report_{timestamp}.xlsx'
         self.generate_excel_report(idle_instances, excel_file)
         
-        print(f"📄 报告已生成:")
-        print(f"  HTML: {html_file}")
-        print(f"  Excel: {excel_file}")
+        self.logger.info(f"📄 报告已生成:")
+        self.logger.info(f"  HTML: {html_file}")
+        self.logger.info(f"  Excel: {excel_file}")
     
     def generate_html_report(self, idle_instances, filename):
         """生成HTML报告"""
@@ -577,7 +582,7 @@ class EIPAnalyzer:
             df.to_excel(filename, index=False, engine='openpyxl')
             
         except ImportError:
-            print("⚠️  pandas未安装，跳过Excel报告生成")
+            self.logger.warning(" pandas未安装，跳过Excel报告生成")
 
 
 def main(access_key_id=None, access_key_secret=None):
