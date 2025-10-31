@@ -16,8 +16,13 @@ try:
     HAS_PANDAS = True
 except ImportError:
     HAS_PANDAS = False
-from aliyunsdkcore.client import AcsClient
-from aliyunsdkcore.request import CommonRequest
+try:
+    from aliyunsdkcore.client import AcsClient
+    from aliyunsdkcore.request import CommonRequest
+    HAS_ALIYUN_SDK = True
+except ImportError:
+    HAS_ALIYUN_SDK = False
+
 from utils.logger import get_logger
 from utils.error_handler import ErrorHandler
 from core.db_manager import DatabaseManager
@@ -105,6 +110,10 @@ class CostAnalyzer:
     
     def get_cost_from_discount_analyzer(self, resource_type: str) -> List[Dict]:
         """从折扣分析器获取实际续费价格（更准确）"""
+        if not HAS_ALIYUN_SDK:
+            self.logger.warning("阿里云SDK未安装，跳过从折扣分析器获取成本数据")
+            return []
+        
         try:
             from resource_modules.discount_analyzer import DiscountAnalyzer
             
@@ -234,14 +243,29 @@ class CostAnalyzer:
         self.logger.info("开始收集所有资源类型的成本数据...")
         
         # 先尝试从折扣分析器获取包年包月资源的实际价格
-        for resource_type in prepaid_resources:
-            self.logger.info(f"获取{resource_type.upper()}成本数据...")
-            costs = self.get_cost_from_discount_analyzer(resource_type)
-            if not costs:
-                # 如果失败，从数据库获取
+        if HAS_ALIYUN_SDK:
+            for resource_type in prepaid_resources:
+                self.logger.info(f"获取{resource_type.upper()}成本数据...")
+                try:
+                    costs = self.get_cost_from_discount_analyzer(resource_type)
+                    if not costs:
+                        # 如果失败，从数据库获取
+                        costs = self.get_cost_from_database(resource_type)
+                    all_costs[resource_type] = costs
+                    self.logger.info(f"  {resource_type.upper()}: {len(costs)}个实例")
+                except Exception as e:
+                    self.logger.warning(f"获取{resource_type.upper()}成本数据失败: {e}")
+                    # 失败时从数据库获取
+                    costs = self.get_cost_from_database(resource_type)
+                    all_costs[resource_type] = costs
+                    self.logger.info(f"  {resource_type.upper()}: {len(costs)}个实例（从数据库）")
+        else:
+            # 如果没有SDK，从数据库获取所有资源类型
+            for resource_type in prepaid_resources:
+                self.logger.info(f"获取{resource_type.upper()}成本数据（从数据库）...")
                 costs = self.get_cost_from_database(resource_type)
-            all_costs[resource_type] = costs
-            self.logger.info(f"  {resource_type.upper()}: {len(costs)}个实例")
+                all_costs[resource_type] = costs
+                self.logger.info(f"  {resource_type.upper()}: {len(costs)}个实例")
         
         # 从数据库获取按量付费资源的估算成本
         for resource_type in pay_as_you_go_resources:
