@@ -258,6 +258,71 @@ class DiscountAnalyzer:
         self.logger.info(f"总共获取到 {len(all_instances)} 个MongoDB实例")
         return all_instances
     
+    def get_all_slb_instances(self):
+        """获取所有SLB实例"""
+        from aliyunsdkslb.request.v20140515 import DescribeLoadBalancersRequest
+        
+        all_instances = []
+        regions = ['cn-beijing', 'cn-hangzhou', 'cn-shanghai', 'cn-shenzhen', 
+                   'cn-qingdao', 'cn-zhangjiakou', 'cn-huhehaote', 'cn-chengdu',
+                   'cn-hongkong', 'ap-southeast-1', 'us-east-1', 'eu-west-1']
+        
+        self.logger.info(f"获取{self.tenant_name}的SLB实例列表...")
+        
+        for region in regions:
+            try:
+                client = AcsClient(self.access_key_id, self.access_key_secret, region)
+                request = DescribeLoadBalancersRequest.DescribeLoadBalancersRequest()
+                request.set_PageSize(100)
+                request.set_PageNumber(1)
+                
+                page_number = 1
+                while True:
+                    request.set_PageNumber(page_number)
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                    if 'LoadBalancers' in data and 'LoadBalancer' in data['LoadBalancers']:
+                        instances = data['LoadBalancers']['LoadBalancer']
+                        if not isinstance(instances, list):
+                            instances = [instances]
+                        
+                        if len(instances) == 0:
+                            break
+                        
+                        for inst in instances:
+                            # 获取计费类型
+                            pay_type = inst.get('PayType', '')
+                            # SLB的PayType: PayOnDemand(按量付费), PrePay(包年包月)
+                            charge_type = 'PrePaid' if pay_type == 'PrePay' else 'PostPaid'
+                            
+                            all_instances.append({
+                                'InstanceId': inst.get('LoadBalancerId', ''),
+                                'InstanceName': inst.get('LoadBalancerName', ''),
+                                'AddressType': inst.get('AddressType', ''),
+                                'InstanceType': inst.get('LoadBalancerSpec', ''),
+                                'ChargeType': charge_type,
+                                'PayType': pay_type,
+                                'Address': inst.get('Address', ''),
+                                'ZoneId': inst.get('MasterZoneId', ''),
+                                'RegionId': region
+                            })
+                        
+                        total_count = data.get('TotalCount', 0)
+                        if len(all_instances) >= total_count or len(instances) < 100:
+                            break
+                        
+                        page_number += 1
+                    else:
+                        break
+                        
+            except Exception as e:
+                # 某个区域失败，继续下一个
+                continue
+        
+        self.logger.info(f"总共获取到 {len(all_instances)} 个SLB实例")
+        return all_instances
+    
     def get_renewal_prices(self, instances, resource_type='ecs'):
         """获取续费价格（并发处理）"""
         total = len(instances)
@@ -336,6 +401,13 @@ class DiscountAnalyzer:
                     instance_type = f"{instance.get('Engine', '')} {instance.get('DBInstanceClass', '')}"
                     charge_type = instance.get('ChargeType', '')
                     region = instance.get('RegionId', self.region)
+                elif resource_type == 'slb':
+                    instance_id = instance.get('InstanceId', '')
+                    instance_name = instance.get('InstanceName', '') or instance_id
+                    zone = instance.get('ZoneId', '')
+                    instance_type = instance.get('InstanceType', '')
+                    charge_type = instance.get('ChargeType', '')
+                    region = instance.get('RegionId', self.region)
                 else:
                     instance_id = instance.get('InstanceId', '')
                     instance_name = instance.get('InstanceName', '')
@@ -351,7 +423,7 @@ class DiscountAnalyzer:
                 elif resource_type in ['clickhouse', 'nas', 'polardb']:
                     if charge_type != 'Prepaid':
                         return {'skip': True, 'reason': '按量付费'}
-                elif resource_type in ['redis', 'mongodb']:
+                elif resource_type in ['redis', 'mongodb', 'slb']:
                     if charge_type != 'PrePaid':
                         return {'skip': True, 'reason': '按量付费'}
                 elif resource_type in ['ack', 'eci']:
@@ -431,6 +503,19 @@ class DiscountAnalyzer:
                     response = client.do_action_with_exception(request)
                     data = json.loads(response)
                     
+                elif resource_type == 'slb':
+                    # SLB续费价格查询
+                    request.set_domain(f'slb.{region}.aliyuncs.com')
+                    request.set_version('2014-05-15')
+                    request.set_action_name('DescribeRenewalPrice')
+                    request.add_query_param('RegionId', region)
+                    request.add_query_param('ResourceId', instance_id)
+                    request.add_query_param('Period', 1)
+                    request.add_query_param('PriceUnit', 'Month')
+                    request.set_method('POST')
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
                 else:
                     # ECS
                     request.set_domain(f'ecs.{region}.aliyuncs.com')
@@ -445,7 +530,13 @@ class DiscountAnalyzer:
                 
                 # 解析价格信息
                 price_info = None
-                if resource_type == 'rds':
+                if resource_type == 'slb':
+                    # SLB价格解析（类似ECS）
+                    if 'PriceInfo' in data and 'Price' in data['PriceInfo']:
+                        price_info = data['PriceInfo']['Price']
+                    elif 'Price' in data:
+                        price_info = data['Price']
+                elif resource_type == 'rds':
                     if 'PriceInfo' in data:
                         if isinstance(data['PriceInfo'], dict) and 'Price' in data['PriceInfo']:
                             price_info = data['PriceInfo']['Price']
@@ -1778,6 +1869,60 @@ class DiscountAnalyzer:
             self.logger.info(f"• 最低折扣: {min_discount:.1f}折 ({min_discount*100:.1f}%)")
             self.logger.info(f"• 最高折扣: {max_discount:.1f}折 ({max_discount*100:.1f}%)")
             self.logger.info(f"• 当前月总成本: ¥{current_total:,.2f}")
+    
+    def analyze_slb_discounts(self, output_base_dir='.'):
+        """分析SLB折扣"""
+        self.logger.info(f"开始分析{self.tenant_name}的SLB折扣...")
+        self.logger.info("=" * 80)
+        
+        # 创建输出目录结构
+        output_dir = os.path.join(output_base_dir, self.tenant_name, "discount")
+        os.makedirs(output_dir, exist_ok=True)
+        self.logger.info(f"输出目录: {output_dir}")
+        
+        # 获取所有SLB实例
+        instances = self.get_all_slb_instances()
+        
+        # 筛选包年包月实例
+        prepaid_instances = [i for i in instances if i.get('ChargeType') == 'PrePaid']
+        
+        self.logger.info(f"计费方式分布:")
+        self.logger.info(f"• 包年包月 (PrePaid): {len(prepaid_instances)} 个")
+        self.logger.info(f"• 按量付费 (PostPaid): {len(instances) - len(prepaid_instances)} 个")
+        
+        if len(prepaid_instances) == 0:
+            self.logger.info("⚠️ 未找到包年包月SLB实例（SLB通常为按量付费）")
+            return
+        
+        # 获取续费价格
+        results = self.get_renewal_prices(prepaid_instances, 'slb')
+        
+        if not results:
+            self.logger.info("❌ 未获取到任何折扣数据")
+            return
+        
+        # 生成HTML报告
+        html_file = self.generate_html_report(results, 'slb', output_dir)
+        self.logger.info(f"HTML报告已生成: {html_file}")
+        
+        # 生成PDF报告
+        pdf_file = self.generate_pdf(html_file)
+        if pdf_file:
+            self.logger.info(f"PDF报告已生成: {pdf_file}")
+        
+        # 显示统计信息
+        self.logger.info(f"折扣统计:")
+        self.logger.info(f"• 总实例数: {len(results)} 个")
+        if results:
+            avg_discount = sum(r['discount_rate'] for r in results) / len(results)
+            min_discount = min(r['discount_rate'] for r in results)
+            max_discount = max(r['discount_rate'] for r in results)
+            current_total = sum(r['trade_price'] for r in results)
+            
+            self.logger.info(f"• 平均折扣: {avg_discount:.1f}折 ({avg_discount*100:.1f}%)")
+            self.logger.info(f"• 最低折扣: {min_discount:.1f}折 ({min_discount*100:.1f}%)")
+            self.logger.info(f"• 最高折扣: {max_discount:.1f}折 ({max_discount*100:.1f}%)")
+            self.logger.info(f"• 当前月总成本: ¥{current_total:,.2f}")
 
 
 def main():
@@ -1798,14 +1943,14 @@ def main():
     
     # 获取命令行参数
     if len(sys.argv) < 2:
-        self.logger.info("使用方法: python -m discount_analyzer <tenant_name> [resource_type]")
+        print("使用方法: python -m discount_analyzer <tenant_name> [resource_type]")
         return
     
     tenant_name = sys.argv[1] if len(sys.argv) > 1 else default_tenant
     resource_type = sys.argv[2] if len(sys.argv) > 2 else 'ecs'
     
     if tenant_name not in tenants:
-        self.logger.error(f"未找到租户: {tenant_name}")
+        print(f"❌ 未找到租户: {tenant_name}")
         return
     
     tenant_config = tenants[tenant_name]
@@ -1817,8 +1962,10 @@ def main():
     
     if resource_type == 'ecs':
         analyzer.analyze_ecs_discounts()
+    elif resource_type == 'slb':
+        analyzer.analyze_slb_discounts()
     else:
-        self.logger.error(f"不支持的资源类型: {resource_type}")
+        print(f"❌ 不支持的资源类型: {resource_type}")
 
 
 if __name__ == "__main__":

@@ -339,11 +339,13 @@ def run_discount_analysis(args, tenant_name, tenant_config, resource_type='all')
             analyzer.analyze_ack_discounts(output_base_dir=".")
         elif resource_type == 'eci':
             analyzer.analyze_eci_discounts(output_base_dir=".")
-        elif resource_type in ['oss', 'slb', 'eip']:
+        elif resource_type == 'slb':
+            analyzer.analyze_slb_discounts(output_base_dir=".")
+        elif resource_type in ['oss', 'eip']:
             print(f"⚠️ {resource_type.upper()}暂不支持包年包月模式，无法进行折扣分析")
             print(f"   这些服务通常采用按量付费模式")
         else:
-            print(f"⚠️ 支持的折扣分析类型: ECS, RDS, Redis, MongoDB, ClickHouse, NAS, PolarDB")
+            print(f"⚠️ 支持的折扣分析类型: ECS, RDS, Redis, MongoDB, ClickHouse, NAS, PolarDB, SLB")
             if resource_type == 'all':
                 print("分析ECS折扣...")
                 analyzer.analyze_ecs_discounts(output_base_dir=".")
@@ -359,6 +361,8 @@ def run_discount_analysis(args, tenant_name, tenant_config, resource_type='all')
                 analyzer.analyze_nas_discounts(output_base_dir=".")
                 print("\n分析PolarDB折扣...")
                 analyzer.analyze_polardb_discounts(output_base_dir=".")
+                print("\n分析SLB折扣...")
+                analyzer.analyze_slb_discounts(output_base_dir=".")
             else:
                 print(f"不支持的资源类型: {resource_type}")
         

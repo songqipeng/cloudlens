@@ -26,7 +26,7 @@ class SLBAnalyzer:
         self.access_key_id = access_key_id
         self.access_key_secret = access_key_secret
         self.db_name = 'slb_monitoring_data.db'
-        self.logger = get_logger(\'slb_analyzer')
+        self.logger = get_logger('slb_analyzer')
         self.init_database()
         
     def init_database(self):
@@ -84,74 +84,466 @@ class SLBAnalyzer:
         return regions
     
     def get_slb_instances(self, region_id):
-        """获取指定区域的SLB实例"""
+        """获取指定区域的所有SLB实例（包括CLB、NLB、ALB）"""
+        all_instances = []
+        
+        # 1. 获取CLB（传统型负载均衡）实例
         try:
             client = AcsClient(self.access_key_id, self.access_key_secret, region_id)
             request = DescribeLoadBalancersRequest.DescribeLoadBalancersRequest()
             request.set_PageSize(100)
             
-            response = client.do_action_with_exception(request)
-            data = json.loads(response)
-            
-            instances = []
-            if 'LoadBalancers' in data and 'LoadBalancer' in data['LoadBalancers']:
-                for instance in data['LoadBalancers']['LoadBalancer']:
-                    # 获取详细信息
-                    instance_id = instance['LoadBalancerId']
-                    detail = self.get_slb_detail(region_id, instance_id)
+            page_number = 1
+            while True:
+                request.set_PageNumber(page_number)
+                try:
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
                     
-                    instances.append({
-                        'InstanceId': instance_id,
-                        'InstanceName': instance.get('LoadBalancerName', ''),
-                        'InstanceType': instance.get('LoadBalancerSpec', ''),
-                        'AddressType': instance.get('AddressType', ''),
-                        'InstanceStatus': instance.get('LoadBalancerStatus', ''),
-                        'Region': region_id,
-                        'Bandwidth': detail.get('Bandwidth', 0),
-                        'BackendServerCount': len(detail.get('BackendServers', {}).get('BackendServer', [])),
-                        'ListenerCount': len(detail.get('ListenerPortsAndProtocols', {}).get('ListenerPortAndProtocol', [])),
-                        'CreateTime': instance.get('CreateTime', '')
-                    })
-            
-            return instances
+                    if 'LoadBalancers' in data and 'LoadBalancer' in data['LoadBalancers']:
+                        instances = data['LoadBalancers']['LoadBalancer']
+                        if not isinstance(instances, list):
+                            instances = [instances]
+                        
+                        if len(instances) == 0:
+                            break
+                        
+                        for instance in instances:
+                            instance_id = instance.get('LoadBalancerId', '')
+                            if not instance_id:
+                                continue
+                            
+                            detail = self.get_slb_detail(region_id, instance_id, 'clb')
+                            
+                            all_instances.append({
+                                'InstanceId': instance_id,
+                                'InstanceName': instance.get('LoadBalancerName', ''),
+                                'LoadBalancerType': 'clb',
+                                'LoadBalancerTypeName': 'CLB',
+                                'LoadBalancerTypeDesc': '传统型负载均衡',
+                                'InstanceType': instance.get('LoadBalancerSpec', ''),
+                                'AddressType': instance.get('AddressType', ''),
+                                'InstanceStatus': instance.get('LoadBalancerStatus', ''),
+                                'Region': region_id,
+                                'Bandwidth': detail.get('Bandwidth', 0),
+                                'BackendServerCount': detail.get('BackendServerCount', 0),
+                                'ListenerCount': detail.get('ListenerCount', 0),
+                                'CreateTime': instance.get('CreateTime', '')
+                            })
+                        
+                        total_count = data.get('TotalCount', 0)
+                        if len(all_instances) >= total_count or len(instances) < 100:
+                            break
+                        
+                        page_number += 1
+                    else:
+                        break
+                except Exception as e:
+                    self.logger.info(f"获取CLB实例失败 {region_id}: {str(e)}")
+                    break
         except Exception as e:
-            self.logger.info(f"获取SLB实例失败 {region_id}: {str(e)}")
-            return []
+            self.logger.info(f"获取CLB实例失败 {region_id}: {str(e)}")
+        
+        # 2. 获取ALB（应用型负载均衡）实例
+        try:
+            client = AcsClient(self.access_key_id, self.access_key_secret, region_id)
+            request = CommonRequest()
+            request.set_domain(f'alb.{region_id}.aliyuncs.com')
+            request.set_version('2020-06-16')
+            request.set_method('POST')
+            request.set_action_name('ListLoadBalancers')
+            request.add_query_param('PageSize', 100)
+            request.add_query_param('PageNumber', 1)
+            
+            page_number = 1
+            while True:
+                request.add_query_param('PageNumber', page_number)
+                try:
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                    if 'LoadBalancers' in data:
+                        instances = data['LoadBalancers']
+                        if not isinstance(instances, list):
+                            instances = [instances] if instances else []
+                        
+                        if len(instances) == 0:
+                            break
+                        
+                        for instance in instances:
+                            instance_id = instance.get('LoadBalancerId', '') or instance.get('Id', '')
+                            if not instance_id:
+                                continue
+                            
+                            detail = self.get_slb_detail(region_id, instance_id, 'alb')
+                            
+                            all_instances.append({
+                                'InstanceId': instance_id,
+                                'InstanceName': instance.get('LoadBalancerName', '') or instance.get('Name', ''),
+                                'LoadBalancerType': 'alb',
+                                'LoadBalancerTypeName': 'ALB',
+                                'LoadBalancerTypeDesc': '应用型负载均衡',
+                                'InstanceType': instance.get('LoadBalancerSpec', '') or instance.get('SpecType', ''),
+                                'AddressType': instance.get('AddressType', '') or instance.get('AddressAllocatedMode', ''),
+                                'InstanceStatus': instance.get('LoadBalancerStatus', '') or instance.get('Status', ''),
+                                'Region': region_id,
+                                'Bandwidth': detail.get('Bandwidth', 0),
+                                'BackendServerCount': detail.get('BackendServerCount', 0),
+                                'ListenerCount': detail.get('ListenerCount', 0),
+                                'CreateTime': instance.get('CreateTime', '') or instance.get('CreateTime', '')
+                            })
+                        
+                        total_count = data.get('TotalCount', 0)
+                        if len(instances) < 100:
+                            break
+                        
+                        page_number += 1
+                    else:
+                        break
+                except Exception as e:
+                    self.logger.info(f"获取ALB实例失败 {region_id}: {str(e)}")
+                    break
+        except Exception as e:
+            self.logger.info(f"获取ALB实例失败 {region_id}: {str(e)}")
+        
+        # 3. 获取NLB（网络型负载均衡）实例
+        try:
+            client = AcsClient(self.access_key_id, self.access_key_secret, region_id)
+            request = CommonRequest()
+            request.set_domain(f'nlb.{region_id}.aliyuncs.com')
+            request.set_version('2022-04-30')
+            request.set_method('POST')
+            request.set_action_name('ListLoadBalancers')
+            request.add_query_param('PageSize', 100)
+            request.add_query_param('PageNumber', 1)
+            
+            page_number = 1
+            while True:
+                request.add_query_param('PageNumber', page_number)
+                try:
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                    if 'LoadBalancers' in data:
+                        instances = data['LoadBalancers']
+                        if not isinstance(instances, list):
+                            instances = [instances] if instances else []
+                        
+                        if len(instances) == 0:
+                            break
+                        
+                        for instance in instances:
+                            instance_id = instance.get('LoadBalancerId', '') or instance.get('Id', '')
+                            if not instance_id:
+                                continue
+                            
+                            detail = self.get_slb_detail(region_id, instance_id, 'nlb')
+                            
+                            all_instances.append({
+                                'InstanceId': instance_id,
+                                'InstanceName': instance.get('LoadBalancerName', '') or instance.get('Name', ''),
+                                'LoadBalancerType': 'nlb',
+                                'LoadBalancerTypeName': 'NLB',
+                                'LoadBalancerTypeDesc': '网络型负载均衡',
+                                'InstanceType': instance.get('LoadBalancerSpec', '') or instance.get('SpecType', ''),
+                                'AddressType': instance.get('AddressType', '') or instance.get('AddressAllocatedMode', ''),
+                                'InstanceStatus': instance.get('LoadBalancerStatus', '') or instance.get('Status', ''),
+                                'Region': region_id,
+                                'Bandwidth': detail.get('Bandwidth', 0),
+                                'BackendServerCount': detail.get('BackendServerCount', 0),
+                                'ListenerCount': detail.get('ListenerCount', 0),
+                                'CreateTime': instance.get('CreateTime', '') or instance.get('CreateTime', '')
+                            })
+                        
+                        total_count = data.get('TotalCount', 0)
+                        if len(instances) < 100:
+                            break
+                        
+                        page_number += 1
+                    else:
+                        break
+                except Exception as e:
+                    self.logger.info(f"获取NLB实例失败 {region_id}: {str(e)}")
+                    break
+        except Exception as e:
+            self.logger.info(f"获取NLB实例失败 {region_id}: {str(e)}")
+        
+        return all_instances
     
-    def get_slb_detail(self, region_id, instance_id):
+    def get_slb_detail(self, region_id, instance_id, lb_type='clb'):
         """获取SLB实例详细信息"""
         try:
             client = AcsClient(self.access_key_id, self.access_key_secret, region_id)
-            request = DescribeLoadBalancerAttributeRequest.DescribeLoadBalancerAttributeRequest()
-            request.set_LoadBalancerId(instance_id)
             
-            response = client.do_action_with_exception(request)
-            data = json.loads(response)
-            
-            return {
-                'Bandwidth': data.get('Bandwidth', 0),
-                'BackendServers': data.get('BackendServers', {}),
-                'ListenerPortsAndProtocols': data.get('ListenerPortsAndProtocols', {})
-            }
+            # 根据负载均衡类型使用不同的API
+            if lb_type == 'clb':
+                # CLB使用传统SLB API
+                request = DescribeLoadBalancerAttributeRequest.DescribeLoadBalancerAttributeRequest()
+                request.set_LoadBalancerId(instance_id)
+                response = client.do_action_with_exception(request)
+                data = json.loads(response)
+                
+                backend_servers = data.get('BackendServers', {})
+                backend_server_list = backend_servers.get('BackendServer', [])
+                if not isinstance(backend_server_list, list):
+                    backend_server_list = [backend_server_list] if backend_server_list else []
+                
+                listener_ports = data.get('ListenerPortsAndProtocols', {})
+                listener_list = listener_ports.get('ListenerPortAndProtocol', [])
+                if not isinstance(listener_list, list):
+                    listener_list = [listener_list] if listener_list else []
+                
+                return {
+                    'Bandwidth': data.get('Bandwidth', 0),
+                    'BackendServerCount': len(backend_server_list),
+                    'ListenerCount': len(listener_list),
+                    'BackendServers': backend_servers,
+                    'ListenerPortsAndProtocols': listener_ports
+                }
+            elif lb_type == 'nlb':
+                # NLB需要分别获取后端服务器组和监听器
+                backend_count = 0
+                listener_count = 0
+                
+                # 1. 获取后端服务器组
+                try:
+                    request = CommonRequest()
+                    request.set_domain(f'nlb.{region_id}.aliyuncs.com')
+                    request.set_version('2022-04-30')
+                    request.set_method('POST')
+                    request.set_action_name('ListServerGroups')
+                    request.add_query_param('LoadBalancerId', instance_id)
+                    request.add_query_param('PageSize', 50)
+                    
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                    if 'ServerGroups' in data:
+                        groups = data['ServerGroups']
+                        if not isinstance(groups, list):
+                            groups = [groups] if groups else []
+                        
+                        # 统计属于当前实例的服务器组的ServerCount
+                        for group in groups:
+                            related_lb_ids = group.get('RelatedLoadBalancerIds', [])
+                            if not isinstance(related_lb_ids, list):
+                                related_lb_ids = [related_lb_ids] if related_lb_ids else []
+                            
+                            if instance_id in related_lb_ids:
+                                server_count = group.get('ServerCount', 0)
+                                if isinstance(server_count, (int, float)):
+                                    backend_count += int(server_count)
+                except Exception as e:
+                    self.logger.info(f"获取NLB后端服务器组失败 {instance_id}: {e}")
+                
+                # 2. 获取监听器
+                try:
+                    request = CommonRequest()
+                    request.set_domain(f'nlb.{region_id}.aliyuncs.com')
+                    request.set_version('2022-04-30')
+                    request.set_method('POST')
+                    request.set_action_name('ListListeners')
+                    request.add_query_param('LoadBalancerId', instance_id)
+                    request.add_query_param('PageSize', 50)
+                    
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                    if 'Listeners' in data:
+                        listeners = data['Listeners']
+                        if not isinstance(listeners, list):
+                            listeners = [listeners] if listeners else []
+                        
+                        # 过滤：只统计属于当前实例的监听器
+                        # API可能会返回其他实例的监听器，需要明确过滤
+                        instance_listeners = [
+                            l for l in listeners 
+                            if l.get('LoadBalancerId') == instance_id
+                        ]
+                        listener_count = len(instance_listeners)
+                except Exception as e:
+                    self.logger.info(f"获取NLB监听器失败 {instance_id}: {e}")
+                
+                # 3. 获取带宽信息
+                bandwidth = 0
+                try:
+                    request = CommonRequest()
+                    request.set_domain(f'nlb.{region_id}.aliyuncs.com')
+                    request.set_version('2022-04-30')
+                    request.set_method('POST')
+                    request.set_action_name('GetLoadBalancerAttribute')
+                    request.add_query_param('LoadBalancerId', instance_id)
+                    
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                    # NLB的带宽可能在LoadBalancerBillingConfig中
+                    billing_config = data.get('LoadBalancerBillingConfig', {})
+                    bandwidth = billing_config.get('InternetBandwidth', 0)
+                except Exception as e:
+                    self.logger.info(f"获取NLB带宽信息失败 {instance_id}: {e}")
+                
+                return {
+                    'Bandwidth': bandwidth,
+                    'BackendServerCount': backend_count,
+                    'ListenerCount': listener_count,
+                    'BackendServers': {},
+                    'ListenerPortsAndProtocols': {}
+                }
+            elif lb_type == 'alb':
+                # ALB类似处理
+                backend_count = 0
+                listener_count = 0
+                bandwidth = 0
+                
+                # 获取服务器组和监听器（类似NLB的逻辑）
+                try:
+                    # ALB获取服务器组
+                    request = CommonRequest()
+                    request.set_domain(f'alb.{region_id}.aliyuncs.com')
+                    request.set_version('2020-06-16')
+                    request.set_method('POST')
+                    request.set_action_name('ListServerGroups')
+                    request.add_query_param('LoadBalancerId', instance_id)
+                    request.add_query_param('PageSize', 50)
+                    
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                    if 'ServerGroups' in data:
+                        groups = data['ServerGroups']
+                        if not isinstance(groups, list):
+                            groups = [groups] if groups else []
+                        
+                        for group in groups:
+                            related_lb_ids = group.get('RelatedLoadBalancerIds', []) or group.get('LoadBalancerIds', [])
+                            if not isinstance(related_lb_ids, list):
+                                related_lb_ids = [related_lb_ids] if related_lb_ids else []
+                            
+                            if instance_id in related_lb_ids or not related_lb_ids:
+                                # 如果没有RelatedLoadBalancerIds，需要获取服务器组详情
+                                server_count = group.get('ServerCount', 0) or len(group.get('Servers', []))
+                                if isinstance(server_count, (int, float)):
+                                    backend_count += int(server_count)
+                except Exception as e:
+                    self.logger.info(f"获取ALB后端服务器组失败 {instance_id}: {e}")
+                
+                # 获取监听器
+                try:
+                    request = CommonRequest()
+                    request.set_domain(f'alb.{region_id}.aliyuncs.com')
+                    request.set_version('2020-06-16')
+                    request.set_method('POST')
+                    request.set_action_name('ListListeners')
+                    request.add_query_param('LoadBalancerId', instance_id)
+                    request.add_query_param('PageSize', 50)
+                    
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                    if 'Listeners' in data:
+                        listeners = data['Listeners']
+                        if not isinstance(listeners, list):
+                            listeners = [listeners] if listeners else []
+                        
+                        # 过滤：只统计属于当前实例的监听器
+                        # API可能会返回其他实例的监听器，需要明确过滤
+                        instance_listeners = [
+                            l for l in listeners 
+                            if l.get('LoadBalancerId') == instance_id
+                        ]
+                        listener_count = len(instance_listeners)
+                except Exception as e:
+                    self.logger.info(f"获取ALB监听器失败 {instance_id}: {e}")
+                
+                return {
+                    'Bandwidth': bandwidth,
+                    'BackendServerCount': backend_count,
+                    'ListenerCount': listener_count,
+                    'BackendServers': {},
+                    'ListenerPortsAndProtocols': {}
+                }
+            else:
+                # 其他类型，尝试通用方法
+                request = CommonRequest()
+                request.set_domain(f'slb.{region_id}.aliyuncs.com')
+                request.set_version('2014-05-15')
+                request.set_method('POST')
+                request.set_action_name('GetLoadBalancerAttribute')
+                request.add_query_param('LoadBalancerId', instance_id)
+                
+                response = client.do_action_with_exception(request)
+                data = json.loads(response)
+                
+                backend_count = data.get('BackendServerCount', 0) or len(data.get('BackendServers', []))
+                listener_count = data.get('ListenerCount', 0) or len(data.get('Listeners', []))
+                
+                return {
+                    'Bandwidth': data.get('Bandwidth', 0) or data.get('BandwidthMbps', 0),
+                    'BackendServerCount': backend_count,
+                    'ListenerCount': listener_count,
+                    'BackendServers': data.get('BackendServers', {}),
+                    'ListenerPortsAndProtocols': data.get('Listeners', {})
+                }
+                
         except Exception as e:
-            self.logger.info(f"获取SLB详情失败 {instance_id}: {str(e)}")
-            return {}
+            # 如果获取详细信息失败，返回基本结构
+            self.logger.info(f"获取SLB详情失败 {instance_id} ({lb_type}): {str(e)}")
+            return {
+                'Bandwidth': 0,
+                'BackendServerCount': 0,
+                'ListenerCount': 0,
+                'BackendServers': {},
+                'ListenerPortsAndProtocols': {}
+            }
     
-    def get_slb_metrics(self, region_id, instance_id):
-        """获取SLB实例的监控数据"""
+    def get_slb_metrics(self, region_id, instance_id, lb_type='clb'):
+        """获取SLB实例的监控数据（支持CLB、NLB、ALB）"""
         client = AcsClient(self.access_key_id, self.access_key_secret, region_id)
         end_time = datetime.now()
         start_time = end_time - timedelta(days=14)
         
-        # SLB监控指标
-        metrics = {
-            'ActiveConnection': '活跃连接数',
-            'NewConnection': '新建连接数',
-            'TrafficRXNew': '入流量',
-            'TrafficTXNew': '出流量',
-            'Qps': '每秒查询数',
-            'Rt': '响应时间'
-        }
+        # 根据负载均衡类型选择命名空间和指标
+        if lb_type == 'clb':
+            namespace = 'acs_slb_dashboard'
+            metrics = {
+                'ActiveConnection': '活跃连接数',
+                'NewConnection': '新建连接数',
+                'TrafficRXNew': '入流量',
+                'TrafficTXNew': '出流量',
+                'Qps': '每秒查询数',
+                'Rt': '响应时间'
+            }
+        elif lb_type == 'alb':
+            namespace = 'acs_alb_dashboard'
+            metrics = {
+                'ActiveConnection': '活跃连接数',
+                'NewConnection': '新建连接数',
+                'TrafficRXNew': '入流量',
+                'TrafficTXNew': '出流量',
+                'Qps': '每秒查询数',
+                'Rt': '响应时间'
+            }
+        elif lb_type == 'nlb':
+            namespace = 'acs_nlb_dashboard'
+            metrics = {
+                'ActiveConnection': '活跃连接数',
+                'NewConnection': '新建连接数',
+                'TrafficRXNew': '入流量',
+                'TrafficTXNew': '出流量',
+                'Qps': '每秒查询数',
+                'Rt': '响应时间'
+            }
+        else:
+            namespace = 'acs_slb_dashboard'
+            metrics = {
+                'ActiveConnection': '活跃连接数',
+                'NewConnection': '新建连接数',
+                'TrafficRXNew': '入流量',
+                'TrafficTXNew': '出流量',
+                'Qps': '每秒查询数',
+                'Rt': '响应时间'
+            }
         
         result = {}
         
@@ -163,7 +555,7 @@ class SLBAnalyzer:
                 request.set_version('2019-01-01')
                 request.set_action_name('DescribeMetricData')
                 request.add_query_param('RegionId', region_id)
-                request.add_query_param('Namespace', 'acs_slb_dashboard')
+                request.add_query_param('Namespace', namespace)
                 request.add_query_param('MetricName', metric_name)
                 request.add_query_param('StartTime', start_time.strftime('%Y-%m-%dT%H:%M:%SZ'))
                 request.add_query_param('EndTime', end_time.strftime('%Y-%m-%dT%H:%M:%SZ'))
@@ -193,7 +585,7 @@ class SLBAnalyzer:
                     result[display_name] = 0
                     
             except Exception as e:
-                self.logger.info(f"    ⚠️  指标 {metric_name} 获取失败: {e}")
+                self.logger.info(f"    ⚠️  指标 {metric_name} 获取失败 ({lb_type}): {e}")
                 result[display_name] = 0
         
         # 计算流量总和（MB）
@@ -357,7 +749,8 @@ class SLBAnalyzer:
             region = instance['Region']
             
             try:
-                metrics = self.get_slb_metrics(region, instance_id)
+                lb_type = instance.get('LoadBalancerType', 'clb')
+                metrics = self.get_slb_metrics(region, instance_id, lb_type)
                 
                 is_idle, conditions = self.is_slb_idle(instance, metrics)
                 optimization = self.get_optimization_suggestion(instance, metrics)
@@ -372,7 +765,6 @@ class SLBAnalyzer:
                     'instance': instance
                 }
             except Exception as e:
-                error = ErrorHandler.handle_api_error(e, "SLB", region, instance_id)
                 ErrorHandler.handle_instance_error(e, instance_id, region, "SLB", continue_on_error=True)
                 return {
                     'success': False,
@@ -396,7 +788,7 @@ class SLBAnalyzer:
             progress_callback=progress_callback
         )
         
-          # 换行
+        print()  # 换行
         
         # 整理结果
         all_instances = []
@@ -486,6 +878,7 @@ class SLBAnalyzer:
                 <tr>
                     <th>实例ID</th>
                     <th>实例名称</th>
+                    <th>负载均衡类型</th>
                     <th>区域</th>
                     <th>地址类型</th>
                     <th>规格</th>
@@ -513,6 +906,7 @@ class SLBAnalyzer:
                 <tr>
                     <td>{instance['InstanceId']}</td>
                     <td>{instance.get('InstanceName', '')}</td>
+                    <td>{instance.get('LoadBalancerTypeName', 'CLB')}</td>
                     <td>{instance.get('Region', '')}</td>
                     <td>{instance.get('AddressType', '')}</td>
                     <td>{instance.get('InstanceType', '')}</td>
@@ -554,6 +948,7 @@ class SLBAnalyzer:
                 data.append({
                     '实例ID': instance['InstanceId'],
                     '实例名称': instance.get('InstanceName', ''),
+                    '负载均衡类型': instance.get('LoadBalancerTypeName', 'CLB'),
                     '区域': instance.get('Region', ''),
                     '地址类型': instance.get('AddressType', ''),
                     '规格': instance.get('InstanceType', ''),
