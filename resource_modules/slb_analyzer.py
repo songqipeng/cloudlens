@@ -354,13 +354,7 @@ class SLBAnalyzer:
                         if not isinstance(listeners, list):
                             listeners = [listeners] if listeners else []
                         
-                        # 过滤：只统计属于当前实例的监听器
-                        # API可能会返回其他实例的监听器，需要明确过滤
-                        instance_listeners = [
-                            l for l in listeners 
-                            if l.get('LoadBalancerId') == instance_id
-                        ]
-                        listener_count = len(instance_listeners)
+                        listener_count = len(listeners)
                 except Exception as e:
                     self.logger.info(f"获取NLB监听器失败 {instance_id}: {e}")
                 
@@ -446,13 +440,7 @@ class SLBAnalyzer:
                         if not isinstance(listeners, list):
                             listeners = [listeners] if listeners else []
                         
-                        # 过滤：只统计属于当前实例的监听器
-                        # API可能会返回其他实例的监听器，需要明确过滤
-                        instance_listeners = [
-                            l for l in listeners 
-                            if l.get('LoadBalancerId') == instance_id
-                        ]
-                        listener_count = len(instance_listeners)
+                        listener_count = len(listeners)
                 except Exception as e:
                     self.logger.info(f"获取ALB监听器失败 {instance_id}: {e}")
                 
