@@ -52,6 +52,15 @@ logs/
 # 输出目录（包含生成的报告）
 */cru/
 */discount/
+*/reports/
+*/*/reports/
+
+# 报告文件（所有类型）
+*.xlsx
+*.xls
+*.html
+*.pdf
+!requirements.txt
 
 # 数据目录
 data/
