@@ -29,7 +29,7 @@ class CacheManager:
         """
         if cache_file:
             # 使用指定的文件名
-            self.cache_path = Path(cache_dir) / cache_file
+        self.cache_path = Path(cache_dir) / cache_file
         elif resource_type:
             # 统一路径：cache/{tenant}/{resource_type}.pkl
             if tenant_name:

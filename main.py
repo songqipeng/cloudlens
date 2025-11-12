@@ -341,11 +341,23 @@ def run_discount_analysis(args, tenant_name, tenant_config, resource_type='all')
             analyzer.analyze_eci_discounts(output_base_dir=".")
         elif resource_type == 'slb':
             analyzer.analyze_slb_discounts(output_base_dir=".")
-        elif resource_type in ['oss', 'eip']:
+        elif resource_type == 'disk':
+            analyzer.analyze_disk_discounts(output_base_dir=".")
+        elif resource_type == 'vpn':
+            analyzer.analyze_vpn_discounts(output_base_dir=".")
+        elif resource_type == 'nat':
+            analyzer.analyze_nat_discounts(output_base_dir=".")
+        elif resource_type == 'elasticsearch':
+            analyzer.analyze_elasticsearch_discounts(output_base_dir=".")
+        elif resource_type == 'all-products':
+            # 分析所有支持的产品
+            analyzer.analyze_all_products_discounts(output_base_dir=".")
+        elif resource_type in ['oss', 'eip', 'sls', 'cdn', 'datav', 'dns', 'ots', 'vpc', 'pvtz', 'green', 'dypnsapi']:
             print(f"⚠️ {resource_type.upper()}暂不支持包年包月模式，无法进行折扣分析")
             print(f"   这些服务通常采用按量付费模式")
         else:
-            print(f"⚠️ 支持的折扣分析类型: ECS, RDS, Redis, MongoDB, ClickHouse, NAS, PolarDB, SLB")
+            print(f"⚠️ 支持的折扣分析类型: ECS, RDS, Redis, MongoDB, ClickHouse, NAS, PolarDB, SLB, Disk, VPN, NAT, Elasticsearch")
+            print(f"   使用 'all-products' 分析所有支持的产品")
             if resource_type == 'all':
                 print("分析ECS折扣...")
                 analyzer.analyze_ecs_discounts(output_base_dir=".")

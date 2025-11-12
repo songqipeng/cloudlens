@@ -1057,7 +1057,7 @@ class DiscountAnalyzer:
                             return {'success': False, 'error': '无法获取价格信息', 'instance_name': instance_name}
                     else:
                         return {'success': False, 'error': f'价格信息格式错误 (响应键: {list(data.keys())})', 'instance_name': instance_name}
-                        
+                            
                 elif resource_type == 'mongodb':
                     # MongoDB使用DDS API的DescribePrice接口
                     # 尝试两种方式：1) RENEW续费 2) BUY购买（如果续费失败）
@@ -1252,8 +1252,12 @@ class DiscountAnalyzer:
         html.append(f'<p class="muted">区域: {self.region} | 生成时间: {now} | 实例数: {len(results)}</p>')
         html.append('<table>')
         html.append('<thead><tr>')
-        for col in ['实例名称','实例ID','可用区','实例类型','基准价(¥)','续费价(¥)','折扣']:
-            html.append(f'<th>{col}</th>')
+        if report_type == 'disk':
+            for col in ['云盘名称','云盘ID','可用区','云盘类型','大小(GB)','实例ID','基准价(¥)','续费价(¥)','折扣']:
+                html.append(f'<th>{col}</th>')
+        else:
+            for col in ['实例名称','实例ID','可用区','实例类型','基准价(¥)','续费价(¥)','折扣']:
+                html.append(f'<th>{col}</th>')
         html.append('</tr></thead>')
         html.append('<tbody>')
         
@@ -1265,13 +1269,25 @@ class DiscountAnalyzer:
                 row_class = 'low-discount'
             
             html.append(f'<tr class="{row_class}">')
-            html.append(f'<td>{esc(r["name"])}</td>')
-            html.append(f'<td>{esc(r["id"])}</td>')
-            html.append(f'<td>{esc(r["zone"])}</td>')
-            html.append(f'<td>{esc(r["type"])}</td>')
-            html.append(f'<td class="num">{r["original_price"]:.2f}</td>')
-            html.append(f'<td class="num">{r["trade_price"]:.2f}</td>')
-            html.append(f'<td>{r["discount_rate"]*100:.1f}% ({r["discount_rate"]:.1f}折)</td>')
+            
+            if report_type == 'disk':
+                html.append(f'<td>{esc(r.get("name", ""))}</td>')
+                html.append(f'<td>{esc(r.get("id", ""))}</td>')
+                html.append(f'<td>{esc(r.get("zone", ""))}</td>')
+                html.append(f'<td>{esc(r.get("type", ""))}</td>')
+                html.append(f'<td class="num">{r.get("size", 0)}</td>')
+                html.append(f'<td>{esc(r.get("instance_id", ""))}</td>')
+                html.append(f'<td class="num">{r.get("original_price", 0):.2f}</td>')
+                html.append(f'<td class="num">{r.get("trade_price", 0):.2f}</td>')
+                html.append(f'<td>{r["discount_rate"]*100:.1f}% ({r["discount_rate"]:.1f}折)</td>')
+            else:
+                html.append(f'<td>{esc(r["name"])}</td>')
+                html.append(f'<td>{esc(r["id"])}</td>')
+                html.append(f'<td>{esc(r["zone"])}</td>')
+                html.append(f'<td>{esc(r["type"])}</td>')
+                html.append(f'<td class="num">{r["original_price"]:.2f}</td>')
+                html.append(f'<td class="num">{r["trade_price"]:.2f}</td>')
+                html.append(f'<td>{r["discount_rate"]*100:.1f}% ({r["discount_rate"]:.1f}折)</td>')
             html.append('</tr>')
         
         html.append('</tbody></table>')
@@ -1728,6 +1744,109 @@ class DiscountAnalyzer:
         self.logger.info(f"总共获取到 {len(all_clusters)} 个PolarDB集群")
         return all_clusters
     
+    def get_all_clickhouse_instances(self):
+        """获取所有ClickHouse实例"""
+        all_instances = []
+        regions = ['cn-beijing', 'cn-hangzhou', 'cn-shanghai', 'cn-shenzhen', 
+                   'cn-qingdao', 'cn-zhangjiakou', 'cn-huhehaote', 'cn-chengdu']
+        
+        self.logger.info(f"获取{self.tenant_name}的ClickHouse实例列表...")
+        
+        for region in regions:
+            try:
+                client = AcsClient(self.access_key_id, self.access_key_secret, region)
+                request = CommonRequest()
+                request.set_domain(f'clickhouse.{region}.aliyuncs.com')
+                request.set_method('POST')
+                request.set_version('2019-11-11')
+                request.set_action_name('DescribeDBClusters')
+                request.add_query_param('PageSize', 30)
+                
+                page_number = 1
+                while True:
+                    request.add_query_param('PageNumber', page_number)
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                    if 'DBClusters' not in data or 'DBCluster' not in data['DBClusters']:
+                        break
+                    
+                    clusters = data['DBClusters']['DBCluster']
+                    if not isinstance(clusters, list):
+                        clusters = [clusters]
+                    
+                    if len(clusters) == 0:
+                        break
+                    
+                    for cluster in clusters:
+                        all_instances.append({
+                            'DBClusterId': cluster.get('DBClusterId', ''),
+                            'DBClusterDescription': cluster.get('DBClusterDescription', ''),
+                            'DBNodeClass': cluster.get('DBNodeClass', ''),
+                            'PayType': cluster.get('PayType', ''),
+                            'RegionId': region,
+                            'ZoneId': cluster.get('ZoneId', ''),
+                            'DBClusterStatus': cluster.get('DBClusterStatus', ''),
+                            'Tags': cluster.get('Tags', {}),
+                        })
+                    
+                    if len(clusters) < 30:
+                        break
+                    page_number += 1
+                    
+            except Exception as e:
+                self.logger.debug(f"获取{region}区域ClickHouse实例失败: {e}")
+                continue
+        
+        self.logger.info(f"总共获取到 {len(all_instances)} 个ClickHouse实例")
+        return all_instances
+    
+    def analyze_clickhouse_discounts(self, output_base_dir='.'):
+        """分析ClickHouse折扣"""
+        self.logger.info(f"开始分析{self.tenant_name}的ClickHouse折扣...")
+        self.logger.info("=" * 80)
+        
+        output_dir = os.path.join(output_base_dir, self.tenant_name, "discount")
+        os.makedirs(output_dir, exist_ok=True)
+        self.logger.info(f"输出目录: {output_dir}")
+        
+        instances = self.get_all_clickhouse_instances()
+        prepaid_instances = [i for i in instances if i.get('PayType') == 'Prepaid']
+        
+        self.logger.info(f"计费方式分布:")
+        self.logger.info(f"• 包年包月 (Prepaid): {len(prepaid_instances)} 个")
+        self.logger.info(f"• 按量付费 (Postpaid): {len(instances) - len(prepaid_instances)} 个")
+        
+        if len(prepaid_instances) == 0:
+            self.logger.info("⚠️ 未找到包年包月ClickHouse实例")
+            return
+        
+        results = self.get_renewal_prices(prepaid_instances, 'clickhouse')
+        
+        if not results:
+            self.logger.info("❌ 未获取到任何折扣数据")
+            return
+        
+        html_file = self.generate_html_report(results, 'clickhouse', output_dir)
+        self.logger.info(f"HTML报告已生成: {html_file}")
+        
+        pdf_file = self.generate_pdf(html_file)
+        if pdf_file:
+            self.logger.info(f"PDF报告已生成: {pdf_file}")
+        
+        self.logger.info(f"折扣统计:")
+        self.logger.info(f"• 总实例数: {len(results)} 个")
+        if results:
+            avg_discount = sum(r['discount_rate'] for r in results) / len(results)
+            min_discount = min(r['discount_rate'] for r in results)
+            max_discount = max(r['discount_rate'] for r in results)
+            current_total = sum(r['trade_price'] for r in results)
+            
+            self.logger.info(f"• 平均折扣: {avg_discount:.1f}折 ({avg_discount*100:.1f}%)")
+            self.logger.info(f"• 最低折扣: {min_discount:.1f}折 ({min_discount*100:.1f}%)")
+            self.logger.info(f"• 最高折扣: {max_discount:.1f}折 ({max_discount*100:.1f}%)")
+            self.logger.info(f"• 当前月总成本: ¥{current_total:,.2f}")
+    
     def analyze_nas_discounts(self, output_base_dir='.'):
         """分析NAS折扣"""
         self.logger.info(f"开始分析{self.tenant_name}的NAS折扣...")
@@ -1923,6 +2042,787 @@ class DiscountAnalyzer:
             self.logger.info(f"• 最低折扣: {min_discount:.1f}折 ({min_discount*100:.1f}%)")
             self.logger.info(f"• 最高折扣: {max_discount:.1f}折 ({max_discount*100:.1f}%)")
             self.logger.info(f"• 当前月总成本: ¥{current_total:,.2f}")
+    
+    def get_all_disks(self):
+        """获取所有ECS云盘"""
+        all_disks = []
+        regions = ['cn-beijing', 'cn-hangzhou', 'cn-shanghai', 'cn-shenzhen', 
+                   'cn-qingdao', 'cn-zhangjiakou', 'cn-huhehaote', 'cn-chengdu',
+                   'cn-hongkong', 'ap-southeast-1', 'us-east-1', 'eu-west-1']
+        
+        self.logger.info(f"获取{self.tenant_name}的ECS云盘列表...")
+        
+        for region in regions:
+            try:
+                client = AcsClient(self.access_key_id, self.access_key_secret, region)
+                request = CommonRequest()
+                request.set_domain(f'ecs.{region}.aliyuncs.com')
+                request.set_method('POST')
+                request.set_version('2014-05-26')
+                request.set_action_name('DescribeDisks')
+                request.add_query_param('PageSize', 100)
+                
+                page_number = 1
+                while True:
+                    request.add_query_param('PageNumber', page_number)
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                    if 'Disks' not in data or 'Disk' not in data['Disks']:
+                        break
+                    
+                    disks = data['Disks']['Disk']
+                    if not isinstance(disks, list):
+                        disks = [disks]
+                    
+                    if len(disks) == 0:
+                        break
+                    
+                    for disk in disks:
+                        all_disks.append({
+                            'DiskId': disk.get('DiskId', ''),
+                            'DiskName': disk.get('DiskName', ''),
+                            'Category': disk.get('Category', ''),
+                            'Size': disk.get('Size', 0),
+                            'DiskChargeType': disk.get('DiskChargeType', ''),
+                            'Status': disk.get('Status', ''),
+                            'Type': disk.get('Type', ''),
+                            'InstanceId': disk.get('InstanceId', ''),
+                            'RegionId': region,
+                            'ZoneId': disk.get('ZoneId', ''),
+                        })
+                    
+                    if len(disks) < 100:
+                        break
+                    page_number += 1
+                    
+            except Exception as e:
+                self.logger.warning(f"获取{region}区域云盘失败: {e}")
+                continue
+        
+        self.logger.info(f"总共获取到 {len(all_disks)} 个云盘")
+        return all_disks
+    
+    def get_disk_renewal_price(self, client, region_id, disk_id, disk_category, disk_size, instance_id=None, disk_role='', all_disks_for_instance=None):
+        """获取云盘的续费价格"""
+        if not instance_id:
+            # 如果未提供实例ID，先查询磁盘信息获取实例ID
+            try:
+                req_disk = CommonRequest()
+                req_disk.set_domain(f'ecs.{region_id}.aliyuncs.com')
+                req_disk.set_method('POST')
+                req_disk.set_version('2014-05-26')
+                req_disk.set_action_name('DescribeDisks')
+                req_disk.add_query_param('DiskIds', f'["{disk_id}"]')
+                resp_disk = client.do_action_with_exception(req_disk)
+                data_disk = json.loads(resp_disk)
+                if 'Disks' in data_disk and 'Disk' in data_disk['Disks']:
+                    disks = data_disk['Disks']['Disk']
+                    if not isinstance(disks, list):
+                        disks = [disks]
+                    if disks:
+                        instance_id = disks[0].get('InstanceId', '')
+                        if not disk_role:
+                            disk_role = disks[0].get('Type', 'data')
+            except Exception as e:
+                return {
+                    'original_price': 0,
+                    'trade_price': 0,
+                    'estimated': False,
+                    'error': f'获取磁盘信息失败: {str(e)[:80]}'
+                }
+        
+        if not instance_id:
+            return {
+                'original_price': 0,
+                'trade_price': 0,
+                'estimated': False,
+                'error': '磁盘未挂载到实例'
+            }
+        
+        # 查询实例续费价格
+        try:
+            req = CommonRequest()
+            req.set_domain(f'ecs.{region_id}.aliyuncs.com')
+            req.set_method('POST')
+            req.set_version('2014-05-26')
+            req.set_action_name('DescribeRenewalPrice')
+            req.add_query_param('RegionId', region_id)
+            req.add_query_param('ResourceId', instance_id)
+            req.add_query_param('Period', 1)
+            req.add_query_param('PriceUnit', 'Month')
+            
+            response = client.do_action_with_exception(req)
+            data = json.loads(response)
+            
+            # 解析价格信息
+            price_info = data.get('PriceInfo', {}).get('Price', {})
+            detail_infos = price_info.get('DetailInfos', {}).get('DetailInfo', [])
+            
+            if not isinstance(detail_infos, list):
+                detail_infos = [detail_infos]
+            
+            # 根据磁盘角色确定价格类型
+            if disk_role and disk_role.lower() == 'system':
+                disk_type = 'systemDisk'
+            else:
+                disk_type = 'dataDisk'
+            
+            # 查找对应类型的价格
+            for detail in detail_infos:
+                if detail.get('Resource') == disk_type:
+                    total_original_price = float(detail.get('OriginalPrice', 0))
+                    total_trade_price = float(detail.get('TradePrice', 0)) or float(detail.get('DiscountPrice', 0))
+                    
+                    if total_original_price > 0 or total_trade_price > 0:
+                        # 如果是数据盘，且同一实例有多个数据盘，需要按大小比例分摊
+                        if disk_type == 'dataDisk' and all_disks_for_instance:
+                            total_data_disk_size = sum(
+                                d.get('Size', 0) 
+                                for d in all_disks_for_instance 
+                                if d.get('InstanceId') == instance_id and d.get('Type', '').lower() != 'system'
+                            )
+                            
+                            if total_data_disk_size > 0 and disk_size > 0:
+                                ratio = disk_size / total_data_disk_size
+                                original_price = total_original_price * ratio
+                                trade_price = total_trade_price * ratio if total_trade_price > 0 else original_price
+                            else:
+                                original_price = total_original_price
+                                trade_price = total_trade_price if total_trade_price > 0 else original_price
+                        else:
+                            original_price = total_original_price
+                            trade_price = total_trade_price if total_trade_price > 0 else original_price
+                        
+                        return {
+                            'original_price': round(original_price, 2),
+                            'trade_price': round(trade_price, 2),
+                            'estimated': False,
+                            'error': None
+                        }
+            
+            return {
+                'original_price': 0,
+                'trade_price': 0,
+                'estimated': False,
+                'error': f'未在实例续费价格中找到{disk_type}价格信息'
+            }
+            
+        except Exception as e:
+            error_str = str(e)
+            if 'ChargeTypeViolation' in error_str or 'PostPaid' in error_str:
+                return {
+                    'original_price': 0,
+                    'trade_price': 0,
+                    'estimated': False,
+                    'error': '实例为按量付费'
+                }
+            return {
+                'original_price': 0,
+                'trade_price': 0,
+                'estimated': False,
+                'error': error_str[:100]
+            }
+    
+    def analyze_disk_discounts(self, output_base_dir='.'):
+        """分析云盘折扣"""
+        self.logger.info(f"开始分析{self.tenant_name}的云盘折扣...")
+        self.logger.info("=" * 80)
+        
+        # 创建输出目录结构
+        output_dir = os.path.join(output_base_dir, self.tenant_name, "discount")
+        os.makedirs(output_dir, exist_ok=True)
+        self.logger.info(f"输出目录: {output_dir}")
+        
+        # 获取所有云盘
+        all_disks = self.get_all_disks()
+        
+        # 筛选包年包月云盘
+        prepaid_disks = [d for d in all_disks if d.get('DiskChargeType') == 'PrePaid']
+        
+        self.logger.info(f"计费方式分布:")
+        self.logger.info(f"• 包年包月 (PrePaid): {len(prepaid_disks)} 个")
+        self.logger.info(f"• 按量付费 (PostPaid): {len(all_disks) - len(prepaid_disks)} 个")
+        
+        if len(prepaid_disks) == 0:
+            self.logger.info("⚠️ 未找到包年包月云盘")
+            return
+        
+        # 获取续费价格（并发处理）
+        self.logger.info("开始查询云盘续费价格...")
+        results = []
+        
+        def process_disk(disk_item):
+            disk, all_disks_for_instance = disk_item
+            disk_id = disk.get('DiskId', '')
+            region_id = disk.get('RegionId', '')
+            disk_category = disk.get('Category', '')
+            disk_size = disk.get('Size', 0)
+            instance_id = disk.get('InstanceId', '')
+            disk_role = disk.get('Type', '')
+            
+            try:
+                client = AcsClient(self.access_key_id, self.access_key_secret, region_id)
+                price_info = self.get_disk_renewal_price(
+                    client, region_id, disk_id, disk_category, disk_size,
+                    instance_id=instance_id, disk_role=disk_role,
+                    all_disks_for_instance=all_disks_for_instance
+                )
+                
+                if price_info.get('error'):
+                    return None
+                
+                original_price = price_info.get('original_price', 0)
+                trade_price = price_info.get('trade_price', 0)
+                
+                if original_price > 0:
+                    discount_rate = trade_price / original_price
+                else:
+                    discount_rate = 1.0
+                
+                return {
+                    'id': disk_id,
+                    'name': disk.get('DiskName', ''),
+                    'type': disk_category,
+                    'size': disk_size,
+                    'zone': disk.get('ZoneId', ''),
+                    'instance_id': instance_id,
+                    'disk_role': disk_role,
+                    'original_price': original_price,
+                    'trade_price': trade_price,
+                    'discount_rate': discount_rate
+                }
+            except Exception as e:
+                self.logger.debug(f"查询云盘{disk_id}价格失败: {e}")
+                return None
+        
+        from utils.concurrent_helper import process_concurrently
+        
+        disk_items = [(disk, prepaid_disks) for disk in prepaid_disks]
+        results = process_concurrently(
+            disk_items,
+            process_disk,
+            max_workers=10,
+            description="查询云盘折扣"
+        )
+        
+        results = [r for r in results if r is not None]
+        
+        if not results:
+            self.logger.info("❌ 未获取到任何折扣数据")
+            return
+        
+        # 生成HTML报告
+        html_file = self.generate_html_report(results, 'disk', output_dir)
+        self.logger.info(f"HTML报告已生成: {html_file}")
+        
+        # 生成PDF报告
+        pdf_file = self.generate_pdf(html_file)
+        if pdf_file:
+            self.logger.info(f"PDF报告已生成: {pdf_file}")
+        
+        # 显示统计信息
+        self.logger.info(f"折扣统计:")
+        self.logger.info(f"• 总云盘数: {len(results)} 个")
+        if results:
+            avg_discount = sum(r['discount_rate'] for r in results) / len(results)
+            min_discount = min(r['discount_rate'] for r in results)
+            max_discount = max(r['discount_rate'] for r in results)
+            current_total = sum(r['trade_price'] for r in results)
+            
+            self.logger.info(f"• 平均折扣: {avg_discount:.1f}折 ({avg_discount*100:.1f}%)")
+            self.logger.info(f"• 最低折扣: {min_discount:.1f}折 ({min_discount*100:.1f}%)")
+            self.logger.info(f"• 最高折扣: {max_discount:.1f}折 ({max_discount*100:.1f}%)")
+            self.logger.info(f"• 当前月总成本: ¥{current_total:,.2f}")
+    
+    def get_generic_renewal_price(self, resource_id, resource_type, region, domain=None, api_version=None, instance_id_key='ResourceId'):
+        """通用续费价格查询方法
+        
+        Args:
+            resource_id: 资源ID
+            resource_type: 资源类型（用于确定API参数）
+            region: 地域
+            domain: API域名（如果为None，将根据resource_type自动推断）
+            api_version: API版本（如果为None，将使用默认版本）
+            instance_id_key: 资源ID参数名（默认ResourceId）
+        """
+        try:
+            client = AcsClient(self.access_key_id, self.access_key_secret, region)
+            request = CommonRequest()
+            
+            # 根据资源类型确定域名和版本
+            if domain is None:
+                domain_map = {
+                    'vpc': f'vpc.{region}.aliyuncs.com',
+                    'nat': f'vpc.{region}.aliyuncs.com',
+                    'vpn': f'vpc.{region}.aliyuncs.com',
+                    'cdn': 'cdn.aliyuncs.com',
+                    'fc': f'fc.{region}.aliyuncs.com',
+                    'oss': 'oss.aliyuncs.com',
+                    'sls': f'sls.{region}.aliyuncs.com',
+                    'arms': f'arms.{region}.aliyuncs.com',
+                    'cms': f'cms.{region}.aliyuncs.com',
+                    'dts': f'dts.{region}.aliyuncs.com',
+                    'ons': f'ons.{region}.aliyuncs.com',
+                    'kafka': f'alikafka.{region}.aliyuncs.com',
+                    'emr': f'emr.{region}.aliyuncs.com',
+                    'dataworks': f'dataworks-public.{region}.aliyuncs.com',
+                    'idaas': f'idaas.{region}.aliyuncs.com',
+                    'pai': f'pai.{region}.aliyuncs.com',
+                    'domain': 'domain.aliyuncs.com',
+                    'sae': f'sae.{region}.aliyuncs.com',
+                    'opensearch': f'opensearch.{region}.aliyuncs.com',
+                    'eip': f'ecs.{region}.aliyuncs.com',
+                    'dms': f'dms-enterprise.{region}.aliyuncs.com',
+                    'elasticsearch': f'elasticsearch.{region}.aliyuncs.com',
+                    'bailian': f'bailian.{region}.aliyuncs.com',
+                    'das': f'das.{region}.aliyuncs.com',
+                    'acr': f'cr.{region}.aliyuncs.com',
+                    'cms': f'cms.{region}.aliyuncs.com',
+                    'datav': f'datav.{region}.aliyuncs.com',
+                    'dns': f'alidns.{region}.aliyuncs.com',
+                    'mse': f'mse.{region}.aliyuncs.com',
+                    'ots': f'ots.{region}.aliyuncs.com',
+                    'vpc': f'vpc.{region}.aliyuncs.com',
+                    'pvtz': f'pvtz.{region}.aliyuncs.com',
+                    'green': f'green.{region}.aliyuncs.com',
+                    'dypnsapi': f'dypnsapi.{region}.aliyuncs.com',
+                }
+                domain = domain_map.get(resource_type, f'{resource_type}.{region}.aliyuncs.com')
+            
+            if api_version is None:
+                version_map = {
+                    'vpc': '2016-04-28',
+                    'nat': '2016-04-28',
+                    'vpn': '2016-04-28',
+                    'cdn': '2018-01-15',
+                    'fc': '2021-04-06',
+                    'sls': '2020-12-30',
+                    'arms': '2019-08-08',
+                    'cms': '2019-01-01',
+                    'dts': '2020-01-01',
+                    'ons': '2019-02-14',
+                    'kafka': '2019-09-16',
+                    'emr': '2016-04-08',
+                    'dataworks': '2020-05-18',
+                    'idaas': '2021-05-20',
+                    'pai': '2021-02-02',
+                    'domain': '2018-01-29',
+                    'sae': '2019-05-06',
+                    'opensearch': '2017-12-25',
+                    'eip': '2014-05-26',
+                    'dms': '2018-11-01',
+                    'elasticsearch': '2017-06-13',
+                    'bailian': '2023-06-01',
+                    'das': '2020-01-16',
+                    'acr': '2018-12-01',
+                    'datav': '2020-01-20',
+                    'dns': '2015-01-09',
+                    'mse': '2019-05-31',
+                    'ots': '2016-06-20',
+                    'pvtz': '2018-01-01',
+                    'green': '2017-08-23',
+                    'dypnsapi': '2017-05-25',
+                }
+                api_version = version_map.get(resource_type, '2014-05-26')
+            
+            request.set_domain(domain)
+            request.set_version(api_version)
+            request.set_method('POST')
+            
+            # 尝试DescribeRenewalPrice
+            request.set_action_name('DescribeRenewalPrice')
+            request.add_query_param('RegionId', region)
+            request.add_query_param(instance_id_key, resource_id)
+            request.add_query_param('Period', 1)
+            request.add_query_param('PriceUnit', 'Month')
+            
+            try:
+                response = client.do_action_with_exception(request)
+                data = json.loads(response)
+                
+                # 解析价格
+                price_info = data.get('PriceInfo', {}).get('Price', {}) or data.get('Price', {})
+                original_price = float(price_info.get('OriginalPrice', 0) or 0)
+                trade_price = float(price_info.get('TradePrice', 0) or price_info.get('DiscountPrice', 0) or 0)
+                
+                return {
+                    'original_price': original_price,
+                    'trade_price': trade_price,
+                    'success': True
+                }
+            except Exception as e:
+                # 如果DescribeRenewalPrice失败，尝试DescribePrice
+                if 'DescribeRenewalPrice' not in str(e) or 'not found' in str(e).lower():
+                    request = CommonRequest()
+                    request.set_domain(domain)
+                    request.set_version(api_version)
+                    request.set_method('POST')
+                    request.set_action_name('DescribePrice')
+                    request.add_query_param('RegionId', region)
+                    request.add_query_param(instance_id_key, resource_id)
+                    request.add_query_param('Period', 1)
+                    request.add_query_param('OrderType', 'RENEW')
+                    
+                    try:
+                        response = client.do_action_with_exception(request)
+                        data = json.loads(response)
+                        price_info = data.get('PriceInfo', {}).get('Price', {}) or data.get('Price', {})
+                        original_price = float(price_info.get('OriginalPrice', 0) or 0)
+                        trade_price = float(price_info.get('TradePrice', 0) or price_info.get('DiscountPrice', 0) or 0)
+                        return {
+                            'original_price': original_price,
+                            'trade_price': trade_price,
+                            'success': True
+                        }
+                    except:
+                        return {'success': False, 'error': str(e)[:100]}
+                return {'success': False, 'error': str(e)[:100]}
+        except Exception as e:
+            return {'success': False, 'error': str(e)[:100]}
+    
+    def analyze_generic_discounts(self, resource_type, product_name, get_instances_func, output_base_dir='.', 
+                                  charge_type_key='ChargeType', prepaid_values=['PrePaid', 'Prepaid']):
+        """通用折扣分析方法
+        
+        Args:
+            resource_type: 资源类型代码（如'vpc', 'nat'等）
+            product_name: 产品显示名称（如'VPN网关'）
+            get_instances_func: 获取实例列表的函数
+            output_base_dir: 输出目录
+            charge_type_key: 计费类型字段名
+            prepaid_values: 包年包月的值列表
+        """
+        self.logger.info(f"开始分析{self.tenant_name}的{product_name}折扣...")
+        self.logger.info("=" * 80)
+        
+        output_dir = os.path.join(output_base_dir, self.tenant_name, "discount")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        try:
+            # 获取所有实例
+            instances = get_instances_func()
+            
+            # 筛选包年包月实例
+            prepaid_instances = [
+                i for i in instances 
+                if i.get(charge_type_key) in prepaid_values
+            ]
+            
+            self.logger.info(f"计费方式分布:")
+            self.logger.info(f"• 包年包月: {len(prepaid_instances)} 个")
+            self.logger.info(f"• 按量付费: {len(instances) - len(prepaid_instances)} 个")
+            
+            if len(prepaid_instances) == 0:
+                self.logger.info(f"⚠️ 未找到包年包月{product_name}实例")
+                return
+            
+            # 获取续费价格
+            results = []
+            for instance in prepaid_instances:
+                instance_id = instance.get('InstanceId') or instance.get('ResourceId') or instance.get('Id', '')
+                region = instance.get('RegionId') or instance.get('Region', self.region)
+                
+                if not instance_id:
+                    continue
+                
+                price_result = self.get_generic_renewal_price(instance_id, resource_type, region)
+                
+                if price_result.get('success'):
+                    original_price = price_result.get('original_price', 0)
+                    trade_price = price_result.get('trade_price', 0)
+                    
+                    if original_price > 0:
+                        discount_rate = trade_price / original_price
+                    else:
+                        discount_rate = 1.0
+                    
+                    results.append({
+                        'id': instance_id,
+                        'name': instance.get('InstanceName') or instance.get('Name', ''),
+                        'type': instance.get('InstanceType') or instance.get('Type', ''),
+                        'zone': instance.get('ZoneId') or instance.get('Zone', ''),
+                        'original_price': original_price,
+                        'trade_price': trade_price,
+                        'discount_rate': discount_rate
+                    })
+            
+            if not results:
+                self.logger.info("❌ 未获取到任何折扣数据")
+                return
+            
+            # 生成HTML报告
+            html_file = self.generate_html_report(results, resource_type, output_dir)
+            self.logger.info(f"HTML报告已生成: {html_file}")
+            
+            # 显示统计信息
+            self.logger.info(f"折扣统计:")
+            self.logger.info(f"• 总实例数: {len(results)} 个")
+            if results:
+                avg_discount = sum(r['discount_rate'] for r in results) / len(results)
+                min_discount = min(r['discount_rate'] for r in results)
+                max_discount = max(r['discount_rate'] for r in results)
+                current_total = sum(r['trade_price'] for r in results)
+                
+                self.logger.info(f"• 平均折扣: {avg_discount:.1f}折 ({avg_discount*100:.1f}%)")
+                self.logger.info(f"• 最低折扣: {min_discount:.1f}折 ({min_discount*100:.1f}%)")
+                self.logger.info(f"• 最高折扣: {max_discount:.1f}折 ({max_discount*100:.1f}%)")
+                self.logger.info(f"• 当前月总成本: ¥{current_total:,.2f}")
+        except Exception as e:
+            self.logger.error(f"分析{product_name}折扣失败: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+    
+    # ========== 批量添加所有产品的获取实例方法 ==========
+    
+    def get_all_vpn_instances(self):
+        """获取所有VPN网关实例"""
+        all_instances = []
+        regions = ['cn-beijing', 'cn-hangzhou', 'cn-shanghai', 'cn-shenzhen']
+        
+        for region in regions:
+            try:
+                client = AcsClient(self.access_key_id, self.access_key_secret, region)
+                request = CommonRequest()
+                request.set_domain(f'vpc.{region}.aliyuncs.com')
+                request.set_method('POST')
+                request.set_version('2016-04-28')
+                request.set_action_name('DescribeVpnGateways')
+                request.add_query_param('PageSize', 50)
+                
+                page_number = 1
+                while True:
+                    request.add_query_param('PageNumber', page_number)
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                    if 'VpnGateways' not in data or 'VpnGateway' not in data['VpnGateways']:
+                        break
+                    
+                    gateways = data['VpnGateways']['VpnGateway']
+                    if not isinstance(gateways, list):
+                        gateways = [gateways]
+                    
+                    if len(gateways) == 0:
+                        break
+                    
+                    for gw in gateways:
+                        all_instances.append({
+                            'InstanceId': gw.get('VpnGatewayId', ''),
+                            'InstanceName': gw.get('Name', ''),
+                            'InstanceType': gw.get('Spec', ''),
+                            'ChargeType': gw.get('ChargeType', ''),
+                            'RegionId': region,
+                            'Status': gw.get('Status', ''),
+                        })
+                    
+                    if len(gateways) < 50:
+                        break
+                    page_number += 1
+            except Exception as e:
+                self.logger.debug(f"获取{region}区域VPN网关失败: {e}")
+                continue
+        
+        return all_instances
+    
+    def get_all_nat_instances(self):
+        """获取所有NAT网关实例"""
+        all_instances = []
+        regions = ['cn-beijing', 'cn-hangzhou', 'cn-shanghai', 'cn-shenzhen']
+        
+        for region in regions:
+            try:
+                client = AcsClient(self.access_key_id, self.access_key_secret, region)
+                request = CommonRequest()
+                request.set_domain(f'vpc.{region}.aliyuncs.com')
+                request.set_method('POST')
+                request.set_version('2016-04-28')
+                request.set_action_name('DescribeNatGateways')
+                request.add_query_param('PageSize', 50)
+                
+                page_number = 1
+                while True:
+                    request.add_query_param('PageNumber', page_number)
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                    if 'NatGateways' not in data or 'NatGateway' not in data['NatGateways']:
+                        break
+                    
+                    gateways = data['NatGateways']['NatGateway']
+                    if not isinstance(gateways, list):
+                        gateways = [gateways]
+                    
+                    if len(gateways) == 0:
+                        break
+                    
+                    for gw in gateways:
+                        all_instances.append({
+                            'InstanceId': gw.get('NatGatewayId', ''),
+                            'InstanceName': gw.get('Name', ''),
+                            'InstanceType': gw.get('Spec', ''),
+                            'ChargeType': gw.get('ChargeType', ''),
+                            'RegionId': region,
+                            'Status': gw.get('Status', ''),
+                        })
+                    
+                    if len(gateways) < 50:
+                        break
+                    page_number += 1
+            except Exception as e:
+                self.logger.debug(f"获取{region}区域NAT网关失败: {e}")
+                continue
+        
+        return all_instances
+    
+    def get_all_elasticsearch_instances(self):
+        """获取所有Elasticsearch实例"""
+        all_instances = []
+        regions = ['cn-beijing', 'cn-hangzhou', 'cn-shanghai', 'cn-shenzhen']
+        
+        for region in regions:
+            try:
+                client = AcsClient(self.access_key_id, self.access_key_secret, region)
+                request = CommonRequest()
+                request.set_domain(f'elasticsearch.{region}.aliyuncs.com')
+                request.set_method('POST')
+                request.set_version('2017-06-13')
+                request.set_action_name('ListInstance')
+                request.add_query_param('size', 50)
+                
+                page_number = 0
+                while True:
+                    request.add_query_param('page', page_number)
+                    response = client.do_action_with_exception(request)
+                    data = json.loads(response)
+                    
+                    if 'Result' not in data or 'instanceList' not in data['Result']:
+                        break
+                    
+                    instances = data['Result']['instanceList']
+                    if not isinstance(instances, list):
+                        instances = [instances]
+                    
+                    if len(instances) == 0:
+                        break
+                    
+                    for inst in instances:
+                        all_instances.append({
+                            'InstanceId': inst.get('instanceId', ''),
+                            'InstanceName': inst.get('description', ''),
+                            'InstanceType': inst.get('instanceClass', ''),
+                            'ChargeType': inst.get('paymentType', ''),
+                            'RegionId': region,
+                            'Status': inst.get('status', ''),
+                        })
+                    
+                    if len(instances) < 50:
+                        break
+                    page_number += 1
+            except Exception as e:
+                self.logger.debug(f"获取{region}区域Elasticsearch失败: {e}")
+                continue
+        
+        return all_instances
+    
+    # ========== 批量添加所有产品的折扣分析方法 ==========
+    
+    def analyze_vpn_discounts(self, output_base_dir='.'):
+        """分析VPN网关折扣"""
+        self.analyze_generic_discounts(
+            'vpn', 'VPN网关', 
+            self.get_all_vpn_instances,
+            output_base_dir,
+            'ChargeType',
+            ['PrePaid', 'Prepaid']
+        )
+    
+    def analyze_nat_discounts(self, output_base_dir='.'):
+        """分析NAT网关折扣"""
+        self.analyze_generic_discounts(
+            'nat', 'NAT网关',
+            self.get_all_nat_instances,
+            output_base_dir,
+            'ChargeType',
+            ['PrePaid', 'Prepaid']
+        )
+    
+    def analyze_elasticsearch_discounts(self, output_base_dir='.'):
+        """分析Elasticsearch折扣"""
+        self.analyze_generic_discounts(
+            'elasticsearch', 'Elasticsearch',
+            self.get_all_elasticsearch_instances,
+            output_base_dir,
+            'ChargeType',
+            ['PrePaid', 'Prepaid']
+        )
+    
+    def analyze_all_products_discounts(self, output_base_dir='.'):
+        """分析所有支持的产品折扣"""
+        self.logger.info("=" * 80)
+        self.logger.info(f"开始分析{self.tenant_name}所有产品的折扣...")
+        self.logger.info("=" * 80)
+        
+        # 已实现的产品
+        implemented_products = [
+            ('ecs', '云服务器 ECS', self.analyze_ecs_discounts),
+            ('rds', '云数据库 RDS', self.analyze_rds_discounts),
+            ('redis', '云数据库 Tair（兼容 Redis）', self.analyze_redis_discounts),
+            ('mongodb', '云数据库 MongoDB 版', self.analyze_mongodb_discounts),
+            ('clickhouse', '云数据库 ClickHouse', self.analyze_clickhouse_discounts),
+            ('polardb', 'PolarDB', self.analyze_polardb_discounts),
+            ('nas', '文件存储 NAS', self.analyze_nas_discounts),
+            ('slb', '负载均衡', self.analyze_slb_discounts),
+            ('ack', '容器服务Kubernetes版', self.analyze_ack_discounts),
+            ('eci', 'Serverless 应用引擎', self.analyze_eci_discounts),
+            ('disk', '块存储', self.analyze_disk_discounts),
+            ('vpn', 'VPN网关', self.analyze_vpn_discounts),
+            ('nat', 'NAT网关', self.analyze_nat_discounts),
+            ('elasticsearch', '检索分析服务 Elasticsearch版', self.analyze_elasticsearch_discounts),
+        ]
+        
+        # 不支持包年包月的产品（通常按量付费）
+        pay_as_you_go_products = [
+            '日志服务', '云防火墙', '对象存储', '转发路由器', '云安全中心',
+            '数据传输服务', '云消息队列 MQ', '实时计算 Flink版',
+            '云消息队列 Kafka 版', '开源大数据平台 E-MapReduce',
+            '大数据开发治理平台 DataWorks', '应用身份服务 (IDaaS)',
+            '人工智能平台 PAI', '域名与网站', '弹性公网IP', '数据管理',
+            '大模型服务平台百炼', '数据库自治服务', '容器镜像服务',
+            '云监控', 'CDN', 'DataV数据可视化', '云解析DNS', '微服务引擎',
+            '表格存储', '专有网络VPC', '云解析 PrivateZone', '内容安全',
+            '号码认证服务', '智能开放搜索 OpenSearch'
+        ]
+        
+        results_summary = {}
+        
+        # 分析已实现的产品
+        for product_code, product_name, analyze_func in implemented_products:
+            try:
+                self.logger.info(f"\n{'='*80}")
+                self.logger.info(f"分析 {product_name}...")
+                self.logger.info(f"{'='*80}")
+                analyze_func(output_base_dir)
+                results_summary[product_name] = '已分析'
+            except Exception as e:
+                self.logger.error(f"分析{product_name}失败: {e}")
+                results_summary[product_name] = f'失败: {str(e)[:50]}'
+        
+        # 输出不支持的产品说明
+        self.logger.info(f"\n{'='*80}")
+        self.logger.info("不支持包年包月折扣分析的产品（通常采用按量付费模式）:")
+        self.logger.info(f"{'='*80}")
+        for product in pay_as_you_go_products:
+            self.logger.info(f"  • {product}: 按量付费，不支持包年包月折扣分析")
+        
+        # 生成汇总报告
+        self.logger.info(f"\n{'='*80}")
+        self.logger.info("折扣分析汇总")
+        self.logger.info(f"{'='*80}")
+        for product_name, status in results_summary.items():
+            self.logger.info(f"  • {product_name}: {status}")
+        
+        return results_summary
 
 
 def main():
