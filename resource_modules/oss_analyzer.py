@@ -43,7 +43,7 @@ class OSSAnalyzer:
         
         # 数据库文件
         self.db_path = 'oss_monitoring_data.db'
-        self.logger = get_logger(\'oss_analyzer')
+        self.logger = get_logger('oss_analyzer')
         self.cache_file = 'oss_data_cache.pkl'
         
         # 初始化数据库
@@ -143,8 +143,8 @@ class OSSAnalyzer:
                 self.logger.info(f"    ✅ 找到存储桶: {bucket_info['BucketName']}")
         
         except Exception as e:
-            error = ErrorHandler.handle_api_error(e, "OSS", region_id)
-            ErrorHandler.handle_region_error(e, region_id, "OSS")
+            error = ErrorHandler.handle_api_error(e, "OSS", region)
+            ErrorHandler.handle_region_error(e, region, "OSS")
             return []
         
         self.logger.info(f"共找到 {len(all_buckets)} 个OSS存储桶")

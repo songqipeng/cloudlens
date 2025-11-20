@@ -53,8 +53,8 @@ def show_help():
 
 参数说明:
     租户          - 租户名称（如：ydzn），默认为default_tenant
-    操作          - 操作类型：cru（资源利用率）、discount（折扣分析）、cost（费用分析）
-    资源类型      - 资源类型：ecs、rds、redis、mongodb、clickhouse、oss、slb、eip、nas、ack、eci、polardb、all（全部）
+    操作          - 操作类型：cru（资源利用率）、discount（折扣分析）、cost（费用分析）、network（网络资源）
+    资源类型      - 资源类型：ecs、rds、redis、mongodb、clickhouse、oss、slb、eip、dns、nas、ack、eci、polardb、network、all（全部）
 
 凭证管理:
     python main.py setup-credentials     - 交互式设置凭证（保存到系统密钥环）
@@ -72,6 +72,11 @@ def show_help():
     python main.py discount               # 默认租户所有资源折扣
     python main.py ydzn discount ecs      # ydzn租户ECS折扣
     python main.py discount ecs          # 默认租户ECS折扣
+    
+    网络资源分析:
+    python main.py ydzn network           # ydzn租户网络资源（VPC、VPN、专线、SLB、CDN等）
+    python main.py network                # 默认租户网络资源
+    python main.py ydzn cru network       # ydzn租户网络资源（作为资源类型）
 
 选项:
     -h, --help      显示帮助信息
@@ -245,6 +250,56 @@ def run_eip_analysis(args, tenant_config=None):
     return True
 
 
+def run_dns_analysis(args, tenant_config=None, tenant_name=None):
+    """运行DNS分析"""
+    print("🌐 启动DNS域名解析分析...")
+    try:
+        from resource_modules.dns_analyzer import main as dns_main
+        if tenant_config:
+            dns_main(
+                access_key_id=tenant_config.get('access_key_id'),
+                access_key_secret=tenant_config.get('access_key_secret'),
+                tenant_name=tenant_name
+            )
+        else:
+            dns_main(tenant_name=tenant_name)
+    except ImportError as e:
+        print(f"❌ DNS分析模块导入失败: {e}")
+        return False
+    except Exception as e:
+        print(f"❌ DNS分析失败: {e}")
+        return False
+    return True
+
+
+def run_network_analysis(args, tenant_config=None, tenant_name=None):
+    """运行网络资源分析"""
+    print("🌐 启动网络资源分析...")
+    try:
+        from resource_modules.network_analyzer import NetworkAnalyzer
+        if not tenant_config:
+            print("❌ 缺少租户配置")
+            return False
+        
+        analyzer = NetworkAnalyzer(
+            tenant_config.get('access_key_id'),
+            tenant_config.get('access_key_secret'),
+            tenant_name or 'default'
+        )
+        analyzer.analyze_network_resources()
+        return True
+    except ImportError as e:
+        print(f"❌ 网络资源分析模块导入失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+    except Exception as e:
+        print(f"❌ 网络资源分析失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def run_all_cru_analysis(args, tenant_name, tenant_config):
     """运行所有资源利用率分析"""
     print("🌍 启动全资源利用率分析...")
@@ -258,6 +313,7 @@ def run_all_cru_analysis(args, tenant_name, tenant_config):
         ("OSS", lambda a, tc, tn: run_oss_analysis(a, tc)),
         ("SLB", lambda a, tc, tn: run_slb_analysis(a, tc)),
         ("EIP", lambda a, tc, tn: run_eip_analysis(a, tc)),
+        ("DNS", lambda a, tc, tn: run_dns_analysis(a, tc, tn)),
         ("NAS", lambda a, tc, tn: run_nas_analysis(a, tc, tn)),
         ("ACK", lambda a, tc, tn: run_ack_analysis(a, tc, tn)),
         ("ECI", lambda a, tc, tn: run_eci_analysis(a, tc, tn)),
@@ -505,6 +561,8 @@ def main():
             success = run_slb_analysis(None, tenant_config)
         elif resource_type == 'eip':
             success = run_eip_analysis(None, tenant_config)
+        elif resource_type == 'dns':
+            success = run_dns_analysis(None, tenant_config, tenant_name)
         elif resource_type == 'nas':
             success = run_nas_analysis(None, tenant_config, tenant_name)
         elif resource_type == 'ack':
@@ -513,6 +571,8 @@ def main():
             success = run_eci_analysis(None, tenant_config, tenant_name)
         elif resource_type == 'polardb':
             success = run_polardb_analysis(None, tenant_config, tenant_name)
+        elif resource_type == 'network':
+            success = run_network_analysis(None, tenant_config, tenant_name)
         elif resource_type == 'all':
             success = run_all_cru_analysis(None, tenant_name, tenant_config)
         else:
@@ -528,9 +588,13 @@ def main():
         # 费用分析
         success = run_cost_analysis(tenant_name, tenant_config)
     
+    elif action == 'network':
+        # 网络资源分析（独立操作）
+        success = run_network_analysis(None, tenant_config, tenant_name)
+    
     else:
         print(f"❌ 不支持的操作类型: {action}")
-        print(f"支持的操作: cru（资源利用率）、discount（折扣分析）、cost（费用分析）")
+        print(f"支持的操作: cru（资源利用率）、discount（折扣分析）、cost（费用分析）、network（网络资源）")
         show_help()
         return
     

@@ -26,7 +26,7 @@ class EIPAnalyzer:
         self.access_key_id = access_key_id
         self.access_key_secret = access_key_secret
         self.db_name = 'eip_monitoring_data.db'
-        self.logger = get_logger(\'eip_analyzer')
+        self.logger = get_logger('eip_analyzer')
         self.init_database()
         
     def init_database(self):
