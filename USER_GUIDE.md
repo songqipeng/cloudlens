@@ -37,6 +37,10 @@ python3 main_cli.py query ecs --account my-account
 
 # 5. 生成报告
 python3 main_cli.py report generate --account my-account --format excel
+
+# 可选：使用封装命令（记住上次账号，账号可作为位置参数）
+./cloudlens query my-account ecs
+./cloudlens query ecs
 ```
 
 🎉 完成！您已经成功使用CloudLens CLI！
@@ -48,7 +52,7 @@ python3 main_cli.py report generate --account my-account --format excel
 ### 系统要求
 
 - **操作系统**: macOS, Linux, Windows
-- **Python版本**: 3.9+
+- **Python版本**: 3.8+
 - **依赖**: pip
 
 ### 安装步骤
@@ -56,39 +60,13 @@ python3 main_cli.py report generate --account my-account --format excel
 #### 1. 安装核心依赖
 
 ```bash
-# 基础依赖
-pip install click keyring
-
-# 阿里云SDK
-pip install aliyun-python-sdk-core
-pip install aliyun-python-sdk-ecs
-pip install aliyun-python-sdk-rds
-pip install aliyun-python-sdk-vpc
-pip install aliyun-python-sdk-cms
-pip install aliyun-python-sdk-r-kvstore
-pip install oss2
-
-# 腾讯云SDK
-pip install tencentcloud-sdk-python
+pip install -r requirements.txt
 ```
 
-#### 2. 安装可选依赖
+- 包含阿里云 ECS/RDS/Redis/OSS/NAS/VPC/EIP/SLB、腾讯云 CVM/CDB/Redis/COS/VPC 所需 SDK。
+- PDF 报告需要额外安装 weasyprint，或在本地提供 wkhtmltopdf。
 
-```bash
-# Excel报告支持
-pip install openpyxl
-
-# PDF报告支持
-pip install weasyprint
-
-# 完整功能支持
-pip install aliyun-python-sdk-slb
-pip install aliyun-python-sdk-nas
-pip install aliyun-python-sdk-ram
-pip install cos-python-sdk-v5
-```
-
-#### 3. 验证安装
+#### 2. 验证安装
 
 ```bash
 python3 main_cli.py --help
@@ -318,6 +296,8 @@ rm-def456           prod-db             RDS       2024-12-28 00:00:00   18天
 python3 main_cli.py analyze idle --account prod --days 7
 ```
 
+> 当前闲置分析仅支持阿里云 ECS，并依赖 CloudMonitor 指标；其他资源类型的闲置检测在规划中。
+
 输出示例：
 ```
 🔍 Analyzing resource usage (last 7 days)...
@@ -372,6 +352,8 @@ rm-def456             temp-db                       rds
 ```bash
 python3 main_cli.py analyze security --account prod
 ```
+
+> 当前安全分析聚焦公网暴露与未绑定 EIP 统计，安全组/加密等审计项尚未落地。
 
 输出示例：
 ```

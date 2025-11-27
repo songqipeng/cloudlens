@@ -4,7 +4,7 @@
 
 **统一视图 · 智能分析 · 安全合规 · 降本增效**
 
-[![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 </div>
@@ -13,33 +13,24 @@
 
 **CloudLens CLI** 是一款企业级多云资源治理与分析工具，专为运维团队打造。通过统一的命令行界面管理阿里云、腾讯云等多个云平台的资源，提供智能成本分析、安全合规检查和专业报告生成能力。
 
-### 核心特性
+### 核心特性（当前版本）
 
-- 🌐 **多云统一管理** - 一个工具管理阿里云、腾讯云（可扩展AWS、火山引擎）
-- 💰 **智能成本分析** - 自动识别闲置资源，提供续费提醒和优化建议
-- 🔒 **安全合规检查** - 公网暴露检测、权限审计、标签治理
-- 📊 **专业报告生成** - Excel、HTML、JSON/CSV多格式导出
-- 🚀 **高性能查询** - 并发查询，速度提升3倍
-- 🔐 **零风险设计** - 100%只读操作，强制Keyring密钥存储
+- 🌐 **多云统一管理** - 支持阿里云、腾讯云（AWS/火山引擎规划中）
+- 💰 **基础成本洞察** - 闲置分析（当前覆盖阿里云 ECS）、续费提醒
+- 🔒 **基础安全检查** - 公网暴露与未绑定 EIP 统计，简易权限审计
+- 🏷️ **标签治理** - 标签覆盖率分析、缺失标签提示
+- 📊 **报告导出** - Excel/HTML/JSON/CSV，多账号并发查询
+- 🔐 **零风险设计** - 只读操作，强制 Keyring 存储密钥
 
 ## 📋 支持的资源类型
 
-### 阿里云（13种）
-- **计算**: ECS
-- **数据库**: RDS, Redis, MongoDB, ClickHouse, PolarDB
-- **存储**: OSS, NAS
-- **网络**: VPC, EIP, SLB
-- **容器**: ACK, ECI
+### 已实现
+- **阿里云**: ECS, RDS, Redis, OSS, NAS, VPC, EIP, SLB
+- **腾讯云**: CVM, CDB, Redis, COS, VPC
 
-### 腾讯云（5种）
-- **计算**: CVM
-- **数据库**: CDB, Redis
-- **存储**: COS
-- **网络**: VPC
-
-### 即将支持
-- AWS: EC2, RDS, S3
-- 火山引擎
+### 规划中（未实现）
+- 阿里云: MongoDB, ClickHouse, PolarDB, ACK, ECI
+- AWS/火山引擎: EC2, RDS, S3 等
 
 ## 🛠️ 快速开始
 
@@ -50,6 +41,8 @@ git clone <repository>
 cd aliyunidle
 pip install -r requirements.txt
 ```
+
+- 如需生成 PDF 报告，额外安装 weasyprint 或使用本地 wkhtmltopdf
 
 ### 2. 配置账号
 
@@ -64,6 +57,11 @@ python3 main_cli.py config add \
 
 # 查看已配置账号
 python3 main_cli.py config list
+
+# 或使用封装命令（会记住最近一次使用的账号；账号也可作为位置参数）
+./cloudlens config add
+./cloudlens query prod ecs   # 指定账号
+./cloudlens query ecs        # 复用上次账号
 ```
 
 ### 3. 开始使用
@@ -226,15 +224,9 @@ python3 main_cli.py topology generate --account prod
 - 磁盘IOPS < 100
 - EIP带宽使用率 < 峰值 * 10%
 
-### RDS闲置标准（或关系）
-- CPU利用率 < 10%
-- 内存利用率 < 20%
-- 连接数使用率 < 20%
-- QPS < 100
-- TPS < 10
+> 当前闲置分析仅对阿里云 ECS 实现（基于 CloudMonitor）。RDS 及其他资源的闲置检测仍在规划，标准以文档为准。
 
-### 更多标准
-详见 [USER_GUIDE.md](USER_GUIDE.md)
+更多说明详见 [USER_GUIDE.md](USER_GUIDE.md)
 
 ## 🔐 安全性
 

@@ -665,4 +665,4 @@ CloudLens CLI的架构设计遵循以下原则：
 5. **用户友好**：清晰的错误提示，友好的CLI交互
 
 **适合团队**：运维团队、DevOps工程师、云架构师  
-**技术栈**：Python 3.9+, Click, 云厂商SDK, Keyring
+**技术栈**：Python 3.8+, Click, 云厂商SDK, Keyring

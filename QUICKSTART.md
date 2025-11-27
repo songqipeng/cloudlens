@@ -4,6 +4,7 @@
 
 ```bash
 cd /Users/mac/aliyunidle
+pip install -r requirements.txt
 chmod +x cloudlens
 ```
 
@@ -42,6 +43,8 @@ chmod +x cloudlens
 # 生成报告
 ./cloudlens report generate      # 使用记住的账号
 ```
+
+> 仍可使用 `python3 main_cli.py ...` 命令形式；`./cloudlens` 只是封装了账号记忆与位置参数。
 
 ## 添加到 PATH（可选）
 

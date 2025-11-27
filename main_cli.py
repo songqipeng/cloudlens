@@ -650,6 +650,7 @@ def analyze_idle(days, account):
     
     for acc in accounts:
         provider = get_provider(acc)
+        # 当前仅支持阿里云 ECS 的闲置判定
         if not provider or provider.provider_name != "aliyun":
             continue
         
@@ -746,6 +747,7 @@ def analyze_security(account):
     if not accounts:
         return
     
+    # 当前安全分析聚焦公网暴露与未绑定 EIP 统计，其他审计项待扩展
     click.echo("🔍 Analyzing security compliance...")
     
     all_instances = []

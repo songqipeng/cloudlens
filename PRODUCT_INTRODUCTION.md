@@ -263,21 +263,13 @@ python3 main_cli.py topology generate --account prod
 
 ## 支持的资源类型
 
-### 阿里云（13种）
-- 计算：ECS
-- 数据库：RDS, Redis
-- 存储：OSS, NAS
-- 网络：VPC, EIP, SLB
+### 已实现
+- 阿里云：ECS、RDS、Redis、OSS、NAS、VPC、EIP、SLB
+- 腾讯云：CVM、CDB、Redis、COS、VPC
 
-### 腾讯云（5种）
-- 计算：CVM
-- 数据库：CDB, Redis
-- 存储：COS
-- 网络：VPC
-
-### 即将支持
-- AWS: EC2, RDS, S3
-- 火山引擎
+### 规划中（未实现）
+- 阿里云：MongoDB、ClickHouse、PolarDB、ACK、ECI
+- AWS/火山引擎：EC2、RDS、S3 等
 
 ---
 
@@ -288,6 +280,7 @@ python3 main_cli.py topology generate --account prod
 git clone <repository>
 cd aliyunidle
 pip install -r requirements.txt
+# PDF 报告需额外安装 weasyprint，或使用本地 wkhtmltopdf
 ```
 
 ### 2. 配置账号
@@ -307,6 +300,10 @@ python3 main_cli.py query ecs --account prod
 
 # 生成报告
 python3 main_cli.py report generate --account prod --format excel
+
+# 可选：使用封装命令（记住上次账号）
+./cloudlens query prod ecs
+./cloudlens query ecs
 ```
 
 ---
