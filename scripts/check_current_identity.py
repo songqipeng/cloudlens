@@ -6,6 +6,10 @@
 
 import json
 import sys
+import os
+
+# 添加父目录到sys.path以便导入模块
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from aliyunsdkcore.client import AcsClient
 from aliyunsdkcore.request import CommonRequest
