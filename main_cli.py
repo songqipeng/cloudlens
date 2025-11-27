@@ -10,22 +10,50 @@ from core.config import ConfigManager, AccountConfig
 from core.context import ContextManager
 
 @click.group()
-def cli():
-    """Multi-Cloud Query CLI (CloudLens)"""
-    pass
+@click.pass_context
+def cli(ctx):
+    """CloudLens CLI - 多云资源治理工具
+    
+    \b
+    🌐 统一视图 · 💰 智能分析 · 🔒 安全合规 · 📊 降本增效
+    
+    CloudLens 是一款企业级多云资源治理与分析工具，专为运维团队打造。
+    通过统一的命令行界面管理阿里云、腾讯云等多个云平台的资源。
+    
+    \b
+    核心功能：
+      • 多云统一管理 - 一个工具管理所有云资源
+      • 智能成本分析 - 自动识别闲置资源，提供优化建议
+      • 安全合规检查 - 公网暴露检测、权限审计、标签治理
+      • 专业报告生成 - Excel、HTML、JSON/CSV多格式导出
+      • 高性能查询 - 并发查询，速度提升3倍
+    
+    \b
+    快速开始：
+      cl config add              # 添加云账号
+      cl query ydzn ecs          # 查询ECS实例
+      cl analyze idle            # 分析闲置资源
+      cl report generate         # 生成报告
+    
+    \b
+    使用 'cl COMMAND --help' 查看具体命令的帮助信息
+    """
+    # 如果没有子命令，显示帮助信息
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
 
 @cli.group()
 def config():
-    """Manage configuration and accounts"""
+    """配置管理 - 添加、删除、查看云账号配置"""
     pass
 
 @config.command("list")
 def list_accounts():
-    """List all configured accounts"""
+    """查看所有已配置的云账号"""
     cm = ConfigManager()
     accounts = cm.list_accounts()
     if not accounts:
-        click.echo("No accounts configured.")
+        click.echo("暂无配置账号。")
         return
         
     click.echo(f"{'Name':<15} {'Provider':<10} {'Region':<15} {'Keyring':<10}")
@@ -35,12 +63,12 @@ def list_accounts():
 
 @config.command("add")
 @click.option("--provider", prompt=True, type=click.Choice(['aliyun', 'tencent', 'aws', 'volcano']))
-@click.option("--name", prompt=True, help="Alias for the account")
+@click.option("--name", prompt=True, help="账号别名")
 @click.option("--region", prompt=True, default="cn-hangzhou")
 @click.option("--ak", prompt=True, help="Access Key ID")
 @click.option("--sk", prompt=True, hide_input=True, help="Secret Access Key")
 def add_account(provider, name, region, ak, sk):
-    """Add a new cloud account"""
+    """添加新的云账号配置"""
     cm = ConfigManager()
     
     # TODO: 在这里调用 PermissionGuard 进行权限预检
@@ -54,11 +82,11 @@ def add_account(provider, name, region, ak, sk):
         use_keyring=True
     )
     cm.add_account(new_account)
-    click.echo(f"✅ Account '{name}' added successfully (Secret saved to Keyring).")
+    click.echo(f"✅ 账号 '{name}' 添加成功（密钥已保存到 Keyring）。")
 
 @cli.group()
 def query():
-    """Query resources across clouds"""
+    """资源查询 - 查询ECS、RDS、VPC等云资源"""
     pass
 
 from providers.aliyun.provider import AliyunProvider
@@ -558,7 +586,7 @@ def query_nas(account, format, output):
 
 @cli.group()
 def analyze():
-    """Analyze resources (Idle, Renewal, Cost)"""
+    """资源分析 - 闲置资源、成本、安全、续费分析"""
     pass
 
 @analyze.command("renewal")
@@ -834,7 +862,7 @@ def analyze_security(account):
 
 @cli.group()
 def audit():
-    """Audit account permissions and security"""
+    """安全审计 - 账号权限审计和安全检查"""
     pass
 
 @audit.command("permissions")
@@ -899,7 +927,7 @@ def audit_permissions(account):
 
 @cli.group()
 def topology():
-    """Generate network topology diagrams"""
+    """网络拓扑 - 生成网络拓扑图"""
     pass
 
 @topology.command("generate")
@@ -948,7 +976,7 @@ def generate_topology(account, output):
 
 @cli.group()
 def report():
-    """Generate HTML/PDF reports"""
+    """报告生成 - 生成Excel/HTML/PDF资源报告"""
     pass
 
 @report.command("generate")
