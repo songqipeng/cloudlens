@@ -30,6 +30,8 @@ class ConfigManager:
         try:
             with open(self.config_path, 'r') as f:
                 data = json.load(f)
+
+            migrated_to_keyring = False
                 
             # 解析新版配置结构
             # { "accounts": [ { "name": "prod", "provider": "aliyun", ... } ] }
@@ -48,12 +50,28 @@ class ConfigManager:
                     if secret:
                         account.access_key_secret = secret
                 else:
-                    # 兼容明文存储(不推荐)
-                    account.access_key_secret = acc_data.get("access_key_secret", "")
+                    # 兼容明文存储(不推荐)，自动迁移到 keyring
+                    plaintext_secret = acc_data.get("access_key_secret", "")
+                    if plaintext_secret:
+                        keyring.set_password(
+                            KEYRING_SERVICE,
+                            f"{account.provider}:{account.name}",
+                            plaintext_secret
+                        )
+                        account.access_key_secret = plaintext_secret
+                        account.use_keyring = True
+                        migrated_to_keyring = True
+                        print(f"⚠️ 检测到账号 {account.name} 的明文密钥，已迁移到系统 Keyring。")
+                    else:
+                        print(f"⚠️ 账号 {account.name} 未配置密钥，建议重新添加并存储到 Keyring。")
                 
                 # 使用 provider:name 作为key，支持跨provider重名
                 key = f"{account.provider}:{account.name}"
                 self.accounts[key] = account
+
+            # 如发生迁移，回写配置以移除明文
+            if migrated_to_keyring:
+                self.save_config()
                 
         except Exception as e:
             print(f"Failed to load config: {e}")
