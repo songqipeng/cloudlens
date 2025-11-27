@@ -5,8 +5,9 @@ import os
 # 添加当前目录到 path 以便导入模块
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from typing import List
+from typing import List, Optional
 from core.config import ConfigManager, AccountConfig
+from core.context import ContextManager
 
 @click.group()
 def cli():
@@ -80,6 +81,57 @@ def get_provider(account_config: AccountConfig):
         )
     # TODO: Add AWS and Volcano providers
     return None
+
+def smart_resolve_account(cm: ConfigManager, ctx_mgr: ContextManager, account_name: Optional[str] = None) -> Optional[str]:
+    """
+    智能解析账号名称：
+    1. 如果指定了account_name，使用它并记住
+    2. 如果没指定，使用上次记住的账号
+    3. 如果都没有，提示用户选择
+    
+    Returns:
+        str: 账号名称，如果用户取消则返回None
+    """
+    # 如果明确指定了账号，使用它
+    if account_name:
+        # 验证账号是否存在
+        acc = cm.get_account(account_name)
+        if not acc:
+            click.echo(f"❌ Account '{account_name}' not found.")
+            return None
+        # 记住这个账号
+        ctx_mgr.set_last_account(account_name)
+        click.echo(f"📌 Using account: {account_name}")
+        return account_name
+    
+    # 尝试使用上次记住的账号
+    last_account = ctx_mgr.get_last_account()
+    if last_account:
+        acc = cm.get_account(last_account)
+        if acc:
+            click.echo(f"📌 Using remembered account: {last_account}")
+            return last_account
+    
+    # 没有记住的账号，提示用户选择
+    accounts = cm.list_accounts()
+    if not accounts:
+        click.echo("❌ No accounts configured. Please run 'cloudlens config add' first.")
+        return None
+    
+    click.echo("\n📋 Available accounts:")
+    for i, acc in enumerate(accounts, 1):
+        click.echo(f"  {i}. {acc.name} ({acc.provider}, {acc.region})")
+    
+    choice = click.prompt("\nSelect account", type=int, default=1)
+    
+    if 1 <= choice <= len(accounts):
+        selected = accounts[choice - 1].name
+        ctx_mgr.set_last_account(selected)
+        click.echo(f"✅ Selected: {selected}")
+        return selected
+    else:
+        click.echo("❌ Invalid choice")
+        return None
 
 def resolve_account_name(cm: ConfigManager, account_name: str) -> List[AccountConfig]:
     """
@@ -196,7 +248,7 @@ def export_to_csv(data: List, output_file: str = None):
 
 
 @query.command("ecs")
-@click.option("--account", help="Specific account to query")
+@click.argument('account', required=False)
 @click.option("--format", type=click.Choice(['table', 'json', 'csv']), default='table', help="Output format")
 @click.option("--output", help="Output file path")
 @click.option("--status", help="Filter by status (Running, Stopped, etc)")
@@ -204,11 +256,23 @@ def export_to_csv(data: List, output_file: str = None):
 @click.option("--filter", 'filter_expr', help="Advanced filter expression (e.g. 'charge_type=PrePaid AND expire_days<7')")
 @click.option("--concurrent", is_flag=True, help="Enable concurrent querying for multiple accounts")
 def query_ecs(account, format, output, status, region, filter_expr, concurrent):
-    """List ECS/EC2 instances"""
+    """List ECS/EC2 instances
+    
+    Usage:
+        cloudlens query ecs              # Use remembered account or prompt
+        cloudlens query ydzn ecs         # Use specific account
+    """
     from core.filter_engine import FilterEngine
     
     cm = ConfigManager()
-    accounts = resolve_account_name(cm, account)
+    ctx_mgr = ContextManager()
+    
+    # 智能解析账号
+    account_name = smart_resolve_account(cm, ctx_mgr, account)
+    if not account_name:
+        return
+    
+    accounts = resolve_account_name(cm, account_name)
     
     if not accounts:
         return
