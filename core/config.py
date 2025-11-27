@@ -78,6 +78,11 @@ class ConfigManager:
 
     def add_account(self, account: AccountConfig):
         """添加或更新账号"""
+        # 强制使用 Keyring 存储密钥，避免明文
+        if not account.use_keyring:
+            print(f"⚠️ 账号 {account.name} 未启用 Keyring，已自动开启以避免明文存储。")
+            account.use_keyring = True
+
         key = f"{account.provider}:{account.name}"
         self.accounts[key] = account
         
@@ -92,7 +97,7 @@ class ConfigManager:
         self.save_config()
 
     def save_config(self):
-        """保存配置文件(不含Secret)"""
+        """保存配置文件(不含Secret；强制Keyring)"""
         data = {"accounts": []}
         for acc in self.accounts.values():
             acc_dict = {
@@ -100,10 +105,8 @@ class ConfigManager:
                 "provider": acc.provider,
                 "region": acc.region,
                 "access_key_id": acc.access_key_id,
-                "use_keyring": acc.use_keyring
+                "use_keyring": True  # 强制 Keyring
             }
-            if not acc.use_keyring:
-                acc_dict["access_key_secret"] = acc.access_key_secret
             data["accounts"].append(acc_dict)
             
         with open(self.config_path, 'w') as f:

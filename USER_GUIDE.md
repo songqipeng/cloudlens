@@ -42,6 +42,8 @@ python3 main_cli.py report generate --account my-account --format excel
 ./cloudlens query my-account ecs
 ./cloudlens query ecs
 ./cl query ecs
+
+# 密钥安全：默认强制使用 Keyring 存储，检测到明文会自动迁移并移除配置中的密钥
 ```
 
 🎉 完成！您已经成功使用CloudLens CLI！

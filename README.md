@@ -53,7 +53,7 @@ python3 main_cli.py config add \
   --name prod \
   --region cn-hangzhou \
   --ak YOUR_AK \
-  --sk YOUR_SK
+--sk YOUR_SK
 
 # 查看已配置账号
 python3 main_cli.py config list
@@ -66,6 +66,8 @@ python3 main_cli.py config list
 # 简写版（可执行文件同目录下的 cl）
 ./cl query ecs
 ./cl query prod ecs
+
+# 密钥安全：默认强制使用 Keyring 存储，检测到明文会自动迁移并移除配置中的密钥
 ```
 
 ### 3. 开始使用
