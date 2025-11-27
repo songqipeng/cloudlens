@@ -1,0 +1,29 @@
+# 定时任务配置示例
+schedules:
+  # 每日全量资源分析
+  - name: "每日全量资源分析"
+    command: "python main.py cru"
+    unit: "day_at"
+    interval: "02:00"  # 每天凌晨2点执行
+    enabled: true
+
+  # 每周费用分析
+  - name: "每周费用报告"
+    command: "python main.py cost"
+    unit: "days"
+    interval: 7
+    enabled: true
+
+  # 每小时网络检查
+  - name: "每小时网络资源检查"
+    command: "python main.py network"
+    unit: "hours"
+    interval: 1
+    enabled: false
+
+  # 测试任务（每分钟）
+  - name: "测试任务"
+    command: "echo 'Scheduler is running...'"
+    unit: "minutes"
+    interval: 1
+    enabled: false

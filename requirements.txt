@@ -4,7 +4,7 @@ aliyun-python-sdk-cms>=7.0.0
 aliyun-python-sdk-rds>=2.3.0
 aliyun-python-sdk-r-kvstore>=2.20.0
 aliyun-python-sdk-dds>=2.0.0
-aliyun-python-sdk-oss2>=2.15.0
+
 aliyun-python-sdk-slb>=3.0.0
 aliyun-python-sdk-vpc>=3.0.0
 oss2>=2.15.0
@@ -14,6 +14,7 @@ tenacity>=8.2.0
 PyYAML>=6.0
 keyring>=23.0.0
 msgpack>=1.0.0
+schedule>=1.2.0
 
 
 
