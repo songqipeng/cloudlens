@@ -41,6 +41,7 @@ python3 main_cli.py report generate --account my-account --format excel
 # 可选：使用封装命令（记住上次账号，账号可作为位置参数）
 ./cloudlens query my-account ecs
 ./cloudlens query ecs
+./cl query ecs
 ```
 
 🎉 完成！您已经成功使用CloudLens CLI！

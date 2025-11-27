@@ -6,6 +6,7 @@
 cd /Users/mac/aliyunidle
 pip install -r requirements.txt
 chmod +x cloudlens
+chmod +x cl
 ```
 
 ## 新的简化命令格式
@@ -22,6 +23,10 @@ chmod +x cloudlens
 # 后续查询 - 自动使用上次的账号
 ./cloudlens query rds
 ./cloudlens query vpc
+
+# 简写命令
+./cl query ecs
+./cl query ydzn ecs
 ```
 
 ### 完整示例
@@ -42,6 +47,10 @@ chmod +x cloudlens
 
 # 生成报告
 ./cloudlens report generate      # 使用记住的账号
+
+# 简写命令
+./cl analyze idle
+./cl report generate
 ```
 
 > 仍可使用 `python3 main_cli.py ...` 命令形式；`./cloudlens` 只是封装了账号记忆与位置参数。
@@ -53,9 +62,11 @@ chmod +x cloudlens
 ```bash
 # 创建符号链接到 /usr/local/bin
 sudo ln -s /Users/mac/aliyunidle/cloudlens /usr/local/bin/cloudlens
+sudo ln -s /Users/mac/aliyunidle/cl /usr/local/bin/cl
 
 # 现在可以直接使用
 cloudlens query ecs
+cl query ecs
 ```
 
 ## 主要改进

@@ -62,6 +62,10 @@ python3 main_cli.py config list
 ./cloudlens config add
 ./cloudlens query prod ecs   # 指定账号
 ./cloudlens query ecs        # 复用上次账号
+
+# 简写版（可执行文件同目录下的 cl）
+./cl query ecs
+./cl query prod ecs
 ```
 
 ### 3. 开始使用
