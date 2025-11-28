@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import schedule
+from croniter import croniter, CroniterBadCronError
 import yaml
 
 from utils.logger import get_logger
@@ -28,6 +29,7 @@ class TaskScheduler:
         self.logger = get_logger("scheduler")
         self.running = False
         self.tasks = []
+        self.cron_jobs: List[Dict[str, Any]] = []
 
     def load_config(self) -> Dict[str, Any]:
         """加载调度配置"""
@@ -70,12 +72,13 @@ class TaskScheduler:
 
         schedule.clear()
         self.tasks = []
+        self.cron_jobs = []
 
         self.logger.info(f"正在配置 {len(schedules)} 个定时任务...")
 
         for item in schedules:
             name = item.get("name", "未命名任务")
-            cron = item.get("cron")  # 暂不支持复杂cron，仅支持简单间隔
+            cron_expr = item.get("cron")
             interval = item.get("interval")
             unit = item.get("unit", "minutes")
             command = item.get("command")
@@ -92,7 +95,24 @@ class TaskScheduler:
             # 构建任务执行函数
             job_func = lambda n=name, c=command: self.run_task(n, c)
 
-            # 配置调度
+            # 配置调度：优先使用 cron 表达式，其次间隔/每日 at
+            if cron_expr:
+                try:
+                    next_run = croniter(cron_expr, datetime.now()).get_next(datetime)
+                    self.cron_jobs.append(
+                        {
+                            "name": name,
+                            "command": command,
+                            "cron": cron_expr,
+                            "next_run": next_run,
+                        }
+                    )
+                    self.logger.info(f"  - 任务 {name} 已配置 cron: {cron_expr}, 下次执行 {next_run}")
+                    continue
+                except (CroniterBadCronError, Exception) as e:
+                    self.logger.error(f"  - 任务 {name} cron 表达式无效: {cron_expr}, 错误: {e}")
+                    continue
+
             try:
                 job = None
                 if unit == "seconds":
@@ -127,6 +147,18 @@ class TaskScheduler:
         try:
             while self.running:
                 schedule.run_pending()
+                now = datetime.now()
+
+                # 处理 cron 任务
+                for job in self.cron_jobs:
+                    try:
+                        if job.get("next_run") and now >= job["next_run"]:
+                            self.run_task(job["name"], job["command"])
+                            job["next_run"] = croniter(job["cron"], now).get_next(datetime)
+                            self.logger.debug(f"  - 任务 {job['name']} 下次执行时间: {job['next_run']}")
+                    except Exception as e:
+                        self.logger.error(f"❌ 任务 {job.get('name')} 执行/调度失败: {e}")
+
                 time.sleep(1)
         except KeyboardInterrupt:
             self.stop()

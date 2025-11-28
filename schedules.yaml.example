@@ -27,3 +27,9 @@ schedules:
     unit: "minutes"
     interval: 1
     enabled: false
+
+  # 使用 cron 表达式（每周一凌晨3点执行）
+  - name: "每周成本分析"
+    command: "python main_cli.py analyze cost --account prod"
+    cron: "0 3 * * 1"
+    enabled: false
