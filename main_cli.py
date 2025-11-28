@@ -73,15 +73,15 @@ def add_account(provider, name, region, ak, sk):
     
     # TODO: 在这里调用 PermissionGuard 进行权限预检
     
-    new_account = CloudAccount(
+    # 使用 ConfigManager 添加账号（自动处理 keyring）
+    cm = ConfigManager()
+    cm.add_account(
         name=name,
         provider=provider,
-        region=region,
         access_key_id=ak,
         access_key_secret=sk,
-        use_keyring=True
+        region=region
     )
-    cm.add_account(new_account)
     click.echo(f"✅ 账号 '{name}' 添加成功（密钥已保存到 Keyring）。")
 
 @cli.group()
