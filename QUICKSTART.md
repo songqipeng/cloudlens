@@ -53,7 +53,7 @@ chmod +x cl
 ./cl report generate
 ```
 
-> 仍可使用 `python3 main_cli.py ...` 命令形式；`./cloudlens` 只是封装了账号记忆与位置参数。
+> 仍可使用 `cl ...` 命令形式；`./cloudlens` 只是封装了账号记忆与位置参数。
 
 ## 添加到 PATH（可选）
 
@@ -71,7 +71,7 @@ cl query ecs
 
 ## 主要改进
 
-1. ✅ **可执行命令** - 不再需要 `python3 main_cli.py`
+1. ✅ **可执行命令** - 不再需要 `cl`
 2. ✅ **简化语法** - `cloudlens query ydzn ecs` 而不是 `cloudlens query ecs --account ydzn`
 3. ✅ **智能记忆** - 自动记住上次使用的账号
 4. ✅ **交互提示** - 首次使用时友好的账号选择界面

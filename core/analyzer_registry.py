@@ -45,3 +45,43 @@ class AnalyzerRegistry:
     def list_analyzers(cls) -> Dict[str, Dict[str, Any]]:
         """列出所有已注册的分析器"""
         return cls._analyzers
+
+    @classmethod
+    def load_plugins(cls, group: str = 'cloudlens.analyzers'):
+        """
+        加载外部插件
+        
+        通过 Python entry_points 机制加载第三方插件
+        
+        Args:
+            group: entry_points 组名
+        """
+        import sys
+        if sys.version_info >= (3, 10):
+            from importlib.metadata import entry_points
+        else:
+            # 兼容 Python 3.8/3.9
+            try:
+                from importlib_metadata import entry_points
+            except ImportError:
+                try:
+                    from importlib.metadata import entry_points
+                except ImportError:
+                    return
+
+        try:
+            # Python 3.10+ 返回 SelectableGroups, 之前返回 dict
+            eps = entry_points()
+            if hasattr(eps, 'select'):
+                plugins = eps.select(group=group)
+            else:
+                plugins = eps.get(group, [])
+                
+            for entry_point in plugins:
+                try:
+                    # 加载插件，通常插件模块导入时会自动执行 @register
+                    entry_point.load()
+                except Exception as e:
+                    print(f"Failed to load plugin {entry_point.name}: {e}")
+        except Exception as e:
+            print(f"Error loading plugins: {e}")

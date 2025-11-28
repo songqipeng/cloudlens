@@ -63,3 +63,28 @@ RESOURCE_DESCRIPTIONS = {
     "arms": "应用监控 - 应用性能监控",
     "sls": "日志服务 - 日志收集分析",
 }
+
+# 导入所有分析器模块以触发注册
+from . import (
+    ack_analyzer,
+    cdn_analyzer,
+    clickhouse_analyzer,
+    cost_analyzer,
+    discount_analyzer,
+    disk_analyzer,
+    dns_analyzer,
+    eci_analyzer,
+    ecs_analyzer,
+    eip_analyzer,
+    mongodb_analyzer,
+    nas_analyzer,
+    nat_analyzer,
+    network_analyzer,
+    oss_analyzer,
+    polardb_analyzer,
+    rds_analyzer,
+    redis_analyzer,
+    slb_analyzer,
+    vpc_analyzer,
+    vpn_analyzer,
+)

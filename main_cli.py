@@ -6,7 +6,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from typing import List, Optional
-from core.config import ConfigManager, AccountConfig
+from core.config import ConfigManager, CloudAccount
 from core.context import ContextManager
 
 @click.group()
@@ -73,7 +73,7 @@ def add_account(provider, name, region, ak, sk):
     
     # TODO: 在这里调用 PermissionGuard 进行权限预检
     
-    new_account = AccountConfig(
+    new_account = CloudAccount(
         name=name,
         provider=provider,
         region=region,
@@ -92,7 +92,7 @@ def query():
 from providers.aliyun.provider import AliyunProvider
 from providers.tencent.provider import TencentProvider
 
-def get_provider(account_config: AccountConfig):
+def get_provider(account_config: CloudAccount):
     if account_config.provider == "aliyun":
         return AliyunProvider(
             account_config.name,
@@ -161,12 +161,12 @@ def smart_resolve_account(cm: ConfigManager, ctx_mgr: ContextManager, account_na
         click.echo("❌ Invalid choice")
         return None
 
-def resolve_account_name(cm: ConfigManager, account_name: str) -> List[AccountConfig]:
+def resolve_account_name(cm: ConfigManager, account_name: str) -> List[CloudAccount]:
     """
     解析账号名称，处理重名情况
     
     Returns:
-        List[AccountConfig]: 匹配的账号列表
+        List[CloudAccount]: 匹配的账号列表
     """
     if not account_name:
         return cm.list_accounts()
@@ -283,7 +283,9 @@ def export_to_csv(data: List, output_file: str = None):
 @click.option("--region", help="Filter by region")
 @click.option("--filter", 'filter_expr', help="Advanced filter expression (e.g. 'charge_type=PrePaid AND expire_days<7')")
 @click.option("--concurrent", is_flag=True, help="Enable concurrent querying for multiple accounts")
-def query_ecs(account, format, output, status, region, filter_expr, concurrent):
+@click.option("--analysis", "-a", help="Advanced analysis query (e.g. 'groupby:region|count')")
+@click.option("--jmespath", "-j", help="JMESPath query expression (e.g. '[?Status==`Running`].{ID:InstanceId,Name:InstanceName}')")
+def query_ecs(account, format, output, status, region, filter_expr, concurrent, analysis, jmespath):
     """List ECS/EC2 instances
     
     Usage:
@@ -349,6 +351,30 @@ def query_ecs(account, format, output, status, region, filter_expr, concurrent):
     # Apply advanced filter
     if filter_expr:
         all_resources = FilterEngine.apply_filter(all_resources, filter_expr)
+
+    # JMESPath Query
+    if jmespath:
+        import jmespath as jp
+        # Convert UnifiedResource objects to dicts
+        data_list = [r.__dict__ for r in all_resources]
+        try:
+            result = jp.search(jmespath, data_list)
+            import json
+            click.echo(json.dumps(result, indent=2, ensure_ascii=False, default=str))
+            return
+        except Exception as e:
+            click.echo(f"❌ JMESPath query failed: {e}", err=True)
+            return
+
+    # Advanced Analysis
+    if analysis:
+        from core.data_engine import DataEngine
+        # Convert UnifiedResource objects to dicts for pandas
+        data_list = [r.__dict__ for r in all_resources]
+        click.echo(f"📊 Analyzing {len(all_resources)} resources with query: {analysis}")
+        result = DataEngine.analyze(data_list, analysis)
+        click.echo(result)
+        return
     
     if format == 'json':
         export_to_json(all_resources, output)
@@ -1147,5 +1173,183 @@ def analyze_cost(account):
         import traceback
         traceback.print_exc()
 
+# ------------------------------------------------------------------------------
+# Dynamic Command Registration
+# ------------------------------------------------------------------------------
+
+def register_dynamic_commands():
+    """动态注册资源模块命令"""
+    from core.analyzer_registry import AnalyzerRegistry
+    import resource_modules  # 触发注册
+    
+    analyzers = AnalyzerRegistry.list_analyzers()
+    
+    # 获取已有的命令，避免冲突
+    existing_query_cmds = query.list_commands(click.Context(query))
+    existing_analyze_cmds = analyze.list_commands(click.Context(analyze))
+    
+    for resource_type, info in analyzers.items():
+        # 1. 注册 query 命令
+        if resource_type not in existing_query_cmds:
+            @query.command(resource_type, help=f"List {info['display_name']}")
+            @click.option("--account", help="Specific account to query")
+            @click.option("--format", type=click.Choice(['table', 'json', 'csv']), default='table', help="Output format")
+            @click.option("--output", help="Output file path")
+            @click.option("--region", help="Filter by region")
+            @click.option("--analysis", "-a", help="Advanced analysis query (e.g. 'groupby:region|count')")
+            # 使用闭包捕获 resource_type
+            def dynamic_query(account, format, output, region, analysis, rt=resource_type):
+                cm = ConfigManager()
+                accounts = resolve_account_name(cm, account)
+                if not accounts: return
+                
+                analyzer_cls = AnalyzerRegistry.get_analyzer_class(rt)
+                all_resources = []
+                
+                for acc in accounts:
+                    if acc.provider != "aliyun": continue # 目前仅支持阿里云插件
+                    try:
+                        analyzer = analyzer_cls(acc.access_key_id, acc.access_key_secret, acc.name)
+                        # 如果指定了区域，只查询该区域
+                        regions_to_query = [region] if region else analyzer.get_all_regions()
+                        
+                        for r in regions_to_query:
+                            try:
+                                instances = analyzer.get_instances(r)
+                                # 统一格式化
+                                for inst in instances:
+                                    # 尝试标准化字段
+                                    inst['provider'] = acc.provider
+                                    inst['account'] = acc.name
+                                    # 确保有 Region 字段
+                                    if 'Region' not in inst:
+                                        inst['Region'] = r
+                                    all_resources.append(inst)
+                            except Exception as e:
+                                click.echo(f"⚠️  Error querying {acc.name} in {r}: {e}", err=True)
+                                
+                    except Exception as e:
+                        click.echo(f"❌ Failed to init analyzer for {acc.name}: {e}", err=True)
+
+                # 高级分析处理
+                if analysis:
+                    from core.data_engine import DataEngine
+                    click.echo(f"📊 Analyzing {len(all_resources)} resources with query: {analysis}")
+                    result = DataEngine.analyze(all_resources, analysis)
+                    click.echo(result)
+                    return
+
+                if format == 'json':
+                    import json
+                    click.echo(json.dumps(all_resources, indent=2, ensure_ascii=False))
+                elif format == 'csv':
+                    # 简单CSV导出
+                    import csv
+                    import sys
+                    if all_resources:
+                        keys = all_resources[0].keys()
+                        writer = csv.DictWriter(sys.stdout, fieldnames=keys)
+                        writer.writeheader()
+                        writer.writerows(all_resources)
+                else:
+                    # Table output
+                    if not all_resources:
+                        click.echo("No resources found.")
+                        return
+                        
+                    # 动态决定列
+                    first = all_resources[0]
+                    # 尝试找一些通用列
+                    cols = ['InstanceId', 'InstanceName', 'Region', 'InstanceStatus']
+                    # 如果没有这些列，就用前4个
+                    if not all(k in first for k in cols):
+                        cols = list(first.keys())[:4]
+                        
+                    header = "  ".join([f"{c:<20}" for c in cols])
+                    click.echo(header)
+                    click.echo("-" * len(header))
+                    
+                    for r in all_resources:
+                        row = "  ".join([f"{str(r.get(c,''))[:18]:<20}" for c in cols])
+                        click.echo(row)
+
+        # 2. 注册 analyze 命令
+        if resource_type not in existing_analyze_cmds:
+            @analyze.command(resource_type, help=f"Analyze {info['display_name']} for idle resources")
+            @click.option("--account", help="Specific account to analyze")
+            @click.option("--days", default=14, help="Days of monitoring data")
+            def dynamic_analyze(account, days, rt=resource_type):
+                cm = ConfigManager()
+                accounts = resolve_account_name(cm, account)
+                if not accounts: return
+                
+                analyzer_cls = AnalyzerRegistry.get_analyzer_class(rt)
+                
+                for acc in accounts:
+                    if acc.provider != "aliyun": continue
+                    try:
+                        click.echo(f"🔍 Analyzing {rt} for account: {acc.name}...")
+                        analyzer = analyzer_cls(acc.access_key_id, acc.access_key_secret, acc.name)
+                        # 调用 analyze 方法 (注意：部分 analyzer 如 MongoDBAnalyzer 的 analyze 方法没有返回值，而是直接生成报告)
+                        # 我们需要统一接口，但现在先兼容现有逻辑
+                        result = analyzer.analyze(days=days)
+                        
+                        # 如果返回了结果列表（新标准），则打印
+                        if isinstance(result, list) and result:
+                             click.echo(f"⚠️  Found {len(result)} idle resources:")
+                             for item in result:
+                                 # 尝试适配不同的返回结构
+                                 if isinstance(item, dict):
+                                     # 可能是 {'instance':..., 'optimization':...} 或者是扁平的 dict
+                                     inst = item.get('instance') or item
+                                     opt = item.get('optimization') or item.get('优化建议', '')
+                                     
+                                     # 尝试获取ID和名称
+                                     iid = inst.get('InstanceId') or inst.get('DBInstanceId') or inst.get('集群ID') or 'N/A'
+                                     iname = inst.get('InstanceName') or inst.get('DBInstanceDescription') or inst.get('集群名称') or 'N/A'
+                                     
+                                     click.echo(f"  - {iid} ({iname}): {opt}")
+                                 else:
+                                     click.echo(f"  - {item}")
+                        elif result is None:
+                            # 旧模式，analyzer 内部可能已经打印了日志或生成了报告
+                            pass
+                            
+                    except Exception as e:
+                        click.echo(f"❌ Error analyzing {acc.name}: {e}", err=True)
+
+@cli.command()
+def dashboard():
+    """Launch TUI Dashboard (Experimental)"""
+    try:
+        from core.dashboard import CloudLensApp
+        app = CloudLensApp()
+        app.run()
+    except ImportError:
+        click.echo("❌ Textual is not installed. Please run 'pip install textual'", err=True)
+    except Exception as e:
+        click.echo(f"❌ Failed to launch dashboard: {e}", err=True)
+
+# Load external plugins
+from core.analyzer_registry import AnalyzerRegistry
+AnalyzerRegistry.load_plugins()
+
+# Run registration
+register_dynamic_commands()
+
 if __name__ == "__main__":
-    cli()
+    import sys
+    if len(sys.argv) == 1:
+        # No arguments provided, start REPL
+        try:
+            from core.repl import CloudLensREPL
+            repl = CloudLensREPL()
+            repl.start()
+        except ImportError:
+            # Fallback if prompt_toolkit is not installed
+            cli()
+        except Exception as e:
+            print(f"Failed to start REPL: {e}")
+            cli()
+    else:
+        cli()

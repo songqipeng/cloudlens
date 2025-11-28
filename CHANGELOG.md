@@ -1,91 +1,84 @@
-# 更新日志
+# Changelog
 
-所有重要的变更都会记录在这个文件中。
+All notable changes to CloudLens CLI will be documented in this file.
 
-格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
-版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+## [2.0.0] - 2025-11-28
 
-## [2.2.0] - 2025-10-30
+### Added
 
-### 新增
-- ✨ 统一日志系统：所有分析器使用logger替代print
-- ✨ 统一错误处理：ErrorHandler类提供智能错误分类
-- ✨ 统一报告生成器：ReportGenerator类提取公共报告逻辑
-- ✨ 统一数据库管理：DatabaseManager增强统一资源数据存储
-- ✨ 结构化日志：StructuredLogger类支持JSON格式日志
+#### 🎨 Interactive Experience
+- **Interactive REPL Mode**: Auto-launches when running without arguments
+  - Auto-completion powered by `prompt_toolkit`
+  - Command history and suggestions
+  - Beautiful output with `rich` library
+  - Execution timing display
+- **TUI Dashboard**: Full-screen monitoring interface using `textual`
+  - Resource navigation tree (by category)
+  - Live data tables
+  - Keyboard shortcuts (q=quit, r=refresh)
 
-### 安全性
-- 🔒 **重大安全修复**：修复Pickle缓存安全风险，改用msgpack
-  - 消除了代码执行安全漏洞
-  - 涉及文件：cache_manager.py, check_ecs_idle_fixed.py, oss_analyzer.py, mongodb_analyzer.py
+#### 🔍 Advanced Query Capabilities
+- **Pandas Data Analysis**: `--analysis` option for aggregation
+  - Group by: `groupby:region`
+  - Aggregations: `sum`, `mean`, `count`
+  - Sorting and top-N: `sort:field|top:N`
+- **JMESPath Querying**: `--jmespath` option for AWS CLI-style filtering
+  - Example: `[?Status=='Running'].{ID:InstanceId,Name:InstanceName}`
+  - JSON output integration
 
-### 性能优化
-- ⚡ 全面启用并发处理：所有8个分析器已使用并发
-  - 性能提升：5-10倍
-  - 100实例分析时间：从10-15分钟降至1-2分钟
+#### ⚙️ Configuration Management
+- **Environment Variable Support**:
+  - `CLOUDLENS_ACCESS_KEY_ID`
+  - `CLOUDLENS_ACCESS_KEY_SECRET`
+  - `CLOUDLENS_PROVIDER`
+  - `CLOUDLENS_PROFILE`
+- **Credentials File**: `~/.cloudlens/credentials` (AWS CLI compatible)
+- **Multi-source Loading**: ENV > credentials file > config.json + keyring
 
-### 架构优化
-- 🏗️ 统一缓存策略：支持多租户隔离的缓存路径
-- 🏗️ 优化缓存键设计：统一的缓存键生成方法
+#### 🗄️ Performance & Infrastructure
+- **SQLite Caching**: `core/cache.py`
+  - Configurable TTL (default 5 minutes)
+  - Cache key generation per resource/account/region
+  - Automatic expiration cleanup
+- **Auto-Remediation Framework**: `core/remediation.py`
+  - Dry-run mode (default)
+  - Supported actions: stop_instance, delete_snapshot, modify_security_group, release_eip, delete_idle_disk
+  - Batch execution with statistics
 
-### 文档
-- 📝 更新README：添加优化说明和FAQ章节
-- 📝 创建优化建议文档：OPTIMIZATION_RECOMMENDATIONS.md
-- 📝 创建优化完成报告：OPTIMIZATION_COMPLETED.md
-- 📝 创建剩余优化清单：REMAINING_OPTIMIZATIONS.md
+#### 🔌 Plugin Ecosystem
+- **External Plugin Support**: via Python `entry_points`
+  - Auto-discovery at startup
+  - Documentation: `docs/PLUGIN_DEVELOPMENT.md`
+  - Backward compatible with Python 3.8+
 
-### 修复
-- 🐛 修复缓存格式兼容性问题（pickle → msgpack）
+### Changed
 
----
+- **Configuration Model**: Renamed `AccountConfig` to `CloudAccount` for clarity
+- **Config Loading**: Enhanced `ConfigManager` with multi-source support
+- **CLI Behavior**: Defaults to REPL when no arguments provided
 
-## [2.1.0] - 2025-10-29
+### Fixed
 
-### 新增
-- ✨ 支持ClickHouse资源分析
-- ✨ 支持SLB资源分析
-- ✨ 支持EIP资源分析
-- ✨ Redis折扣分析
-- ✨ MongoDB折扣分析（部分完成）
+- Import errors after configuration refactoring
+- Compatibility with Python 3.8/3.9 for `importlib.metadata`
 
-### 改进
-- 🔧 优化ECS分析器性能（并发处理）
-- 🔧 优化RDS分析器性能（并发处理）
-- 🔧 优化Redis分析器性能（并发处理）
+### Documentation
 
----
+- Updated `README.md` with v2.0 features
+- Created `docs/PLUGIN_DEVELOPMENT.md`
+- Created `docs/credentials.sample`
+- Generated comprehensive walkthrough
 
-## [2.0.0] - 2025-10-28
+## [1.0.0] - 2025-11 (Earlier)
 
-### 新增
-- ✨ 多租户支持
-- ✨ Keyring凭证管理
-- ✨ RDS折扣分析
-- ✨ ECS折扣分析
-- ✨ 统一阈值管理（YAML配置）
+### Initial Release
 
-### 改进
-- 🔧 统一缓存管理
-- 🔧 统一数据库管理
-- 🔧 并发处理辅助工具
-
----
-
-## [1.0.0] - 2025-10-27
-
-### 新增
-- ✨ 初始版本发布
-- ✨ 支持ECS资源分析
-- ✨ 支持RDS资源分析
-- ✨ 支持Redis资源分析
-- ✨ 支持MongoDB资源分析
-- ✨ 支持OSS资源分析
-- ✨ HTML和Excel报告生成
-
----
-
-[2.2.0]: https://github.com/songqipeng/aliyunidle/compare/v2.1.0...v2.2.0
-[2.1.0]: https://github.com/songqipeng/aliyunidle/compare/v2.0.0...v2.1.0
-[2.0.0]: https://github.com/songqipeng/aliyunidle/compare/v1.0.0...v2.0.0
-[1.0.0]: https://github.com/songqipeng/aliyunidle/releases/tag/v1.0.0
-
+- Multi-cloud resource management (Aliyun, Tencent Cloud)
+- Resource querying: ECS, RDS, Redis, OSS, VPC, etc.
+- Idle resource analysis
+- Excel/HTML/JSON/CSV report generation
+- Concurrent querying
+- Security compliance checks
+- Tag governance
+- Advanced filtering engine
+- Keyring-based credential storage

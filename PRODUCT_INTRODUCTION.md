@@ -155,10 +155,10 @@
 **使用CloudLens**：
 ```bash
 # 1. 生成Excel报告（含闲置分析）
-python3 main_cli.py report generate --account prod --format excel --include-idle
+cl report generate --account prod --format excel --include-idle
 
 # 2. 查看即将到期资源
-python3 main_cli.py analyze renewal --days 30
+cl analyze renewal --days 30
 
 # 3. 耗时：5分钟
 ```
@@ -172,16 +172,16 @@ python3 main_cli.py analyze renewal --days 30
 **使用CloudLens**：
 ```bash
 # 1. 权限审计
-python3 main_cli.py audit permissions --account prod
+cl audit permissions --account prod
 
 # 2. 公网暴露检测
-python3 main_cli.py analyze security --account prod
+cl analyze security --account prod
 
 # 3. 标签合规检查
-python3 main_cli.py analyze tags --account prod
+cl analyze tags --account prod
 
 # 4. 导出审计报告
-python3 main_cli.py analyze security --format json > security_audit.json
+cl analyze security --format json > security_audit.json
 ```
 
 **效果**：系统化、可追溯、自动化
@@ -193,11 +193,11 @@ python3 main_cli.py analyze security --format json > security_audit.json
 **使用CloudLens**：
 ```bash
 # 并发查询所有账号、所有资源
-python3 main_cli.py query ecs --concurrent --format csv > all_ecs.csv
-python3 main_cli.py query rds --concurrent --format csv > all_rds.csv
+cl query ecs --concurrent --format csv > all_ecs.csv
+cl query rds --concurrent --format csv > all_rds.csv
 
 # 生成网络拓扑
-python3 main_cli.py topology generate --account prod
+cl topology generate --account prod
 ```
 
 **效果**：完整、快速、可视化
@@ -264,11 +264,10 @@ python3 main_cli.py topology generate --account prod
 ## 支持的资源类型
 
 ### 已实现
-- 阿里云：ECS、RDS、Redis、OSS、NAS、VPC、EIP、SLB
+- 阿里云：ECS、RDS、Redis、OSS、NAS、VPC、EIP、SLB、MongoDB、ACK、ClickHouse、PolarDB、ECI
 - 腾讯云：CVM、CDB、Redis、COS、VPC
 
 ### 规划中（未实现）
-- 阿里云：MongoDB、ClickHouse、PolarDB、ACK、ECI
 - AWS/火山引擎：EC2、RDS、S3 等
 
 ---
@@ -285,7 +284,7 @@ pip install -r requirements.txt
 
 ### 2. 配置账号
 ```bash
-python3 main_cli.py config add \
+cl config add \
   --provider aliyun \
   --name prod \
   --region cn-hangzhou \
@@ -296,10 +295,10 @@ python3 main_cli.py config add \
 ### 3. 开始使用
 ```bash
 # 查询ECS
-python3 main_cli.py query ecs --account prod
+cl query ecs --account prod
 
 # 生成报告
-python3 main_cli.py report generate --account prod --format excel
+cl report generate --account prod --format excel
 
 # 可选：使用封装命令（记住上次账号）
 ./cloudlens query prod ecs

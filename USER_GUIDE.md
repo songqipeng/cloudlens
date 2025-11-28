@@ -25,7 +25,7 @@ cd aliyunidle
 pip install -r requirements.txt
 
 # 3. 添加第一个账号
-python3 main_cli.py config add \
+cl config add \
   --provider aliyun \
   --name my-account \
   --region cn-hangzhou \
@@ -33,10 +33,10 @@ python3 main_cli.py config add \
   --sk YOUR_SECRET_KEY
 
 # 4. 查询资源
-python3 main_cli.py query ecs --account my-account
+cl query ecs --account my-account
 
 # 5. 生成报告
-python3 main_cli.py report generate --account my-account --format excel
+cl report generate --account my-account --format excel
 
 # 可选：使用封装命令（记住上次账号，账号可作为位置参数）
 ./cloudlens query my-account ecs
@@ -72,7 +72,7 @@ pip install -r requirements.txt
 #### 2. 验证安装
 
 ```bash
-python3 main_cli.py --help
+cl --help
 ```
 
 如果看到命令帮助信息，说明安装成功！
@@ -82,7 +82,7 @@ python3 main_cli.py --help
 #### 添加阿里云账号
 
 ```bash
-python3 main_cli.py config add \
+cl config add \
   --provider aliyun \
   --name prod \
   --region cn-hangzhou \
@@ -93,7 +93,7 @@ python3 main_cli.py config add \
 #### 添加腾讯云账号
 
 ```bash
-python3 main_cli.py config add \
+cl config add \
   --provider tencent \
   --name prod \
   --region ap-guangzhou \
@@ -104,7 +104,7 @@ python3 main_cli.py config add \
 #### 查看已配置账号
 
 ```bash
-python3 main_cli.py config list
+cl config list
 ```
 
 输出示例：
@@ -126,10 +126,10 @@ tencent-p  tencent    ap-guangzhou
 
 ```bash
 # 查询指定账号
-python3 main_cli.py query ecs --account prod
+cl query ecs --account prod
 
 # 查询所有账号
-python3 main_cli.py query ecs
+cl query ecs
 ```
 
 输出示例：
@@ -143,31 +143,31 @@ i-def456               db-server-01                   10.0.0.10        Running  
 #### 查询RDS数据库
 
 ```bash
-python3 main_cli.py query rds --account prod
+cl query rds --account prod
 ```
 
 #### 查询Redis缓存
 
 ```bash
-python3 main_cli.py query redis --account prod
+cl query redis --account prod
 ```
 
 #### 查询OSS存储
 
 ```bash
-python3 main_cli.py query oss --account prod
+cl query oss --account prod
 ```
 
 #### 查询VPC网络
 
 ```bash
-python3 main_cli.py query vpc --account prod
+cl query vpc --account prod
 ```
 
 #### 查询弹性公网IP
 
 ```bash
-python3 main_cli.py query eip --account prod
+cl query eip --account prod
 ```
 
 ### 基础筛选
@@ -176,22 +176,22 @@ python3 main_cli.py query eip --account prod
 
 ```bash
 # 只看运行中的实例
-python3 main_cli.py query ecs --account prod --status Running
+cl query ecs --account prod --status Running
 
 # 只看已停止的实例
-python3 main_cli.py query ecs --account prod --status Stopped
+cl query ecs --account prod --status Stopped
 ```
 
 #### 按区域筛选
 
 ```bash
-python3 main_cli.py query ecs --account prod --region cn-hangzhou
+cl query ecs --account prod --region cn-hangzhou
 ```
 
 #### 组合筛选
 
 ```bash
-python3 main_cli.py query ecs --account prod --status Running --region cn-hangzhou
+cl query ecs --account prod --status Running --region cn-hangzhou
 ```
 
 ### 数据导出
@@ -199,23 +199,23 @@ python3 main_cli.py query ecs --account prod --status Running --region cn-hangzh
 #### 导出为JSON
 
 ```bash
-python3 main_cli.py query ecs --account prod --format json --output ecs.json
+cl query ecs --account prod --format json --output ecs.json
 ```
 
 #### 导出为CSV
 
 ```bash
-python3 main_cli.py query ecs --account prod --format csv --output ecs.csv
+cl query ecs --account prod --format csv --output ecs.csv
 ```
 
 #### 直接输出（不保存文件）
 
 ```bash
 # 输出JSON到终端
-python3 main_cli.py query ecs --account prod --format json
+cl query ecs --account prod --format json
 
 # 可以配合jq使用
-python3 main_cli.py query ecs --format json | jq '.[] | select(.status=="Running")'
+cl query ecs --format json | jq '.[] | select(.status=="Running")'
 ```
 
 ---
@@ -236,27 +236,27 @@ python3 main_cli.py query ecs --format json | jq '.[] | select(.status=="Running
 
 **查询包年包月实例**：
 ```bash
-python3 main_cli.py query ecs --filter "charge_type=PrePaid"
+cl query ecs --filter "charge_type=PrePaid"
 ```
 
 **查询即将到期的实例（7天内）**：
 ```bash
-python3 main_cli.py query ecs --filter "expire_days<7"
+cl query ecs --filter "expire_days<7"
 ```
 
 **组合条件**：
 ```bash
-python3 main_cli.py query ecs --filter "status=Running AND region=cn-hangzhou"
+cl query ecs --filter "status=Running AND region=cn-hangzhou"
 ```
 
 **OR条件**：
 ```bash
-python3 main_cli.py query ecs --filter "charge_type=PrePaid OR expire_days<30"
+cl query ecs --filter "charge_type=PrePaid OR expire_days<30"
 ```
 
 **复杂查询**：
 ```bash
-python3 main_cli.py query ecs --filter "charge_type=PrePaid AND expire_days<7 AND status=Running"
+cl query ecs --filter "charge_type=PrePaid AND expire_days<7 AND status=Running"
 ```
 
 ### 并发查询
@@ -265,7 +265,7 @@ python3 main_cli.py query ecs --filter "charge_type=PrePaid AND expire_days<7 AN
 
 ```bash
 # 启用并发查询所有账号
-python3 main_cli.py query ecs --concurrent
+cl query ecs --concurrent
 
 # 对比：
 # 串行：5个账号约25秒
@@ -278,7 +278,7 @@ python3 main_cli.py query ecs --concurrent
 
 ```bash
 # 检查30天内到期的资源
-python3 main_cli.py analyze renewal --account prod --days 30
+cl analyze renewal --account prod --days 30
 ```
 
 输出示例：
@@ -296,7 +296,7 @@ rm-def456           prod-db             RDS       2024-12-28 00:00:00   18天
 
 ```bash
 # 分析7天内的闲置资源
-python3 main_cli.py analyze idle --account prod --days 7
+cl analyze idle --account prod --days 7
 ```
 
 > 当前闲置分析仅支持阿里云 ECS，并依赖 CloudMonitor 指标；其他资源类型的闲置检测在规划中。
@@ -322,13 +322,13 @@ Name: old-test-server
 #### 成本分析
 
 ```bash
-python3 main_cli.py analyze cost --account prod
+cl analyze cost --account prod
 ```
 
 #### 标签治理
 
 ```bash
-python3 main_cli.py analyze tags --account prod
+cl analyze tags --account prod
 ```
 
 输出示例：
@@ -353,7 +353,7 @@ rm-def456             temp-db                       rds
 #### 安全合规检查
 
 ```bash
-python3 main_cli.py analyze security --account prod
+cl analyze security --account prod
 ```
 
 > 当前安全分析聚焦公网暴露与未绑定 EIP 统计，安全组/加密等审计项尚未落地。
@@ -385,7 +385,7 @@ i-abc123            web-server-1         ecs    47.76.179.137     MEDIUM
 ### 权限审计
 
 ```bash
-python3 main_cli.py audit permissions --account prod
+cl audit permissions --account prod
 ```
 
 输出示例：
@@ -410,7 +410,7 @@ python3 main_cli.py audit permissions --account prod
 ### 拓扑生成
 
 ```bash
-python3 main_cli.py topology generate --account prod --output topology.md
+cl topology generate --account prod --output topology.md
 ```
 
 生成Mermaid格式的网络拓扑图，包含：
@@ -425,13 +425,13 @@ python3 main_cli.py topology generate --account prod --output topology.md
 #### HTML报告
 
 ```bash
-python3 main_cli.py report generate --account prod --format html --output report.html
+cl report generate --account prod --format html --output report.html
 ```
 
 #### Excel报告
 
 ```bash
-python3 main_cli.py report generate --account prod --format excel --output report.xlsx
+cl report generate --account prod --format excel --output report.xlsx
 ```
 
 生成的Excel包含多个Sheet：
@@ -443,7 +443,7 @@ python3 main_cli.py report generate --account prod --format excel --output repor
 #### 包含闲置分析的报告
 
 ```bash
-python3 main_cli.py report generate --account prod --format excel --include-idle
+cl report generate --account prod --format excel --include-idle
 ```
 
 ---
@@ -454,13 +454,13 @@ python3 main_cli.py report generate --account prod --format excel --include-idle
 
 #### config list
 ```bash
-python3 main_cli.py config list
+cl config list
 ```
 列出所有已配置的账号
 
 #### config add
 ```bash
-python3 main_cli.py config add \
+cl config add \
   --provider <aliyun|tencent> \
   --name <账号名称> \
   --region <区域> \
@@ -482,49 +482,49 @@ python3 main_cli.py config add \
 
 #### query ecs
 ```bash
-python3 main_cli.py query ecs [选项]
+cl query ecs [选项]
 ```
 查询ECS/CVM实例
 
 #### query rds
 ```bash
-python3 main_cli.py query rds [选项]
+cl query rds [选项]
 ```
 查询RDS/CDB数据库
 
 #### query redis
 ```bash
-python3 main_cli.py query redis [选项]
+cl query redis [选项]
 ```
 查询Redis实例
 
 #### query oss
 ```bash
-python3 main_cli.py query oss [选项]
+cl query oss [选项]
 ```
 查询OSS/COS对象存储
 
 #### query vpc
 ```bash
-python3 main_cli.py query vpc [选项]
+cl query vpc [选项]
 ```
 查询VPC网络
 
 #### query eip
 ```bash
-python3 main_cli.py query eip [选项]
+cl query eip [选项]
 ```
 查询弹性公网IP
 
 #### query slb
 ```bash
-python3 main_cli.py query slb [选项]
+cl query slb [选项]
 ```
 查询SLB负载均衡器
 
 #### query nas
 ```bash
-python3 main_cli.py query nas [选项]
+cl query nas [选项]
 ```
 查询NAS文件系统
 
@@ -532,7 +532,7 @@ python3 main_cli.py query nas [选项]
 
 #### analyze renewal
 ```bash
-python3 main_cli.py analyze renewal \
+cl analyze renewal \
   --account <name> \
   --days <天数>
 ```
@@ -540,7 +540,7 @@ python3 main_cli.py analyze renewal \
 
 #### analyze idle
 ```bash
-python3 main_cli.py analyze idle \
+cl analyze idle \
   --account <name> \
   --days <天数>
 ```
@@ -548,19 +548,19 @@ python3 main_cli.py analyze idle \
 
 #### analyze cost
 ```bash
-python3 main_cli.py analyze cost --account <name>
+cl analyze cost --account <name>
 ```
 成本分析
 
 #### analyze tags
 ```bash
-python3 main_cli.py analyze tags --account <name>
+cl analyze tags --account <name>
 ```
 标签治理分析
 
 #### analyze security
 ```bash
-python3 main_cli.py analyze security --account <name>
+cl analyze security --account <name>
 ```
 安全合规检查
 
@@ -568,7 +568,7 @@ python3 main_cli.py analyze security --account <name>
 
 #### audit permissions
 ```bash
-python3 main_cli.py audit permissions --account <name>
+cl audit permissions --account <name>
 ```
 审计账号权限
 
@@ -576,7 +576,7 @@ python3 main_cli.py audit permissions --account <name>
 
 #### topology generate
 ```bash
-python3 main_cli.py topology generate \
+cl topology generate \
   --account <name> \
   --output <file>
 ```
@@ -586,7 +586,7 @@ python3 main_cli.py topology generate \
 
 #### report generate
 ```bash
-python3 main_cli.py report generate \
+cl report generate \
   --account <name> \
   --format <html|excel|pdf> \
   [--output <file>] \
@@ -622,13 +622,13 @@ python3 main_cli.py report generate \
 # daily_check.sh
 
 # 1. 检查即将到期资源
-python3 main_cli.py analyze renewal --days 7 > renewal_$(date +%Y%m%d).txt
+cl analyze renewal --days 7 > renewal_$(date +%Y%m%d).txt
 
 # 2. 检查闲置资源
-python3 main_cli.py analyze idle --days 7 > idle_$(date +%Y%m%d).txt
+cl analyze idle --days 7 > idle_$(date +%Y%m%d).txt
 
 # 3. 安全检查
-python3 main_cli.py analyze security > security_$(date +%Y%m%d).txt
+cl analyze security > security_$(date +%Y%m%d).txt
 
 # 4. 如果有问题，发送告警
 # ...
@@ -646,10 +646,10 @@ python3 main_cli.py analyze security > security_$(date +%Y%m%d).txt
 
 ```bash
 # ✅ 快速
-python3 main_cli.py query ecs --concurrent
+cl query ecs --concurrent
 
 # ❌ 慢
-python3 main_cli.py query ecs
+cl query ecs
 ```
 
 ### 4. 高级筛选技巧
@@ -657,13 +657,13 @@ python3 main_cli.py query ecs
 **查找高危资源**：
 ```bash
 # 即将到期且仍在运行的包年包月实例
-python3 main_cli.py query ecs --filter "charge_type=PrePaid AND expire_days<7 AND status=Running"
+cl query ecs --filter "charge_type=PrePaid AND expire_days<7 AND status=Running"
 ```
 
 **查找成本优化机会**：
 ```bash
 # 按量付费的Running实例（可能适合转包年包月）
-python3 main_cli.py query ecs --filter "charge_type=PostPaid AND status=Running"
+cl query ecs --filter "charge_type=PostPaid AND status=Running"
 ```
 
 ### 5. 报告自动化
@@ -676,7 +676,7 @@ python3 main_cli.py query ecs --filter "charge_type=PostPaid AND status=Running"
 DATE=$(date +%Y%m%d)
 
 for account in prod test dev; do
-    python3 main_cli.py report generate \
+    cl report generate \
         --account $account \
         --format excel \
         --include-idle \
@@ -694,8 +694,8 @@ done
 cloud_audit:
   stage: audit
   script:
-    - python3 main_cli.py audit permissions --account prod
-    - python3 main_cli.py analyze security --account prod
+    - cl audit permissions --account prod
+    - cl analyze security --account prod
   only:
     - schedules
 ```
@@ -716,7 +716,7 @@ cloud_audit:
 **解决方案**：
 - 检查AccessKey是否正确
 - 确认账号是否有相应权限
-- 运行权限审计：`python3 main_cli.py audit permissions --account xxx`
+- 运行权限审计：`cl audit permissions --account xxx`
 
 #### 2. 网络超时
 
@@ -757,7 +757,7 @@ pip install aliyun-python-sdk-ecs
 ```bash
 # 重置Keyring访问权限
 security delete-generic-password -s cloudlens_cli -a aliyun:prod
-python3 main_cli.py config add ...  # 重新添加
+cl config add ...  # 重新添加
 ```
 
 #### 5. Excel生成失败
@@ -779,16 +779,16 @@ pip install openpyxl
 ```bash
 # 设置日志级别
 export LOG_LEVEL=DEBUG
-python3 main_cli.py query ecs --account prod
+cl query ecs --account prod
 ```
 
 ### 获取帮助
 
 ```bash
 # 查看命令帮助
-python3 main_cli.py --help
-python3 main_cli.py query --help
-python3 main_cli.py query ecs --help
+cl --help
+cl query --help
+cl query ecs --help
 ```
 
 ---

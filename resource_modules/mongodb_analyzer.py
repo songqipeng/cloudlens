@@ -186,11 +186,64 @@ class MongoDBAnalyzer(BaseResourceAnalyzer):
 
     def get_instances(self, region: str):
         """获取指定区域的MongoDB实例 (BaseResourceAnalyzer接口)"""
-        # 这里需要适配，因为get_all_mongodb_instances是获取所有区域的
-        # 我们可以重构get_all_mongodb_instances或者在这里实现单个区域的获取
-        # 为了简单起见，我们这里暂时不实现单个区域的获取，而是依赖analyze方法
-        # 或者我们可以实现一个简单的单个区域获取逻辑
-        return []  # 暂时返回空，因为analyze方法被重写了
+        self.logger.info(f"  📍 检查区域: {region}")
+        instances_list = []
+        try:
+            # 设置区域
+            self.client.set_region_id(region)
+
+            # 创建请求
+            request = CommonRequest()
+            request.set_domain(f"dds.{region}.aliyuncs.com")
+            request.set_method("POST")
+            request.set_version("2015-12-01")
+            request.set_action_name("DescribeDBInstances")
+            request.add_query_param("RegionId", region)
+            request.add_query_param("PageSize", 100)
+
+            page_num = 1
+            while True:
+                request.add_query_param("PageNumber", page_num)
+
+                try:
+                    response = self.client.do_action_with_exception(request)
+                    result = json.loads(response)
+
+                    if "DBInstances" not in result or not result["DBInstances"]["DBInstance"]:
+                        break
+
+                    instances = result["DBInstances"]["DBInstance"]
+                    if not isinstance(instances, list):
+                        instances = [instances]
+
+                    for instance in instances:
+                        instance_info = {
+                            "InstanceId": instance["DBInstanceId"],
+                            "InstanceName": instance.get("DBInstanceDescription", ""),
+                            "InstanceClass": instance.get("DBInstanceClass", ""),
+                            "EngineVersion": instance.get("EngineVersion", ""),
+                            "Region": region,
+                            "InstanceStatus": instance.get("DBInstanceStatus", ""),
+                            "InstanceType": instance.get("DBInstanceType", ""),
+                            "StorageEngine": instance.get("StorageEngine", ""),
+                            "CreatedTime": instance.get("CreateTime", ""),
+                            "UpdatedTime": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        }
+                        instances_list.append(instance_info)
+
+                    page_num += 1
+
+                    # 如果返回的实例数少于页面大小，说明已经到最后一页
+                    if len(instances) < 100:
+                        break
+
+                except (ClientException, ServerException) as e:
+                    self.logger.info(f"    ⚠️  区域 {region} API调用失败: {e}")
+                    break
+        except Exception as e:
+            self.logger.error(f"Failed to get instances for region {region}: {e}")
+            
+        return instances_list
 
     def get_metrics(self, region: str, instance_id: str, days: int = 14):
         """获取MongoDB实例的监控数据 (BaseResourceAnalyzer接口)"""
