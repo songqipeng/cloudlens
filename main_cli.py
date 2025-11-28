@@ -674,6 +674,44 @@ def analyze_idle(days, account):
     
     click.echo(f"\n📊 Total idle resources found: {total_idle}")
 
+@analyze.command("cru")
+@click.option("--account", required=True, help="Account to analyze (Aliyun)")
+@click.option("--days", default=14, help="Days of monitoring data to analyze")
+def analyze_cru(account, days):
+    """Compute Resource Utilization (插件化分析器入口，目前覆盖阿里云 ECS)"""
+    from core.analyzer_registry import AnalyzerRegistry
+    import resource_modules.ecs_analyzer  # 注册 ECS 分析器
+
+    cm = ConfigManager()
+    acc = cm.get_account(account)
+    if not acc:
+        click.echo(f"❌ Account '{account}' not found.")
+        return
+    if acc.provider != "aliyun":
+        click.echo("⚠️ 当前插件化分析器仅支持阿里云 ECS。")
+        return
+
+    analyzer_info = AnalyzerRegistry.get_analyzer_info("ecs")
+    if not analyzer_info:
+        click.echo("❌ 未找到 ECS 分析器。")
+        return
+
+    analyzer_cls = analyzer_info["class"]
+    analyzer = analyzer_cls(acc.name, acc.access_key_id, acc.access_key_secret, acc.region)
+
+    click.echo(f"🔍 Analyzer: {analyzer_info['emoji']} {analyzer_info['display_name']} - {acc.name}")
+    idle_resources = analyzer.analyze(days=days)
+
+    if not idle_resources:
+        click.echo("✅ 未发现闲置 ECS。")
+        return
+
+    click.echo(f"\n⚠️ 检测到 {len(idle_resources)} 个闲置 ECS:")
+    for item in idle_resources[:10]:
+        inst = item["instance"]
+        reasons = "; ".join(item["idle_conditions"])
+        click.echo(f"- {inst.id} {inst.name} ({inst.region}) -> {reasons}")
+
 @analyze.command("tags")
 @click.option("--account", help="Specific account to analyze")
 def analyze_tags(account):
