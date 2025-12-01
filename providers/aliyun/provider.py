@@ -150,6 +150,18 @@ class AliyunProvider(BaseProvider):
                                 expired_time = datetime.strptime(time_str, "%Y-%m-%dT%H:%MZ")
                      except Exception as e:
                         pass
+                
+                # 提取公网和私网连接地址
+                public_ips = []
+                private_ips = []
+                
+                # 公网连接串
+                if inst.get("PublicConnectionString"):
+                    public_ips.append(inst["PublicConnectionString"])
+                
+                # 内网连接串
+                if inst.get("ConnectionString"):
+                    private_ips.append(inst["ConnectionString"])
 
                 r = UnifiedResource(
                     id=inst["DBInstanceId"],
@@ -159,6 +171,8 @@ class AliyunProvider(BaseProvider):
                     zone=inst.get("ZoneId"),
                     resource_type=ResourceType.RDS,
                     status=status_map.get(inst["DBInstanceStatus"], ResourceStatus.UNKNOWN),
+                    public_ips=public_ips,
+                    private_ips=private_ips,
                     vpc_id=inst.get("VpcId"),
                     spec=inst.get("DBInstanceClass"),
                     charge_type=inst.get("PayType", "PostPaid"),
@@ -235,7 +249,7 @@ class AliyunProvider(BaseProvider):
                 status_map = {
                     "Normal": ResourceStatus.RUNNING,
                     "Creating": ResourceStatus.STARTING,
-                    "Changing": ResourceStatus.STARTING,
+                    "Changing": ResourceStatus.CHANGING,
                     "Inactive": ResourceStatus.STOPPED
                 }
                 
@@ -246,14 +260,28 @@ class AliyunProvider(BaseProvider):
                     except:
                         pass
                 
+                # 提取公网和私网连接地址
+                public_ips = []
+                private_ips = []
+                
+                # 公网连接域名
+                if inst.get("PublicConnectionDomain"):
+                    public_ips.append(inst["PublicConnectionDomain"])
+                
+                # 内网连接域名
+                if inst.get("ConnectionDomain"):
+                    private_ips.append(inst["ConnectionDomain"])
+                
                 r = UnifiedResource(
                     id=inst["InstanceId"],
-                    name=inst["InstanceName"],
+                    name=inst.get("InstanceName", inst["InstanceId"]),
                     provider=self.provider_name,
                     region=inst["RegionId"],
                     zone=inst.get("ZoneId"),
                     resource_type=ResourceType.REDIS,
                     status=status_map.get(inst["InstanceStatus"], ResourceStatus.UNKNOWN),
+                    public_ips=public_ips,
+                    private_ips=private_ips,
                     vpc_id=inst.get("VpcId"),
                     spec=inst.get("InstanceClass"),
                     charge_type=inst.get("ChargeType", "PostPaid"),
