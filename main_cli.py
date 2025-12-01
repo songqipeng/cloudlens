@@ -952,10 +952,10 @@ def analyze_security(account):
         
         # 显示创建时间、停机时间和停机天数
         stopped_data = [
-            [s['id'], s['name'][:20], s['created_time'], s.get('stop_time', 'Unknown'), s.get('stopped_duration', 'Unknown')] 
+            [s['id'], s['name'][:20], s['created_time'], s.get('stop_time', '-'), s.get('stopped_duration', '-')] 
             for s in stopped[:10]
         ]
-        click.echo(tabulate(stopped_data, headers=["Instance ID", "Name", "Created", "Stopped At", "Duration"], tablefmt="simple"))
+        click.echo(tabulate(stopped_data, headers=["Instance ID", "Name", "Created", "Stopped At", "Duration"], tablefmt="grid"))
     
     # === 4. 标签覆盖率（显示未打标签的实例）===
     tag_coverage, no_tags = SecurityComplianceAnalyzer.check_missing_tags(all_resources)
