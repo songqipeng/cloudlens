@@ -38,3 +38,4 @@ textual>=0.1.0
 
 # 高级查询
 jmespath>=1.0.0
+aliyun-python-sdk-actiontrail

@@ -841,7 +841,8 @@ def analyze_tags(account):
 
 @analyze.command("security")
 @click.option("--account", help="Specific account to analyze")
-def analyze_security(account):
+@click.option("--detailed", is_flag=True, help="Enable detailed mode (query stop time from ActionTrail, slower)")
+def analyze_security(account, detailed):
     """Analyze security compliance and risks"""
     from core.security_compliance import SecurityComplianceAnalyzer
     from tabulate import tabulate
@@ -852,10 +853,15 @@ def analyze_security(account):
     if not accounts:
         return
     
-    click.echo("🔍 Analyzing security compliance...\n")
+    click.echo("🔍 Analyzing security compliance...")
+    if detailed:
+        click.echo("⏱️  Detailed mode enabled (querying ActionTrail for stop times)\n")
+    else:
+        click.echo("💡 Use --detailed flag to query accurate stop times (slower)\n")
     
     all_resources = []  # 收集所有资源类型
     all_eips = []
+    provider_map = {}  # 保存 provider 引用，用于 ActionTrail 查询
     
     for acc in accounts:
         provider = get_provider(acc)
@@ -866,6 +872,7 @@ def analyze_security(account):
             # 收集所有资源类型
             instances = provider.list_instances()
             all_resources.extend(instances)
+            provider_map[acc.name] = provider
             
             # 尝试收集其他资源
             try:
@@ -921,9 +928,25 @@ def analyze_security(account):
     stopped = SecurityComplianceAnalyzer.check_stopped_instances(all_resources)
     click.echo(f"\n⏸️  【长期停止实例】")
     click.echo(f"   Count: {len(stopped)} (仍产生磁盘费用)\n")
+    
     if stopped:
-        stopped_data = [[s['id'], s['name'][:25], s['region'], s['created_time']] for s in stopped[:10]]
-        click.echo(tabulate(stopped_data, headers=["Instance ID", "Name", "Region", "Created"], tablefmt="simple"))
+        # 如果启用详细模式，查询 ActionTrail 获取停机时间
+        if detailed:
+            from core.actiontrail_helper import ActionTrailHelper
+            click.echo("   Querying stop times from ActionTrail (this may take a while)...")
+            for s in stopped[:10]:
+                # 找到对应的 provider
+                # 简化处理：使用第一个 provider
+                if provider_map:
+                    provider = list(provider_map.values())[0]
+                    stop_time = ActionTrailHelper.get_instance_stop_time(provider, s['id'])
+                    s['stop_time'] = stop_time if stop_time else "N/A"
+            
+            stopped_data = [[s['id'], s['name'][:25], s['region'], s.get('stop_time', 'N/A')] for s in stopped[:10]]
+            click.echo(tabulate(stopped_data, headers=["Instance ID", "Name", "Region", "Stopped At"], tablefmt="simple"))
+        else:
+            stopped_data = [[s['id'], s['name'][:25], s['region'], s['created_time']] for s in stopped[:10]]
+            click.echo(tabulate(stopped_data, headers=["Instance ID", "Name", "Region", "Created"], tablefmt="simple"))
     
     # === 4. 标签覆盖率（显示未打标签的实例）===
     tag_coverage, no_tags = SecurityComplianceAnalyzer.check_missing_tags(all_resources)
