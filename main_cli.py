@@ -936,7 +936,15 @@ def analyze_security(account):
             if provider_map:
                 provider = list(provider_map.values())[0]
                 click.echo(f"   [{idx}/10] Querying {s['id']}...", err=True)
-                stop_time = ActionTrailHelper.get_instance_stop_time(provider, s['id'])
+                
+                # 找到对应的实例原始数据
+                inst_raw_data = None
+                for res in all_resources:
+                    if res.id == s['id']:
+                        inst_raw_data = res.raw_data
+                        break
+                
+                stop_time = ActionTrailHelper.get_instance_stop_time(provider, s['id'], inst_raw_data)
                 
                 if stop_time:
                     s['stop_time'] = stop_time
