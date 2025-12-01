@@ -869,23 +869,42 @@ def analyze_security(account):
             all_resources.extend(instances)
             provider_map[acc.name] = provider
             
-            # 尝试收集其他资源
-            try:
-                rds = provider.list_rds()
-                all_resources.extend(rds)
-            except:
-                pass
+            # 收集所有资源
+            all_resources = []
             
-            try:
-                redis = provider.list_redis()
-                all_resources.extend(redis)
-            except:
-                pass
+            # ECS
+            click.echo("   Fetching ECS instances...")
+            ecs_list = provider.list_instances()
+            all_resources.extend(ecs_list)
             
-            try:
-                all_eips.extend(provider.list_eip())
-            except:
-                pass  # EIP 可能不可用，跳过
+            # RDS
+            click.echo("   Fetching RDS instances...")
+            rds_list = provider.list_rds()
+            all_resources.extend(rds_list)
+            
+            # Redis
+            click.echo("   Fetching Redis instances...")
+            redis_list = provider.list_redis()
+            all_resources.extend(redis_list)
+            
+            # SLB
+            click.echo("   Fetching SLB instances...")
+            slb_list = provider.list_slb()
+            all_resources.extend(slb_list)
+            
+            # NAT Gateway
+            click.echo("   Fetching NAT Gateways...")
+            nat_list = provider.list_nat_gateways()
+            all_resources.extend(nat_list)
+            
+            # MongoDB
+            click.echo("   Fetching MongoDB instances...")
+            mongo_list = provider.list_mongodb()
+            all_resources.extend(mongo_list)
+            
+            # EIP (用于统计)
+            click.echo("   Fetching EIPs...")
+            all_eips = provider.list_eip()
         except Exception as e:
             click.echo(f"❌ Error fetching resources from {acc.name}: {e}")
     
@@ -900,7 +919,7 @@ def analyze_security(account):
             exposed_by_type[rtype] = []
         exposed_by_type[rtype].append(e)
     
-    click.echo("🌐 【公网暴露分析】")
+    click.echo("\n🌐 【公网暴露分析】")
     click.echo(f"   Total resources: {len(all_resources)}, Exposed: {len(exposed)}")
     for rtype, items in exposed_by_type.items():
         click.echo(f"   • {rtype}: {len(items)} exposed")
@@ -910,6 +929,73 @@ def analyze_security(account):
         # 使用表格显示所有暴露资源
         table_data = [[e['id'], e['name'][:30], e['type'], ', '.join(e['public_ips']), e['risk_level']] for e in exposed]
         click.echo(tabulate(table_data, headers=["Instance ID", "Name", "Type", "Public IPs", "Risk"], tablefmt="grid"))
+        
+        # === 1.1 公网IP基础安全扫描 ===
+        click.echo(f"\n🛡️  【公网IP安全扫描】")
+        click.echo("   Scanning exposed public IPs for open ports and SSL certificates...")
+        
+        from core.security_scanner import PublicIPScanner
+        
+        scan_results = []
+        # 收集所有需要扫描的IP
+        ips_to_scan = []
+        for e in exposed:
+            for ip in e['public_ips']:
+                ips_to_scan.append({"ip": ip, "id": e['id'], "type": e['type']})
+        
+        # 限制扫描数量，避免太慢
+        if len(ips_to_scan) > 20:
+            click.echo(f"   ⚠️ Too many IPs ({len(ips_to_scan)}), scanning first 20 only...")
+            ips_to_scan = ips_to_scan[:20]
+            
+        with click.progressbar(ips_to_scan, label="   Scanning") as bar:
+            for target in bar:
+                result = PublicIPScanner.scan_ip(target['ip'])
+                result['resource_id'] = target['id']
+                result['resource_type'] = target['type']
+                scan_results.append(result)
+        
+        click.echo("")
+        
+        # 显示扫描结果
+        scan_table = []
+        for res in scan_results:
+            open_ports = [str(p['port']) for p in res['open_ports']]
+            high_risk = [str(p) for p in res['high_risk_ports']]
+            
+            ports_str = ", ".join(open_ports) if open_ports else "None"
+            if high_risk:
+                ports_str += f" (High Risk: {', '.join(high_risk)})"
+            
+            ssl_status = "N/A"
+            if res.get('ssl_info'):
+                days = res['ssl_info'].get('days_to_expiry')
+                if days is not None:
+                    ssl_status = f"Valid ({days} days left)"
+                else:
+                    ssl_status = "Invalid"
+            elif 443 in [p['port'] for p in res['open_ports']]:
+                ssl_status = "Missing/Error"
+                
+            scan_table.append([
+                res['ip'],
+                f"{res['resource_type']}/{res['resource_id']}",
+                ports_str,
+                ssl_status,
+                res['risk_level']
+            ])
+            
+        click.echo(tabulate(scan_table, headers=["IP Address", "Resource", "Open Ports", "SSL Status", "Risk"], tablefmt="grid"))
+        
+        # 显示建议
+        click.echo("\n   💡 Security Recommendations:")
+        for res in scan_results:
+            if res['risk_level'] in ['HIGH', 'CRITICAL']:
+                recs = PublicIPScanner.generate_recommendations(res)
+                click.echo(f"   • {res['ip']} ({res['resource_type']}):")
+                for rec in recs:
+                    click.echo(f"     {rec}")
+        click.echo("")
     
     # === 2. EIP 使用分析 ===
     if all_eips:

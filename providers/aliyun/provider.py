@@ -12,6 +12,7 @@ from aliyunsdkvpc.request.v20160428.DescribeVSwitchesRequest import DescribeVSwi
 from core.provider import BaseProvider
 from core.security import PermissionGuard
 from models.resource import UnifiedResource, ResourceType, ResourceStatus
+from core.resource_converter import slb_to_unified_resource, nat_gateway_to_unified_resource, mongodb_to_unified_resource
 
 logger = logging.getLogger("AliyunProvider")
 
@@ -342,9 +343,9 @@ class AliyunProvider(BaseProvider):
             logger.error(f"Failed to list EIPs: {e}")
         return eips
 
-    def list_slb(self) -> List[Dict]:
+    def list_slb(self) -> List[UnifiedResource]:
         """列出SLB负载均衡器"""
-        slbs = []
+        resources = []
         try:
             from aliyunsdkslb.request.v20140515 import DescribeLoadBalancersRequest
             
@@ -354,19 +355,46 @@ class AliyunProvider(BaseProvider):
             response = self._do_request(request)
             
             for slb in response.get('LoadBalancers', {}).get('LoadBalancer', []):
-                slbs.append({
-                    "id": slb.get('LoadBalancerId'),
-                    "name": slb.get('LoadBalancerName'),
-                    "address": slb.get('Address'),
-                    "address_type": slb.get('AddressType'),  # internet or intranet
-                    "status": slb.get('LoadBalancerStatus'),
-                    "region": self.region,
-                    "vpc_id": slb.get('VpcId', ''),
-                    "bandwidth": slb.get('Bandwidth')
-                })
+                resources.append(slb_to_unified_resource(slb, self.provider_name))
         except Exception as e:
             logger.error(f"Failed to list SLBs: {e}")
-        return slbs
+        return resources
+
+    def list_nat_gateways(self) -> List[UnifiedResource]:
+        """列出NAT网关"""
+        resources = []
+        try:
+            from aliyunsdkvpc.request.v20160428 import DescribeNatGatewaysRequest
+            
+            request = DescribeNatGatewaysRequest.DescribeNatGatewaysRequest()
+            request.set_PageSize(100)
+            
+            response = self._do_request(request)
+            
+            for nat in response.get('NatGateways', {}).get('NatGateway', []):
+                resources.append(nat_gateway_to_unified_resource(nat, self.provider_name, self.region))
+        except Exception as e:
+            logger.error(f"Failed to list NAT Gateways: {e}")
+        return resources
+
+    def list_mongodb(self) -> List[UnifiedResource]:
+        """列出MongoDB实例"""
+        resources = []
+        try:
+            from aliyunsdkdds.request.v20151201 import DescribeDBInstancesRequest
+            
+            request = DescribeDBInstancesRequest.DescribeDBInstancesRequest()
+            request.set_PageSize(100)
+            
+            response = self._do_request(request)
+            
+            for mongo in response.get('DBInstances', {}).get('DBInstance', []):
+                resources.append(mongodb_to_unified_resource(mongo, self.provider_name, self.region))
+        except ImportError:
+            logger.warning("aliyun-python-sdk-dds not installed")
+        except Exception as e:
+            logger.error(f"Failed to list MongoDB instances: {e}")
+        return resources
 
     def list_nas(self) -> List[Dict]:
         """列出NAS文件系统"""
