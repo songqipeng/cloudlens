@@ -907,8 +907,9 @@ def analyze_security(account):
     click.echo("")
     
     if exposed:
-        table_data = [[e['id'], e['name'][:25], e['type'], ', '.join(e['public_ips'][:2]), e['risk_level']] for e in exposed[:15]]
-        click.echo(tabulate(table_data, headers=["Instance ID", "Name", "Type", "Public IPs", "Risk"], tablefmt="simple"))
+        # 使用表格显示所有暴露资源
+        table_data = [[e['id'], e['name'][:30], e['type'], ', '.join(e['public_ips']), e['risk_level']] for e in exposed]
+        click.echo(tabulate(table_data, headers=["Instance ID", "Name", "Type", "Public IPs", "Risk"], tablefmt="grid"))
     
     # === 2. EIP 使用分析 ===
     if all_eips:
@@ -916,8 +917,9 @@ def analyze_security(account):
         click.echo(f"\n📍 【弹性公网IP统计】")
         click.echo(f"   Total: {eip_stats['total']}, Bound: {eip_stats['bound']}, Unbound: {eip_stats['unbound']} ({eip_stats['unbound_rate']}%)")
         if eip_stats['unbound_eips'][:3]:
-            for eip in eip_stats['unbound_eips'][:3]:
-                click.echo(f"   • {eip.get('ip_address', 'N/A')} (ID: {eip.get('id', 'N/A')})")
+            click.echo("")
+            eip_data = [[eip.get('id', 'N/A'), eip.get('ip_address', 'N/A'), eip.get('status', 'N/A')] for eip in eip_stats['unbound_eips'][:10]]
+            click.echo(tabulate(eip_data, headers=["EIP ID", "IP Address", "Status"], tablefmt="grid"))
     
     # === 3. 停止实例检查（查询停机时间并计算停机天数）===
     stopped = SecurityComplianceAnalyzer.check_stopped_instances(all_resources)
@@ -947,39 +949,35 @@ def analyze_security(account):
                 stop_time = ActionTrailHelper.get_instance_stop_time(provider, s['id'], inst_raw_data)
                 
                 if stop_time:
-                    s['stop_time'] = stop_time
-                    # 计算停机天数
-                    try:
-                        # 处理 >2023-11-11 格式（估算值）
-                        if stop_time.startswith('>'):
-                            # 使用 > 后面的日期计算最小停机天数
-                            date_str = stop_time[1:]  # 去掉 >
-                            stopped_dt = datetime.strptime(date_str, "%Y-%m-%d")
-                            now = datetime.now()
-                            stopped_days = (now - stopped_dt).days
-                            s['stopped_duration'] = f">{stopped_days}天"  # >367天 表示至少367天
-                        else:
-                            # 精确的停机时间
+                    # 检查是否是估算值（以>开头）
+                    if stop_time.startswith('>'):
+                        # 这是估算值，说明超过90天了
+                        s['stop_time'] = ">90天前"
+                        s['stopped_duration'] = ">90天"
+                    else:
+                        # 精确的停机时间
+                        s['stop_time'] = stop_time
+                        try:
                             stopped_dt = datetime.strptime(stop_time, "%Y-%m-%d %H:%M:%S")
                             now = datetime.now()
                             stopped_days = (now - stopped_dt).days
                             s['stopped_duration'] = f"{stopped_days}天" if stopped_days > 0 else "今天"
-                    except Exception as e:
-                        logger.error(f"Failed to calculate duration for {s['id']}: {e}")
-                        s['stopped_duration'] = "计算失败"
+                        except Exception as e:
+                            logger.error(f"Failed to calculate duration for {s['id']}: {e}")
+                            s['stopped_duration'] = ">90天"
                 else:
-                    # 如果 ActionTrail 查询失败，使用创建时间估算
-                    s['stop_time'] = "未记录"
+                    # ActionTrail 查询失败
+                    s['stop_time'] = ">90天前"
                     s['stopped_duration'] = ">90天"
         
         click.echo("")  # Newline
         
         # 显示创建时间、停机时间和停机天数
         stopped_data = [
-            [s['id'], s['name'][:20], s['created_time'], s.get('stop_time', '未记录'), s.get('stopped_duration', '>90天')] 
+            [s['id'], s['name'][:20], s['created_time'], s.get('stop_time', '>90天前'), s.get('stopped_duration', '>90天')] 
             for s in stopped[:10]
         ]
-        click.echo(tabulate(stopped_data, headers=["Instance ID", "Name", "Created", "Stopped At", "Duration"], tablefmt="grid"))
+        click.echo(tabulate(stopped_data, headers=["Instance ID", "Name", "Created", "Stopped", "Duration"], tablefmt="grid"))
     
     # === 4. 标签覆盖率（显示所有未打标签的实例）===
     tag_coverage, no_tags = SecurityComplianceAnalyzer.check_missing_tags(all_resources)

@@ -15,22 +15,17 @@ class ActionTrailHelper:
     @staticmethod
     def get_instance_stop_time(provider, instance_id: str, raw_data: dict = None, lookback_days: int = 90) -> Optional[str]:
         """
-        查询实例的停机时间
-        
-        优先级：
-        1. ActionTrail 查询（最近 90 天）
-        2. 实例的 StartTime（推断停机时间）
+        查询实例的停机时间（从 ActionTrail）
         
         Args:
             provider: AliyunProvider 实例
             instance_id: 实例 ID  
-            raw_data: 实例原始数据（包含 StartTime）
+            raw_data: 实例原始数据（未使用）
             lookback_days: ActionTrail 回溯天数
             
         Returns:
             停机时间字符串，格式 YYYY-MM-DD HH:MM:SS，如果找不到返回 None
         """
-        # 方法1: 尝试从 ActionTrail 查询
         try:
             from aliyunsdkactiontrail.request.v20200706 import LookupEventsRequest
             
@@ -67,17 +62,6 @@ class ActionTrailHelper:
         except Exception as e:
             logger.debug(f"ActionTrail query failed for {instance_id}: {e}")
         
-        # 方法2: 使用 StartTime 推断（如果实例是停止状态，停机一定在最后启动之后）
-        if raw_data and raw_data.get("StartTime"):
-            try:
-                start_time_str = raw_data.get("StartTime")
-                dt = datetime.strptime(start_time_str, "%Y-%m-%dT%H:%MZ")
-                # 说明：实例最后一次启动后又停止了，但具体停止时间未知
-                # 我们只能说停机时间 >= StartTime
-                logger.info(f"Using StartTime as reference for {instance_id}: {start_time_str}")
-                return f">{dt.strftime('%Y-%m-%d')}"  # 返回 ">2023-11-30" 表示停机时间晚于此
-            except Exception as e:
-                logger.debug(f"Failed to parse StartTime for {instance_id}: {e}")
-        
-        logger.warning(f"No stop time found for {instance_id}")
+        # 如果 ActionTrail 没有数据，返回 None
+        logger.warning(f"No stop time found in ActionTrail for {instance_id} (may be >90 days ago)")
         return None
