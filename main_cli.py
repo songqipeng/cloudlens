@@ -950,11 +950,22 @@ def analyze_security(account):
                     s['stop_time'] = stop_time
                     # 计算停机天数
                     try:
-                        stopped_dt = datetime.strptime(stop_time, "%Y-%m-%d %H:%M:%S")
-                        now = datetime.now()
-                        stopped_days = (now - stopped_dt).days
-                        s['stopped_duration'] = f"{stopped_days}天" if stopped_days > 0 else "今天"
-                    except:
+                        # 处理 >2023-11-11 格式（估算值）
+                        if stop_time.startswith('>'):
+                            # 使用 > 后面的日期计算最小停机天数
+                            date_str = stop_time[1:]  # 去掉 >
+                            stopped_dt = datetime.strptime(date_str, "%Y-%m-%d")
+                            now = datetime.now()
+                            stopped_days = (now - stopped_dt).days
+                            s['stopped_duration'] = f">{stopped_days}天"  # >367天 表示至少367天
+                        else:
+                            # 精确的停机时间
+                            stopped_dt = datetime.strptime(stop_time, "%Y-%m-%d %H:%M:%S")
+                            now = datetime.now()
+                            stopped_days = (now - stopped_dt).days
+                            s['stopped_duration'] = f"{stopped_days}天" if stopped_days > 0 else "今天"
+                    except Exception as e:
+                        logger.error(f"Failed to calculate duration for {s['id']}: {e}")
                         s['stopped_duration'] = "计算失败"
                 else:
                     # 如果 ActionTrail 查询失败，使用创建时间估算
