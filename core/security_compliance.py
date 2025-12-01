@@ -14,7 +14,7 @@ class SecurityComplianceAnalyzer:
     @staticmethod
     def detect_public_exposure(instances: List[UnifiedResource]) -> List[Dict]:
         """
-        检测公网暴露的资源
+        检测公网暴露的资源（所有类型）
         
         Returns:
             暴露资源列表
@@ -59,19 +59,37 @@ class SecurityComplianceAnalyzer:
     @staticmethod
     def check_stopped_instances(instances: List[UnifiedResource]) -> List[Dict]:
         """检查长期停止的实例（仍产生磁盘费用）"""
+        from datetime import datetime, timezone
         stopped = []
+        now = datetime.now(timezone.utc)
+        
         for inst in instances:
             if inst.status == ResourceStatus.STOPPED:
+                # 计算停止时长
+                stopped_days = 0
+                if inst.created_time:
+                    # 假设没有准确的停止时间，用创建时间估算
+                    # 实际应该从 raw_data 中获取 StoppedTime
+                    try:
+                        if inst.created_time.tzinfo is None:
+                            created = inst.created_time.replace(tzinfo=timezone.utc)
+                        else:
+                            created = inst.created_time
+                        stopped_days = (now - created).days
+                    except:
+                        stopped_days = 0
+                
                 stopped.append({
                     "id": inst.id,
                     "name": inst.name,
                     "region": inst.region,
-                    "status": inst.status.value
+                    "status": inst.status.value,
+                    "stopped_days": stopped_days
                 })
         return stopped
     
     @staticmethod
-    def check_missing_tags(instances: List[UnifiedResource]) -> Tuple[int, List[Dict]]:
+    def check_missing_tags(instances: List[UnifiedResource]) -> Tuple[float, List[Dict]]:
         """检查缺失标签的资源（影响成本分摊和管理）"""
         total = len(instances)
         no_tags = []
@@ -83,6 +101,7 @@ class SecurityComplianceAnalyzer:
                 no_tags.append({
                     "id": inst.id,
                     "name": inst.name,
+                    "type": inst.resource_type.value,
                     "region": inst.region
                 })
         

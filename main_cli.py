@@ -854,7 +854,7 @@ def analyze_security(account):
     
     click.echo("🔍 Analyzing security compliance...\n")
     
-    all_instances = []
+    all_resources = []  # 收集所有资源类型
     all_eips = []
     
     for acc in accounts:
@@ -863,7 +863,23 @@ def analyze_security(account):
             continue
         
         try:
-            all_instances.extend(provider.list_instances())
+            # 收集所有资源类型
+            instances = provider.list_instances()
+            all_resources.extend(instances)
+            
+            # 尝试收集其他资源
+            try:
+                rds = provider.list_rds()
+                all_resources.extend(rds)
+            except:
+                pass
+            
+            try:
+                redis = provider.list_redis()
+                all_resources.extend(redis)
+            except:
+                pass
+            
             try:
                 all_eips.extend(provider.list_eip())
             except:
@@ -871,14 +887,26 @@ def analyze_security(account):
         except Exception as e:
             click.echo(f"❌ Error fetching resources from {acc.name}: {e}")
     
-    # === 1. 公网暴露检测 ===
-    exposed = SecurityComplianceAnalyzer.detect_public_exposure(all_instances)
+    # === 1. 公网暴露检测（所有资源类型）===
+    exposed = SecurityComplianceAnalyzer.detect_public_exposure(all_resources)
+    
+    # 按资源类型分组统计
+    exposed_by_type = {}
+    for e in exposed:
+        rtype = e['type']
+        if rtype not in exposed_by_type:
+            exposed_by_type[rtype] = []
+        exposed_by_type[rtype].append(e)
+    
     click.echo("🌐 【公网暴露分析】")
-    click.echo(f"   Total instances: {len(all_instances)}, Exposed: {len(exposed)}\n")
+    click.echo(f"   Total resources: {len(all_resources)}, Exposed: {len(exposed)}")
+    for rtype, items in exposed_by_type.items():
+        click.echo(f"   • {rtype}: {len(items)} exposed")
+    click.echo("")
     
     if exposed:
-        table_data = [[e['id'], e['name'][:25], ', '.join(e['public_ips'][:2]), e['risk_level']] for e in exposed[:10]]
-        click.echo(tabulate(table_data, headers=["Instance ID", "Name", "Public IPs", "Risk"], tablefmt="simple"))
+        table_data = [[e['id'], e['name'][:25], e['type'], ', '.join(e['public_ips'][:2]), e['risk_level']] for e in exposed[:15]]
+        click.echo(tabulate(table_data, headers=["Instance ID", "Name", "Type", "Public IPs", "Risk"], tablefmt="simple"))
     
     # === 2. EIP 使用分析 ===
     if all_eips:
@@ -889,26 +917,31 @@ def analyze_security(account):
             for eip in eip_stats['unbound_eips'][:3]:
                 click.echo(f"   • {eip.get('ip_address', 'N/A')} (ID: {eip.get('id', 'N/A')})")
     
-    # === 3. 停止实例检查 ===
-    stopped = SecurityComplianceAnalyzer.check_stopped_instances(all_instances)
+    # === 3. 停止实例检查（显示停止时长）===
+    stopped = SecurityComplianceAnalyzer.check_stopped_instances(all_resources)
     click.echo(f"\n⏸️  【长期停止实例】")
-    click.echo(f"   Count: {len(stopped)} (仍产生磁盘费用)")
-    if stopped[:5]:
-        for inst in stopped[:5]:
-            click.echo(f"   • {inst['id']} - {inst['name']}")
+    click.echo(f"   Count: {len(stopped)} (仍产生磁盘费用)\n")
+    if stopped:
+        stopped_data = [[s['id'], s['name'][:25], s['region'], f"{s['stopped_days']}天" if s['stopped_days'] > 0 else "N/A"] for s in stopped[:10]]
+        click.echo(tabulate(stopped_data, headers=["Instance ID", "Name", "Region", "Stopped"], tablefmt="simple"))
     
-    # === 4. 标签覆盖率 ===
-    tag_coverage, no_tags = SecurityComplianceAnalyzer.check_missing_tags(all_instances)
+    # === 4. 标签覆盖率（显示未打标签的实例）===
+    tag_coverage, no_tags = SecurityComplianceAnalyzer.check_missing_tags(all_resources)
     click.echo(f"\n🏷️  【资源标签治理】")
-    click.echo(f"   Tag coverage: {tag_coverage}%, Missing tags: {len(no_tags)}")
+    click.echo(f"   Tag coverage: {tag_coverage}%, Missing tags: {len(no_tags)}\n")
+    if no_tags[:10]:
+        tag_data = [[n['id'], n['name'][:25], n['type'], n['region']] for n in no_tags[:10]]
+        click.echo(tabulate(tag_data, headers=["Instance ID", "Name", "Type", "Region"], tablefmt="simple"))
+        if len(no_tags) > 10:
+            click.echo(f"   ... and {len(no_tags) - 10} more")
     
     # === 5. 磁盘加密检查 ===
-    encryption = SecurityComplianceAnalyzer.check_disk_encryption(all_instances)
+    encryption = SecurityComplianceAnalyzer.check_disk_encryption(all_resources)
     click.echo(f"\n🔒 【磁盘加密状态】")
     click.echo(f"   Encryption rate: {encryption['encryption_rate']}% ({encryption['encrypted']}/{encryption['total']})")
     
     # === 6. 抢占式实例检查 ===
-    preemptible = SecurityComplianceAnalyzer.check_preemptible_instances(all_instances)
+    preemptible = SecurityComplianceAnalyzer.check_preemptible_instances(all_resources)
     if preemptible:
         click.echo(f"\n⚡ 【抢占式实例】")
         click.echo(f"   Count: {len(preemptible)} (生产环境不建议)")
