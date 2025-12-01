@@ -844,6 +844,7 @@ def analyze_tags(account):
 def analyze_security(account):
     """Analyze security compliance and risks"""
     from core.security_compliance import SecurityComplianceAnalyzer
+    from tabulate import tabulate
     
     cm = ConfigManager()
     accounts = resolve_account_name(cm, account)
@@ -851,8 +852,7 @@ def analyze_security(account):
     if not accounts:
         return
     
-    # 当前安全分析聚焦公网暴露与未绑定 EIP 统计，其他审计项待扩展
-    click.echo("🔍 Analyzing security compliance...")
+    click.echo("🔍 Analyzing security compliance...\n")
     
     all_instances = []
     all_eips = []
@@ -864,44 +864,70 @@ def analyze_security(account):
         
         try:
             all_instances.extend(provider.list_instances())
-            all_eips.extend(provider.list_eip())
+            try:
+                all_eips.extend(provider.list_eip())
+            except:
+                pass  # EIP 可能不可用，跳过
         except Exception as e:
             click.echo(f"❌ Error fetching resources from {acc.name}: {e}")
     
-    # Public exposure detection
+    # === 1. 公网暴露检测 ===
     exposed = SecurityComplianceAnalyzer.detect_public_exposure(all_instances)
-    
-    click.echo(f"\n🌐 公网暴露分析")
-    click.echo(f"总实例数: {len(all_instances)}")
-    click.echo(f"公网暴露: {len(exposed)}")
+    click.echo("🌐 【公网暴露分析】")
+    click.echo(f"   Total instances: {len(all_instances)}, Exposed: {len(exposed)}\n")
     
     if exposed:
-        click.echo(f"\n⚠️  公网暴露实例 (前10个):")
-        click.echo(f"{'ID':<22} {'Name':<25} {'Type':<8} {'Public IPs':<30} {'Risk':<8}")
-        click.echo("-" * 100)
-        for exp in exposed[:10]:
-            ips_str = ", ".join(exp['public_ips'][:2])
-            click.echo(f"{exp['id']:<22} {exp['name'][:23]:<25} {exp['type']:<8} {ips_str:<30} {exp['risk_level']:<8}")
+        table_data = [[e['id'], e['name'][:25], ', '.join(e['public_ips'][:2]), e['risk_level']] for e in exposed[:10]]
+        click.echo(tabulate(table_data, headers=["Instance ID", "Name", "Public IPs", "Risk"], tablefmt="simple"))
     
-    # EIP usage analysis
-    eip_stats = SecurityComplianceAnalyzer.analyze_eip_usage(all_eips)
+    # === 2. EIP 使用分析 ===
+    if all_eips:
+        eip_stats = SecurityComplianceAnalyzer.analyze_eip_usage(all_eips)
+        click.echo(f"\n📍 【弹性公网IP统计】")
+        click.echo(f"   Total: {eip_stats['total']}, Bound: {eip_stats['bound']}, Unbound: {eip_stats['unbound']} ({eip_stats['unbound_rate']}%)")
+        if eip_stats['unbound_eips'][:3]:
+            for eip in eip_stats['unbound_eips'][:3]:
+                click.echo(f"   • {eip.get('ip_address', 'N/A')} (ID: {eip.get('id', 'N/A')})")
     
-    click.echo(f"\n📍 弹性公网IP统计")
-    click.echo(f"总EIP数: {eip_stats['total']}")
-    click.echo(f"已绑定: {eip_stats['bound']}")
-    click.echo(f"未绑定: {eip_stats['unbound']} ({eip_stats['unbound_rate']}%)")
+    # === 3. 停止实例检查 ===
+    stopped = SecurityComplianceAnalyzer.check_stopped_instances(all_instances)
+    click.echo(f"\n⏸️  【长期停止实例】")
+    click.echo(f"   Count: {len(stopped)} (仍产生磁盘费用)")
+    if stopped[:5]:
+        for inst in stopped[:5]:
+            click.echo(f"   • {inst['id']} - {inst['name']}")
     
-    if eip_stats['unbound_eips']:
-        click.echo(f"\n💰 未绑定EIP (浪费成本):")
-        for eip in eip_stats['unbound_eips'][:5]:
-            click.echo(f"  • {eip['ip_address']} (ID: {eip['id']})")
+    # === 4. 标签覆盖率 ===
+    tag_coverage, no_tags = SecurityComplianceAnalyzer.check_missing_tags(all_instances)
+    click.echo(f"\n🏷️  【资源标签治理】")
+    click.echo(f"   Tag coverage: {tag_coverage}%, Missing tags: {len(no_tags)}")
     
-    # Security suggestions
-    suggestions = SecurityComplianceAnalyzer.suggest_security_improvements(len(exposed), eip_stats['unbound'])
+    # === 5. 磁盘加密检查 ===
+    encryption = SecurityComplianceAnalyzer.check_disk_encryption(all_instances)
+    click.echo(f"\n🔒 【磁盘加密状态】")
+    click.echo(f"   Encryption rate: {encryption['encryption_rate']}% ({encryption['encrypted']}/{encryption['total']})")
     
-    click.echo(f"\n💡 安全建议:")
+    # === 6. 抢占式实例检查 ===
+    preemptible = SecurityComplianceAnalyzer.check_preemptible_instances(all_instances)
+    if preemptible:
+        click.echo(f"\n⚡ 【抢占式实例】")
+        click.echo(f"   Count: {len(preemptible)} (生产环境不建议)")
+    
+    # === 综合建议 ===
+    security_summary = {
+        'exposed_count': len(exposed),
+        'unbound_eip': len(all_eips) - sum(1 for e in all_eips if e.get('instance_id')) if all_eips else 0,
+        'stopped_count': len(stopped),
+        'tag_coverage_rate': tag_coverage,
+        'encryption_rate': encryption['encryption_rate'],
+        'preemptible_count': len(preemptible)
+    }
+    
+    suggestions = SecurityComplianceAnalyzer.suggest_security_improvements(security_summary)
+    
+    click.echo(f"\n💡 【安全建议】")
     for sugg in suggestions:
-        click.echo(f"  {sugg}")
+        click.echo(f"   {sugg}")
 
 @analyze.command("security")
 @click.option("--account", help="Specific account to analyze")
