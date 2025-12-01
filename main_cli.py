@@ -929,68 +929,6 @@ def analyze_security(account):
     for sugg in suggestions:
         click.echo(f"   {sugg}")
 
-@analyze.command("security")
-@click.option("--account", help="Specific account to analyze")
-def analyze_security(account):
-    """Analyze security compliance and risks"""
-    from core.security_compliance import SecurityComplianceAnalyzer
-    
-    cm = ConfigManager()
-    accounts = resolve_account_name(cm, account)
-    
-    if not accounts:
-        return
-    
-    click.echo("🔍 Analyzing security compliance...")
-    
-    all_instances = []
-    all_eips = []
-    
-    for acc in accounts:
-        provider = get_provider(acc)
-        if not provider:
-            continue
-        
-        try:
-            all_instances.extend(provider.list_instances())
-            all_eips.extend(provider.list_eip())
-        except Exception as e:
-            click.echo(f"❌ Error fetching resources from {acc.name}: {e}")
-    
-    # Public exposure detection
-    exposed = SecurityComplianceAnalyzer.detect_public_exposure(all_instances)
-    
-    click.echo(f"\n🌐 公网暴露分析")
-    click.echo(f"总实例数: {len(all_instances)}")
-    click.echo(f"公网暴露: {len(exposed)}")
-    
-    if exposed:
-        click.echo(f"\n⚠️  公网暴露实例 (前10个):")
-        click.echo(f"{'ID':<22} {'Name':<25} {'Type':<8} {'Public IPs':<30} {'Risk':<8}")
-        click.echo("-" * 100)
-        for exp in exposed[:10]:
-            ips_str = ", ".join(exp['public_ips'][:2])
-            click.echo(f"{exp['id']:<22} {exp['name'][:23]:<25} {exp['type']:<8} {ips_str:<30} {exp['risk_level']:<8}")
-    
-    # EIP usage analysis
-    eip_stats = SecurityComplianceAnalyzer.analyze_eip_usage(all_eips)
-    
-    click.echo(f"\n📍 弹性公网IP统计")
-    click.echo(f"总EIP数: {eip_stats['total']}")
-    click.echo(f"已绑定: {eip_stats['bound']}")
-    click.echo(f"未绑定: {eip_stats['unbound']} ({eip_stats['unbound_rate']}%)")
-    
-    if eip_stats['unbound_eips']:
-        click.echo(f"\n💰 未绑定EIP (浪费成本):")
-        for eip in eip_stats['unbound_eips'][:5]:
-            click.echo(f"  • {eip['ip_address']} (ID: {eip['id']})")
-    
-    # Security suggestions
-    suggestions = SecurityComplianceAnalyzer.suggest_security_improvements(len(exposed), eip_stats['unbound'])
-    
-    click.echo(f"\n💡 安全建议:")
-    for sugg in suggestions:
-        click.echo(f"  {sugg}")
 
 @cli.group()
 def audit():
