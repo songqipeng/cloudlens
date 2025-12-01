@@ -43,59 +43,80 @@ class AliyunProvider(BaseProvider):
         return json.loads(response)
 
     def list_instances(self) -> List[UnifiedResource]:
-        """列出ECS实例"""
+        """列出ECS实例（支持分页）"""
         resources = []
         try:
-            request = DescribeInstancesRequest()
-            request.set_PageSize(100)
-            data = self._do_request(request)
+            page_num = 1
+            page_size = 100
+            total_count = None
             
-            for inst in data.get("Instances", {}).get("Instance", []):
-                # 状态映射
-                status_map = {
-                    "Running": ResourceStatus.RUNNING,
-                    "Stopped": ResourceStatus.STOPPED,
-                    "Starting": ResourceStatus.STARTING,
-                    "Stopping": ResourceStatus.STOPPING
-                }
+            while True:
+                request = DescribeInstancesRequest()
+                request.set_PageSize(page_size)
+                request.set_PageNumber(page_num)
+                data = self._do_request(request)
                 
-                # IP处理
-                public_ips = inst.get("PublicIpAddress", {}).get("IpAddress", [])
-                eip = inst.get("EipAddress", {}).get("IpAddress", "")
-                if eip:
-                    public_ips.append(eip)
+                # 获取总数（仅第一页）
+                if total_count is None:
+                    total_count = data.get("TotalCount", 0)
+                    logger.info(f"Total ECS instances: {total_count}")
                 
-                private_ips = inst.get("VpcAttributes", {}).get("PrivateIpAddress", {}).get("IpAddress", [])
+                instances = data.get("Instances", {}).get("Instance", [])
+                if not instances:
+                    break
                 
-                # 时间处理
-                created_time = datetime.strptime(inst["CreationTime"], "%Y-%m-%dT%H:%MZ")
-                expired_time = None
-                if inst.get("ExpiredTime"):
-                    try:
-                        expired_time = datetime.strptime(inst["ExpiredTime"], "%Y-%m-%dT%H:%MZ")
-                    except:
-                        pass
+                for inst in instances:
+                    # 状态映射
+                    status_map = {
+                        "Running": ResourceStatus.RUNNING,
+                        "Stopped": ResourceStatus.STOPPED,
+                        "Starting": ResourceStatus.STARTING,
+                        "Stopping": ResourceStatus.STOPPING
+                    }
+                    
+                    # IP处理
+                    public_ips = inst.get("PublicIpAddress", {}).get("IpAddress", [])
+                    eip = inst.get("EipAddress", {}).get("IpAddress", "")
+                    if eip:
+                        public_ips.append(eip)
+                    
+                    private_ips = inst.get("VpcAttributes", {}).get("PrivateIpAddress", {}).get("IpAddress", [])
+                    
+                    # 时间处理
+                    created_time = datetime.strptime(inst["CreationTime"], "%Y-%m-%dT%H:%MZ")
+                    expired_time = None
+                    if inst.get("ExpiredTime"):
+                        try:
+                            expired_time = datetime.strptime(inst["ExpiredTime"], "%Y-%m-%dT%H:%MZ")
+                        except:
+                            pass
 
-                r = UnifiedResource(
-                    id=inst["InstanceId"],
-                    name=inst["InstanceName"],
-                    provider=self.provider_name,
-                    region=inst["RegionId"],
-                    zone=inst["ZoneId"],
-                    resource_type=ResourceType.ECS,
-                    status=status_map.get(inst["Status"], ResourceStatus.UNKNOWN),
-                    private_ips=private_ips,
-                    public_ips=public_ips,
-                    vpc_id=inst.get("VpcAttributes", {}).get("VpcId"),
-                    spec=inst["InstanceType"],
-                    cpu=inst["Cpu"],
-                    memory=inst["Memory"],
-                    charge_type=inst["InstanceChargeType"],
-                    created_time=created_time,
-                    expired_time=expired_time,
-                    raw_data=inst
-                )
-                resources.append(r)
+                    r = UnifiedResource(
+                        id=inst["InstanceId"],
+                        name=inst["InstanceName"],
+                        provider=self.provider_name,
+                        region=inst["RegionId"],
+                        zone=inst["ZoneId"],
+                        resource_type=ResourceType.ECS,
+                        status=status_map.get(inst["Status"], ResourceStatus.UNKNOWN),
+                        private_ips=private_ips,
+                        public_ips=public_ips,
+                        vpc_id=inst.get("VpcAttributes", {}).get("VpcId"),
+                        spec=inst["InstanceType"],
+                        cpu=inst["Cpu"],
+                        memory=inst["Memory"],
+                        charge_type=inst["InstanceChargeType"],
+                        created_time=created_time,
+                        expired_time=expired_time,
+                        raw_data=inst
+                    )
+                    resources.append(r)
+                
+                # 检查是否还有更多页
+                if len(resources) >= total_count:
+                    break
+                
+                page_num += 1
                 
         except Exception as e:
             logger.error(f"Failed to list ECS instances: {e}")

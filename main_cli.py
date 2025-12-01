@@ -381,12 +381,29 @@ def query_ecs(account, format, output, status, region, filter_expr, concurrent, 
     elif format == 'csv':
         export_to_csv(all_resources, output)
     else:
-        # Table format
-        click.echo(f"{'ID':<22} {'Name':<30} {'IP':<16} {'Status':<10} {'Region':<12} {'Provider':<8}")
-        click.echo("-" * 100)
+        # Table format using tabulate
+        from tabulate import tabulate
+        
+        if not all_resources:
+            click.echo("No resources found.")
+            return
+        
+        # 准备表格数据
+        table_data = []
         for r in all_resources:
             ip = r.public_ips[0] if r.public_ips else (r.private_ips[0] if r.private_ips else "-")
-            click.echo(f"{r.id:<22} {r.name[:28]:<30} {ip:<16} {r.status.value:<10} {r.region:<12} {r.provider:<8}")
+            table_data.append([
+                r.id,
+                r.name[:35],  # 限制长度
+                ip,
+                r.status.value,
+                r.region,
+                r.provider
+            ])
+        
+        headers = ["ID", "Name", "IP", "Status", "Region", "Provider"]
+        click.echo(tabulate(table_data, headers=headers, tablefmt="grid"))
+        click.echo(f"\n✅ Total: {len(all_resources)} instances")
 
 
 @query.command("rds")
