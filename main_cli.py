@@ -917,13 +917,13 @@ def analyze_security(account):
             for eip in eip_stats['unbound_eips'][:3]:
                 click.echo(f"   • {eip.get('ip_address', 'N/A')} (ID: {eip.get('id', 'N/A')})")
     
-    # === 3. 停止实例检查（显示停止时长）===
+    # === 3. 停止实例检查 ===
     stopped = SecurityComplianceAnalyzer.check_stopped_instances(all_resources)
     click.echo(f"\n⏸️  【长期停止实例】")
     click.echo(f"   Count: {len(stopped)} (仍产生磁盘费用)\n")
     if stopped:
-        stopped_data = [[s['id'], s['name'][:25], s['region'], f"{s['stopped_days']}天" if s['stopped_days'] > 0 else "N/A"] for s in stopped[:10]]
-        click.echo(tabulate(stopped_data, headers=["Instance ID", "Name", "Region", "Stopped"], tablefmt="simple"))
+        stopped_data = [[s['id'], s['name'][:25], s['region'], s['created_time']] for s in stopped[:10]]
+        click.echo(tabulate(stopped_data, headers=["Instance ID", "Name", "Region", "Created"], tablefmt="simple"))
     
     # === 4. 标签覆盖率（显示未打标签的实例）===
     tag_coverage, no_tags = SecurityComplianceAnalyzer.check_missing_tags(all_resources)

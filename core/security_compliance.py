@@ -59,32 +59,18 @@ class SecurityComplianceAnalyzer:
     @staticmethod
     def check_stopped_instances(instances: List[UnifiedResource]) -> List[Dict]:
         """检查长期停止的实例（仍产生磁盘费用）"""
-        from datetime import datetime, timezone
         stopped = []
-        now = datetime.now(timezone.utc)
         
         for inst in instances:
             if inst.status == ResourceStatus.STOPPED:
-                # 计算停止时长
-                stopped_days = 0
-                if inst.created_time:
-                    # 假设没有准确的停止时间，用创建时间估算
-                    # 实际应该从 raw_data 中获取 StoppedTime
-                    try:
-                        if inst.created_time.tzinfo is None:
-                            created = inst.created_time.replace(tzinfo=timezone.utc)
-                        else:
-                            created = inst.created_time
-                        stopped_days = (now - created).days
-                    except:
-                        stopped_days = 0
-                
+                # 注意：阿里云API不直接返回停止时间，无法准确计算停止天数
+                # 只能通过实例的最后修改时间或其他方式间接推断
                 stopped.append({
                     "id": inst.id,
                     "name": inst.name,
                     "region": inst.region,
                     "status": inst.status.value,
-                    "stopped_days": stopped_days
+                    "created_time": inst.created_time.strftime("%Y-%m-%d") if inst.created_time else "N/A"
                 })
         return stopped
     
