@@ -676,6 +676,7 @@ def analyze_idle(days, account):
     """Detect idle resources based on monitoring metrics"""
     from datetime import datetime
     from core.idle_detector import IdleDetector
+    from tabulate import tabulate
     
     cm = ConfigManager()
     accounts = []
@@ -684,12 +685,12 @@ def analyze_idle(days, account):
         if acc: accounts.append(acc)
     else:
         accounts = cm.list_accounts()
-        
-    click.echo(f"🔍 Analyzing idle resources (based on {days} days of metrics)...")
-    click.echo(f"{'Account':<15} {'ID':<22} {'Name':<25} {'Status':<10} {'Idle Reasons':<50}")
-    click.echo("-" * 130)
+    
+    click.echo(f"🔍 Analyzing idle resources (based on {days} days average metrics)...")
+    click.echo(f"📊 Metric period: Last {days} days average\n")
     
     total_idle = 0
+    table_data = []
     
     for acc in accounts:
         provider = get_provider(acc)
@@ -700,8 +701,13 @@ def analyze_idle(days, account):
         try:
             # Only analyze ECS for now
             instances = provider.list_instances()
+            click.echo(f"📦 Found {len(instances)} instances in {acc.name}, analyzing...")
             
-            for inst in instances:
+            for idx, inst in enumerate(instances, 1):
+                # Show progress
+                if idx % 10 == 0 or idx == len(instances):
+                    click.echo(f"   Progress: {idx}/{len(instances)}", err=True)
+                
                 # Fetch metrics
                 metrics = IdleDetector.fetch_ecs_metrics(provider, inst.id, days)
                 
@@ -710,12 +716,48 @@ def analyze_idle(days, account):
                 
                 if is_idle:
                     total_idle += 1
-                    reason_str = "; ".join(reasons[:2])  # Show first 2 reasons
-                    click.echo(f"{acc.name:<15} {inst.id:<22} {inst.name[:23]:<25} {inst.status.value:<10} {reason_str:<50}")
+                    
+                    # Determine which traffic to show
+                    has_public_ip = len(inst.public_ips) > 0
+                    
+                    # Get flow rates
+                    internet_in = metrics.get("公网入流量", 0)
+                    internet_out = metrics.get("公网出流量", 0)
+                    
+                    # Format flow rate display
+                    if has_public_ip:
+                        flow_rate = f"公网: ↓{internet_in:.1f} ↑{internet_out:.1f} KB/s"
+                    else:
+                        # For private network, we don't have intranet metrics yet
+                        flow_rate = "内网 (无监控数据)"
+                    
+                    # Build reason string (exclude flow if already in reasons)
+                    filtered_reasons = [r for r in reasons if "公网流量" not in r]
+                    reason_str = "; ".join(filtered_reasons[:2])  # Show first 2 non-flow reasons
+                    
+                    table_data.append([
+                        acc.name,
+                        inst.id,
+                        inst.name[:25],
+                        inst.status.value,
+                        flow_rate,
+                        reason_str
+                    ])
         except Exception as e:
             click.echo(f"❌ Error analyzing {acc.name}: {e}")
     
-    click.echo(f"\n📊 Total idle resources found: {total_idle}")
+    click.echo("")  # Newline
+    
+    if table_data:
+        headers = ["Account", "Instance ID", "Name", "Status", "Flow Rate", "Idle Reasons"]
+        click.echo(tabulate(table_data, headers=headers, tablefmt="fancy_grid"))
+    else:
+        click.echo("✅ No idle resources found!")
+    
+    click.echo(f"\n📊 Summary:")
+    click.echo(f"  • Total idle resources: {total_idle}")
+    click.echo(f"  • Thresholds: CPU < 5%, Memory < 20%, Flow < 1KB/s")
+    click.echo(f"  • Analysis period: {days} days average")
 
 @analyze.command("cru")
 @click.option("--account", required=True, help="Account to analyze (Aliyun)")
