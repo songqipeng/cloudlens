@@ -47,15 +47,22 @@ class ActionTrailHelper:
             response = client.do_action_with_exception(request)
             result = json.loads(response)
             
+            logger.info(f"ActionTrail query for {instance_id}: found {len(result.get('Events', []))} events")
+            
             # 查找最近的 StopInstance 事件
             events = result.get("Events", [])
             if events and len(events) > 0:
                 # 事件已按时间倒序排列，取第一个
                 event_time = events[0].get("eventTime")
+                event_name = events[0].get("eventName")
+                logger.info(f"Latest event for {instance_id}: {event_name} at {event_time}")
+                
                 if event_time:
                     # 转换时间格式
                     dt = datetime.strptime(event_time, "%Y-%m-%dT%H:%M:%SZ")
                     return dt.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                logger.warning(f"No events found in ActionTrail for {instance_id}")
             
             return None
             
@@ -63,5 +70,5 @@ class ActionTrailHelper:
             logger.warning("ActionTrail SDK not installed")
             return None
         except Exception as e:
-            logger.debug(f"Failed to query ActionTrail for {instance_id}: {e}")
+            logger.error(f"Failed to query ActionTrail for {instance_id}: {e}", exc_info=True)
             return None

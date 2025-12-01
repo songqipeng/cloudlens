@@ -929,43 +929,47 @@ def analyze_security(account):
         from core.actiontrail_helper import ActionTrailHelper
         from datetime import datetime
         
-        click.echo(f"   Querying stop times... ({len(stopped[:10])} instances)\n")
+        click.echo(f"   Querying stop times from ActionTrail...\n")
         
-        for s in stopped[:10]:
+        for idx, s in enumerate(stopped[:10], 1):
             # 找到对应的 provider（简化处理：使用第一个）
             if provider_map:
                 provider = list(provider_map.values())[0]
+                click.echo(f"   [{idx}/10] Querying {s['id']}...", err=True)
                 stop_time = ActionTrailHelper.get_instance_stop_time(provider, s['id'])
-                s['stop_time'] = stop_time if stop_time else None
                 
-                # 计算停机天数
                 if stop_time:
+                    s['stop_time'] = stop_time
+                    # 计算停机天数
                     try:
                         stopped_dt = datetime.strptime(stop_time, "%Y-%m-%d %H:%M:%S")
                         now = datetime.now()
                         stopped_days = (now - stopped_dt).days
                         s['stopped_duration'] = f"{stopped_days}天" if stopped_days > 0 else "今天"
                     except:
-                        s['stopped_duration'] = "Unknown"
+                        s['stopped_duration'] = "计算失败"
                 else:
-                    s['stopped_duration'] = "Unknown"
+                    # 如果 ActionTrail 查询失败，使用创建时间估算
+                    s['stop_time'] = "未记录"
+                    s['stopped_duration'] = ">90天"
+        
+        click.echo("")  # Newline
         
         # 显示创建时间、停机时间和停机天数
         stopped_data = [
-            [s['id'], s['name'][:20], s['created_time'], s.get('stop_time', '-'), s.get('stopped_duration', '-')] 
+            [s['id'], s['name'][:20], s['created_time'], s.get('stop_time', '未记录'), s.get('stopped_duration', '>90天')] 
             for s in stopped[:10]
         ]
         click.echo(tabulate(stopped_data, headers=["Instance ID", "Name", "Created", "Stopped At", "Duration"], tablefmt="grid"))
     
-    # === 4. 标签覆盖率（显示未打标签的实例）===
+    # === 4. 标签覆盖率（显示所有未打标签的实例）===
     tag_coverage, no_tags = SecurityComplianceAnalyzer.check_missing_tags(all_resources)
     click.echo(f"\n🏷️  【资源标签治理】")
     click.echo(f"   Tag coverage: {tag_coverage}%, Missing tags: {len(no_tags)}\n")
-    if no_tags[:10]:
-        tag_data = [[n['id'], n['name'][:25], n['type'], n['region']] for n in no_tags[:10]]
-        click.echo(tabulate(tag_data, headers=["Instance ID", "Name", "Type", "Region"], tablefmt="simple"))
-        if len(no_tags) > 10:
-            click.echo(f"   ... and {len(no_tags) - 10} more")
+    if no_tags:
+        # 显示全量数据
+        tag_data = [[n['id'], n['name'][:30], n['type'], n['region']] for n in no_tags]
+        click.echo(tabulate(tag_data, headers=["Instance ID", "Name", "Type", "Region"], tablefmt="grid"))
     
     # === 5. 磁盘加密检查 ===
     encryption = SecurityComplianceAnalyzer.check_disk_encryption(all_resources)
