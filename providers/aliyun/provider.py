@@ -350,24 +350,22 @@ class AliyunProvider(BaseProvider):
         try:
             from aliyunsdkslb.request.v20140515 import DescribeLoadBalancersRequest
             
-            for region in self.regions:
-                client = self._get_client(region)
-                request = DescribeLoadBalancersRequest.DescribeLoadBalancersRequest()
-                request.set_PageSize(100)
-                
-                response = self._do_request(client, request)
-                
-                for slb in response.get('LoadBalancers', {}).get('LoadBalancer', []):
-                    slbs.append({
-                        "id": slb.get('LoadBalancerId'),
-                        "name": slb.get('LoadBalancerName'),
-                        "address": slb.get('Address'),
-                        "address_type": slb.get('AddressType'),  # internet or intranet
-                        "status": slb.get('LoadBalancerStatus'),
-                        "region": region,
-                        "vpc_id": slb.get('VpcId', ''),
-                        "bandwidth": slb.get('Bandwidth')
-                    })
+            request = DescribeLoadBalancersRequest.DescribeLoadBalancersRequest()
+            request.set_PageSize(100)
+            
+            response = self._do_request(request)
+            
+            for slb in response.get('LoadBalancers', {}).get('LoadBalancer', []):
+                slbs.append({
+                    "id": slb.get('LoadBalancerId'),
+                    "name": slb.get('LoadBalancerName'),
+                    "address": slb.get('Address'),
+                    "address_type": slb.get('AddressType'),  # internet or intranet
+                    "status": slb.get('LoadBalancerStatus'),
+                    "region": self.region,
+                    "vpc_id": slb.get('VpcId', ''),
+                    "bandwidth": slb.get('Bandwidth')
+                })
         except Exception as e:
             logger.error(f"Failed to list SLBs: {e}")
         return slbs
