@@ -7,10 +7,12 @@ class ResourceType(Enum):
     ECS = "ecs"
     RDS = "rds"
     REDIS = "redis"
+    MONGODB = "mongodb"
+    SLB = "slb"
+    NAT = "nat"
     OSS = "oss"
     VPC = "vpc"
     EIP = "eip"
-    SLB = "slb"
     UNKNOWN = "unknown"
 
 class ResourceStatus(Enum):
