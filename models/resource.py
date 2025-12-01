@@ -14,10 +14,12 @@ class ResourceType(Enum):
     UNKNOWN = "unknown"
 
 class ResourceStatus(Enum):
+    """资源状态"""
     RUNNING = "Running"
     STOPPED = "Stopped"
     STARTING = "Starting"
     STOPPING = "Stopping"
+    CHANGING = "Changing"  # 变配中
     DELETED = "Deleted"
     UNKNOWN = "Unknown"
 
