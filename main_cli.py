@@ -686,8 +686,7 @@ def analyze_idle(days, account):
     else:
         accounts = cm.list_accounts()
     
-    click.echo(f"🔍 Analyzing idle resources (based on {days} days average metrics)...")
-    click.echo(f"📊 Metric period: Last {days} days average\n")
+    click.echo(f"🔍 Analyzing idle resources (based on {days} days average metrics)...\n")
     
     total_idle = 0
     table_data = []
@@ -701,7 +700,7 @@ def analyze_idle(days, account):
         try:
             # Only analyze ECS for now
             instances = provider.list_instances()
-            click.echo(f"📦 Found {len(instances)} instances in {acc.name}, analyzing...")
+            click.echo(f"📦 Analyzing {len(instances)} instances in '{acc.name}'...")
             
             for idx, inst in enumerate(instances, 1):
                 # Show progress
@@ -716,31 +715,13 @@ def analyze_idle(days, account):
                 
                 if is_idle:
                     total_idle += 1
-                    
-                    # Determine which traffic to show
-                    has_public_ip = len(inst.public_ips) > 0
-                    
-                    # Get flow rates
-                    internet_in = metrics.get("公网入流量", 0)
-                    internet_out = metrics.get("公网出流量", 0)
-                    
-                    # Format flow rate display
-                    if has_public_ip:
-                        flow_rate = f"公网: ↓{internet_in:.1f} ↑{internet_out:.1f} KB/s"
-                    else:
-                        # For private network, we don't have intranet metrics yet
-                        flow_rate = "内网 (无监控数据)"
-                    
-                    # Build reason string (exclude flow if already in reasons)
-                    filtered_reasons = [r for r in reasons if "公网流量" not in r]
-                    reason_str = "; ".join(filtered_reasons[:2])  # Show first 2 non-flow reasons
+                    reason_str = "; ".join(reasons[:3])  # Show up to 3 reasons
                     
                     table_data.append([
                         acc.name,
                         inst.id,
-                        inst.name[:25],
+                        inst.name[:30],
                         inst.status.value,
-                        flow_rate,
                         reason_str
                     ])
         except Exception as e:
@@ -749,14 +730,14 @@ def analyze_idle(days, account):
     click.echo("")  # Newline
     
     if table_data:
-        headers = ["Account", "Instance ID", "Name", "Status", "Flow Rate", "Idle Reasons"]
+        headers = ["Account", "Instance ID", "Name", "Status", "Idle Reasons"]
         click.echo(tabulate(table_data, headers=headers, tablefmt="fancy_grid"))
     else:
         click.echo("✅ No idle resources found!")
     
     click.echo(f"\n📊 Summary:")
     click.echo(f"  • Total idle resources: {total_idle}")
-    click.echo(f"  • Thresholds: CPU < 5%, Memory < 20%, Flow < 1KB/s")
+    click.echo(f"  • Thresholds: CPU < 5%, Memory < 20%, Network traffic < 1KB/s")
     click.echo(f"  • Analysis period: {days} days average")
 
 @analyze.command("cru")
