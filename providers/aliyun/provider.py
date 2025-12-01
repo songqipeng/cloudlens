@@ -324,22 +324,20 @@ class AliyunProvider(BaseProvider):
         try:
             from aliyunsdkvpc.request.v20160428 import DescribeEipAddressesRequest
             
-            for region in self.regions:
-                client = self._get_client(region)
-                request = DescribeEipAddressesRequest.DescribeEipAddressesRequest()
-                request.set_PageSize(100)
-                
-                response = self._do_request(client, request)
-                
-                for eip in response.get('EipAddresses', {}).get('EipAddress', []):
-                    eips.append({
-                        "id": eip.get('AllocationId'),
-                        "ip_address": eip.get('IpAddress'),
-                        "status": eip.get('Status'),
-                        "instance_id": eip.get('InstanceId', ''),
-                        "bandwidth": eip.get('Bandwidth'),
-                        "region": region
-                    })
+            request = DescribeEipAddressesRequest.DescribeEipAddressesRequest()
+            request.set_PageSize(100)
+            
+            response = self._do_request(request)
+            
+            for eip in response.get('EipAddresses', {}).get('EipAddress', []):
+                eips.append({
+                    "id": eip.get('AllocationId'),
+                    "ip_address": eip.get('IpAddress'),
+                    "status": eip.get('Status'),
+                    "instance_id": eip.get('InstanceId', ''),
+                    "bandwidth": eip.get('Bandwidth'),
+                    "region": self.region
+                })
         except Exception as e:
             logger.error(f"Failed to list EIPs: {e}")
         return eips
