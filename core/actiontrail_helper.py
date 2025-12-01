@@ -46,7 +46,7 @@ class ActionTrailHelper:
             request.add_query_param("LookupAttribute.1.Key", "ResourceName")
             request.add_query_param("LookupAttribute.1.Value", instance_id)
             request.add_query_param("LookupAttribute.2.Key", "EventName")  
-            request.add_query_param("LookupAttribute.2.Value", "StopInstance")
+            request.add_query_param("LookupAttribute.2.Value", "StopInstances")  # 注意是复数！
             
             # 调用 API - 使用 provider 的 _get_client() 方法
             client = provider._get_client()
