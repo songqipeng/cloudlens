@@ -152,7 +152,14 @@ class ConfigManager:
         
         for acc_config in config.get("accounts", []):
             try:
-                secret = keyring.get_password("cloudlens", f"{acc_config['name']}_access_key_secret")
+                secret = None
+                if acc_config.get("use_keyring", True):
+                    secret = keyring.get_password("cloudlens", f"{acc_config['name']}_access_key_secret")
+                
+                # Fallback to config file if not in keyring
+                if not secret:
+                    secret = acc_config.get("access_key_secret")
+
                 if secret:
                     accounts.append(CloudAccount(
                         name=acc_config["name"],

@@ -8,6 +8,8 @@ from aliyunsdkecs.request.v20140526.DescribeInstancesRequest import DescribeInst
 from aliyunsdkrds.request.v20140815.DescribeDBInstancesRequest import DescribeDBInstancesRequest
 from aliyunsdkvpc.request.v20160428.DescribeVpcsRequest import DescribeVpcsRequest
 from aliyunsdkvpc.request.v20160428.DescribeVSwitchesRequest import DescribeVSwitchesRequest
+from aliyunsdksts.request.v20150401 import GetCallerIdentityRequest
+from aliyunsdkram.request.v20150501 import ListPoliciesForUserRequest, ListPoliciesForRoleRequest
 
 from core.provider import BaseProvider
 from core.security import PermissionGuard
@@ -367,7 +369,7 @@ class AliyunProvider(BaseProvider):
             from aliyunsdkvpc.request.v20160428 import DescribeNatGatewaysRequest
             
             request = DescribeNatGatewaysRequest.DescribeNatGatewaysRequest()
-            request.set_PageSize(100)
+            request.set_PageSize(50)  # Max is 50 for NAT Gateways
             
             response = self._do_request(request)
             
@@ -431,81 +433,124 @@ class AliyunProvider(BaseProvider):
         Returns:
             权限分析结果
         """
+        result = {
+            "user_info": {},
+            "permissions": [],
+            "high_risk_permissions": [],
+            "warnings": []
+        }
+        
         try:
-            from aliyunsdkram.request.v20150501 import GetUserRequest, ListPoliciesForUserRequest
-            
-            result = {
-                "user_info": {},
-                "policies": [],
-                "permissions": [],
-                "high_risk_permissions": [],
-                "warnings": []
-            }
-            
-            # 获取当前用户信息
+            # 1. 获取当前身份信息 (STS)
             try:
-                client = self._get_client(self.region)
-                request = GetUserRequest.GetUserRequest()
-                response = self._do_request(client, request)
+                request = GetCallerIdentityRequest.GetCallerIdentityRequest()
+                response = self._do_request(request)
+                
+                arn = response.get("Arn")
+                user_id = response.get("UserId")
+                account_id = response.get("AccountId")
+                
                 result["user_info"] = {
-                    "user_name": response.get("User", {}).get("UserName"),
-                    "user_id": response.get("User", {}).get("UserId"),
-                    "create_date": response.get("User", {}).get("CreateDate")
+                    "arn": arn,
+                    "user_id": user_id,
+                    "account_id": account_id
                 }
+                
+                # 解析身份类型
+                identity_type = "unknown"
+                identity_name = ""
+                
+                if ":user/" in arn:
+                    identity_type = "user"
+                    identity_name = arn.split(":user/")[-1]
+                elif ":role/" in arn:
+                    identity_type = "role"
+                    identity_name = arn.split(":role/")[-1]
+                elif ":root" in arn:
+                    identity_type = "root"
+                    identity_name = "root"
+                
+                result["user_info"]["type"] = identity_type
+                result["user_info"]["name"] = identity_name
+                
             except Exception as e:
-                # 可能是使用AccessKey直接调用，无法获取用户信息
-                result["warnings"].append(f"无法获取用户信息: {str(e)}")
-                result["user_info"]["note"] = "使用AccessKey直接调用"
-            
-            # 分析权限（通过尝试调用只读API）
-            read_only_apis = [
-                ("ecs:DescribeInstances", "ECS实例查询"),
-                ("rds:DescribeDBInstances", "RDS实例查询"),
-                ("vpc:DescribeVpcs", "VPC查询"),
-                ("slb:DescribeLoadBalancers", "SLB查询"),
-            ]
-            
-            dangerous_apis = [
-                "ecs:DeleteInstance",
-                "rds:DeleteDBInstance", 
-                "ecs:ModifyInstanceAttribute",
-                "rds:ModifyDBInstanceSpec",
-                "ram:CreateUser",
-                "ram:AttachPolicyToUser"
-            ]
-            
-            # 检查只读权限
-            for api, desc in read_only_apis:
-                result["permissions"].append({
-                    "api": api,
-                    "description": desc,
-                    "has_permission": True,  # 简化：假设有权限
-                    "risk_level": "LOW"
-                })
-            
-            # 检查高危权限（通过policy名称推断）
-            # 注：完整实现需要调用GetPolicy API解析Policy JSON
-            common_dangerous_policies = [
+                result["warnings"].append(f"无法获取身份信息 (STS): {str(e)}")
+                # 如果无法获取身份，后续无法查询策略
+                return result
+
+            # 2. 获取策略列表 (RAM)
+            policies = []
+            try:
+                if identity_type == "user":
+                    request = ListPoliciesForUserRequest.ListPoliciesForUserRequest()
+                    request.set_UserName(identity_name)
+                    response = self._do_request(request)
+                    policies = response.get("Policies", {}).get("Policy", [])
+                elif identity_type == "role":
+                    request = ListPoliciesForRoleRequest.ListPoliciesForRoleRequest()
+                    request.set_RoleName(identity_name)
+                    response = self._do_request(request)
+                    policies = response.get("Policies", {}).get("Policy", [])
+                elif identity_type == "root":
+                    result["warnings"].append("当前使用的是主账号(Root)，拥有所有权限！建议创建RAM用户。")
+                    result["high_risk_permissions"].append({
+                        "policy": "RootAccount",
+                        "risk_level": "CRITICAL",
+                        "description": "主账号拥有最高权限",
+                        "recommendation": "请立即停止使用主账号AK，创建RAM用户并分配最小权限"
+                    })
+            except Exception as e:
+                result["warnings"].append(f"无法获取策略列表: {str(e)}")
+
+            # 3. 分析策略
+            dangerous_policies = [
                 "AdministratorAccess",
                 "AliyunECSFullAccess",
                 "AliyunRDSFullAccess",
-                "AliyunRAMFullAccess"
+                "AliyunRAMFullAccess",
+                "AliyunVPCFullAccess"
             ]
             
-            for policy in common_dangerous_policies:
-                result["high_risk_permissions"].append({
-                    "policy": policy,
-                    "risk_level": "HIGH",
-                    "description": "该策略包含写入/删除权限",
-                    "recommendation": "建议使用只读策略如 AliyunECSReadOnlyAccess"
+            for policy in policies:
+                policy_name = policy.get("PolicyName")
+                policy_type = policy.get("PolicyType") # System or Custom
+                
+                # 记录所有策略
+                result["permissions"].append({
+                    "api": policy_name,
+                    "description": f"{policy_type} Policy",
+                    "risk_level": "INFO"
                 })
+                
+                # 检查高危策略
+                if policy_name in dangerous_policies:
+                    result["high_risk_permissions"].append({
+                        "policy": policy_name,
+                        "risk_level": "HIGH",
+                        "description": "该策略包含完全管理权限",
+                        "recommendation": "建议替换为ReadOnlyAccess策略"
+                    })
+                elif "FullAccess" in policy_name:
+                    result["high_risk_permissions"].append({
+                        "policy": policy_name,
+                        "risk_level": "MEDIUM",
+                        "description": "该策略可能包含敏感操作权限",
+                        "recommendation": "请审查是否需要所有权限"
+                    })
+
+            # 4. 验证只读API (作为兜底验证)
+            read_only_apis = [
+                ("ecs:DescribeInstances", "ECS实例查询"),
+                ("rds:DescribeDBInstances", "RDS实例查询"),
+            ]
             
-            return result
-            
+            for api, desc in read_only_apis:
+                # 这里只是简单的记录，实际上如果上面获取策略成功，这里可以省略
+                # 或者可以尝试真实调用一下来验证
+                pass
+
         except Exception as e:
             logger.error(f"Failed to check permissions: {e}")
-            return {
-                "error": str(e),
-                "permissions": [],
-                "high_risk_permissions": []
-            }
+            result["error"] = str(e)
+            
+        return result

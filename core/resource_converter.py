@@ -7,19 +7,19 @@ from typing import Dict, List
 def slb_to_unified_resource(slb: Dict, provider_name: str) -> UnifiedResource:
     """Convert SLB dict to UnifiedResource"""
     # 公网SLB才添加 public_ips
-    public_ips = [slb['address']] if slb.get('address_type') == 'internet' else []
-    private_ips = [slb['address']] if slb.get('address_type') == 'intranet' else []
+    public_ips = [slb['Address']] if slb.get('AddressType') == 'internet' else []
+    private_ips = [slb['Address']] if slb.get('AddressType') == 'intranet' else []
     
     return UnifiedResource(
-        id=slb['id'],
-        name=slb.get('name', slb['id']),
+        id=slb['LoadBalancerId'],
+        name=slb.get('LoadBalancerName', slb['LoadBalancerId']),
         provider=provider_name,
-        region=slb.get('region', ''),
+        region=slb.get('RegionId', ''),
         resource_type=ResourceType.SLB,
-        status=ResourceStatus.RUNNING if slb.get('status') == 'active' else ResourceStatus.UNKNOWN,
+        status=ResourceStatus.RUNNING if slb.get('LoadBalancerStatus') == 'active' else ResourceStatus.UNKNOWN,
         public_ips=public_ips,
         private_ips=private_ips,
-        vpc_id=slb.get('vpc_id'),
+        vpc_id=slb.get('VpcId'),
         raw_data=slb
     )
 

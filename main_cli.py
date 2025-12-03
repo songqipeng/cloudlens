@@ -56,10 +56,10 @@ def list_accounts():
         click.echo("暂无配置账号。")
         return
         
-    click.echo(f"{'Name':<15} {'Provider':<10} {'Region':<15} {'Keyring':<10}")
-    click.echo("-" * 50)
+    click.echo(f"{'Name':<15} {'Provider':<10} {'Region':<15}")
+    click.echo("-" * 40)
     for acc in accounts:
-        click.echo(f"{acc.name:<15} {acc.provider:<10} {acc.region:<15} {str(acc.use_keyring):<10}")
+        click.echo(f"{acc.name:<15} {acc.provider:<10} {acc.region:<15}")
 
 @config.command("add")
 @click.option("--provider", prompt=True, type=click.Choice(['aliyun', 'tencent', 'aws', 'volcano']))
@@ -557,27 +557,17 @@ def query_slb(account, format, output):
             click.echo(f"❌ Failed to query {acc.name}: {e}")
     
     if format == 'json':
-        import json
-        json_str = json.dumps(all_slbs, indent=2, ensure_ascii=False)
-        if output:
-            with open(output, 'w') as f:
-                f.write(json_str)
-            click.echo(f"✅ Exported to {output}")
-        else:
-            click.echo(json_str)
+        export_to_json(all_slbs, output)
     elif format == 'csv':
-        import csv
-        if output:
-            with open(output, 'w') as f:
-                writer = csv.DictWriter(f, fieldnames=['id', 'name', 'address', 'status', 'region'])
-                writer.writeheader()
-                writer.writerows(all_slbs)
-            click.echo(f"✅ Exported to {output}")
+        export_to_csv(all_slbs, output)
     else:
         click.echo(f"{'ID':<25} {'Name':<30} {'Address':<16} {'Type':<12} {'Status':<12} {'Region':<12}")
         click.echo("-" * 115)
         for slb in all_slbs:
-            click.echo(f"{slb['id']:<25} {slb.get('name', '')[:28]:<30} {slb.get('address', ''):<16} {slb.get('address_type', ''):<12} {slb.get('status', ''):<12} {slb['region']:<12}")
+            address = slb.raw_data.get('Address', '')
+            address_type = slb.raw_data.get('AddressType', '')
+            status_val = slb.status.value if hasattr(slb.status, 'value') else str(slb.status)
+            click.echo(f"{slb.id:<25} {slb.name[:28]:<30} {address:<16} {address_type:<12} {status_val:<12} {slb.region:<12}")
 
 @query.command("nas")
 @click.option("--account", help="Specific account to query")
@@ -930,71 +920,79 @@ def analyze_security(account):
         table_data = [[e['id'], e['name'][:30], e['type'], ', '.join(e['public_ips']), e['risk_level']] for e in exposed]
         click.echo(tabulate(table_data, headers=["Instance ID", "Name", "Type", "Public IPs", "Risk"], tablefmt="grid"))
         
-        # === 1.1 公网IP基础安全扫描 ===
+        # === 1.1 公网IP基础安全扫描 (展示缓存结果) ===
         click.echo(f"\n🛡️  【公网IP安全扫描】")
-        click.echo("   Scanning exposed public IPs for open ports and SSL certificates...")
         
         from core.security_scanner import PublicIPScanner
+        last_scan = PublicIPScanner.load_last_results()
         
-        scan_results = []
-        # 收集所有需要扫描的IP
-        ips_to_scan = []
-        for e in exposed:
-            for ip in e['public_ips']:
-                ips_to_scan.append({"ip": ip, "id": e['id'], "type": e['type']})
-        
-        # 限制扫描数量，避免太慢
-        if len(ips_to_scan) > 20:
-            click.echo(f"   ⚠️ Too many IPs ({len(ips_to_scan)}), scanning first 20 only...")
-            ips_to_scan = ips_to_scan[:20]
+        if last_scan:
+            scan_time = last_scan.get('scan_time', 'Unknown')
+            results = last_scan.get('results', [])
+            summary = last_scan.get('summary', {})
             
-        with click.progressbar(ips_to_scan, label="   Scanning") as bar:
-            for target in bar:
-                result = PublicIPScanner.scan_ip(target['ip'])
-                result['resource_id'] = target['id']
-                result['resource_type'] = target['type']
-                scan_results.append(result)
-        
-        click.echo("")
-        
-        # 显示扫描结果
-        scan_table = []
-        for res in scan_results:
-            open_ports = [str(p['port']) for p in res['open_ports']]
-            high_risk = [str(p) for p in res['high_risk_ports']]
+            # 过滤出当前暴露资源的扫描结果（如果IP还在）
+            current_ips = set()
+            for e in exposed:
+                for ip in e['public_ips']:
+                    current_ips.add(ip)
             
-            ports_str = ", ".join(open_ports) if open_ports else "None"
-            if high_risk:
-                ports_str += f" (High Risk: {', '.join(high_risk)})"
+            relevant_results = [r for r in results if r['ip'] in current_ips]
             
-            ssl_status = "N/A"
-            if res.get('ssl_info'):
-                days = res['ssl_info'].get('days_to_expiry')
-                if days is not None:
-                    ssl_status = f"Valid ({days} days left)"
-                else:
-                    ssl_status = "Invalid"
-            elif 443 in [p['port'] for p in res['open_ports']]:
-                ssl_status = "Missing/Error"
+            click.echo(f"   Last scan: {scan_time}")
+            click.echo(f"   Scanned IPs: {summary.get('total_scanned', 0)}, High Risk: {summary.get('high_risk_count', 0)}")
+            
+            if relevant_results:
+                scan_table = []
+                for res in relevant_results:
+                    open_ports = [str(p['port']) for p in res['open_ports']]
+                    high_risk = [str(p) for p in res['high_risk_ports']]
+                    cve_findings = res.get('cve_findings', [])
+                    
+                    ports_str = ", ".join(open_ports) if open_ports else "None"
+                    if high_risk:
+                        ports_str += f" (High Risk: {', '.join(high_risk)})"
+                    
+                    # Format CVEs
+                    cve_str = "None"
+                    if cve_findings:
+                        cve_list = [f"{c['cve_id']}" for c in cve_findings]
+                        cve_str = ", ".join(cve_list)
+                    
+                    ssl_status = "N/A"
+                    if res.get('ssl_info'):
+                        days = res['ssl_info'].get('days_to_expiry')
+                        if days is not None:
+                            ssl_status = f"Valid ({days} days left)"
+                        else:
+                            ssl_status = "Invalid"
+                    
+                    scan_table.append([
+                        res['ip'],
+                        f"{res['resource_type']}/{res['resource_id']}",
+                        ports_str,
+                        cve_str,
+                        ssl_status,
+                        res['risk_level']
+                    ])
                 
-            scan_table.append([
-                res['ip'],
-                f"{res['resource_type']}/{res['resource_id']}",
-                ports_str,
-                ssl_status,
-                res['risk_level']
-            ])
+                click.echo(tabulate(scan_table, headers=["IP Address", "Resource", "Open Ports", "CVEs", "SSL Status", "Risk"], tablefmt="grid"))
+                
+                # 显示高危建议 (包括CVE)
+                high_risk_results = [r for r in relevant_results if r['risk_level'] in ['HIGH', 'CRITICAL']]
+                if high_risk_results:
+                    click.echo("\n   💡 Security Recommendations (from last scan):")
+                    for res in high_risk_results:
+                        recs = PublicIPScanner.generate_recommendations(res)
+                        click.echo(f"   • {res['ip']} ({res['resource_type']}):")
+                        for rec in recs:
+                            click.echo(f"     {rec}")
+            else:
+                click.echo("   ⚠️ No matching scan results for current public IPs.")
+        else:
+            click.echo("   ℹ️  No scan results found.")
             
-        click.echo(tabulate(scan_table, headers=["IP Address", "Resource", "Open Ports", "SSL Status", "Risk"], tablefmt="grid"))
-        
-        # 显示建议
-        click.echo("\n   💡 Security Recommendations:")
-        for res in scan_results:
-            if res['risk_level'] in ['HIGH', 'CRITICAL']:
-                recs = PublicIPScanner.generate_recommendations(res)
-                click.echo(f"   • {res['ip']} ({res['resource_type']}):")
-                for rec in recs:
-                    click.echo(f"     {rec}")
+        click.echo("\n   👉 Run 'cl scan security' to perform a deep port & SSL scan.")
         click.echo("")
     
     # === 2. EIP 使用分析 ===
@@ -1513,10 +1511,144 @@ AnalyzerRegistry.load_plugins()
 # Run registration
 register_dynamic_commands()
 
+@cli.group()
+def scan():
+    """Execute deep scans (security, etc.)"""
+    pass
+
+@scan.command(name="security")
+@click.option('--account', '-a', help='Specify cloud account name')
+@click.option('--region', '-r', help='Specify region')
+def scan_security_cmd(account, region):
+    """Run deep security scan on public IPs (Ports, SSL)"""
+    from core.config import ConfigManager
+    from core.security_compliance import SecurityComplianceAnalyzer
+    from core.security_scanner import PublicIPScanner
+    from tabulate import tabulate
+
+    cm = ConfigManager()
+    accounts = resolve_account_name(cm, account)
+    
+    if not accounts:
+        return
+    
+    click.echo("🛡️  Starting deep security scan...")
+    
+    all_resources = []
+    for acc in accounts:
+        provider = get_provider(acc)
+        if not provider:
+            continue
+        
+        try:
+            click.echo(f"   Fetching resources from {acc.name}...")
+            # Fetch all potentially public resources
+            all_resources.extend(provider.list_instances())
+            all_resources.extend(provider.list_rds())
+            all_resources.extend(provider.list_redis())
+            all_resources.extend(provider.list_slb())
+            all_resources.extend(provider.list_nat_gateways())
+            all_resources.extend(provider.list_mongodb())
+        except Exception as e:
+            click.echo(f"❌ Error fetching resources from {acc.name}: {e}")
+
+    # Detect public exposure
+    exposed = SecurityComplianceAnalyzer.detect_public_exposure(all_resources)
+    
+    if not exposed:
+        click.echo("✅ No public resources found to scan.")
+        return
+
+    click.echo(f"   Found {len(exposed)} public resources. Starting port & SSL scan...")
+    
+    scan_results = []
+    ips_to_scan = []
+    for e in exposed:
+        for ip in e['public_ips']:
+            ips_to_scan.append({"ip": ip, "id": e['id'], "type": e['type']})
+    
+    with click.progressbar(ips_to_scan, label="   Scanning") as bar:
+        for target in bar:
+            result = PublicIPScanner.scan_ip(target['ip'])
+            result['resource_id'] = target['id']
+            result['resource_type'] = target['type']
+            scan_results.append(result)
+    
+    # Save results
+    PublicIPScanner.save_results(scan_results)
+    
+    # Display results
+    click.echo("\n📊 Scan Results:")
+    scan_table = []
+    for res in scan_results:
+        open_ports = [str(p['port']) for p in res['open_ports']]
+        high_risk = [str(p) for p in res['high_risk_ports']]
+        cve_findings = res.get('cve_findings', [])
+        
+        ports_str = ", ".join(open_ports) if open_ports else "None"
+        if high_risk:
+            ports_str += f" (High Risk: {', '.join(high_risk)})"
+        
+        # Format CVEs
+        cve_str = "None"
+        if cve_findings:
+            cve_list = [f"{c['cve_id']} ({c['product']} {c['version']})" for c in cve_findings]
+            cve_str = "\n".join(cve_list)
+        
+        ssl_status = "N/A"
+        if res.get('ssl_info'):
+            days = res['ssl_info'].get('days_to_expiry')
+            if days is not None:
+                ssl_status = f"Valid ({days} days left)"
+            else:
+                ssl_status = "Invalid"
+        elif 443 in [p['port'] for p in res['open_ports']]:
+            ssl_status = "Missing/Error"
+            
+        scan_table.append([
+            res['ip'],
+            f"{res['resource_type']}/{res['resource_id']}",
+            ports_str,
+            cve_str,
+            ssl_status,
+            res['risk_level']
+        ])
+        
+    click.echo(tabulate(scan_table, headers=["IP Address", "Resource", "Open Ports", "CVEs", "SSL Status", "Risk"], tablefmt="grid"))
+    
+    # Display detailed CVE info
+    cve_found = False
+    for res in scan_results:
+        if res.get('cve_findings'):
+            cve_found = True
+            break
+            
+    if cve_found:
+        click.echo("\n🚨 CVE Details:")
+        for res in scan_results:
+            if res.get('cve_findings'):
+                click.echo(f"   • {res['ip']}:")
+                for cve in res['cve_findings']:
+                    click.echo(f"     - [{cve['severity']}] {cve['cve_id']}: {cve['description']}")
+                    click.echo(f"       Affected: {cve['product']} {cve['version']} on port {cve['port']}")
+    
+    click.echo(f"\n✅ Scan complete. Results saved.")
+    click.echo("Run 'cl analyze security' to see the summary in the analysis report.")
+
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) == 1:
-        # No arguments provided, start REPL
+    import os
+    
+    # Check if running in completion mode
+    # Click uses _{PROG_NAME}_COMPLETE environment variable
+    is_completion = False
+    for key in os.environ:
+        if key.endswith('_COMPLETE'):
+            is_completion = True
+            break
+            
+    if len(sys.argv) == 1 and not is_completion:
+        # No arguments provided and not generating completion, start REPL
         try:
             from core.repl import CloudLensREPL
             repl = CloudLensREPL()
