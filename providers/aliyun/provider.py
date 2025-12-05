@@ -208,7 +208,7 @@ class AliyunProvider(BaseProvider):
             logger.error(f"Failed to list VPCs: {e}")
         return vpcs
 
-    def get_metric(self, resource_id: str, metric_name: str, start_time: int, end_time: int) -> List[Dict]:
+    def get_metric(self, resource_id: str, metric_name: str, start_time: int, end_time: int, namespace: str = "acs_ecs_dashboard", dimensions: str = None) -> List[Dict]:
         """获取CloudMonitor监控指标"""
         from aliyunsdkcore.request import CommonRequest
         import time
@@ -220,14 +220,21 @@ class AliyunProvider(BaseProvider):
             request.set_method("POST")
             request.set_version("2019-01-01")
             request.set_action_name("DescribeMetricData")
-            request.add_query_param("Namespace", "acs_ecs_dashboard")
+            request.add_query_param("Namespace", namespace)
             request.add_query_param("MetricName", metric_name)
             request.add_query_param("StartTime", start_time)
             request.add_query_param("EndTime", end_time)
             request.add_query_param("Period", "86400")  # 1 day
-            request.add_query_param("Dimensions", f'[{{"instanceId":"{resource_id}"}}]')
+            
+            if dimensions:
+                request.add_query_param("Dimensions", dimensions)
+            else:
+                request.add_query_param("Dimensions", f'[{{"instanceId":"{resource_id}"}}]')
             
             response = self._do_request(request)
+            
+            # Debug logging
+            # print(f"DEBUG: {metric_name} response: {response}")
             
             if "Datapoints" in response and response["Datapoints"]:
                 if isinstance(response["Datapoints"], str):
@@ -329,18 +336,31 @@ class AliyunProvider(BaseProvider):
             
             request = DescribeEipAddressesRequest.DescribeEipAddressesRequest()
             request.set_PageSize(100)
+            page_number = 1
             
-            response = self._do_request(request)
-            
-            for eip in response.get('EipAddresses', {}).get('EipAddress', []):
-                eips.append({
-                    "id": eip.get('AllocationId'),
-                    "ip_address": eip.get('IpAddress'),
-                    "status": eip.get('Status'),
-                    "instance_id": eip.get('InstanceId', ''),
-                    "bandwidth": eip.get('Bandwidth'),
-                    "region": self.region
-                })
+            while True:
+                request.set_PageNumber(page_number)
+                response = self._do_request(request)
+                
+                batch = response.get('EipAddresses', {}).get('EipAddress', [])
+                if not batch:
+                    break
+                    
+                for eip in batch:
+                    eips.append({
+                        "id": eip.get('AllocationId'),
+                        "ip_address": eip.get('IpAddress'),
+                        "status": eip.get('Status'),
+                        "instance_id": eip.get('InstanceId', ''),
+                        "bandwidth": eip.get('Bandwidth'),
+                        "region": self.region
+                    })
+                
+                total_count = response.get('TotalCount', 0)
+                if len(eips) >= total_count:
+                    break
+                    
+                page_number += 1
         except Exception as e:
             logger.error(f"Failed to list EIPs: {e}")
         return eips

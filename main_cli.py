@@ -274,6 +274,46 @@ def export_to_csv(data: List, output_file: str = None):
     else:
         click.echo(csv_str)
 
+def export_to_excel(data: List, output_file: str = None):
+    """导出为Excel格式"""
+    import pandas as pd
+    
+    if not data:
+        click.echo("No data to export")
+        return
+        
+    # 转换为字典列表
+    data_list = []
+    for item in data:
+        if hasattr(item, '__dict__'):
+            # 处理UnifiedResource对象
+            item_dict = {
+                'ID': item.id,
+                'Name': item.name,
+                'Provider': item.provider,
+                'Region': item.region,
+                'Status': item.status.value if hasattr(item.status, 'value') else str(item.status),
+                'Type': item.resource_type.value if hasattr(item.resource_type, 'value') else str(item.resource_type),
+                'Spec': getattr(item, 'spec', ''),
+                'ChargeType': getattr(item, 'charge_type', ''),
+                'PublicIPs': ", ".join(item.public_ips) if hasattr(item, 'public_ips') and item.public_ips else '',
+                'PrivateIPs': ", ".join(item.private_ips) if hasattr(item, 'private_ips') and item.private_ips else '',
+                'VpcID': getattr(item, 'vpc_id', ''),
+                'CreatedTime': getattr(item, 'created_time', ''),
+                'ExpiredTime': getattr(item, 'expired_time', '')
+            }
+            data_list.append(item_dict)
+        else:
+            data_list.append(item)
+            
+    df = pd.DataFrame(data_list)
+    
+    if output_file:
+        df.to_excel(output_file, index=False)
+        click.echo(f"✅ Exported to {output_file}")
+    else:
+        click.echo("❌ Output file path is required for Excel export")
+
 
 @query.command("ecs")
 @click.argument('account', required=False)
@@ -408,29 +448,40 @@ def query_ecs(account, format, output, status, region, filter_expr, concurrent, 
 
 @query.command("rds")
 @click.option("--account", help="Specific account to query")
-def query_rds(account):
+@click.option("--format", type=click.Choice(['table', 'json', 'csv', 'excel']), default='table', help="Output format")
+@click.option("--output", help="Output file path")
+def query_rds(account, format, output):
     """List RDS instances"""
     cm = ConfigManager()
-    accounts = []
-    if account:
-        acc = cm.get_account(account)
-        if acc: accounts.append(acc)
-    else:
-        accounts = cm.list_accounts()
-        
-    click.echo(f"{'ID':<20} {'Name':<30} {'Engine':<10} {'Status':<10} {'Region':<12}")
-    click.echo("-" * 90)
+    accounts = resolve_account_name(cm, account)
     
+    if not accounts:
+        return
+        
+    all_resources = []
+    
+    # 收集所有资源
     for acc in accounts:
         provider = get_provider(acc)
         if not provider: continue
         try:
             resources = provider.list_rds()
-            for r in resources:
-                engine = r.raw_data.get("Engine", "-")
-                click.echo(f"{r.id:<20} {r.name[:28]:<30} {engine:<10} {r.status.value:<10} {r.region:<12}")
+            all_resources.extend(resources)
         except Exception as e:
-            click.echo(f"❌ Error: {e}")
+            click.echo(f"❌ Error fetching RDS from {acc.name}: {e}")
+
+    if format == 'json':
+        export_to_json(all_resources, output)
+    elif format == 'csv':
+        export_to_csv(all_resources, output)
+    elif format == 'excel':
+        export_to_excel(all_resources, output)
+    else:
+        click.echo(f"{'ID':<20} {'Name':<30} {'Engine':<10} {'Status':<10} {'Region':<12}")
+        click.echo("-" * 90)
+        for r in all_resources:
+            engine = r.raw_data.get("Engine", "-")
+            click.echo(f"{r.id:<20} {r.name[:28]:<30} {engine:<10} {r.status.value:<10} {r.region:<12}")
 
 @query.command("vpc")
 @click.option("--account", help="Specific account to query")
