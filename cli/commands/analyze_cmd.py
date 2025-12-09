@@ -470,7 +470,6 @@ def analyze_tags(account):
 @handle_exceptions
 def analyze_security(account, cis):
     """安全合规 - 检查公网暴露、安全组、CIS Benchmark等"""
-    from core.security_scanner import SecurityScanner
     from core.cis_compliance import CISBenchmark
     from providers.aliyun.provider import AliyunProvider
     from rich.table import Table
