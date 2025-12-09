@@ -468,13 +468,16 @@ def analyze_tags(account):
 @analyze.command("security")
 @click.option("--account", "-a", help="账号名称")
 @click.option("--cis", is_flag=True, help="执行CIS Benchmark合规检查")
+@click.option("--export", is_flag=True, help="导出HTML详细报告")
 @handle_exceptions
-def analyze_security(account, cis):
+def analyze_security(account, cis, export):
     """安全合规 - 检查公网暴露、安全组、CIS Benchmark等"""
     from core.cis_compliance import CISBenchmark
     from providers.aliyun.provider import AliyunProvider
     from rich.table import Table
     from rich.panel import Panel
+    import os
+    from datetime import datetime
 
     console.print("[cyan]🔒 扫描安全风险...[/cyan]\n")
 
@@ -713,7 +716,130 @@ def analyze_security(account, cis):
         if high_count > 0:
             console.print(f"[bold yellow]🟡 重要 ({high_count}项):[/bold yellow] 7天内处理HIGH级别问题")
         
-        console.print(f"\n[dim]💾 完整报告已保存,运行 'cl analyze security --export' 可导出详细报告[/dim]")
+        if export:
+            # 导出HTML报告
+            report_dir = os.path.expanduser("~/cloudlens_reports")
+            os.makedirs(report_dir, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"security_report_{account}_{timestamp}.html"
+            filepath = os.path.join(report_dir, filename)
+            
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>CloudLens 安全合规报告 - {account}</title>
+                    <meta charset="utf-8">
+                    <style>
+                        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333; max-width: 1200px; margin: 0 auto; padding: 20px; }}
+                        h1 {{ color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }}
+                        h2 {{ color: #34495e; margin-top: 30px; }}
+                        .score-card {{ background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid {score_color}; }}
+                        .score {{ font-size: 24px; font-weight: bold; color: {score_color}; }}
+                        .stats {{ display: flex; gap: 20px; margin-top: 10px; }}
+                        .stat-item {{ background: white; padding: 10px 20px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+                        table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+                        th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }}
+                        th {{ background-color: #f8f9fa; }}
+                        .status-pass {{ color: green; font-weight: bold; }}
+                        .status-fail {{ color: red; font-weight: bold; }}
+                        .severity-CRITICAL {{ color: red; font-weight: bold; }}
+                        .severity-HIGH {{ color: #d35400; font-weight: bold; }}
+                        .severity-MEDIUM {{ color: #f39c12; }}
+                        .severity-LOW {{ color: #27ae60; }}
+                        .pass-section {{ margin-top: 30px; }}
+                        .fail-section {{ margin-top: 30px; }}
+                        .check-item {{ margin-bottom: 15px; border: 1px solid #eee; padding: 15px; border-radius: 4px; }}
+                        .check-pass {{ border-left: 4px solid green; }}
+                        .check-fail {{ border-left: 4px solid red; }}
+                        .remediation {{ background: #fcf8e3; padding: 10px; margin-top: 10px; border-radius: 4px; }}
+                        pre {{ background: #f8f9fa; padding: 10px; overflow-x: auto; }}
+                    </style>
+                </head>
+                <body>
+                    <h1>🛡️ CloudLens 安全合规报告</h1>
+                    <div class="score-card">
+                        <div class="score">合规评分: {score}%</div>
+                        <div class="stats">
+                            <div class="stat-item">✅ 通过: {results['passed']}</div>
+                            <div class="stat-item">❌ 失败: {results['failed']}</div>
+                            <div class="stat-item">📊 总计: {results['total_checks']}</div>
+                            <div class="stat-item">🕒 生成时间: {timestamp}</div>
+                        </div>
+                    </div>
+
+                    <h2>📈 各类别合规情况</h2>
+                    <table>
+                        <thead><tr><th>类别</th><th>说明</th><th>合规率</th><th>通过/总数</th><th>状态</th></tr></thead>
+                        <tbody>
+                """)
+                
+                # 分类统计行
+                for category, stats in results["summary"].items():
+                    rate = stats.get("compliance_rate", 0)
+                    status_class = "status-pass" if rate >= 80 else "status-fail"
+                    f.write(f"""
+                        <tr>
+                            <td>{category}</td>
+                            <td>{category_desc.get(category, "")}</td>
+                            <td class="{status_class}">{rate:.1f}%</td>
+                            <td>{stats['passed']}/{stats['total']}</td>
+                            <td class="{status_class}">{'✓' if rate >= 80 else '⚠' if rate >= 60 else '✗'}</td>
+                        </tr>
+                    """)
+                
+                f.write("""
+                        </tbody>
+                    </table>
+
+                    <h2 style="color: red;">❌ 未通过检查项 (建议优先修复)</h2>
+                """)
+                
+                # 失败的检查项
+                for check in failed_checks:
+                    f.write(f"""
+                    <div class="check-item check-fail">
+                        <h3 class="severity-{check['severity']}">
+                             [{check['severity']}] {check['id']} {check['title']}
+                        </h3>
+                        <p><strong>类别:</strong> {category_desc.get(check['category'], check['category'])}</p>
+                        <p><strong>原因:</strong> {check['details']}</p>
+                        <div class="remediation">
+                            <strong>🔧 修复建议:</strong>
+                            <pre>{check.get('remediation', '无修复建议')}</pre>
+                        </div>
+                    </div>
+                    """)
+                
+                f.write("""
+                    <h2 style="color: green;">✅ 通过检查项</h2>
+                """)
+                
+                # 通过的检查项
+                for check in passed_checks:
+                    f.write(f"""
+                    <div class="check-item check-pass">
+                        <div>
+                            <span class="severity-{check['severity']}">[{check['severity']}]</span>
+                            <strong>{check['id']} {check['title']}</strong>
+                        </div>
+                        <div style="color: #666; margin-top: 5px;">└─ {check['details']}</div>
+                    </div>
+                    """)
+                
+                f.write("""
+                </body>
+                </html>
+                """)
+            
+            console.print(f"\n[bold green]✓ 详细报告已导出:[/bold green] {filepath}")
+            # 尝试自动打开
+            if os.name == 'posix':
+                os.system(f"open '{filepath}'")
+        else:
+            console.print(f"\n[dim]💾 完整报告已保存,运行 'cl analyze security --export' 可导出详细报告[/dim]")
+        
         console.print("[dim]📅 建议每月运行一次安全检查,持续改进安全态势[/dim]")
 
     console.print("\n[bold]💡 建议: 定期运行安全检查,及时发现并修复安全隐患[/bold]")
