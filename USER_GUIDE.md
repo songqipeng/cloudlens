@@ -36,14 +36,14 @@ pip install -r requirements.txt
 pip install prophet
 
 # 验证安装
-python3 cl_new.py --version
+./cl --version
 ```
 
 ### 第一次使用
 
 ```bash
 # 1. 添加云账号
-python3 cl_new.py config add \
+./cl config add \
   --provider aliyun \
   --name prod \
   --region cn-hangzhou \
@@ -51,10 +51,10 @@ python3 cl_new.py config add \
   --sk YOUR_SECRET_KEY
 
 # 2. 查询资源
-python3 cl_new.py query ecs --account prod
+./cl query ecs --account prod
 
 # 3. 分析闲置资源
-python3 cl_new.py analyze idle --account prod
+./cl analyze idle --account prod
 ```
 
 ---
@@ -65,10 +65,10 @@ python3 cl_new.py analyze idle --account prod
 
 ```bash
 # 交互式添加
-python3 cl_new.py config add
+./cl config add
 
 # 命令行参数
-python3 cl_new.py config add \
+./cl config add \
   --provider aliyun \
   --name staging \
   --region cn-beijing \
@@ -80,16 +80,16 @@ python3 cl_new.py config add \
 
 ```bash
 # 列出所有账号
-python3 cl_new.py config list
+./cl config list
 
 # 查看特定账号
-python3 cl_new.py config show --name prod
+./cl config show --name prod
 ```
 
 ### 删除账号
 
 ```bash
-python3 cl_new.py config remove --name staging
+./cl config remove --name staging
 ```
 
 ---
@@ -100,24 +100,20 @@ python3 cl_new.py config remove --name staging
 
 ```bash
 # 查询ECS实例
-python3 cl_new.py query ecs --account prod
+./cl query ecs --account prod
 
 # 查询RDS数据库
-python3 cl_new.py query rds --account prod
+./cl query rds --account prod
 
 # 查询Redis实例
-python3 cl_new.py query redis --account prod
+./cl query redis --account prod
 
 # 查询VPC网络
-python3 cl_new.py query vpc --account prod
+./cl query vpc --account prod
 
 # 查询负载均衡
-python3 cl_new.py query slb --account prodquery ecs
+./cl query slb --account prod
 ```
-
-# 密钥安全：默认强制使用 Keyring 存储，检测到明文会自动迁移并移除配置中的密钥
-
-🎉 完成！您已经成功使用CloudLens CLI！
 
 ---
 

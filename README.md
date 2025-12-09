@@ -67,7 +67,7 @@ pip install prophet
 
 ```bash
 # 添加阿里云账号
-python3 cl_new.py config add \
+./cl config add \
   --provider aliyun \
   --name prod \
   --region cn-hangzhou \
@@ -75,10 +75,6 @@ python3 cl_new.py config add \
   --sk YOUR_SK
 
 # 查看已配置账号
-python3 cl_new.py config list
-
-# 简写版本
-./cl config add
 ./cl config list
 ```
 
@@ -86,25 +82,25 @@ python3 cl_new.py config list
 
 ```bash
 # 查询ECS实例
-python3 cl_new.py query ecs --account prod
+./cl query ecs --account prod
 
 # 分析闲置资源
-python3 cl_new.py analyze idle --account prod
+./cl analyze idle --account prod
 
 # 成本趋势分析
-python3 cl_new.py analyze cost --account prod --trend
+./cl analyze cost --account prod --trend
 
 # AI成本预测
-python3 cl_new.py analyze forecast --account prod --days 90
+./cl analyze forecast --account prod --days 90
 
 # CIS安全合规检查
-python3 cl_new.py analyze security --account prod --cis
+./cl analyze security --account prod --cis
 
 # 自动打标签(干运行)
-python3 cl_new.py remediate tags --account prod
+./cl remediate tags --account prod
 
 # 实际执行修复
-python3 cl_new.py remediate tags --account prod --confirm
+./cl remediate tags --account prod --confirm
 ```
 
 ## 📖 使用指南
@@ -113,63 +109,63 @@ python3 cl_new.py remediate tags --account prod --confirm
 
 ```bash
 # 查询各类资源
-cl query ecs --account prod
-cl query rds --account prod
-cl query vpc --account prod
+./cl query ecs --account prod
+./cl query rds --account prod
+./cl query vpc --account prod
 
 # 导出为JSON/CSV
-cl query ecs --account prod --format json --output ecs.json
-cl query ecs --account prod --format csv --output ecs.csv
+./cl query ecs --account prod --format json --output ecs.json
+./cl query ecs --account prod --format csv --output ecs.csv
 
 # 并发查询多账号
-cl query ecs --concurrent
+./cl query ecs --concurrent
 
 # 高级筛选
-cl query ecs --status Running --region cn-hangzhou
-cl query ecs --filter "charge_type=PrePaid AND expire_days<7"
+./cl query ecs --status Running --region cn-hangzhou
+./cl query ecs --filter "charge_type=PrePaid AND expire_days<7"
 ```
 
 ### 分析功能
 
 ```bash
 # 闲置资源分析
-cl analyze idle --account prod --days 14
+./cl analyze idle --account prod --days 14
 
 # 续费提醒
-cl analyze renewal --account prod --days 30
+./cl analyze renewal --account prod --days 30
 
 # 成本趋势分析 (v2.1 新增)
-cl analyze cost --account prod           # 当前成本快照
-cl analyze cost --account prod --trend   # 显示趋势分析
+./cl analyze cost --account prod           # 当前成本快照
+./cl analyze cost --account prod --trend   # 显示趋势分析
 
 # AI成本预测 (v2.1 新增)
-cl analyze forecast --account prod --days 90
+./cl analyze forecast --account prod --days 90
 
 # 安全合规检查
-cl analyze security --account prod       # 基础安全检查
-cl analyze security --account prod --cis # CIS Benchmark合规检查
+./cl analyze security --account prod       # 基础安全检查
+./cl analyze security --account prod --cis # CIS Benchmark合规检查
 
 # 标签治理
-cl analyze tags --account prod
+./cl analyze tags --account prod
 ```
 
 ### 自动修复功能 (v2.1 新增)
 
 ```bash
 # 自动打标签 - 干运行模式(默认)
-cl remediate tags --account prod
+./cl remediate tags --account prod
 
 # 指定标签
-cl remediate tags --account prod --env production --owner devops
+./cl remediate tags --account prod --env production --owner devops
 
 # 确认执行(实际修改)
-cl remediate tags --account prod --confirm
+./cl remediate tags --account prod --confirm
 
 # 查看修复历史
-cl remediate history --limit 50
+./cl remediate history --limit 50
 
 # 安全组修复(开发中)
-cl remediate security --account prod
+./cl remediate security --account prod
 ```
 
 ### 报告生成

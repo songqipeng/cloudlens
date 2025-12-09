@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-CloudLens CLI - 可执行入口
-"""
+# -*- coding: #!/usr/bin/env bash
+# CloudLens CLI - 统一入口
+# 版本: v2.1.0
 
-import sys
-import os
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# 添加当前目录到路径
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-# 导入并运行CLI
-from main_cli import cli
+# 使用新的模块化架构
+python3 "$SCRIPT_DIR/cl_new.py" "$@"
+import cli
 
 if __name__ == '__main__':
     cli()
