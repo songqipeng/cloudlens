@@ -577,7 +577,7 @@ def analyze_security(account, cis):
         passed_checks = [r for r in results["results"] if r["status"] == "PASS"]
         if passed_checks:
             console.print(f"\n[bold green]✓ 通过的检查项 ({len(passed_checks)}个):[/bold green]")
-            for check in passed_checks[:10]:  # 只显示前10个
+            for check in passed_checks:  # 显示所有通过的检查项
                 severity_color = {
                     "CRITICAL": "red",
                     "HIGH": "yellow",
