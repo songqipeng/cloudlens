@@ -122,6 +122,7 @@ class CISBenchmark:
                     "severity": check["severity"],
                     "status": "PASS" if passed else "FAIL",
                     "details": details,
+                    "remediation": self._get_remediation(check["id"]) if not passed else None,
                 }
                 
                 if passed:
@@ -136,6 +137,7 @@ class CISBenchmark:
                     "title": check["title"],
                     "status": "ERROR",
                     "details": str(e),
+                    "remediation": None,
                 })
 
         # 计算合规分数
@@ -153,6 +155,31 @@ class CISBenchmark:
             "summary": summary,
             "results": results,
         }
+
+    def _get_remediation(self, check_id: str) -> str:
+        """获取修复建议"""
+        remediations = {
+            "1.1": "在RAM控制台为所有用户启用多因素认证(MFA):\n   1. 登录RAM控制台 https://ram.console.aliyun.com/\n   2. 选择用户 → 启用MFA\n   3. 扫描二维码绑定虚拟MFA设备(如Google Authenticator)",
+            
+            "1.2": "删除或禁用Root账号的AccessKey:\n   1. 登录阿里云控制台\n   2. 访问 安全设置 → AccessKey管理\n   3. 删除所有Root账号的AccessKey\n   4. 使用RAM子账号进行日常操作",
+            
+            "2.1": "修改安全组规则,限制0.0.0.0/0访问:\n   1. 登录ECS控制台 → 安全组\n   2. 检查所有规则,将0.0.0.0/0改为具体IP段\n   3. 建议使用公司出口IP或VPN IP段\n   4. 对于必须公网访问的服务,使用SLB+WAF保护",
+            
+            "2.2": "启用VPC流日志:\n   1. 登录VPC控制台 → 流日志\n   2. 创建流日志 → 选择VPC/交换机\n   3. 配置日志存储到SLS或OSS\n   4. 建议保留日志至少90天",
+            
+            "2.3": "减少公网暴露资源:\n   1. 评估每个公网IP是否必需\n   2. 使用SLB替代ECS直接绑定公网IP\n   3. 内部服务通过VPN或专线访问\n   4. 启用安全组白名单限制访问来源",
+            
+            "3.1": "启用ECS磁盘加密:\n   1. 新建ECS时勾选'加密'选项\n   2. 现有ECS: 创建加密快照 → 从快照创建加密磁盘 → 替换原磁盘\n   3. 建议使用KMS统一管理密钥\n   4. 注意: 系统盘加密需要重新创建实例",
+            
+            "3.2": "配置RDS自动备份:\n   1. 登录RDS控制台 → 数据备份\n   2. 设置自动备份 → 选择备份时间\n   3. 建议: 备份保留7-30天\n   4. 启用日志备份(用于PITR恢复)",
+      
+"3.3": "启用OSS访问日志:\n   1. 登录OSS控制台 → Bucket列表\n   2. 选择Bucket → 日志管理 → 实时日志查询\n   3. 或设置日志转存到另一个Bucket\n   4. 建议保留日志至少6个月",
+            
+            "4.1": "启用ActionTrail操作审计:\n   1. 登录ActionTrail控制台\n   2. 创建跟踪 → 选择所有事件\n   3. 配置日志投递到SLS或OSS\n   4. 建议保留审计日志至少1年",
+            
+            "4.2": "配置日志服务SLS:\n   1. 为关键资源启用日志采集\n   2. 配置日志存储项目和Logstore\n   3. 设置日志告警规则\n   4. 建议采集: ECS系统日志、应用日志、安全日志",
+        }
+        return remediations.get(check_id, "请参考阿里云官方文档")
 
     def _generate_summary(self, results: List[Dict]) -> Dict:
         """生成分类汇总"""
@@ -200,7 +227,7 @@ class CISBenchmark:
         
         if risky_resources:
             return False, f"发现{len(risky_resources)}个资源存在0.0.0.0/0访问"
-        return True, "安全组规则符合要求"
+        return True, "安全组规则符合要求,无0.0.0.0/0访问"
 
     def check_vpc_flow_logs(self, resources, provider) -> Tuple[bool, str]:
         """检查VPC流日志"""
@@ -211,8 +238,8 @@ class CISBenchmark:
         exposed = [r for r in resources if hasattr(r, 'public_ips') and r.public_ips]
         
         if len(exposed) > len(resources) * 0.3:  # 超过30%暴露
-            return False, f"发现{len(exposed)}个公网暴露资源 ({len(exposed)/len(resources)*100:.1f}%)"
-        return True, f"公网暴露资源在可接受范围 ({len(exposed)}个)"
+            return False, f"发现{len(exposed)}个公网暴露资源 ({len(exposed)/len(resources)*100:.1f}%),超过30%阈值"
+        return True, f"公网暴露资源在可接受范围 ({len(exposed)}个, {len(exposed)/len(resources)*100:.1f}%)"
 
     def check_disk_encryption(self, resources, provider) -> Tuple[bool, str]:
         """检查磁盘加密"""
@@ -231,7 +258,7 @@ class CISBenchmark:
             encryption_rate = encrypted / len(ecs_instances) * 100
             if encryption_rate < 80:
                 return False, f"磁盘加密率{encryption_rate:.1f}% (建议>80%)"
-            return True, f"磁盘加密率{encryption_rate:.1f}%"
+            return True, f"磁盘加密率{encryption_rate:.1f}%,符合要求"
         
         return True, "无ECS实例"
 
@@ -242,7 +269,7 @@ class CISBenchmark:
         
         if rds_instances:
             # 简化: 实际需要检查备份策略
-            return True, f"RDS实例 ({len(rds_instances)}个) 备份策略检查通过"
+            return True, f"RDS实例 ({len(rds_instances)}个) 假设已配置自动备份"
         return True, "无RDS实例"
 
     def check_oss_logging(self, resources, provider) -> Tuple[bool, str]:
@@ -252,7 +279,7 @@ class CISBenchmark:
     def check_actiontrail(self, resources, provider) -> Tuple[bool, str]:
         """检查ActionTrail"""
         # 简化实现
-        return True, "假设ActionTrail已启用"
+        return True, "假设ActionTrail已启用并正常运行"
 
     def check_logging_service(self, resources, provider) -> Tuple[bool, str]:
         """检查日志服务"""

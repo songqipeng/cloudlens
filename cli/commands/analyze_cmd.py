@@ -573,11 +573,29 @@ def analyze_security(account, cis):
 
         console.print(summary_table)
 
+        # 显示通过的检查项
+        passed_checks = [r for r in results["results"] if r["status"] == "PASS"]
+        if passed_checks:
+            console.print(f"\n[bold green]✓ 通过的检查项 ({len(passed_checks)}个):[/bold green]")
+            for check in passed_checks[:10]:  # 只显示前10个
+                severity_color = {
+                    "CRITICAL": "red",
+                    "HIGH": "yellow",
+                    "MEDIUM": "blue",
+                    "LOW": "white"
+                }.get(check["severity"], "white")
+                
+                console.print(
+                    f"[{severity_color}]✓[/{severity_color}] "
+                    f"[{check['id']}] {check['title']} [{check['severity']}]"
+                )
+                console.print(f"  └─ {check['details']}")
+
         # 显示失败的检查项
         failed_checks = [r for r in results["results"] if r["status"] == "FAIL"]
         if failed_checks:
             console.print(f"\n[bold red]❌ 未通过的检查项 ({len(failed_checks)}个):[/bold red]")
-            for check in failed_checks[:10]:  # 只显示前10个
+            for check in failed_checks:  # 显示所有失败项
                 severity_color = {
                     "CRITICAL": "red",
                     "HIGH": "yellow",
@@ -589,6 +607,13 @@ def analyze_security(account, cis):
                     f"[{severity_color}]✗[/{severity_color}] "
                     f"[{check['id']}] {check['title']} [{check['severity']}]"
                 )
-                console.print(f"  └─ {check['details']}")
+                console.print(f"  └─ 原因: {check['details']}")
+                
+                # 显示修复建议
+                if check.get("remediation"):
+                    console.print(f"  └─ [cyan]修复建议:[/cyan]")
+                    for line in check["remediation"].split('\n'):
+                        console.print(f"     {line}")
+                console.print("")  # 空行分隔
 
     console.print("\n[bold]💡 建议: 定期运行安全检查,及时发现并修复安全隐患[/bold]")
