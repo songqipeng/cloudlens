@@ -78,7 +78,29 @@ pip install prophet
 ./cl config list
 ```
 
-### 3. 开始使用
+### 3. Shell自动补齐（可选但推荐）
+
+启用Tab键自动补齐,提升使用体验:
+
+```bash
+# 自动安装
+./scripts/install_completion.sh
+
+# 重新加载shell
+source ~/.bashrc  # bash用户
+source ~/.zshrc   # zsh用户
+```
+
+现在可以使用Tab键自动补齐命令和参数:
+```bash
+cl ana<Tab>              → cl analyze
+cl analyze <Tab>         → 显示子命令列表
+cl query ecs --<Tab>     → 显示选项参数
+```
+
+详见: [Shell Completion文档](docs/shell_completion.md)
+
+### 4. 开始使用
 
 ```bash
 # 查询ECS实例
