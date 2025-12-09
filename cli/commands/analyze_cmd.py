@@ -3,6 +3,7 @@ import click
 from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress
+from rich import box
 
 from core.config import ConfigManager
 from core.context import ContextManager
@@ -539,63 +540,124 @@ def analyze_security(account, cis):
 
     # CIS Benchmark合规检查
     if cis:
-        console.print("\n[bold cyan]🛡️  CIS Benchmark合规检查[/bold cyan]\n")
+        console.print("\n" + "=" * 80)
+        console.print("[bold cyan]🛡️  CIS Benchmark 安全基线合规检查报告[/bold cyan]", justify="center")
+        console.print("=" * 80 + "\n")
+        
+        # 生成检查说明
+        console.print("[bold]📋 检查说明:[/bold]")
+        console.print("基于 CIS (Center for Internet Security) 国际安全基准,对您的云环境进行全面安全")
+        console.print("合规性检查。本次检查涵盖 5 大类别、40 个安全检查项,帮助您:")
+        console.print("  • 发现安全隐患和配置缺陷")
+        console.print("  • 提升整体安全合规水平")
+        console.print("  • 降低数据泄露和攻击风险")
+        console.print("  • 满足行业安全规范要求\n")
         
         checker = CISBenchmark()
         results = checker.run_all_checks(all_resources, provider)
 
-        # 显示合规分数
+        # ============ 第一部分: 总览 ============
+        console.print("[bold cyan]📊 检查总览[/bold cyan]")
+        console.print("─" * 80)
+        
         score = results["compliance_score"]
         score_color = "green" if score >= 80 else "yellow" if score >= 60 else "red"
         
-        console.print(Panel.fit(
-            f"[bold {score_color}]合规分数: {score}%[/bold {score_color}]\n"
-            f"[green]通过: {results['passed']}[/green] | "
-            f"[red]失败: {results['failed']}[/red]",
-            title="CIS合规评分"
-        ))
+        # 使用Panel显示总体评分
+        from rich.panel import Panel
+        score_panel = Panel.fit(
+            f"[bold {score_color}]合规评分: {score}%[/bold {score_color}]\n"
+            f"[green]✓ 通过: {results['passed']}项[/green]  "
+            f"[red]✗ 失败: {results['failed']}项[/red]  "
+            f"[dim]总计: {results['total_checks']}项[/dim]",
+            title="[bold]总体评分[/bold]",
+            border_style=score_color
+        )
+        console.print(score_panel)
+        console.print("")
 
-        # 按类别展示
-        console.print("\n[bold]分类汇总:[/bold]")
-        summary_table = Table()
-        summary_table.add_column("类别", style="cyan")
-        summary_table.add_column("合规率", style="green", justify="right")
-        summary_table.add_column("通过/总数", style="white", justify="right")
+        # 分类统计表格
+        console.print("[bold]各类别合规情况:[/bold]")
+        summary_table = Table(show_header=True, header_style="bold magenta", box=box.ROUNDED)
+        summary_table.add_column("类别", style="cyan", width=15)
+        summary_table.add_column("说明", style="white", width=30)
+        summary_table.add_column("合规率", justify="right", width=10)
+        summary_table.add_column("通过/总数", justify="right", width=12)
+        summary_table.add_column("状态", justify="center", width=10)
 
+        category_desc = {
+            "IAM": "身份与访问管理",
+            "Network": "网络安全配置",
+            "Data": "数据安全保护",
+            "Audit": "审计与监控",
+            "Config": "配置管理规范"
+        }
+        
         for category, stats in results["summary"].items():
             rate = stats.get("compliance_rate", 0)
             rate_color = "green" if rate >= 80 else "yellow" if rate >= 60 else "red"
+            status_icon = "✓" if rate >= 80 else "⚠" if rate >= 60 else "✗"
+            
             summary_table.add_row(
                 category,
+                category_desc.get(category, ""),
                 f"[{rate_color}]{rate:.1f}%[/{rate_color}]",
-                f"{stats['passed']}/{stats['total']}"
+                f"{stats['passed']}/{stats['total']}",
+                f"[{rate_color}]{status_icon}[/{rate_color}]"
             )
 
         console.print(summary_table)
+        console.print("")
 
-        # 显示通过的检查项
+        # ============ 第二部分: 通过的检查项 ============
         passed_checks = [r for r in results["results"] if r["status"] == "PASS"]
         if passed_checks:
-            console.print(f"\n[bold green]✓ 通过的检查项 ({len(passed_checks)}个):[/bold green]")
-            for check in passed_checks:  # 显示所有通过的检查项
-                severity_color = {
-                    "CRITICAL": "red",
-                    "HIGH": "yellow",
-                    "MEDIUM": "blue",
-                    "LOW": "white"
-                }.get(check["severity"], "white")
+            console.print("\n[bold green]" + "=" * 80 + "[/bold green]")
+            console.print(f"[bold green]✓ 通过的检查项 ({len(passed_checks)}项)[/bold green]")
+            console.print("[bold green]" + "=" * 80 + "[/bold green]\n")
+            console.print("[dim]以下检查项符合CIS安全基准要求,请继续保持:[/dim]\n")
+            
+            # 按类别分组显示
+            from collections import defaultdict
+            passed_by_category = defaultdict(list)
+            for check in passed_checks:
+                passed_by_category[check['category']].append(check)
+            
+            for category in ["IAM", "Network", "Data", "Audit", "Config"]:
+                if category not in passed_by_category:
+                    continue
+                    
+                checks = passed_by_category[category]
+                console.print(f"[bold cyan]├─ {category_desc.get(category, category)} ({len(checks)}项)[/bold cyan]")
                 
-                console.print(
-                    f"[{severity_color}]✓[/{severity_color}] "
-                    f"[{check['id']}] {check['title']} [{check['severity']}]"
-                )
-                console.print(f"  └─ {check['details']}")
+                for check in checks:
+                    severity_color = {
+                        "CRITICAL": "red",
+                        "HIGH": "yellow", 
+                        "MEDIUM": "blue",
+                        "LOW": "white"
+                    }.get(check["severity"], "white")
+                    
+                    console.print(
+                        f"[green]│  ✓[/green] [{check['id']}] {check['title']} "
+                        f"[{severity_color}][{check['severity']}][/{severity_color}]"
+                    )
+                    console.print(f"[dim]│     └─ {check['details']}[/dim]")
+                console.print("")
 
-        # 显示失败的检查项
+        # ============ 第三部分: 未通过的检查项 ============
         failed_checks = [r for r in results["results"] if r["status"] == "FAIL"]
         if failed_checks:
-            console.print(f"\n[bold red]❌ 未通过的检查项 ({len(failed_checks)}个):[/bold red]")
-            for check in failed_checks:  # 显示所有失败项
+            console.print("\n[bold red]" + "=" * 80 + "[/bold red]")
+            console.print(f"[bold red]✗ 未通过的检查项 ({len(failed_checks)}项)[/bold red]")
+            console.print("[bold red]" + "=" * 80 + "[/bold red]\n")
+            console.print("[dim]以下检查项未达标,建议按优先级进行整改:[/dim]\n")
+            
+            # 按严重程度排序
+            severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+            failed_checks.sort(key=lambda x: severity_order.get(x["severity"], 4))
+            
+            for idx, check in enumerate(failed_checks, 1):
                 severity_color = {
                     "CRITICAL": "red",
                     "HIGH": "yellow",
@@ -603,17 +665,55 @@ def analyze_security(account, cis):
                     "LOW": "white"
                 }.get(check["severity"], "white")
                 
+                # 严重程度图标
+                severity_icon = {
+                    "CRITICAL": "🔴",
+                    "HIGH": "🟡",
+                    "MEDIUM": "🔵",
+                    "LOW": "⚪"
+                }.get(check["severity"], "⚪")
+                
                 console.print(
-                    f"[{severity_color}]✗[/{severity_color}] "
-                    f"[{check['id']}] {check['title']} [{check['severity']}]"
+                    f"[{severity_color}]{severity_icon} [{idx}] [{check['id']}] {check['title']} "
+                    f"[{check['severity']}][/{severity_color}]"
                 )
-                console.print(f"  └─ 原因: {check['details']}")
+                console.print(f"[dim]类别: {category_desc.get(check['category'], check['category'])}[/dim]")
+                console.print(f"[yellow]原因:[/yellow] {check['details']}")
                 
                 # 显示修复建议
                 if check.get("remediation"):
-                    console.print(f"  └─ [cyan]修复建议:[/cyan]")
+                    console.print(f"[cyan]修复建议:[/cyan]")
                     for line in check["remediation"].split('\n'):
-                        console.print(f"     {line}")
+                        if line.strip():
+                            console.print(f"  {line}")
+                
                 console.print("")  # 空行分隔
+
+        # ============ 第四部分: 改进建议 ============
+        console.print("\n[bold cyan]" + "=" * 80 + "[/bold cyan]")
+        console.print("[bold cyan]💡 综合改进建议[/bold cyan]")
+        console.print("[bold cyan]" + "=" * 80 + "[/bold cyan]\n")
+        
+        if score >= 80:
+            console.print("[green]✓ 您的环境安全合规性良好![/green]")
+            console.print("  建议: 继续保持现有安全措施,定期进行安全检查\n")
+        elif score >= 60:
+            console.print("[yellow]⚠ 您的环境存在一些安全隐患[/yellow]")
+            console.print("  建议: 优先处理HIGH和CRITICAL级别的问题\n")
+        else:
+            console.print("[red]✗ 您的环境存在较多安全风险[/red]")
+            console.print("  建议: 立即处理CRITICAL级别问题,制定整改计划\n")
+        
+        # 优先级建议
+        critical_count = sum(1 for c in failed_checks if c["severity"] == "CRITICAL")
+        high_count = sum(1 for c in failed_checks if c["severity"] == "HIGH")
+        
+        if critical_count > 0:
+            console.print(f"[bold red]🔴 紧急 ({critical_count}项):[/bold red] 立即处理CRITICAL级别问题")
+        if high_count > 0:
+            console.print(f"[bold yellow]🟡 重要 ({high_count}项):[/bold yellow] 7天内处理HIGH级别问题")
+        
+        console.print(f"\n[dim]💾 完整报告已保存,运行 'cl analyze security --export' 可导出详细报告[/dim]")
+        console.print("[dim]📅 建议每月运行一次安全检查,持续改进安全态势[/dim]")
 
     console.print("\n[bold]💡 建议: 定期运行安全检查,及时发现并修复安全隐患[/bold]")
