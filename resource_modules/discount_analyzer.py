@@ -2173,11 +2173,84 @@ class DiscountAnalyzer:
             return
 
         # ACK节点续费价格通过ECS API获取（ACK节点本质是ECS）
-        # 需要先获取集群节点，然后查询节点续费价格
-        self.logger.info("⚠️ ACK折扣分析需要获取集群节点信息，当前简化处理")
-        self.logger.info("   建议直接分析ECS节点折扣")
-
-        # TODO: 实现完整的ACK节点折扣分析
+        self.logger.info("开始获取ACK集群节点信息...")
+        
+        all_node_ids = []
+        cluster_node_mapping = {}
+        
+        # 获取每个集群的节点列表
+        for cluster in prepaid_clusters:
+            cluster_id = cluster.get("ClusterId")
+            region_id = cluster.get("RegionId")
+            
+            try:
+                client = AcsClient(self.access_key_id, self.access_key_secret, region_id)
+                request = CommonRequest()
+                request.set_domain(f"cs.{region_id}.aliyuncs.com")
+                request.set_method("GET")
+                request.set_version("2015-12-15")
+                request.set_action_name("DescribeClusterNodes")
+                request.set_uri_pattern(f"/clusters/{cluster_id}/nodes")
+                
+                response = client.do_action_with_exception(request)
+                data = json.loads(response)
+                
+                if "nodes" in data:
+                    nodes = data["nodes"]
+                    if not isinstance(nodes, list):
+                        nodes = [nodes]
+                    
+                    for node in nodes:
+                        node_id = node.get("instance_id")
+                        if node_id:
+                            all_node_ids.append({
+                                "InstanceId": node_id,
+                                "ClusterId": cluster_id,
+                                "ClusterName": cluster.get("Name", ""),
+                                "RegionId": region_id
+                            })
+                            cluster_node_mapping[node_id] = cluster.get("Name", cluster_id)
+            except Exception as e:
+                self.logger.warning(f"获取集群 {cluster_id} 节点失败: {e}")
+                continue
+        
+        if not all_node_ids:
+            self.logger.info("⚠️ 未找到ACK集群节点")
+            return
+        
+        self.logger.info(f"找到 {len(all_node_ids)} 个ACK集群节点")
+        
+        # 调用ECS续费价格API获取节点折扣
+        results = self.get_renewal_prices(all_node_ids, "ecs")
+        
+        # 补充集群信息
+        for result in results:
+            instance_id = result.get("instance_id")
+            result["cluster_name"] = cluster_node_mapping.get(instance_id, "Unknown")
+        
+        if not results:
+            self.logger.info("❌ 未获取到任何ACK节点折扣数据")
+            return
+        
+        html_file = self.generate_html_report(results, "ack", output_dir)
+        self.logger.info(f"HTML报告已生成: {html_file}")
+        
+        pdf_file = self.generate_pdf(html_file)
+        if pdf_file:
+            self.logger.info(f"PDF报告已生成: {pdf_file}")
+        
+        self.logger.info(f"折扣统计:")
+        self.logger.info(f"• 总节点数: {len(results)} 个")
+        if results:
+            avg_discount = sum(r["discount_rate"] for r in results) / len(results)
+            min_discount = min(r["discount_rate"] for r in results)
+            max_discount = max(r["discount_rate"] for r in results)
+            current_total = sum(r["trade_price"] for r in results)
+            
+            self.logger.info(f"• 平均折扣: {avg_discount:.1f}折 ({avg_discount*100:.1f}%)")
+            self.logger.info(f"• 最低折扣: {min_discount:.1f}折 ({min_discount*100:.1f}%)")
+            self.logger.info(f"• 最高折扣: {max_discount:.1f}折 ({max_discount*100:.1f}%)")
+            self.logger.info(f"• 当前月总成本: ¥{current_total:,.2f}")
 
     def analyze_eci_discounts(self, output_base_dir="."):
         """分析ECI折扣（预留实例折扣）"""

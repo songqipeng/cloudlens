@@ -9,6 +9,7 @@ import json
 import sqlite3
 from datetime import datetime
 from typing import Dict, List
+
 from utils.logger import get_logger
 
 
@@ -27,13 +28,13 @@ class OptimizationEngine:
 
         # 只分析确实存在的资源
         opportunities.extend(self._analyze_idle_eip(tenant_name))
-        
+
         # 尝试分析其他资源,忽略错误
         try:
             opportunities.extend(self._analyze_idle_ecs(tenant_name))
         except Exception as e:
             self.logger.debug(f"ECS分析跳过: {e}")
-        
+
         try:
             opportunities.extend(self._analyze_idle_rds(tenant_name))
         except Exception as e:
@@ -44,7 +45,7 @@ class OptimizationEngine:
     def _analyze_idle_ecs(self, tenant_name: str) -> List[Dict]:
         """分析闲置ECS实例"""
         opportunities = []
-        
+
         try:
             conn = sqlite3.connect("ecs_monitoring_data_fixed.db")
             cursor = conn.cursor()
@@ -354,7 +355,7 @@ class OptimizationEngine:
     def calculate_roi(self, opportunities: List[Dict]) -> Dict:
         """计算ROI"""
         total_savings = sum(opp.get("estimated_savings", 0) for opp in opportunities)
-        
+
         return {
             "total_opportunities": len(opportunities),
             "monthly_savings": round(total_savings, 2),

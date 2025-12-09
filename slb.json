@@ -1,0 +1,218 @@
+[
+  {
+    "id": "lb-2ze7orsjzhbcz45r17go7",
+    "name": "电商公网LB-回源-开启白名单",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [
+      "39.106.82.166"
+    ],
+    "spec": null
+  },
+  {
+    "id": "lb-2ze8jgf5p4gf4qnzzqc3v",
+    "name": "difywab5",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [
+      "8.147.105.208"
+    ],
+    "spec": null
+  },
+  {
+    "id": "lb-2zeo8tw5smgam8omu1cpz",
+    "name": "a9e19f649ddc84d5ba693e2214dcdfa3",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [],
+    "spec": null
+  },
+  {
+    "id": "lb-2ze3v555zsbw9jwq02c3r",
+    "name": "IOA管控使用内网LB",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [],
+    "spec": null
+  },
+  {
+    "id": "lb-2ze3poa356776yejlf9wy",
+    "name": "K8s-pub-test-04-ingress-LB",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [
+      "47.94.164.5"
+    ],
+    "spec": null
+  },
+  {
+    "id": "lb-2zevqljrzciavskdhmok0",
+    "name": "emr-gpu",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [
+      "39.107.73.91"
+    ],
+    "spec": null
+  },
+  {
+    "id": "lb-2zekmhsu2tg3ispjn62xz",
+    "name": "k8s-qa-mgmt-01-ingress",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [],
+    "spec": null
+  },
+  {
+    "id": "lb-2ze9axxw2plpx4zg0hcg1",
+    "name": "ManagedK8SSlbIntranet-cd0b011260c674bd9bd2a04c4975f7b30",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [],
+    "spec": null
+  },
+  {
+    "id": "lb-2ze5setnt330813uqowtx",
+    "name": "ManagedK8SSlbIntranet-cd4ecb707134d4263abf86f44edd011e9",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [],
+    "spec": null
+  },
+  {
+    "id": "lb-2zed2n2s4jca2827uugaq",
+    "name": "电商公网LB-02",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [
+      "47.95.217.81"
+    ],
+    "spec": null
+  },
+  {
+    "id": "lb-2ze3ul3q37pzv9rept649",
+    "name": "ManagedK8SSlbIntranet-c25ddece80c6845e8b0b26fa69fb44b39",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [],
+    "spec": null
+  },
+  {
+    "id": "lb-2ze7t7yb9hgqf7dzt1sir",
+    "name": "ManagedK8SSlbIntranet-c5caed80717814d7c9cd7d0a03bb58582",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [],
+    "spec": null
+  },
+  {
+    "id": "lb-2zeuqod442ljy19hup238",
+    "name": "LB-TO-MQ",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [],
+    "spec": null
+  },
+  {
+    "id": "lb-2zepme62qczl10cku758u",
+    "name": "量化派品牌官网LB",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [],
+    "spec": null
+  },
+  {
+    "id": "lb-2ze21vjzcohcwh25tclof",
+    "name": "LB-MQ",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [],
+    "spec": null
+  },
+  {
+    "id": "lb-2zej8tycvsr037ii7pnal",
+    "name": "电商公网LB-非回源",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [
+      "39.96.169.54"
+    ],
+    "spec": null
+  },
+  {
+    "id": "lb-2zeoqz7aynsoa2bdndzgn",
+    "name": "电商内网LB",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [],
+    "spec": null
+  },
+  {
+    "id": "lb-2ze1h8ui1lpdzrkwx9djx",
+    "name": "电商公网LB-回源",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [
+      "101.201.115.121"
+    ],
+    "spec": null
+  },
+  {
+    "id": "lb-2zextw71ph2eymazdxtz9",
+    "name": "量化派SaaS系统内网LB",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [],
+    "spec": null
+  },
+  {
+    "id": "lb-2ze2m8bnnqptxn11zpe14",
+    "name": "量化派SaaS系统",
+    "provider": "aliyun",
+    "region": "cn-beijing",
+    "status": "Running",
+    "resource_type": "slb",
+    "public_ips": [
+      "101.201.210.110"
+    ],
+    "spec": null
+  }
+]

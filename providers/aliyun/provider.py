@@ -1,90 +1,99 @@
 import json
 import logging
-from typing import List, Dict
 from datetime import datetime
+from typing import Dict, List
 
 from aliyunsdkcore.client import AcsClient
 from aliyunsdkecs.request.v20140526.DescribeInstancesRequest import DescribeInstancesRequest
+from aliyunsdkram.request.v20150501 import ListPoliciesForRoleRequest, ListPoliciesForUserRequest
 from aliyunsdkrds.request.v20140815.DescribeDBInstancesRequest import DescribeDBInstancesRequest
+from aliyunsdksts.request.v20150401 import GetCallerIdentityRequest
 from aliyunsdkvpc.request.v20160428.DescribeVpcsRequest import DescribeVpcsRequest
 from aliyunsdkvpc.request.v20160428.DescribeVSwitchesRequest import DescribeVSwitchesRequest
-from aliyunsdksts.request.v20150401 import GetCallerIdentityRequest
-from aliyunsdkram.request.v20150501 import ListPoliciesForUserRequest, ListPoliciesForRoleRequest
 
 from core.provider import BaseProvider
+from core.resource_converter import (
+    mongodb_to_unified_resource,
+    nat_gateway_to_unified_resource,
+    slb_to_unified_resource,
+)
 from core.security import PermissionGuard
-from models.resource import UnifiedResource, ResourceType, ResourceStatus
-from core.resource_converter import slb_to_unified_resource, nat_gateway_to_unified_resource, mongodb_to_unified_resource
+from core.error_handler import handle_provider_errors
+from models.resource import ResourceStatus, ResourceType, UnifiedResource
 
 logger = logging.getLogger("AliyunProvider")
 
+
 class AliyunProvider(BaseProvider):
-    
+
     @property
     def provider_name(self) -> str:
         return "aliyun"
 
     def _get_client(self):
         if not self._client:
-            self._client = AcsClient(
-                self.access_key,
-                self.secret_key,
-                self.region
-            )
+            self._client = AcsClient(self.access_key, self.secret_key, self.region)
         return self._client
 
     def _do_request(self, request):
         """执行API请求，包含权限检查"""
         action_name = request.get_action_name()
-        
+
         # 权限卫士检查
         if not PermissionGuard.is_action_safe(action_name):
-            logger.warning(f"Action {action_name} might be unsafe, but proceeding as it is a read operation in this context.")
-        
+            logger.warning(
+                f"Action {action_name} might be unsafe, but proceeding as it is a read operation in this context."
+            )
+
         client = self._get_client()
         response = client.do_action_with_exception(request)
         return json.loads(response)
 
-    def list_instances(self) -> List[UnifiedResource]:
+    @handle_provider_errors
+    def list_instances(self):
         """列出ECS实例（支持分页）"""
         resources = []
         try:
             page_num = 1
             page_size = 100
             total_count = None
-            
+
             while True:
                 request = DescribeInstancesRequest()
                 request.set_PageSize(page_size)
                 request.set_PageNumber(page_num)
                 data = self._do_request(request)
-                
+
                 # 获取总数（仅第一页）
                 if total_count is None:
                     total_count = data.get("TotalCount", 0)
                     logger.info(f"Total ECS instances: {total_count}")
-                
+
                 instances = data.get("Instances", {}).get("Instance", [])
                 if not instances:
                     break
-                
+
                 for inst in instances:
                     # 状态映射
                     status_map = {
                         "Running": ResourceStatus.RUNNING,
                         "Stopped": ResourceStatus.STOPPED,
                         "Starting": ResourceStatus.STARTING,
-                        "Stopping": ResourceStatus.STOPPING
+                        "Stopping": ResourceStatus.STOPPING,
                     }
-                    
+
                     # IP处理
                     public_ips = inst.get("PublicIpAddress", {}).get("IpAddress", [])
                     eip = inst.get("EipAddress", {}).get("IpAddress", "")
                     if eip:
                         public_ips.append(eip)
-                    
-                    private_ips = inst.get("VpcAttributes", {}).get("PrivateIpAddress", {}).get("IpAddress", [])
-                    
+
+                    private_ips = (
+                        inst.get("VpcAttributes", {})
+                        .get("PrivateIpAddress", {})
+                        .get("IpAddress", [])
+                    )
+
                     # 时间处理
                     created_time = datetime.strptime(inst["CreationTime"], "%Y-%m-%dT%H:%MZ")
                     expired_time = None
@@ -111,57 +120,55 @@ class AliyunProvider(BaseProvider):
                         charge_type=inst["InstanceChargeType"],
                         created_time=created_time,
                         expired_time=expired_time,
-                        raw_data=inst
+                        raw_data=inst,
                     )
                     resources.append(r)
-                
+
                 # 检查是否还有更多页
                 if len(resources) >= total_count:
                     break
-                
+
                 page_num += 1
-                
+
         except Exception as e:
             logger.error(f"Failed to list ECS instances: {e}")
-            
+
         return resources
 
-    def list_rds(self) -> List[UnifiedResource]:
+    @handle_provider_errors
+    def list_rds(self):
         """列出RDS实例"""
         resources = []
         try:
             request = DescribeDBInstancesRequest()
             request.set_PageSize(100)
             data = self._do_request(request)
-            
+
             for inst in data.get("Items", {}).get("DBInstance", []):
-                status_map = {
-                    "Running": ResourceStatus.RUNNING,
-                    "Stopped": ResourceStatus.STOPPED
-                }
-                
+                status_map = {"Running": ResourceStatus.RUNNING, "Stopped": ResourceStatus.STOPPED}
+
                 expired_time = None
                 if inst.get("ExpireTime"):
-                     try:
+                    try:
                         # Handle different time formats
                         time_str = inst["ExpireTime"]
-                        if 'T' in time_str:
+                        if "T" in time_str:
                             # Try with seconds first
                             try:
                                 expired_time = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%SZ")
                             except:
                                 expired_time = datetime.strptime(time_str, "%Y-%m-%dT%H:%MZ")
-                     except Exception as e:
+                    except Exception as e:
                         pass
-                
+
                 # 提取公网和私网连接地址
                 public_ips = []
                 private_ips = []
-                
+
                 # 公网连接串
                 if inst.get("PublicConnectionString"):
                     public_ips.append(inst["PublicConnectionString"])
-                
+
                 # 内网连接串
                 if inst.get("ConnectionString"):
                     private_ips.append(inst["ConnectionString"])
@@ -170,7 +177,7 @@ class AliyunProvider(BaseProvider):
                     id=inst["DBInstanceId"],
                     name=inst.get("DBInstanceDescription", inst["DBInstanceId"]),
                     provider=self.provider_name,
-                    region=self.region, # RDS API response might not have RegionId in item
+                    region=self.region,  # RDS API response might not have RegionId in item
                     zone=inst.get("ZoneId"),
                     resource_type=ResourceType.RDS,
                     status=status_map.get(inst["DBInstanceStatus"], ResourceStatus.UNKNOWN),
@@ -180,12 +187,12 @@ class AliyunProvider(BaseProvider):
                     spec=inst.get("DBInstanceClass"),
                     charge_type=inst.get("PayType", "PostPaid"),
                     expired_time=expired_time,
-                    raw_data=inst
+                    raw_data=inst,
                 )
                 resources.append(r)
         except Exception as e:
             logger.error(f"Failed to list RDS instances: {e}")
-            
+
         return resources
 
     def list_vpcs(self) -> List[Dict]:
@@ -195,24 +202,35 @@ class AliyunProvider(BaseProvider):
             request = DescribeVpcsRequest()
             request.set_PageSize(50)
             data = self._do_request(request)
-            
+
             for vpc in data.get("Vpcs", {}).get("Vpc", []):
-                vpcs.append({
-                    "id": vpc["VpcId"],
-                    "name": vpc["VpcName"],
-                    "cidr": vpc["CidrBlock"],
-                    "region": vpc["RegionId"],
-                    "status": vpc["Status"]
-                })
+                vpcs.append(
+                    {
+                        "id": vpc["VpcId"],
+                        "name": vpc["VpcName"],
+                        "cidr": vpc["CidrBlock"],
+                        "region": vpc["RegionId"],
+                        "status": vpc["Status"],
+                    }
+                )
         except Exception as e:
             logger.error(f"Failed to list VPCs: {e}")
         return vpcs
 
-    def get_metric(self, resource_id: str, metric_name: str, start_time: int, end_time: int, namespace: str = "acs_ecs_dashboard", dimensions: str = None) -> List[Dict]:
+    def get_metric(
+        self,
+        resource_id: str,
+        metric_name: str,
+        start_time: int,
+        end_time: int,
+        namespace: str = "acs_ecs_dashboard",
+        dimensions: str = None,
+    ) -> List[Dict]:
         """获取CloudMonitor监控指标"""
-        from aliyunsdkcore.request import CommonRequest
         import time
-        
+
+        from aliyunsdkcore.request import CommonRequest
+
         try:
             client = self._get_client()
             request = CommonRequest()
@@ -225,17 +243,17 @@ class AliyunProvider(BaseProvider):
             request.add_query_param("StartTime", start_time)
             request.add_query_param("EndTime", end_time)
             request.add_query_param("Period", "86400")  # 1 day
-            
+
             if dimensions:
                 request.add_query_param("Dimensions", dimensions)
             else:
                 request.add_query_param("Dimensions", f'[{{"instanceId":"{resource_id}"}}]')
-            
+
             response = self._do_request(request)
-            
+
             # Debug logging
             # print(f"DEBUG: {metric_name} response: {response}")
-            
+
             if "Datapoints" in response and response["Datapoints"]:
                 if isinstance(response["Datapoints"], str):
                     return json.loads(response["Datapoints"])
@@ -247,41 +265,43 @@ class AliyunProvider(BaseProvider):
 
     def list_redis(self) -> List[UnifiedResource]:
         """列出Redis实例"""
-        from aliyunsdkr_kvstore.request.v20150101.DescribeInstancesRequest import DescribeInstancesRequest as RedisDescribeInstancesRequest
-        
+        from aliyunsdkr_kvstore.request.v20150101.DescribeInstancesRequest import (
+            DescribeInstancesRequest as RedisDescribeInstancesRequest,
+        )
+
         resources = []
         try:
             request = RedisDescribeInstancesRequest()
             request.set_PageSize(100)
             data = self._do_request(request)
-            
+
             for inst in data.get("Instances", {}).get("KVStoreInstance", []):
                 status_map = {
                     "Normal": ResourceStatus.RUNNING,
                     "Creating": ResourceStatus.STARTING,
                     "Changing": ResourceStatus.CHANGING,
-                    "Inactive": ResourceStatus.STOPPED
+                    "Inactive": ResourceStatus.STOPPED,
                 }
-                
+
                 expired_time = None
                 if inst.get("EndTime"):
                     try:
                         expired_time = datetime.strptime(inst["EndTime"], "%Y-%m-%dT%H:%MZ")
                     except:
                         pass
-                
+
                 # 提取公网和私网连接地址
                 public_ips = []
                 private_ips = []
-                
+
                 # 公网连接域名
                 if inst.get("PublicConnectionDomain"):
                     public_ips.append(inst["PublicConnectionDomain"])
-                
+
                 # 内网连接域名
                 if inst.get("ConnectionDomain"):
                     private_ips.append(inst["ConnectionDomain"])
-                
+
                 r = UnifiedResource(
                     id=inst["InstanceId"],
                     name=inst.get("InstanceName", inst["InstanceId"]),
@@ -296,7 +316,7 @@ class AliyunProvider(BaseProvider):
                     spec=inst.get("InstanceClass"),
                     charge_type=inst.get("ChargeType", "PostPaid"),
                     expired_time=expired_time,
-                    raw_data=inst
+                    raw_data=inst,
                 )
                 resources.append(r)
         except Exception as e:
@@ -308,20 +328,26 @@ class AliyunProvider(BaseProvider):
         buckets = []
         try:
             import oss2
-            
+
             # Create auth and service
             auth = oss2.Auth(self.access_key, self.secret_key)
-            service = oss2.Service(auth, f'https://oss-{self.region}.aliyuncs.com')
-            
+            service = oss2.Service(auth, f"https://oss-{self.region}.aliyuncs.com")
+
             # List all buckets
             for bucket_info in oss2.BucketIterator(service):
-                buckets.append({
-                    "id": bucket_info.name,
-                    "name": bucket_info.name,
-                    "region": bucket_info.location.replace('oss-', ''),
-                    "created_time": bucket_info.creation_date,
-                    "storage_class": bucket_info.storage_class if hasattr(bucket_info, 'storage_class') else "-"
-                })
+                buckets.append(
+                    {
+                        "id": bucket_info.name,
+                        "name": bucket_info.name,
+                        "region": bucket_info.location.replace("oss-", ""),
+                        "created_time": bucket_info.creation_date,
+                        "storage_class": (
+                            bucket_info.storage_class
+                            if hasattr(bucket_info, "storage_class")
+                            else "-"
+                        ),
+                    }
+                )
         except ImportError:
             logger.warning("oss2 library not installed. Run: pip install oss2")
         except Exception as e:
@@ -333,33 +359,35 @@ class AliyunProvider(BaseProvider):
         eips = []
         try:
             from aliyunsdkvpc.request.v20160428 import DescribeEipAddressesRequest
-            
+
             request = DescribeEipAddressesRequest.DescribeEipAddressesRequest()
             request.set_PageSize(100)
             page_number = 1
-            
+
             while True:
                 request.set_PageNumber(page_number)
                 response = self._do_request(request)
-                
-                batch = response.get('EipAddresses', {}).get('EipAddress', [])
+
+                batch = response.get("EipAddresses", {}).get("EipAddress", [])
                 if not batch:
                     break
-                    
+
                 for eip in batch:
-                    eips.append({
-                        "id": eip.get('AllocationId'),
-                        "ip_address": eip.get('IpAddress'),
-                        "status": eip.get('Status'),
-                        "instance_id": eip.get('InstanceId', ''),
-                        "bandwidth": eip.get('Bandwidth'),
-                        "region": self.region
-                    })
-                
-                total_count = response.get('TotalCount', 0)
+                    eips.append(
+                        {
+                            "id": eip.get("AllocationId"),
+                            "ip_address": eip.get("IpAddress"),
+                            "status": eip.get("Status"),
+                            "instance_id": eip.get("InstanceId", ""),
+                            "bandwidth": eip.get("Bandwidth"),
+                            "region": self.region,
+                        }
+                    )
+
+                total_count = response.get("TotalCount", 0)
                 if len(eips) >= total_count:
                     break
-                    
+
                 page_number += 1
         except Exception as e:
             logger.error(f"Failed to list EIPs: {e}")
@@ -370,13 +398,13 @@ class AliyunProvider(BaseProvider):
         resources = []
         try:
             from aliyunsdkslb.request.v20140515 import DescribeLoadBalancersRequest
-            
+
             request = DescribeLoadBalancersRequest.DescribeLoadBalancersRequest()
             request.set_PageSize(100)
-            
+
             response = self._do_request(request)
-            
-            for slb in response.get('LoadBalancers', {}).get('LoadBalancer', []):
+
+            for slb in response.get("LoadBalancers", {}).get("LoadBalancer", []):
                 resources.append(slb_to_unified_resource(slb, self.provider_name))
         except Exception as e:
             logger.error(f"Failed to list SLBs: {e}")
@@ -387,14 +415,16 @@ class AliyunProvider(BaseProvider):
         resources = []
         try:
             from aliyunsdkvpc.request.v20160428 import DescribeNatGatewaysRequest
-            
+
             request = DescribeNatGatewaysRequest.DescribeNatGatewaysRequest()
             request.set_PageSize(50)  # Max is 50 for NAT Gateways
-            
+
             response = self._do_request(request)
-            
-            for nat in response.get('NatGateways', {}).get('NatGateway', []):
-                resources.append(nat_gateway_to_unified_resource(nat, self.provider_name, self.region))
+
+            for nat in response.get("NatGateways", {}).get("NatGateway", []):
+                resources.append(
+                    nat_gateway_to_unified_resource(nat, self.provider_name, self.region)
+                )
         except Exception as e:
             logger.error(f"Failed to list NAT Gateways: {e}")
         return resources
@@ -404,14 +434,16 @@ class AliyunProvider(BaseProvider):
         resources = []
         try:
             from aliyunsdkdds.request.v20151201 import DescribeDBInstancesRequest
-            
+
             request = DescribeDBInstancesRequest.DescribeDBInstancesRequest()
             request.set_PageSize(100)
-            
+
             response = self._do_request(request)
-            
-            for mongo in response.get('DBInstances', {}).get('DBInstance', []):
-                resources.append(mongodb_to_unified_resource(mongo, self.provider_name, self.region))
+
+            for mongo in response.get("DBInstances", {}).get("DBInstance", []):
+                resources.append(
+                    mongodb_to_unified_resource(mongo, self.provider_name, self.region)
+                )
         except ImportError:
             logger.warning("aliyun-python-sdk-dds not installed")
         except Exception as e:
@@ -423,25 +455,27 @@ class AliyunProvider(BaseProvider):
         nas_list = []
         try:
             from aliyunsdknas.request.v20170626 import DescribeFileSystemsRequest
-            
+
             for region in self.regions:
                 client = self._get_client(region)
                 request = DescribeFileSystemsRequest.DescribeFileSystemsRequest()
                 request.set_PageSize(100)
-                
+
                 response = self._do_request(client, request)
-                
-                for fs in response.get('FileSystems', {}).get('FileSystem', []):
-                    nas_list.append({
-                        "id": fs.get('FileSystemId'),
-                        "description": fs.get('Description', ''),
-                        "protocol_type": fs.get('ProtocolType'),
-                        "storage_type": fs.get('StorageType'),
-                        "status": fs.get('Status'),
-                        "region": region,
-                        "capacity": fs.get('Capacity', 0),
-                        "metered_size": fs.get('MeteredSize', 0)
-                    })
+
+                for fs in response.get("FileSystems", {}).get("FileSystem", []):
+                    nas_list.append(
+                        {
+                            "id": fs.get("FileSystemId"),
+                            "description": fs.get("Description", ""),
+                            "protocol_type": fs.get("ProtocolType"),
+                            "storage_type": fs.get("StorageType"),
+                            "status": fs.get("Status"),
+                            "region": region,
+                            "capacity": fs.get("Capacity", 0),
+                            "metered_size": fs.get("MeteredSize", 0),
+                        }
+                    )
         except Exception as e:
             logger.error(f"Failed to list NAS: {e}")
         return nas_list
@@ -449,37 +483,28 @@ class AliyunProvider(BaseProvider):
     def check_permissions(self) -> Dict:
         """
         检查当前凭证的权限
-        
+
         Returns:
             权限分析结果
         """
-        result = {
-            "user_info": {},
-            "permissions": [],
-            "high_risk_permissions": [],
-            "warnings": []
-        }
-        
+        result = {"user_info": {}, "permissions": [], "high_risk_permissions": [], "warnings": []}
+
         try:
             # 1. 获取当前身份信息 (STS)
             try:
                 request = GetCallerIdentityRequest.GetCallerIdentityRequest()
                 response = self._do_request(request)
-                
+
                 arn = response.get("Arn")
                 user_id = response.get("UserId")
                 account_id = response.get("AccountId")
-                
-                result["user_info"] = {
-                    "arn": arn,
-                    "user_id": user_id,
-                    "account_id": account_id
-                }
-                
+
+                result["user_info"] = {"arn": arn, "user_id": user_id, "account_id": account_id}
+
                 # 解析身份类型
                 identity_type = "unknown"
                 identity_name = ""
-                
+
                 if ":user/" in arn:
                     identity_type = "user"
                     identity_name = arn.split(":user/")[-1]
@@ -489,10 +514,10 @@ class AliyunProvider(BaseProvider):
                 elif ":root" in arn:
                     identity_type = "root"
                     identity_name = "root"
-                
+
                 result["user_info"]["type"] = identity_type
                 result["user_info"]["name"] = identity_name
-                
+
             except Exception as e:
                 result["warnings"].append(f"无法获取身份信息 (STS): {str(e)}")
                 # 如果无法获取身份，后续无法查询策略
@@ -512,13 +537,17 @@ class AliyunProvider(BaseProvider):
                     response = self._do_request(request)
                     policies = response.get("Policies", {}).get("Policy", [])
                 elif identity_type == "root":
-                    result["warnings"].append("当前使用的是主账号(Root)，拥有所有权限！建议创建RAM用户。")
-                    result["high_risk_permissions"].append({
-                        "policy": "RootAccount",
-                        "risk_level": "CRITICAL",
-                        "description": "主账号拥有最高权限",
-                        "recommendation": "请立即停止使用主账号AK，创建RAM用户并分配最小权限"
-                    })
+                    result["warnings"].append(
+                        "当前使用的是主账号(Root)，拥有所有权限！建议创建RAM用户。"
+                    )
+                    result["high_risk_permissions"].append(
+                        {
+                            "policy": "RootAccount",
+                            "risk_level": "CRITICAL",
+                            "description": "主账号拥有最高权限",
+                            "recommendation": "请立即停止使用主账号AK，创建RAM用户并分配最小权限",
+                        }
+                    )
             except Exception as e:
                 result["warnings"].append(f"无法获取策略列表: {str(e)}")
 
@@ -528,42 +557,48 @@ class AliyunProvider(BaseProvider):
                 "AliyunECSFullAccess",
                 "AliyunRDSFullAccess",
                 "AliyunRAMFullAccess",
-                "AliyunVPCFullAccess"
+                "AliyunVPCFullAccess",
             ]
-            
+
             for policy in policies:
                 policy_name = policy.get("PolicyName")
-                policy_type = policy.get("PolicyType") # System or Custom
-                
+                policy_type = policy.get("PolicyType")  # System or Custom
+
                 # 记录所有策略
-                result["permissions"].append({
-                    "api": policy_name,
-                    "description": f"{policy_type} Policy",
-                    "risk_level": "INFO"
-                })
-                
+                result["permissions"].append(
+                    {
+                        "api": policy_name,
+                        "description": f"{policy_type} Policy",
+                        "risk_level": "INFO",
+                    }
+                )
+
                 # 检查高危策略
                 if policy_name in dangerous_policies:
-                    result["high_risk_permissions"].append({
-                        "policy": policy_name,
-                        "risk_level": "HIGH",
-                        "description": "该策略包含完全管理权限",
-                        "recommendation": "建议替换为ReadOnlyAccess策略"
-                    })
+                    result["high_risk_permissions"].append(
+                        {
+                            "policy": policy_name,
+                            "risk_level": "HIGH",
+                            "description": "该策略包含完全管理权限",
+                            "recommendation": "建议替换为ReadOnlyAccess策略",
+                        }
+                    )
                 elif "FullAccess" in policy_name:
-                    result["high_risk_permissions"].append({
-                        "policy": policy_name,
-                        "risk_level": "MEDIUM",
-                        "description": "该策略可能包含敏感操作权限",
-                        "recommendation": "请审查是否需要所有权限"
-                    })
+                    result["high_risk_permissions"].append(
+                        {
+                            "policy": policy_name,
+                            "risk_level": "MEDIUM",
+                            "description": "该策略可能包含敏感操作权限",
+                            "recommendation": "请审查是否需要所有权限",
+                        }
+                    )
 
             # 4. 验证只读API (作为兜底验证)
             read_only_apis = [
                 ("ecs:DescribeInstances", "ECS实例查询"),
                 ("rds:DescribeDBInstances", "RDS实例查询"),
             ]
-            
+
             for api, desc in read_only_apis:
                 # 这里只是简单的记录，实际上如果上面获取策略成功，这里可以省略
                 # 或者可以尝试真实调用一下来验证
@@ -572,5 +607,5 @@ class AliyunProvider(BaseProvider):
         except Exception as e:
             logger.error(f"Failed to check permissions: {e}")
             result["error"] = str(e)
-            
+
         return result

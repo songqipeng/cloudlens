@@ -2,6 +2,7 @@
 APScheduler-based task scheduler
 Supports cron expressions, history recording, and optional webhook notification.
 """
+
 import json
 import os
 import subprocess
@@ -19,7 +20,11 @@ from utils.logger import get_logger
 class APSTaskScheduler:
     """基于 APScheduler 的任务调度器"""
 
-    def __init__(self, config_path: str = "schedules.yaml", history_path: str = "logs/scheduler_history.jsonl"):
+    def __init__(
+        self,
+        config_path: str = "schedules.yaml",
+        history_path: str = "logs/scheduler_history.jsonl",
+    ):
         self.config_path = config_path
         self.history_path = history_path
         self.logger = get_logger("aps_scheduler")
@@ -38,7 +43,9 @@ class APSTaskScheduler:
             self.logger.error(f"加载配置失败: {e}")
             return {}
 
-    def _record_history(self, job_name: str, command: str, success: bool, output: str = "", error: str = ""):
+    def _record_history(
+        self, job_name: str, command: str, success: bool, output: str = "", error: str = ""
+    ):
         """记录任务执行历史"""
         Path(self.history_path).parent.mkdir(parents=True, exist_ok=True)
         record = {
@@ -83,7 +90,9 @@ class APSTaskScheduler:
                 self.logger.error(f"❌ 任务 {job_name} 失败 (耗时 {duration:.2f}s)")
                 self.logger.error(result.stderr)
                 self._record_history(job_name, command, False, error=result.stderr)
-                self._notify(webhook, f"[CloudLens Scheduler] 任务失败: {job_name}\n{result.stderr}")
+                self._notify(
+                    webhook, f"[CloudLens Scheduler] 任务失败: {job_name}\n{result.stderr}"
+                )
         except Exception as e:
             self.logger.error(f"❌ 任务 {job_name} 异常: {e}")
             self._record_history(job_name, command, False, error=str(e))

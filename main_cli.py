@@ -71,7 +71,52 @@ def add_account(provider, name, region, ak, sk):
     """添加新的云账号配置"""
     cm = ConfigManager()
     
-    # TODO: 在这里调用 PermissionGuard 进行权限预检
+    # 权限预检 - 验证凭证有效性和权限
+    click.echo("🔍 正在验证凭证...")
+    try:
+        # 创建临时配置进行验证
+        from models.resource import CloudAccount as TempAccount
+        temp_account = TempAccount(
+            name=name,
+            provider=provider,
+            access_key_id=ak,
+            access_key_secret=sk,
+            region=region
+        )
+        
+        # 获取provider实例并测试
+        test_provider = get_provider(temp_account)
+        
+        # 测试基本API调用
+        if provider == "aliyun":
+            test_provider.list_instances()  # 测试查询权限
+            click.echo("✅ 凭证验证成功")
+        elif provider == "tencent":
+            test_provider.list_instances()
+            click.echo("✅ 凭证验证成功")
+        
+        # 检查权限（可选，不阻塞）
+        try:
+            permissions = test_provider.check_permissions()
+            if hasattr(permissions, '__iter__') and not isinstance(permissions, str):
+                click.echo(f"📋 检测到权限项: {len(permissions)} 个")
+            
+            # 检查高危权限
+            if isinstance(permissions, dict) and permissions.get('high_risk_permissions'):
+                high_risk = permissions['high_risk_permissions']
+                if high_risk:
+                    click.echo(f"⚠️  警告: 检测到 {len(high_risk)} 个高危权限", err=True)
+                    for risk in high_risk[:3]:  # 只显示前3个
+                        click.echo(f"   - {risk.get('policy', 'Unknown')}: {risk.get('risk_level', 'Unknown')}")
+        except Exception as e:
+            click.echo(f"⚠️  权限检查跳过: {e}", err=True)
+            
+    except Exception as e:
+        click.echo(f"❌ 凭证验证失败: {e}", err=True)
+        if not click.confirm("\n是否仍要添加该账号?", default=False):
+            click.echo("已取消添加账号")
+            return
+        click.echo("⚠️  警告: 该账号可能无法正常使用")
     
     # 使用 ConfigManager 添加账号（自动处理 keyring）
     cm = ConfigManager()
@@ -107,8 +152,12 @@ def get_provider(account_config: CloudAccount):
             account_config.access_key_secret,
             account_config.region
         )
-    # TODO: Add AWS and Volcano providers
-    return None
+    else:
+        raise ValueError(
+            f"不支持的云厂商: {account_config.provider}。\n"
+            f"当前支持的厂商: aliyun (阿里云), tencent (腾讯云)\n"
+            f"AWS和火山引擎支持正在开发中。"
+        )
 
 def smart_resolve_account(cm: ConfigManager, ctx_mgr: ContextManager, account_name: Optional[str] = None) -> Optional[str]:
     """

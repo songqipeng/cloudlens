@@ -47,16 +47,17 @@ class AnalyzerRegistry:
         return cls._analyzers
 
     @classmethod
-    def load_plugins(cls, group: str = 'cloudlens.analyzers'):
+    def load_plugins(cls, group: str = "cloudlens.analyzers"):
         """
         加载外部插件
-        
+
         通过 Python entry_points 机制加载第三方插件
-        
+
         Args:
             group: entry_points 组名
         """
         import sys
+
         if sys.version_info >= (3, 10):
             from importlib.metadata import entry_points
         else:
@@ -72,11 +73,11 @@ class AnalyzerRegistry:
         try:
             # Python 3.10+ 返回 SelectableGroups, 之前返回 dict
             eps = entry_points()
-            if hasattr(eps, 'select'):
+            if hasattr(eps, "select"):
                 plugins = eps.select(group=group)
             else:
                 plugins = eps.get(group, [])
-                
+
             for entry_point in plugins:
                 try:
                     # 加载插件，通常插件模块导入时会自动执行 @register

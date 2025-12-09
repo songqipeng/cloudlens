@@ -1,50 +1,121 @@
-# CloudLens CLI - 使用指南
+# CloudLens CLI 用户手册
+
+**版本**: v2.1.0  
+**更新日期**: 2025-12-09
+
+---
 
 ## 目录
 
 1. [快速开始](#快速开始)
-2. [安装配置](#安装配置)
-3. [基础使用](#基础使用)
-4. [高级功能](#高级功能)
-5. [命令参考](#命令参考)
-6. [最佳实践](#最佳实践)
-7. [故障排查](#故障排查)
+2. [配置管理](#配置管理)
+3. [资源查询](#资源查询)
+4. [智能分析](#智能分析)
+5. [成本管理](#成本管理) ⭐ 新增
+6. [安全合规](#安全合规) ⭐ 增强
+7. [自动修复](#自动修复) ⭐ 新增
+8. [报告生成](#报告生成)
+9. [高级功能](#高级功能)
+10. [常见问题](#常见问题)
 
 ---
 
 ## 快速开始
 
-### 5分钟上手
+### 安装
 
 ```bash
-# 1. 克隆项目
+# 克隆仓库
 git clone <repository>
 cd aliyunidle
 
-# 2. 安装依赖
+# 安装依赖
 pip install -r requirements.txt
 
-# 3. 添加第一个账号
-cl config add \
+# 可选: 安装AI预测依赖
+pip install prophet
+
+# 验证安装
+python3 cl_new.py --version
+```
+
+### 第一次使用
+
+```bash
+# 1. 添加云账号
+python3 cl_new.py config add \
   --provider aliyun \
-  --name my-account \
+  --name prod \
   --region cn-hangzhou \
   --ak YOUR_ACCESS_KEY \
   --sk YOUR_SECRET_KEY
 
-# 4. 查询资源
-cl query ecs --account my-account
+# 2. 查询资源
+python3 cl_new.py query ecs --account prod
 
-# 5. 生成报告
-cl report generate --account my-account --format excel
+# 3. 分析闲置资源
+python3 cl_new.py analyze idle --account prod
+```
 
-# 可选：使用封装命令（记住上次账号，账号可作为位置参数）
-./cloudlens query my-account ecs
-./cloudlens query ecs
-./cl query ecs
+---
+
+## 配置管理
+
+### 添加账号
+
+```bash
+# 交互式添加
+python3 cl_new.py config add
+
+# 命令行参数
+python3 cl_new.py config add \
+  --provider aliyun \
+  --name staging \
+  --region cn-beijing \
+  --ak <YOUR_AK> \
+  --sk <YOUR_SK>
+```
+
+### 查看账号
+
+```bash
+# 列出所有账号
+python3 cl_new.py config list
+
+# 查看特定账号
+python3 cl_new.py config show --name prod
+```
+
+### 删除账号
+
+```bash
+python3 cl_new.py config remove --name staging
+```
+
+---
+
+## 资源查询
+
+### 基础查询
+
+```bash
+# 查询ECS实例
+python3 cl_new.py query ecs --account prod
+
+# 查询RDS数据库
+python3 cl_new.py query rds --account prod
+
+# 查询Redis实例
+python3 cl_new.py query redis --account prod
+
+# 查询VPC网络
+python3 cl_new.py query vpc --account prod
+
+# 查询负载均衡
+python3 cl_new.py query slb --account prodquery ecs
+```
 
 # 密钥安全：默认强制使用 Keyring 存储，检测到明文会自动迁移并移除配置中的密钥
-```
 
 🎉 完成！您已经成功使用CloudLens CLI！
 

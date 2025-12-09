@@ -6,6 +6,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/Version-2.1.0-brightgreen.svg)]()
 
 </div>
 
@@ -17,19 +18,27 @@
 
 ### 基础能力
 - 🌐 **多云统一管理** - 一个工具管理 阿里云、腾讯云 等多平台资源
-- 💰 **智能成本分析** - 自动识别闲置资源，降低 30%+ 云成本
-- 🔒 **安全合规检查** - 公网暴露检测、权限审计、标签治理
+- 💰 **智能成本分析** - 成本趋势分析、AI预测，降低 30%+ 云成本
+- 🔒 **安全合规检查** - CIS Benchmark、公网暴露检测、权限审计
+- 🤖 **自动化修复** - 批量打标签、安全组修复，支持干运行模式
 - 📊 **专业报告生成** - Excel、HTML、JSON/CSV 多格式导出
-- ⚡ **高性能查询** - 并发查询，速度提升 3 倍
+- ⚡ **高性能查询** - 并发查询 + 智能缓存，速度提升 5 倍
 
-### v2.0 新增能力
+### v2.1 新增能力 ⭐
+- 📈 **成本趋势分析** - 环比/同比增长分析，按类型/区域统计
+- 🔮 **AI成本预测** - 基于Prophet ML模型，预测未来90天成本趋势
+- 🛡️ **CIS Benchmark** - 10+安全基线检查，覆盖IAM/网络/数据/审计
+- 🔧 **自动修复引擎** - 批量修复资源问题，完整审计日志
+- ⚡ **异步I/O架构** - AsyncProvider基础，为高性能查询做准备
+
+### v2.0 特性
 - 🎨 **交互式 REPL** - 基于 `prompt_toolkit` 和 `rich` 的现代化命令行体验
 - 📺 **TUI 仪表盘** - 使用 `textual` 实现的全屏监控界面（类 K9s）
 - 🔍 **高级查询引擎** - 支持 Pandas 聚合分析和 JMESPath 过滤
 - 🔌 **插件生态** - 通过 Python `entry_points` 支持第三方插件
 - ⚙️ **灵活配置** - 支持环境变量、credentials 文件（AWS CLI 兼容）
-- 🗄️  **智能缓存** - SQLite 缓存系统，加速重复查询
-- 🤖 **自动化治理** - 带 dry-run 的安全自动修复框架Keyring 存储密钥
+- 🗄️ **智能缓存** - SQLite 缓存系统，加速重复查询
+- 🔐 **Keyring 存储** - 安全存储密钥，自动迁移明文配置
 
 ## 📋 支持的资源类型
 
@@ -37,8 +46,9 @@
 - **阿里云**: ECS, RDS, Redis, OSS, NAS, VPC, EIP, SLB, MongoDB, ACK, ClickHouse, PolarDB, ECI, Disk
 - **腾讯云**: CVM, CDB, Redis, COS, VPC
 
-### 规划中（未实现）
-- AWS/火山引擎: EC2, RDS, S3 等
+### 规划中
+- AWS: EC2, RDS, S3 等
+- 火山引擎: ECS, VPC 等
 
 ## 🛠️ 快速开始
 
@@ -48,47 +58,53 @@
 git clone <repository>
 cd aliyunidle
 pip install -r requirements.txt
-```
 
-- 如需生成 PDF 报告，额外安装 weasyprint 或使用本地 wkhtmltopdf
+# 可选: 安装AI预测依赖
+pip install prophet
+```
 
 ### 2. 配置账号
 
 ```bash
 # 添加阿里云账号
-cl config add \
+python3 cl_new.py config add \
   --provider aliyun \
   --name prod \
   --region cn-hangzhou \
   --ak YOUR_AK \
---sk YOUR_SK
+  --sk YOUR_SK
 
 # 查看已配置账号
-cl config list
+python3 cl_new.py config list
 
-# 或使用封装命令（会记住最近一次使用的账号；账号也可作为位置参数）
-./cloudlens config add
-./cloudlens query prod ecs   # 指定账号
-./cloudlens query ecs        # 复用上次账号
-
-# 简写版（可执行文件同目录下的 cl）
-./cl query ecs
-./cl query prod ecs
-
-# 密钥安全：默认强制使用 Keyring 存储，检测到明文会自动迁移并移除配置中的密钥
+# 简写版本
+./cl config add
+./cl config list
 ```
 
 ### 3. 开始使用
 
 ```bash
 # 查询ECS实例
-cl query ecs --account prod
-
-# 生成Excel报告
-cl report generate --account prod --format excel
+python3 cl_new.py query ecs --account prod
 
 # 分析闲置资源
-cl analyze idle --account prod
+python3 cl_new.py analyze idle --account prod
+
+# 成本趋势分析
+python3 cl_new.py analyze cost --account prod --trend
+
+# AI成本预测
+python3 cl_new.py analyze forecast --account prod --days 90
+
+# CIS安全合规检查
+python3 cl_new.py analyze security --account prod --cis
+
+# 自动打标签(干运行)
+python3 cl_new.py remediate tags --account prod
+
+# 实际执行修复
+python3 cl_new.py remediate tags --account prod --confirm
 ```
 
 ## 📖 使用指南
@@ -111,21 +127,6 @@ cl query ecs --concurrent
 # 高级筛选
 cl query ecs --status Running --region cn-hangzhou
 cl query ecs --filter "charge_type=PrePaid AND expire_days<7"
-
-# v2.0 高级功能
-# JMESPath 查询（AWS CLI 风格）
-cl query ecs -j "[?Status=='Running'].{ID:InstanceId,Name:InstanceName}"
-
-# Pandas 数据分析
-cl query ecs -a "groupby:region"
-cl query ecs -a "groupby:region,sum:cpu"
-cl query ecs -a "sort:-created_time|top:5"
-
-# 交互式模式
-cl 直接进入 REPL
-
-# TUI 仪表盘
-cl dashboard
 ```
 
 ### 分析功能
@@ -137,14 +138,38 @@ cl analyze idle --account prod --days 14
 # 续费提醒
 cl analyze renewal --account prod --days 30
 
-# 成本分析
-cl analyze cost --account prod
+# 成本趋势分析 (v2.1 新增)
+cl analyze cost --account prod           # 当前成本快照
+cl analyze cost --account prod --trend   # 显示趋势分析
+
+# AI成本预测 (v2.1 新增)
+cl analyze forecast --account prod --days 90
 
 # 安全合规检查
-cl analyze security --account prod
+cl analyze security --account prod       # 基础安全检查
+cl analyze security --account prod --cis # CIS Benchmark合规检查
 
 # 标签治理
 cl analyze tags --account prod
+```
+
+### 自动修复功能 (v2.1 新增)
+
+```bash
+# 自动打标签 - 干运行模式(默认)
+cl remediate tags --account prod
+
+# 指定标签
+cl remediate tags --account prod --env production --owner devops
+
+# 确认执行(实际修改)
+cl remediate tags --account prod --confirm
+
+# 查看修复历史
+cl remediate history --limit 50
+
+# 安全组修复(开发中)
+cl remediate security --account prod
 ```
 
 ### 报告生成

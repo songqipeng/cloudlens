@@ -1,13 +1,15 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
-from models.resource import UnifiedResource, ResourceType
+from typing import Any, Dict, List
+
+from models.resource import ResourceType, UnifiedResource
+
 
 class BaseProvider(ABC):
     """
     云厂商适配器基类
     所有具体的云厂商实现(AliyunProvider, TencentProvider等)都必须继承此类
     """
-    
+
     def __init__(self, account_name: str, access_key: str, secret_key: str, region: str):
         self.account_name = account_name
         self.access_key = access_key
@@ -29,17 +31,19 @@ class BaseProvider(ABC):
     def list_rds(self) -> List[UnifiedResource]:
         """列出关系型数据库实例"""
         pass
-        
+
     @abstractmethod
     def list_vpcs(self) -> List[Dict]:
         """列出VPC及网络拓扑信息"""
         pass
 
     @abstractmethod
-    def get_metric(self, resource_id: str, metric_name: str, start_time: int, end_time: int) -> List[Dict]:
+    def get_metric(
+        self, resource_id: str, metric_name: str, start_time: int, end_time: int
+    ) -> List[Dict]:
         """获取监控指标数据"""
         pass
-    
+
     @abstractmethod
     def check_permissions(self) -> List[str]:
         """

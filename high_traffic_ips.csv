@@ -1,0 +1,18 @@
+IP,Account,Type,ResourceID,Name,Total Bandwidth (Mbps)
+39.107.126.110,ydzn,EIP,eip-2ze980onyj4cl2sugk8ru,prod-ops-dnsmasq-01 (EIP),47.025000000000006
+39.107.84.229,ydzn,EIP,eip-2ze09a1qx68sgmd5nbh5d,羊小咩新官网 (EIP),1.8365625
+47.93.124.215,ydzn,EIP,eip-2zemd7ztkm8frh9zwyxqd,GRE-to-tx (EIP),8.261640625
+47.94.246.26,ydzn,EIP,eip-2zegg2hdcmw593xjwp7ks,EIP-eip-2zegg2hdcmw593xjwp7ks,1.405078125
+47.94.108.227,ydzn,EIP,eip-2zem481kp0n9vd35aebhv,EIP-eip-2zem481kp0n9vd35aebhv,1.38390625
+60.205.5.225,ydzn,EIP,eip-2ze4frhqskyjpuc8j50nj,EIP-eip-2ze4frhqskyjpuc8j50nj,8.923359375
+47.95.157.147,ydzn,EIP,eip-2zeqntjafz3bv09elcuy4,EIP-eip-2zeqntjafz3bv09elcuy4,3.48921875
+47.94.224.201,ydzn,EIP,eip-2zebaljci0mgdt47x1qor,EIP-eip-2zebaljci0mgdt47x1qor,1.220703125
+123.57.252.162,ydzn,EIP,eip-2zedreepthsx12sd8nz6e,EIP-eip-2zedreepthsx12sd8nz6e,30.572109374999997
+47.93.183.56,ydzn,EIP,eip-2zejyozota3g05s5iu3o1,EIP-eip-2zejyozota3g05s5iu3o1,30.049609375
+101.201.209.246,ydzn,EIP,eip-2ze9r0zdzn4x05eif98hs,EIP-eip-2ze9r0zdzn4x05eif98hs,1.434609375
+39.96.169.54,ydzn,SLB,lb-2zej8tycvsr037ii7pnal,电商公网LB-非回源,1.107578125
+47.94.162.116,zmyc,EIP,eip-2zer5xlbyooirfcdryn72,三方-客服系统私有化部署-01 (EIP),18.138828125
+123.57.83.173,zmyc,EIP,eip-2zejq3g42pnuj8yrgaeei,EIP-eip-2zejq3g42pnuj8yrgaeei,22.01234375
+47.93.61.134,zmyc,EIP,eip-2zej9h8e1tj1et0y9q45d,EIP-eip-2zej9h8e1tj1et0y9q45d,4.999296875
+123.56.31.54,zmyc,EIP,eip-2zek0s56ynydad0iiaev6,EIP-eip-2zek0s56ynydad0iiaev6,25.05859375
+39.106.49.145,zmyc,SLB,lb-2zers6022lldvbr914tb3,业务pro_slb,10.01203125

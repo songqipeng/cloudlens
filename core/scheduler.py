@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import schedule
-from croniter import croniter, CroniterBadCronError
 import yaml
+from croniter import CroniterBadCronError, croniter
 
 from utils.logger import get_logger
 
@@ -107,7 +107,9 @@ class TaskScheduler:
                             "next_run": next_run,
                         }
                     )
-                    self.logger.info(f"  - 任务 {name} 已配置 cron: {cron_expr}, 下次执行 {next_run}")
+                    self.logger.info(
+                        f"  - 任务 {name} 已配置 cron: {cron_expr}, 下次执行 {next_run}"
+                    )
                     continue
                 except (CroniterBadCronError, Exception) as e:
                     self.logger.error(f"  - 任务 {name} cron 表达式无效: {cron_expr}, 错误: {e}")
@@ -155,7 +157,9 @@ class TaskScheduler:
                         if job.get("next_run") and now >= job["next_run"]:
                             self.run_task(job["name"], job["command"])
                             job["next_run"] = croniter(job["cron"], now).get_next(datetime)
-                            self.logger.debug(f"  - 任务 {job['name']} 下次执行时间: {job['next_run']}")
+                            self.logger.debug(
+                                f"  - 任务 {job['name']} 下次执行时间: {job['next_run']}"
+                            )
                     except Exception as e:
                         self.logger.error(f"❌ 任务 {job.get('name')} 执行/调度失败: {e}")
 
