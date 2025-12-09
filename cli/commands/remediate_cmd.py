@@ -47,8 +47,8 @@ def remediate_tags(account, env, owner, confirm):
     # 创建Provider
     provider = AliyunProvider(
         account_name=account_config.name,
-        access_key=account_config.access_key,
-        secret_key=account_config.secret_key,
+        access_key=account_config.access_key_id,
+        secret_key=account_config.access_key_secret,
         region=account_config.region,
     )
 

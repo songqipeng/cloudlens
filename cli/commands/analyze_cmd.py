@@ -48,8 +48,8 @@ def analyze_idle(account, days):
     # 创建Provider
     provider = AliyunProvider(
         account_name=account_config.name,
-        access_key=account_config.access_key,
-        secret_key=account_config.secret_key,
+        access_key=account_config.access_key_id,
+        secret_key=account_config.access_key_secret,
         region=account_config.region,
     )
 
@@ -139,8 +139,8 @@ def analyze_renewal(account, days):
     # 创建Provider
     provider = AliyunProvider(
         account_name=account_config.name,
-        access_key=account_config.access_key,
-        secret_key=account_config.secret_key,
+        access_key=account_config.access_key_id,
+        secret_key=account_config.access_key_secret,
         region=account_config.region,
     )
 
@@ -297,8 +297,8 @@ def analyze_cost(account, days, trend):
     # 创建Provider
     provider = AliyunProvider(
         account_name=account_config.name,
-        access_key=account_config.access_key,
-        secret_key=account_config.secret_key,
+        access_key=account_config.access_key_id,
+        secret_key=account_config.access_key_secret,
         region=account_config.region,
     )
 
@@ -430,8 +430,8 @@ def analyze_tags(account):
     # 创建Provider
     provider = AliyunProvider(
         account_name=account_config.name,
-        access_key=account_config.access_key,
-        secret_key=account_config.secret_key,
+        access_key=account_config.access_key_id,
+        secret_key=account_config.access_key_secret,
         region=account_config.region,
     )
 
@@ -490,8 +490,8 @@ def analyze_security(account, cis):
     # 创建Provider
     provider = AliyunProvider(
         account_name=account_config.name,
-        access_key=account_config.access_key,
-        secret_key=account_config.secret_key,
+        access_key=account_config.access_key_id,
+        secret_key=account_config.access_key_secret,
         region=account_config.region,
     )
 
