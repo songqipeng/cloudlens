@@ -204,14 +204,19 @@ def analyze_renewal(account, days):
 
 @analyze.command("forecast")
 @click.option("--account", "-a", help="账号名称")
-@click.option("--days", "-d", default=90, type=int, help="预测天数")
+@click.option("--days", default=90, help="预测天数")
+@click.option("--export", is_flag=True, help="导出HTML预测报告")
 @handle_exceptions
-def analyze_forecast(account, days):
-    """AI成本预测 - 预测未来成本趋势(需要历史数据)"""
+def analyze_forecast(account, days, export):
+    """AI成本预测 - 基于历史数据预测未来成本"""
     from core.cost_predictor import CostPredictor
+    from rich.table import Table
     from rich.panel import Panel
+    import os
+    import json
+    from datetime import datetime
 
-    console.print(f"[cyan]🔮 AI成本预测 (未来{days}天)[/cyan]\n")
+    console.print(f"[cyan]🤖 正在进行AI成本预测 (未来{days}天)...[/cyan]")
 
     # 获取账号配置
     cm = ConfigManager()
@@ -224,18 +229,129 @@ def analyze_forecast(account, days):
         console.print(f"[red]❌ 账号 '{account}' 不存在[/red]")
         return
 
-    # 创建预测器
     predictor = CostPredictor()
+    result = predictor.train_and_predict(days)
 
-    # 生成预测报告
-    report = predictor.generate_forecast_report(account_config.name, days)
-
-    if not report:
-        console.print("[red]❌ 预测失败[/red]")
+    if "error" in result:
+        console.print(f"[red]预测失败: {result['error']}[/red]")
+        if "scikit-learn" in result['error']:
+             console.print("[yellow]提示: 请运行 'pip install scikit-learn numpy' 安装必要的依赖库[/yellow]")
         return
 
-    if "error" in report:
-        console.print(f"[yellow]⚠️  {report['error']}[/yellow]")
+    # 展示预测结果
+    console.print("\n[bold cyan]📊 预测结果:[/bold cyan]")
+    
+    # 核心指标
+    console.print(Panel.fit(
+        f"[bold]模型类型:[/bold] {result['model_type']}\n"
+        f"[bold]拟合度(R²):[/bold] {result['confidence_score']:.4f}\n"
+        f"[bold]日均增长:[/bold] ¥{result['daily_increase']:.2f}\n"
+        f"[bold]预计增加:[/bold] ¥{result['predicted_total_increase']:.2f}",
+        title="AI 预测摘要"
+    ))
+
+    # 导出HTML报告
+    if export:
+        report_dir = os.path.expanduser("~/cloudlens_reports")
+        os.makedirs(report_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"forecast_report_{timestamp}.html"
+        filepath = os.path.join(report_dir, filename)
+
+        # 准备数据
+        history_dates = result['history']['dates']
+        history_costs = result['history']['costs']
+        forecast_dates = result['forecast']['dates']
+        forecast_costs = result['forecast']['costs']
+        
+        # 合并日期轴
+        all_dates = history_dates + forecast_dates
+        
+        # 对应的数据系列 (历史部分后面补null, 预测部分前面补null)
+        history_series = history_costs + [None] * len(forecast_dates)
+        # 为了让线条连贯，预测数据的第一点应该是历史的最后一点
+        if history_costs:
+            forecast_series = [None] * (len(history_dates)-1) + [history_costs[-1]] + forecast_costs
+        else:
+            forecast_series = forecast_costs
+
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>CloudLens AI 成本预测报告</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        body {{ font-family: -apple-system, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }}
+        .container {{ max-width: 1200px; margin: 0 auto; }}
+        .header {{ background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+        .card {{ background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+        h1 {{ margin: 0 0 10px 0; color: #333; }}
+        #forecastChart {{ width: 100%; height: 500px; }}
+        .stats {{ display: flex; gap: 20px; margin-top: 10px; }}
+        .stat-item {{ background: #f8f9fa; padding: 10px 20px; border-radius: 4px; }}
+        .stat-val {{ font-weight: bold; color: #1890ff; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 AI 成本预测分析</h1>
+            <div class="stats">
+                <div class="stat-item">模型: <span class="stat-val">{result['model_type']}</span></div>
+                <div class="stat-item">拟合度(R²): <span class="stat-val">{result['confidence_score']:.4f}</span></div>
+                <div class="stat-item">日均增长: <span class="stat-val">¥{result['daily_increase']:.2f}</span></div>
+                <div class="stat-item">未来{days}天预计增加: <span class="stat-val">¥{result['predicted_total_increase']:.2f}</span></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div id="forecastChart"></div>
+        </div>
+    </div>
+
+    <script>
+        var chart = echarts.init(document.getElementById('forecastChart'));
+        chart.setOption({{
+            title: {{ text: '成本预测趋势 (未来{days}天)' }},
+            tooltip: {{ trigger: 'axis' }},
+            legend: {{ data: ['历史成本', 'AI预测'] }},
+            xAxis: {{ 
+                type: 'category', 
+                boundaryGap: false,
+                data: {json.dumps(all_dates)} 
+            }},
+            yAxis: {{ type: 'value', name: '成本 (CNY)' }},
+            series: [
+                {{
+                    name: '历史成本',
+                    type: 'line',
+                    data: {json.dumps(history_series)},
+                    itemStyle: {{ color: '#52c41a' }},
+                    areaStyle: {{ opacity: 0.1 }}
+                }},
+                {{
+                    name: 'AI预测',
+                    type: 'line',
+                    data: {json.dumps(forecast_series)},
+                    lineStyle: {{ type: 'dashed' }},
+                    itemStyle: {{ color: '#1890ff' }}
+                }}
+            ]
+        }});
+        window.onresize = function() {{ chart.resize(); }};
+    </script>
+</body>
+</html>
+        """
+        
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(html_content)
+            
+        console.print(f"\n[bold green]✓ 预测报告已导出:[/bold green] {filepath}")
+        if os.name == 'posix':
+            os.system(f"open '{filepath}'")
         console.print("\n提示:")
         console.print("  • 需要至少30天的历史数据才能进行预测")
         console.print("  • 请多次运行 'cl analyze cost' 积累数据")
@@ -272,19 +388,23 @@ def analyze_forecast(account, days):
 
 @analyze.command("cost")
 @click.option("--account", "-a", help="账号名称")
-@click.option("--days", "-d", default=30, type=int, help="分析天数")
-@click.option("--trend", is_flag=True, help="显示成本趋势")
+@click.option("--days", default=30, help="分析周期(天)")
+@click.option("--trend", is_flag=True, help="显示趋势分析")
+@click.option("--export", is_flag=True, help="导出HTML分析报告")
 @handle_exceptions
-def analyze_cost(account, days, trend):
-    """成本分析 - 当前成本、趋势分析与优化建议"""
+def analyze_cost(account, days, trend, export):
+    """成本分析 - 分析资源成本结构和趋势"""
+    from core.cost_analyzer import CostAnalyzer
     from core.cost_trend_analyzer import CostTrendAnalyzer
     from providers.aliyun.provider import AliyunProvider
     from rich.table import Table
     from rich.panel import Panel
+    import os
+    import json
+    from datetime import datetime
 
-    console.print("[cyan]💰 分析成本与优化机会...[/cyan]\n")
+    console.print(f"[cyan]💰 分析资源成本 (过去{days}天)...[/cyan]")
 
-    # 获取账号配置
     cm = ConfigManager()
     if not account:
         ctx_mgr = ContextManager()
@@ -305,96 +425,231 @@ def analyze_cost(account, days, trend):
 
     # 获取资源
     with Progress() as progress:
-        task = progress.add_task("[cyan]正在查询资源...", total=3)
-        
+        task = progress.add_task("[cyan]查询资源...", total=4)
         instances = provider.list_instances()
         progress.update(task, advance=1)
-        
         rds_list = provider.list_rds()
         progress.update(task, advance=1)
-        
         redis_list = provider.list_redis()
         progress.update(task, advance=1)
+        slb_list = provider.list_slb()
+        progress.update(task, advance=1)
 
-    all_resources = instances + rds_list + redis_list
+    all_resources = instances + rds_list + redis_list + slb_list
     
-    if not all_resources:
-        console.print("[yellow]未找到资源[/yellow]")
-        return
-
     # 记录成本快照
     analyzer = CostTrendAnalyzer()
     snapshot = analyzer.record_cost_snapshot(account_config.name, all_resources)
 
-    # 显示当前成本
+    # 基础展示
     console.print(Panel.fit(
-        f"[bold cyan]账号:[/bold cyan] {account_config.name}\n"
-        f"[bold green]总资源数:[/bold green] {snapshot['resource_count']}\n"
-        f"[bold yellow]预估月成本:[/bold yellow] ¥{snapshot['total_cost']:,.2f}",
-        title="📊 当前成本概览"
+        f"[bold green]总月估算成本:[/bold green] ¥{snapshot['total_cost']:,.2f}\n"
+        f"[bold]资源总数:[/bold] {len(all_resources)}",
+        title="💰 成本概览"
     ))
 
     # 按类型展示
-    console.print("\n[bold]按资源类型分布:[/bold]")
-    type_table = Table()
-    type_table.add_column("资源类型", style="cyan")
-    type_table.add_column("月成本", style="green", justify="right")
-    type_table.add_column("占比", style="yellow", justify="right")
+    if snapshot['cost_by_type']:
+        console.print("\n[bold]按资源类型分布:[/bold]")
+        type_table = Table(show_header=True, header_style="bold magenta")
+        type_table.add_column("资源类型", style="cyan")
+        type_table.add_column("月成本", style="green", justify="right")
+        type_table.add_column("占比", style="yellow", justify="right")
 
-    for rtype, cost in sorted(snapshot['cost_by_type'].items(), key=lambda x: x[1], reverse=True):
-        pct = (cost / snapshot['total_cost'] * 100) if snapshot['total_cost'] > 0 else 0
-        type_table.add_row(rtype, f"¥{cost:,.2f}", f"{pct:.1f}%")
+        total = snapshot['total_cost']
+        for r_type, cost in sorted(snapshot['cost_by_type'].items(), key=lambda x: x[1], reverse=True):
+            pct = (cost / total * 100) if total > 0 else 0
+            type_table.add_row(r_type, f"¥{cost:,.2f}", f"{pct:.1f}%")
 
-    console.print(type_table)
-
-    # 按区域展示
-    if len(snapshot['cost_by_region']) > 1:
-        console.print("\n[bold]按区域分布:[/bold]")
-        region_table = Table()
-        region_table.add_column("区域", style="cyan")
-        region_table.add_column("月成本", style="green", justify="right")
-
-        for region, cost in sorted(snapshot['cost_by_region'].items(), key=lambda x: x[1], reverse=True):
-            region_table.add_row(region, f"¥{cost:,.2f}")
-
-        console.print(region_table)
+        console.print(type_table)
 
     # 趋势分析
-    if trend:
-        console.print(f"\n[bold cyan]📈 成本趋势分析 (最近{days}天)[/bold cyan]")
-        report = analyzer.generate_trend_report(account_config.name, days)
+    report_data = None
+    if trend or export:
+        report_data = analyzer.generate_trend_report(account_config.name, days)
 
-        if "error" in report:
-            console.print(f"[yellow]⚠️  {report['error']}[/yellow]")
-            console.print("提示: 需要多次运行 'cl analyze cost' 积累数据后才能分析趋势")
+    if trend and report_data:
+        if "error" in report_data:
+             console.print(f"\n[yellow]⚠️  无法生成趋势分析: {report_data['error']}[/yellow]")
+             console.print("[dim]提示: 趋势分析至少需要2个历史快照。请明天再运行一次即可看到趋势。[/dim]")
         else:
-            analysis = report['analysis']
+            console.print(f"\n[bold cyan]📈 成本趋势分析 (最近{days}天)[/bold cyan]")
+            analysis = report_data['analysis']
             
             # 展示趋势指标
             trend_table = Table(title="趋势指标")
-            trend_table.add_column("指标", style="cyan")
-            trend_table.add_column("数值", style="green")
+        trend_table.add_column("指标", style="cyan")
+        trend_table.add_column("数值", style="green")
 
-            trend_table.add_row("分析周期", f"{analysis['period_days']} 天")
-            trend_table.add_row("最新成本", f"¥{analysis['latest_cost']:,.2f}")
-            trend_table.add_row("平均成本", f"¥{analysis['avg_cost']:,.2f}")
-            
-            # 总变化
-            change_color = "red" if analysis['total_change'] > 0 else "green"
-            trend_table.add_row(
-                "总变化",
-                f"[{change_color}]{analysis['total_change']:+,.2f} ({analysis['total_change_pct']:+.1f}%)[/{change_color}]"
-            )
-            
-            # 环比
-            mom_color = "red" if analysis['mom_change'] > 0 else "green"
-            trend_table.add_row(
-                "环比(MoM)",
-                f"[{mom_color}]{analysis['mom_change']:+,.2f} ({analysis['mom_change_pct']:+.1f}%)[/{mom_color}]"
-            )
+        trend_table.add_row("分析周期", f"{analysis['period_days']} 天")
+        trend_table.add_row("最新成本", f"¥{analysis['latest_cost']:,.2f}")
+        trend_table.add_row("平均成本", f"¥{analysis['avg_cost']:,.2f}")
+        
+        # 总变化
+        change_color = "red" if analysis['total_change'] > 0 else "green"
+        trend_table.add_row(
+            "总变化",
+            f"[{change_color}]{analysis['total_change']:+,.2f} ({analysis['total_change_pct']:+.1f}%)[/{change_color}]"
+        )
+        
+        # 环比
+        mom_color = "red" if analysis['mom_change'] > 0 else "green"
+        trend_table.add_row(
+            "环比(MoM)",
+            f"[{mom_color}]{analysis['mom_change']:+,.2f} ({analysis['mom_change_pct']:+.1f}%)[/{mom_color}]"
+        )
 
-            console.print(trend_table)
-            console.print(f"\n[bold]趋势: {analysis['trend']}[/bold]")
+        console.print(trend_table)
+        console.print(f"\n[bold]趋势: {analysis['trend']}[/bold]")
+
+    # 导出HTML报告
+    if export and report_data and "error" not in report_data:
+        report_dir = os.path.expanduser("~/cloudlens_reports")
+        os.makedirs(report_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"cost_report_{account}_{timestamp}.html"
+        filepath = os.path.join(report_dir, filename)
+
+        # 准备ECharts数据
+        chart_dates = report_data['chart_data']['dates']
+        chart_costs = report_data['chart_data']['costs']
+        type_data = [{"name": k, "value": v} for k, v in report_data['cost_by_type'].items()]
+        region_data = [{"name": k, "value": v} for k, v in report_data['cost_by_region'].items()]
+        
+        analysis = report_data['analysis']
+
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>CloudLens 成本分析报告 - {account}</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        body {{ font-family: -apple-system, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }}
+        .container {{ max-width: 1200px; margin: 0 auto; }}
+        .header {{ background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+        .card {{ background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+        .row {{ display: flex; gap: 20px; }}
+        .col {{ flex: 1; }}
+        h1, h2 {{ margin: 0 0 15px 0; color: #333; }}
+        .stat-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }}
+        .stat-item {{ background: #f8f9fa; padding: 15px; border-radius: 6px; text-align: center; }}
+        .stat-value {{ font-size: 24px; font-weight: bold; color: #1890ff; margin: 10px 0; }}
+        .stat-label {{ color: #666; font-size: 14px; }}
+        .trend-up {{ color: #cf1322; }}
+        .trend-down {{ color: #3f8600; }}
+        #trendChart, #typeChart, #regionChart {{ width: 100%; height: 400px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💰 CloudLens 成本分析报告</h1>
+            <p>账号: <strong>{account}</strong> | 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        </div>
+
+        <div class="card">
+            <h2>📊 核心指标</h2>
+            <div class="stat-grid">
+                <div class="stat-item">
+                    <div class="stat-label">最新月成本</div>
+                    <div class="stat-value">¥{analysis['latest_cost']:,.2f}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">总变化</div>
+                    <div class="stat-value {'trend-up' if analysis['total_change'] > 0 else 'trend-down'}">
+                        {analysis['total_change']:+,.2f} ({analysis['total_change_pct']:+.1f}%)
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">平均成本</div>
+                    <div class="stat-value">¥{analysis['avg_cost']:,.2f}</div>
+                </div>
+                 <div class="stat-item">
+                    <div class="stat-label">预测趋势</div>
+                    <div class="stat-value">{analysis['trend']}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📈 成本趋势 (30天)</h2>
+            <div id="trendChart"></div>
+        </div>
+
+        <div class="row">
+            <div class="col card">
+                <h2>资源类型分布</h2>
+                <div id="typeChart"></div>
+            </div>
+            <div class="col card">
+                <h2>区域分布</h2>
+                <div id="regionChart"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 趋势图
+        var trendChart = echarts.init(document.getElementById('trendChart'));
+        trendChart.setOption({{
+            tooltip: {{ trigger: 'axis' }},
+            xAxis: {{ type: 'category', data: {json.dumps(chart_dates)} }},
+            yAxis: {{ type: 'value', name: '成本 (CNY)' }},
+            series: [{{
+                data: {json.dumps(chart_costs)},
+                type: 'line',
+                smooth: true,
+                areaStyle: {{ opacity: 0.1 }},
+                itemStyle: {{ color: '#1890ff' }}
+            }}]
+        }});
+
+        // 类型饼图
+        var typeChart = echarts.init(document.getElementById('typeChart'));
+        typeChart.setOption({{
+            tooltip: {{ trigger: 'item' }},
+            legend: {{ orient: 'vertical', left: 'left' }},
+            series: [{{
+                type: 'pie',
+                radius: '70%',
+                data: {json.dumps(type_data)},
+                emphasis: {{ itemStyle: {{ shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.5)' }} }}
+            }}]
+        }});
+
+        // 区域饼图
+        var regionChart = echarts.init(document.getElementById('regionChart'));
+        regionChart.setOption({{
+            tooltip: {{ trigger: 'item' }},
+            series: [{{
+                type: 'pie',
+                radius: ['40%', '70%'],
+                avoidLabelOverlap: false,
+                itemStyle: {{ borderRadius: 10, borderColor: '#fff', borderWidth: 2 }},
+                label: {{ show: false, position: 'center' }},
+                emphasis: {{ label: {{ show: true, fontSize: '20', fontWeight: 'bold' }} }},
+                data: {json.dumps(region_data)}
+            }}]
+        }});
+
+        window.onresize = function() {{
+            trendChart.resize();
+            typeChart.resize();
+            regionChart.resize();
+        }};
+    </script>
+</body>
+</html>
+        """
+        
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(html_content)
+            
+        console.print(f"\n[bold green]✓ 成本分析报告已导出:[/bold green] {filepath}")
+        if os.name == 'posix':
+            os.system(f"open '{filepath}'")
 
     # 优化建议
     console.print("\n[bold cyan]💡 优化建议:[/bold cyan]")

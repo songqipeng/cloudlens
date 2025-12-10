@@ -27,17 +27,23 @@ def cli(ctx):
     
     \b
     🌐 统一视图 · 💰 智能分析 · 🔒 安全合规 · 📊 降本增效
-    
-    快速开始:
-      cl config add                 # 添加云账号
-      cl query ecs                  # 查询ECS实例
-      cl analyze idle               # 分析闲置资源
-      cl analyze forecast           # AI成本预测
-      cl remediate tags             # 自动打标签
-      cl dashboard                  # 打开仪表盘
-    
-    运行 'cl COMMAND --help' 查看具体命令的帮助信息
     """
+    # 初始化结构化日志
+    from core.structured_logging import setup_structured_logging, get_structured_logger
+    import uuid
+    import structlog
+    
+    # 配置日志 (默认输出到文件)
+    log_file = os.path.expanduser("~/.cloudlens/logs/cloudlens.log")
+    setup_structured_logging(log_level="INFO", log_file=log_file, json_format=True)
+    
+    # 生成并绑定 Trace ID
+    trace_id = str(uuid.uuid4())
+    structlog.contextvars.bind_contextvars(trace_id=trace_id)
+    
+    logger = get_structured_logger("cli")
+    logger.info("cli_started", command=sys.argv[1:] if len(sys.argv) > 1 else "help")
+
     # 如果没有子命令，显示帮助信息
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())

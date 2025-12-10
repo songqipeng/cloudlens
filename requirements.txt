@@ -42,3 +42,6 @@ aliyun-python-sdk-actiontrail
 aliyun-python-sdk-ram
 aliyun-python-sdk-sts
 structlog>=23.1.0
+structlog
+scikit-learn
+numpy
