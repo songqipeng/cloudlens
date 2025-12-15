@@ -446,11 +446,12 @@ export default function DiscountTrendPage() {
                   <div className="font-medium text-destructive mb-1">加载失败</div>
                   <div className="text-sm text-muted-foreground">{error}</div>
                   <div className="mt-4 text-sm space-y-1">
-                    <p className="font-medium">提示:</p>
+                    <p className="font-medium">可能的原因:</p>
                     <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                      <li>请确保已从阿里云控制台下载账单CSV文件</li>
-                      <li>将CSV文件放在项目根目录的账号文件夹中（如: 1844634015852583-ydzn/）</li>
-                      <li>或联系管理员配置账单数据源</li>
+                      <li>数据库中暂无该账号的账单数据</li>
+                      <li>请先运行账单获取命令：<code className="px-1 py-0.5 bg-muted rounded text-xs">./cl bill fetch --account ydzn --use-db</code></li>
+                      <li>或等待自动账单同步任务完成</li>
+                      <li>如问题持续，请联系管理员</li>
                     </ul>
                   </div>
                 </div>

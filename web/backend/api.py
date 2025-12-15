@@ -2185,7 +2185,7 @@ def get_billing_instance_bill(
 @router.get("/discounts/trend")
 def get_discount_trend(
     account: Optional[str] = Query(None, description="账号名称"),
-    months: int = Query(19, ge=1, le=24, description="分析月数，默认19个月（所有历史数据）"),
+    months: int = Query(19, ge=1, le=999, description="分析月数，默认19个月，设置为99或更大表示全部历史数据"),
     force_refresh: bool = Query(False, description="强制刷新缓存"),
 ):
     """
@@ -2340,7 +2340,7 @@ def get_discount_trend(
 def get_product_discounts(
     account: Optional[str] = Query(None, description="账号名称"),
     product: Optional[str] = Query(None, description="产品名称过滤"),
-    months: int = Query(19, ge=1, le=24, description="分析月数"),
+    months: int = Query(19, ge=1, le=999, description="分析月数，设置为99或更大表示全部历史数据"),
     force_refresh: bool = Query(False, description="强制刷新缓存"),
 ):
     """
