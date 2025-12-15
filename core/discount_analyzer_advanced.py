@@ -913,6 +913,304 @@ class AdvancedDiscountAnalyzer:
         finally:
             conn.close()
     
+    def get_instance_lifecycle_analysis(
+        self,
+        account_id: str,
+        top_n: int = 50
+    ) -> Dict:
+        """
+        实例生命周期分析
+        
+        分析每个实例的生命周期折扣变化
+        
+        Args:
+            account_id: 账号ID
+            top_n: TOP N实例
+            
+        Returns:
+            实例生命周期数据
+        """
+        logger.info(f"开始实例生命周期分析")
+        
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        try:
+            # 获取TOP N实例（按总消费）
+            cursor.execute("""
+                SELECT 
+                    instance_id,
+                    product_name,
+                    region,
+                    subscription_type,
+                    MIN(billing_cycle) as first_month,
+                    MAX(billing_cycle) as last_month,
+                    COUNT(DISTINCT billing_cycle) as lifecycle_months,
+                    SUM(pretax_amount) as total_cost,
+                    SUM(invoice_discount) as total_discount,
+                    AVG(CASE 
+                        WHEN (pretax_amount + invoice_discount) > 0 
+                        THEN (invoice_discount / (pretax_amount + invoice_discount))
+                        ELSE 0 
+                    END) as avg_discount_rate
+                FROM bill_items
+                WHERE account_id = ?
+                    AND instance_id != ''
+                GROUP BY instance_id, product_name, region, subscription_type
+                ORDER BY total_cost DESC
+                LIMIT ?
+            """, (account_id, top_n))
+            
+            instances = []
+            for row in cursor.fetchall():
+                instance_id = row[0]
+                
+                # 获取该实例的月度折扣趋势
+                cursor.execute("""
+                    SELECT 
+                        billing_cycle,
+                        SUM(pretax_amount) as monthly_cost,
+                        CASE 
+                            WHEN SUM(pretax_amount + invoice_discount) > 0 
+                            THEN (SUM(invoice_discount) / SUM(pretax_amount + invoice_discount))
+                            ELSE 0 
+                        END as discount_rate
+                    FROM bill_items
+                    WHERE account_id = ? AND instance_id = ?
+                    GROUP BY billing_cycle
+                    ORDER BY billing_cycle
+                """, (account_id, instance_id))
+                
+                monthly_trends = []
+                for trend_row in cursor.fetchall():
+                    monthly_trends.append({
+                        'month': trend_row[0],
+                        'monthly_cost': trend_row[1],
+                        'discount_rate': trend_row[2]
+                    })
+                
+                instances.append({
+                    'instance_id': instance_id,
+                    'product_name': row[1],
+                    'region': row[2],
+                    'region_name': self._get_region_name(row[2]),
+                    'subscription_type': row[3],
+                    'first_month': row[4],
+                    'last_month': row[5],
+                    'lifecycle_months': row[6],
+                    'total_cost': row[7],
+                    'total_discount': row[8],
+                    'avg_discount_rate': row[9],
+                    'monthly_trends': monthly_trends
+                })
+            
+            return {
+                'success': True,
+                'instances': instances,
+                'total_instances': len(instances)
+            }
+        
+        except Exception as e:
+            logger.error(f"实例生命周期分析失败: {str(e)}")
+            return {'success': False, 'error': str(e)}
+        finally:
+            conn.close()
+    
+    # ==================== Phase 3: 智能分析功能 ====================
+    
+    def generate_insights(
+        self,
+        account_id: str
+    ) -> Dict:
+        """
+        智能洞察生成（基于规则的分析）
+        
+        Args:
+            account_id: 账号ID
+            
+        Returns:
+            智能洞察数据
+        """
+        logger.info(f"开始生成智能洞察")
+        
+        try:
+            insights = []
+            
+            # 获取各类分析数据
+            quarterly = self.get_quarterly_comparison(account_id, quarters=4)
+            products = self.get_product_discount_trends(account_id, months=19, top_n=20)
+            regions = self.get_region_discount_ranking(account_id)
+            subscription = self.get_subscription_type_comparison(account_id)
+            suggestions = self.get_optimization_suggestions(account_id)
+            anomalies = self.detect_anomalies(account_id)
+            
+            # 洞察1: 折扣趋势
+            if quarterly['success'] and len(quarterly['quarters']) >= 2:
+                latest = quarterly['quarters'][-1]
+                prev = quarterly['quarters'][-2]
+                change = latest['avg_discount_rate'] - prev['avg_discount_rate']
+                insights.append({
+                    'category': '趋势分析',
+                    'level': 'info' if change >= 0 else 'warning',
+                    'title': '季度折扣率' + ('上升' if change >= 0 else '下降'),
+                    'description': f"最新季度{latest['period']}折扣率为{latest['avg_discount_rate']*100:.1f}%，较上季度{change*100:+.1f}%",
+                    'recommendation': '持续优化' if change >= 0 else '需要与商务团队沟通合同续约'
+                })
+            
+            # 洞察2: TOP产品分析
+            if products['success'] and products['products']:
+                top_product = products['products'][0]
+                insights.append({
+                    'category': '产品分析',
+                    'level': 'success',
+                    'title': f"最大消费产品: {top_product['product_name']}",
+                    'description': f"消费{top_product['total_consumption']:,.0f}元，平均折扣率{top_product['avg_discount_rate']*100:.1f}%",
+                    'recommendation': '保持当前折扣策略'
+                })
+                
+                # 找出折扣率最低的产品
+                lowest_discount_product = min(products['products'], key=lambda x: x['avg_discount_rate'])
+                if lowest_discount_product['avg_discount_rate'] < 0.40:
+                    insights.append({
+                        'category': '产品分析',
+                        'level': 'warning',
+                        'title': f"低折扣产品: {lowest_discount_product['product_name']}",
+                        'description': f"折扣率仅{lowest_discount_product['avg_discount_rate']*100:.1f}%",
+                        'recommendation': '建议与商务沟通提升该产品折扣率'
+                    })
+            
+            # 洞察3: 优化机会
+            if suggestions['success'] and suggestions['total_suggestions'] > 0:
+                savings = suggestions['total_potential_savings']
+                insights.append({
+                    'category': '优化机会',
+                    'level': 'success',
+                    'title': f"发现{suggestions['total_suggestions']}个优化机会",
+                    'description': f"转为包年包月可年节省{savings:,.0f}元",
+                    'recommendation': '优先转换运行时间长、成本高的实例'
+                })
+            
+            # 洞察4: 异常检测
+            if anomalies['success'] and anomalies['total_anomalies'] > 0:
+                insights.append({
+                    'category': '异常检测',
+                    'level': 'warning',
+                    'title': f"检测到{anomalies['total_anomalies']}个异常月份",
+                    'description': '折扣率波动超过阈值',
+                    'recommendation': '查看异常月份的大额订单或合同变更'
+                })
+            
+            # 洞察5: 计费方式对比
+            if subscription['success']:
+                rate_diff = subscription['rate_difference']
+                if rate_diff > 0.10:
+                    insights.append({
+                        'category': '计费优化',
+                        'level': 'info',
+                        'title': f"包年包月折扣率优势{rate_diff*100:.1f}%",
+                        'description': '包年包月折扣率显著高于按量付费',
+                        'recommendation': '评估长期运行资源，转为包年包月'
+                    })
+            
+            return {
+                'success': True,
+                'insights': insights,
+                'total_insights': len(insights),
+                'generated_at': datetime.now().isoformat()
+            }
+        
+        except Exception as e:
+            logger.error(f"智能洞察生成失败: {str(e)}")
+            return {'success': False, 'error': str(e)}
+    
+    def export_to_csv(
+        self,
+        account_id: str,
+        export_type: str = 'all'
+    ) -> Dict:
+        """
+        导出数据为CSV
+        
+        Args:
+            account_id: 账号ID
+            export_type: 导出类型 (all, products, regions, instances)
+            
+        Returns:
+            CSV数据字符串
+        """
+        import io
+        import csv
+        
+        logger.info(f"开始导出CSV，类型={export_type}")
+        
+        try:
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            if export_type in ['all', 'products']:
+                # 导出产品数据
+                products = self.get_product_discount_trends(account_id, months=19, top_n=50)
+                if products['success']:
+                    writer.writerow(['产品折扣分析'])
+                    writer.writerow(['产品名称', '总消费', '总折扣', '平均折扣率', '波动率', '趋势变化'])
+                    for p in products['products']:
+                        writer.writerow([
+                            p['product_name'],
+                            f"{p['total_consumption']:.2f}",
+                            f"{p['total_discount']:.2f}",
+                            f"{p['avg_discount_rate']*100:.2f}%",
+                            f"{p['volatility']*100:.2f}%",
+                            f"{p['trend_change_pct']:+.2f}%"
+                        ])
+                    writer.writerow([])
+            
+            if export_type in ['all', 'regions']:
+                # 导出区域数据
+                regions = self.get_region_discount_ranking(account_id)
+                if regions['success']:
+                    writer.writerow(['区域折扣分析'])
+                    writer.writerow(['区域', '消费金额', '折扣金额', '折扣率', '实例数'])
+                    for r in regions['regions']:
+                        writer.writerow([
+                            r['region_name'],
+                            f"{r['total_paid']:.2f}",
+                            f"{r['total_discount']:.2f}",
+                            f"{r['avg_discount_rate']*100:.2f}%",
+                            r['instance_count']
+                        ])
+                    writer.writerow([])
+            
+            if export_type in ['all', 'instances']:
+                # 导出实例优化建议
+                suggestions = self.get_optimization_suggestions(account_id)
+                if suggestions['success']:
+                    writer.writerow(['实例优化建议'])
+                    writer.writerow(['实例ID', '产品', '区域', '运行月数', '总成本', '当前折扣率', '预计折扣率', '年节省'])
+                    for s in suggestions['suggestions'][:100]:
+                        writer.writerow([
+                            s['instance_id'],
+                            s['product_name'],
+                            s['region_name'],
+                            s['running_months'],
+                            f"{s['total_cost']:.2f}",
+                            f"{s['current_discount_rate']*100:.2f}%",
+                            f"{s['estimated_subscription_rate']*100:.2f}%",
+                            f"{s['annual_potential_savings']:.2f}"
+                        ])
+            
+            csv_content = output.getvalue()
+            output.close()
+            
+            return {
+                'success': True,
+                'csv_content': csv_content,
+                'export_type': export_type
+            }
+        
+        except Exception as e:
+            logger.error(f"CSV导出失败: {str(e)}")
+            return {'success': False, 'error': str(e)}
+    
     # ==================== 辅助方法 ====================
     
     def _get_region_name(self, region_code: str) -> str:

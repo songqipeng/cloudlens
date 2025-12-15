@@ -185,3 +185,94 @@ export interface AnomaliesResponse {
   account: string
   source: string
 }
+
+// Phase 2: Advanced Analysis Types
+
+export interface ProductRegionMatrix {
+  discount_rate: number
+  total_paid: number
+}
+
+export interface ProductRegionMatrixResponse {
+  success: boolean
+  data: {
+    products: string[]
+    regions: Array<{
+      code: string
+      name: string
+    }>
+    matrix: {
+      [product: string]: {
+        [region: string]: ProductRegionMatrix
+      }
+    }
+  }
+  account: string
+  source: string
+}
+
+export interface MovingAverageData {
+  month: string
+  ma: number | null
+  original?: number
+}
+
+export interface MovingAverageResponse {
+  success: boolean
+  data: {
+    moving_averages: {
+      [key: string]: MovingAverageData[]
+    }
+    original_data: Array<{
+      month: string
+      rate: number
+    }>
+  }
+  account: string
+  source: string
+}
+
+export interface CumulativeDiscountData {
+  month: string
+  monthly_discount: number
+  cumulative_discount: number
+}
+
+export interface CumulativeDiscountResponse {
+  success: boolean
+  data: {
+    cumulative_data: CumulativeDiscountData[]
+    total_discount: number
+  }
+  account: string
+  source: string
+}
+
+export interface InstanceLifecycleData {
+  instance_id: string
+  product_name: string
+  region: string
+  region_name: string
+  subscription_type: string
+  first_month: string
+  last_month: string
+  lifecycle_months: number
+  total_cost: number
+  total_discount: number
+  avg_discount_rate: number
+  monthly_trends: Array<{
+    month: string
+    monthly_cost: number
+    discount_rate: number
+  }>
+}
+
+export interface InstanceLifecycleResponse {
+  success: boolean
+  data: {
+    instances: InstanceLifecycleData[]
+    total_instances: number
+  }
+  account: string
+  source: string
+}

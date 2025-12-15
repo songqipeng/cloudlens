@@ -46,6 +46,7 @@ export default function AdvancedDiscountTrendPage() {
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionTypesResponse | null>(null)
   const [suggestions, setSuggestions] = useState<OptimizationSuggestionsResponse | null>(null)
   const [anomalies, setAnomaliesData] = useState<AnomaliesResponse | null>(null)
+  const [insights, setInsights] = useState<any>(null)
 
   const fetchAllData = async (forceRefresh = false) => {
     if (!currentAccount) return
@@ -54,7 +55,7 @@ export default function AdvancedDiscountTrendPage() {
     setError(null)
     
     try {
-      const [quarterly, yearly, products, regions, subscription, opts, anom] = await Promise.all([
+      const [quarterly, yearly, products, regions, subscription, opts, anom, insightsData] = await Promise.all([
         apiGet<QuarterlyResponse>(`/discounts/quarterly?account=${currentAccount}&quarters=8`),
         apiGet<YearlyResponse>(`/discounts/yearly?account=${currentAccount}`),
         apiGet<ProductTrendsResponse>(`/discounts/product-trends?account=${currentAccount}&months=19&top_n=10`),
@@ -62,6 +63,7 @@ export default function AdvancedDiscountTrendPage() {
         apiGet<SubscriptionTypesResponse>(`/discounts/subscription-types?account=${currentAccount}`),
         apiGet<OptimizationSuggestionsResponse>(`/discounts/optimization-suggestions?account=${currentAccount}`),
         apiGet<AnomaliesResponse>(`/discounts/anomalies?account=${currentAccount}&threshold=0.10`),
+        apiGet(`/discounts/insights?account=${currentAccount}`),
       ])
       
       setQuarterlyData(quarterly)
@@ -71,12 +73,17 @@ export default function AdvancedDiscountTrendPage() {
       setSubscriptionData(subscription)
       setSuggestions(opts)
       setAnomaliesData(anom)
+      setInsights(insightsData)
     } catch (err: any) {
       console.error("加载折扣分析数据失败:", err)
       setError(err.message || "加载失败")
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleExport = (exportType: string) => {
+    window.open(`http://localhost:8000/api/discounts/export?account=${currentAccount}&export_type=${exportType}`, '_blank')
   }
 
   useEffect(() => {
@@ -131,24 +138,36 @@ export default function AdvancedDiscountTrendPage() {
               多维度深度分析 • 8大分析维度 • 19个月历史数据
             </p>
           </div>
-          <Button
-            onClick={() => fetchAllData(true)}
-            disabled={loading}
-            variant="outline"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            刷新
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => handleExport('all')}
+              variant="outline"
+              size="sm"
+            >
+              <DollarSign className="mr-2 h-4 w-4" />
+              导出Excel
+            </Button>
+            <Button
+              onClick={() => fetchAllData(true)}
+              disabled={loading}
+              variant="outline"
+              size="sm"
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              刷新
+            </Button>
+          </div>
         </div>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview">总览</TabsTrigger>
             <TabsTrigger value="time">时间分析</TabsTrigger>
             <TabsTrigger value="products">产品分析</TabsTrigger>
             <TabsTrigger value="regions">区域分析</TabsTrigger>
             <TabsTrigger value="billing">计费分析</TabsTrigger>
+            <TabsTrigger value="advanced">高级分析</TabsTrigger>
           </TabsList>
 
           {/* Tab 1: Overview */}
@@ -200,6 +219,15 @@ export default function AdvancedDiscountTrendPage() {
             <BillingAnalysisTab
               subscription={subscriptionData}
               suggestions={suggestions}
+              formatCurrency={formatCurrency}
+              formatPercent={formatPercent}
+            />
+          </TabsContent>
+
+          {/* Tab 6: Advanced Analysis (Phase 2) */}
+          <TabsContent value="advanced" className="space-y-6">
+            <AdvancedAnalysisTab
+              currentAccount={currentAccount}
               formatCurrency={formatCurrency}
               formatPercent={formatPercent}
             />
@@ -318,17 +346,37 @@ function OverviewTab({ quarterly, yearly, products, regions, subscription, sugge
         </Card>
       </div>
 
-      {/* 快速洞察 */}
+      {/* 智能洞察 (Phase 3) */}
       <Card>
         <CardHeader>
-          <CardTitle>快速洞察</CardTitle>
+          <CardTitle>🤖 AI智能洞察</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2 text-sm">
-            <p>• <strong>折扣趋势:</strong> {latestQuarter?.rate_change > 0 ? '上升' : '下降'} {Math.abs(latestQuarter?.rate_change || 0).toFixed(1)}%，整体{latestQuarter?.rate_change > 0 ? '向好' : '需关注'}</p>
-            <p>• <strong>TOP产品:</strong> {topProducts[0]?.product_name} 折扣率最高（{formatPercent(topProducts[0]?.avg_discount_rate)}）</p>
-            <p>• <strong>TOP区域:</strong> {topRegions[0]?.region_name} 消费最高（{formatCurrency(topRegions[0]?.total_paid)}）</p>
-            <p>• <strong>优化空间:</strong> {suggestions?.data?.total_suggestions}个长期按量付费实例，转包年包月可年省{formatCurrency(suggestions?.data?.total_potential_savings || 0)}</p>
+          <div className="space-y-3">
+            {insights?.data?.insights?.map((insight: any, idx: number) => (
+              <div
+                key={idx}
+                className={`p-3 rounded-lg border ${
+                  insight.level === 'success' ? 'border-green-500 bg-green-50' :
+                  insight.level === 'warning' ? 'border-yellow-500 bg-yellow-50' :
+                  'border-blue-500 bg-blue-50'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <span className="text-xs px-2 py-1 rounded-full bg-white/80 font-medium">
+                    {insight.category}
+                  </span>
+                  <div className="flex-1">
+                    <p className="font-medium">{insight.title}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{insight.description}</p>
+                    <p className="text-xs text-muted-foreground mt-2">💡 {insight.recommendation}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {(!insights || !insights.data?.insights?.length) && (
+              <p className="text-sm text-muted-foreground">正在生成智能洞察...</p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -720,6 +768,143 @@ function BillingAnalysisTab({ subscription, suggestions, formatCurrency, formatP
                 ))}
               </tbody>
             </table>
+          </div>
+        </CardContent>
+      </Card>
+    </>
+  )
+}
+
+// ==================== Phase 2: Advanced Analysis Tab ====================
+
+function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent }: any) {
+  const [movingAvgData, setMovingAvgData] = useState<any>(null)
+  const [cumulativeData, setCumulativeData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!currentAccount) return
+    
+    const fetchData = async () => {
+      setLoading(true)
+      try {
+        const [movingAvg, cumulative] = await Promise.all([
+          apiGet(`/discounts/moving-average?account=${currentAccount}&windows=3,6,12`),
+          apiGet(`/discounts/cumulative?account=${currentAccount}`),
+        ])
+        setMovingAvgData(movingAvg)
+        setCumulativeData(cumulative)
+      } catch (err) {
+        console.error("加载Phase 2数据失败:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    fetchData()
+  }, [currentAccount])
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-12">
+          <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // 准备移动平均数据
+  const ma3Data = movingAvgData?.data?.moving_averages?.ma_3 || []
+  const ma6Data = movingAvgData?.data?.moving_averages?.ma_6 || []
+  const ma12Data = movingAvgData?.data?.moving_averages?.ma_12 || []
+  
+  // 合并数据
+  const combinedMAData = ma3Data.map((item: any, idx: number) => ({
+    month: item.month,
+    original: item.original,
+    ma_3: item.ma,
+    ma_6: ma6Data[idx]?.ma,
+    ma_12: ma12Data[idx]?.ma,
+  }))
+
+  const cumulativeChartData = cumulativeData?.data?.cumulative_data || []
+
+  return (
+    <>
+      {/* 移动平均分析 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>折扣率移动平均（平滑趋势）</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={400}>
+            <LineChart data={combinedMAData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis tickFormatter={formatPercent} />
+              <Tooltip formatter={(value: any) => formatPercent(value as number)} />
+              <Legend />
+              <Line type="monotone" dataKey="original" stroke="#ccc" strokeWidth={1} dot={false} name="原始数据" />
+              <Line type="monotone" dataKey="ma_3" stroke="#8884d8" strokeWidth={2} dot={false} name="3月移动平均" />
+              <Line type="monotone" dataKey="ma_6" stroke="#82ca9d" strokeWidth={2} dot={false} name="6月移动平均" />
+              <Line type="monotone" dataKey="ma_12" stroke="#ffc658" strokeWidth={2} dot={false} name="12月移动平均" />
+            </LineChart>
+          </ResponsiveContainer>
+          <div className="mt-4 text-sm text-muted-foreground">
+            <p>💡 移动平均可以平滑短期波动，显示长期趋势：</p>
+            <ul className="list-disc list-inside mt-2 space-y-1">
+              <li>3月移动平均：反映短期趋势</li>
+              <li>6月移动平均：反映中期趋势</li>
+              <li>12月移动平均：反映长期趋势</li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 累计折扣曲线 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>累计折扣金额（爬升曲线）</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={400}>
+            <ComposedChart data={cumulativeChartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis yAxisId="left" tickFormatter={formatCurrency} />
+              <YAxis yAxisId="right" orientation="right" tickFormatter={formatCurrency} />
+              <Tooltip />
+              <Legend />
+              <Area yAxisId="right" type="monotone" dataKey="cumulative_discount" fill="#8884d8" stroke="#8884d8" name="累计折扣" fillOpacity={0.6} />
+              <Bar yAxisId="left" dataKey="monthly_discount" fill="#82ca9d" name="月度折扣" />
+            </ComposedChart>
+          </ResponsiveContainer>
+          <div className="mt-4 grid grid-cols-2 gap-4">
+            <div className="text-center p-4 bg-muted/50 rounded-lg">
+              <p className="text-sm text-muted-foreground mb-1">累计总折扣</p>
+              <p className="text-2xl font-bold text-primary">{formatCurrency(cumulativeData?.data?.total_discount || 0)}</p>
+            </div>
+            <div className="text-center p-4 bg-muted/50 rounded-lg">
+              <p className="text-sm text-muted-foreground mb-1">月均折扣</p>
+              <p className="text-2xl font-bold text-primary">
+                {formatCurrency((cumulativeData?.data?.total_discount || 0) / (cumulativeChartData.length || 1))}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Phase 2 洞察 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Phase 2 高级洞察</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2 text-sm">
+            <p>• <strong>趋势平滑:</strong> 12月移动平均显示折扣率整体{ma12Data[ma12Data.length-1]?.ma > ma12Data[0]?.ma ? '上升' : '下降'}趋势</p>
+            <p>• <strong>累计节省:</strong> 19个月累计节省{formatCurrency(cumulativeData?.data?.total_discount || 0)}，月均{formatCurrency((cumulativeData?.data?.total_discount || 0) / 19)}</p>
+            <p>• <strong>数据洞察:</strong> Phase 2提供更深入的趋势分析和数据可视化</p>
           </div>
         </CardContent>
       </Card>

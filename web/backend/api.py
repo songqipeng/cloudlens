@@ -3132,3 +3132,157 @@ def get_cumulative_discount(
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"累计折扣分析失败: {str(e)}")
+
+
+@router.get("/discounts/instance-lifecycle")
+def get_instance_lifecycle(
+    account: Optional[str] = Query(None, description="账号名称"),
+    top_n: int = Query(50, ge=1, le=100, description="TOP N实例"),
+):
+    """
+    实例生命周期分析
+    
+    分析每个实例的生命周期折扣变化
+    """
+    import os
+    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    
+    cm = ConfigManager()
+    
+    # 解析账号
+    if not account:
+        accounts = cm.list_accounts()
+        if not accounts:
+            raise HTTPException(status_code=404, detail="未找到任何账号配置")
+        account = accounts[0].name if isinstance(accounts[0], CloudAccount) else accounts[0].get('name')
+    
+    account_config = cm.get_account(account)
+    if not account_config:
+        raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
+    
+    try:
+        db_path = os.path.expanduser("~/.cloudlens/bills.db")
+        analyzer = AdvancedDiscountAnalyzer(db_path)
+        
+        # 构造账号ID（与bill_cmd.py保持一致）
+        account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        result = analyzer.get_instance_lifecycle_analysis(account_id, top_n)
+        
+        if not result.get('success'):
+            raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
+        
+        return {
+            "success": True,
+            "data": result,
+            "account": account,
+            "source": "database"
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"实例生命周期分析失败: {str(e)}")
+
+
+# ==================== Phase 3: 智能分析与导出API ====================
+
+@router.get("/discounts/insights")
+def get_discount_insights(
+    account: Optional[str] = Query(None, description="账号名称"),
+):
+    """
+    智能洞察生成
+    
+    基于历史数据自动生成分析洞察和建议
+    """
+    import os
+    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    
+    cm = ConfigManager()
+    
+    # 解析账号
+    if not account:
+        accounts = cm.list_accounts()
+        if not accounts:
+            raise HTTPException(status_code=404, detail="未找到任何账号配置")
+        account = accounts[0].name if isinstance(accounts[0], CloudAccount) else accounts[0].get('name')
+    
+    account_config = cm.get_account(account)
+    if not account_config:
+        raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
+    
+    try:
+        db_path = os.path.expanduser("~/.cloudlens/bills.db")
+        analyzer = AdvancedDiscountAnalyzer(db_path)
+        
+        # 构造账号ID（与bill_cmd.py保持一致）
+        account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        result = analyzer.generate_insights(account_id)
+        
+        if not result.get('success'):
+            raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
+        
+        return {
+            "success": True,
+            "data": result,
+            "account": account,
+            "source": "database"
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"智能洞察生成失败: {str(e)}")
+
+
+@router.get("/discounts/export")
+def export_discount_data(
+    account: Optional[str] = Query(None, description="账号名称"),
+    export_type: str = Query("all", description="导出类型: all, products, regions, instances"),
+):
+    """
+    导出折扣数据为CSV
+    
+    支持导出产品、区域、实例等维度的数据
+    """
+    import os
+    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    from fastapi.responses import Response
+    
+    cm = ConfigManager()
+    
+    # 解析账号
+    if not account:
+        accounts = cm.list_accounts()
+        if not accounts:
+            raise HTTPException(status_code=404, detail="未找到任何账号配置")
+        account = accounts[0].name if isinstance(accounts[0], CloudAccount) else accounts[0].get('name')
+    
+    account_config = cm.get_account(account)
+    if not account_config:
+        raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
+    
+    try:
+        db_path = os.path.expanduser("~/.cloudlens/bills.db")
+        analyzer = AdvancedDiscountAnalyzer(db_path)
+        
+        # 构造账号ID（与bill_cmd.py保持一致）
+        account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        result = analyzer.export_to_csv(account_id, export_type)
+        
+        if not result.get('success'):
+            raise HTTPException(status_code=500, detail=result.get('error', '导出失败'))
+        
+        # 返回CSV文件
+        from datetime import datetime
+        filename = f"discount_analysis_{account}_{export_type}_{datetime.now().strftime('%Y%m%d')}.csv"
+        
+        return Response(
+            content=result['csv_content'].encode('utf-8-sig'),  # BOM for Excel compatibility
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"数据导出失败: {str(e)}")
