@@ -74,7 +74,7 @@ class CostTrendAnalyzer:
         2. 使用详细价格表计算
         3. 考虑折扣和优惠
         """
-        # 简化估算规则
+        # 简化估算规则（尽量避免不同 ECS 规格落到同一个默认值）
         cost_map = {
             # ECS按规格估算(CNY/月)
             "ecs.t5-lc1m1.small": 50,
@@ -90,20 +90,73 @@ class CostTrendAnalyzer:
             "redis.master.mid.default": 300,
         }
 
-        spec = getattr(resource, "spec", None)
+        spec = getattr(resource, "spec", None) or ""
+        rt = ""
+        if hasattr(resource, "resource_type"):
+            rt = resource.resource_type.value.lower()
+
         if spec and spec in cost_map:
             base_cost = cost_map[spec]
+        elif spec.startswith("ecs."):
+            # ecs.{family}.{size}
+            parts = spec.split(".")
+            if len(parts) >= 3:
+                family = parts[-2] or ""
+                size = parts[-1] or ""
+
+                # size multiplier（large=1, xlarge=2, 2xlarge=4, ...）
+                s = size.lower()
+                size_mul = 1.0
+                if s == "small":
+                    size_mul = 0.25
+                elif s == "medium":
+                    size_mul = 0.5
+                elif s == "large":
+                    size_mul = 1.0
+                elif s == "xlarge":
+                    size_mul = 2.0
+                else:
+                    import re
+                    m = re.match(r"^(\d+)xlarge$", s)
+                    if m:
+                        n = int(m.group(1))
+                        size_mul = max(1.0, float(n) * 2.0)
+
+                # family multiplier（粗略：r>g>c>t）
+                fam = (family or "").lower()
+                prefix = fam[:1]
+                fam_mul = 1.1
+                if prefix == "t":
+                    fam_mul = 0.55
+                elif prefix == "c":
+                    fam_mul = 1.0
+                elif prefix == "g":
+                    fam_mul = 1.15
+                elif prefix == "r":
+                    fam_mul = 1.45
+                elif prefix == "h":
+                    fam_mul = 1.35
+
+                # generation multiplier（6代基线）
+                m2 = re.search(r"(\d+)", fam)
+                gen_mul = 1.0
+                if m2:
+                    gen = int(m2.group(1))
+                    if gen > 6:
+                        gen_mul = min(1.30, 1.0 + (gen - 6) * 0.05)
+
+                base_large = 320.0
+                base_cost = round(base_large * size_mul * fam_mul * gen_mul, 2)
+            else:
+                base_cost = 300
         else:
             # 默认估算
-            if hasattr(resource, "resource_type"):
-                if "ecs" in resource.resource_type.value.lower():
-                    base_cost = 300  # ECS默认300/月
-                elif "rds" in resource.resource_type.value.lower():
-                    base_cost = 400  # RDS默认400/月
-                elif "redis" in resource.resource_type.value.lower():
-                    base_cost = 200
-                else:
-                    base_cost = 100
+            if "ecs" in rt:
+                base_cost = 300
+            elif "rds" in rt:
+                base_cost = 400
+            elif "redis" in rt:
+                base_cost = 200
             else:
                 base_cost = 100
 

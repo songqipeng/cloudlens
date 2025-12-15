@@ -254,6 +254,11 @@ class CostAnalyzer:
                     original_instance = next(
                         (i for i in prepaid if i.get("InstanceId") == instance_id), {}
                     )
+                    original_price = float(r.get("original_price", 0) or 0)
+                    trade_price = float(r.get("trade_price", 0) or 0)
+                    discount_rate = r.get("discount_rate", None)
+                    if discount_rate is None:
+                        discount_rate = (trade_price / original_price) if original_price > 0 else 0
                     instances.append(
                         {
                             "resource_type": "ecs",
@@ -270,7 +275,11 @@ class CostAnalyzer:
                                 if isinstance(original_instance.get("Tags", {}), dict)
                                 else []
                             ),
-                            "monthly_cost": float(r.get("trade_price", 0) or 0),
+                            # monthly_cost 统一表示“月度成本（折后/实付）”
+                            "monthly_cost": trade_price,
+                            "original_price": original_price,
+                            "trade_price": trade_price,
+                            "discount_rate": float(discount_rate or 0),
                         }
                     )
             elif resource_type == "rds":
@@ -282,6 +291,11 @@ class CostAnalyzer:
                     original_instance = next(
                         (i for i in prepaid if i.get("DBInstanceId") == instance_id), {}
                     )
+                    original_price = float(r.get("original_price", 0) or 0)
+                    trade_price = float(r.get("trade_price", 0) or 0)
+                    discount_rate = r.get("discount_rate", None)
+                    if discount_rate is None:
+                        discount_rate = (trade_price / original_price) if original_price > 0 else 0
                     instances.append(
                         {
                             "resource_type": "rds",
@@ -298,7 +312,10 @@ class CostAnalyzer:
                                 if isinstance(original_instance.get("Tags", {}), dict)
                                 else []
                             ),
-                            "monthly_cost": float(r.get("trade_price", 0) or 0),
+                            "monthly_cost": trade_price,
+                            "original_price": original_price,
+                            "trade_price": trade_price,
+                            "discount_rate": float(discount_rate or 0),
                         }
                     )
             elif resource_type == "redis":
@@ -310,6 +327,11 @@ class CostAnalyzer:
                     original_instance = next(
                         (i for i in prepaid if i.get("InstanceId") == instance_id), {}
                     )
+                    original_price = float(r.get("original_price", 0) or 0)
+                    trade_price = float(r.get("trade_price", 0) or 0)
+                    discount_rate = r.get("discount_rate", None)
+                    if discount_rate is None:
+                        discount_rate = (trade_price / original_price) if original_price > 0 else 0
                     instances.append(
                         {
                             "resource_type": "redis",
@@ -326,7 +348,10 @@ class CostAnalyzer:
                                 if isinstance(original_instance.get("Tags", {}), dict)
                                 else []
                             ),
-                            "monthly_cost": float(r.get("trade_price", 0) or 0),
+                            "monthly_cost": trade_price,
+                            "original_price": original_price,
+                            "trade_price": trade_price,
+                            "discount_rate": float(discount_rate or 0),
                         }
                     )
             elif resource_type == "mongodb":

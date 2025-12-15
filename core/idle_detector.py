@@ -11,41 +11,43 @@ class IdleDetector:
     基于监控指标判断资源是否闲置
     """
 
-    # 默认阈值
-    DEFAULT_THRESHOLDS = {
-        "ecs": {
-            "cpu_utilization": 5,  # CPU < 5%
-            "memory_utilization": 20,  # 内存 < 20%
-            "internet_in_rate": 1000,  # 公网入流量 < 1KB/s
-            "internet_out_rate": 1000,  # 公网出流量 < 1KB/s
-            "disk_read_iops": 100,  # 磁盘读IOPS < 100
-            "disk_write_iops": 100,  # 磁盘写IOPS < 100
-        },
-        "rds": {
-            "cpu_utilization": 10,
-            "memory_utilization": 20,
-            "connections_utilization": 20,
-            "qps": 100,
-            "tps": 10,
-        },
-    }
+    def __init__(self, rules: Dict = None):
+        self.rules = rules or {}
+        self.ecs_rules = self.rules.get("idle_rules", {}).get("ecs", {})
+        
+        # 兼容旧代码，如果没有配置规则，使用默认阈值作为回退
+        self.thresholds = {
+            "cpu_utilization": self.ecs_rules.get("cpu_threshold_percent", 5),
+            "memory_utilization": 20, # 当前规则未配置内存，保留默认
+            "internet_in_rate": self.ecs_rules.get("network_threshold_bytes_sec", 1000),
+            "internet_out_rate": self.ecs_rules.get("network_threshold_bytes_sec", 1000),
+            "disk_read_iops": 100,
+            "disk_write_iops": 100,
+        }
 
-    @staticmethod
-    def is_ecs_idle(metrics: Dict[str, float], thresholds: Dict = None) -> Tuple[bool, List[str]]:
+    def is_ecs_idle(self, metrics: Dict[str, float], instance_tags: List[Dict] = None) -> Tuple[bool, List[str]]:
         """
         判断ECS实例是否闲置
 
         Args:
             metrics: 监控指标字典
-            thresholds: 自定义阈值（可选）
-
+            instance_tags: 实例标签列表 [{"Key": "k", "Value": "v"}]
+        
         Returns:
             (is_idle, reasons) - 是否闲置及原因列表
         """
-        if thresholds is None:
-            thresholds = IdleDetector.DEFAULT_THRESHOLDS["ecs"]
+        # 1. 检查白名单标签
+        exclude_tags = self.ecs_rules.get("exclude_tags", [])
+        if instance_tags and exclude_tags:
+            for tag in instance_tags:
+                tag_str = f"{tag.get('Key')}={tag.get('Value')}"
+                tag_key = tag.get('Key')
+                # 检查 key=value 或 key
+                if tag_str in exclude_tags or tag_key in exclude_tags:
+                    return False, [f"白名单标签豁免: {tag_str}"]
 
         conditions = []
+        thresholds = self.thresholds
 
         # CPU利用率
         cpu_util = metrics.get("CPU利用率", 0)
@@ -64,17 +66,14 @@ class IdleDetector:
         # 公网流量
         internet_in = metrics.get("公网入流量", 0)
         internet_out = metrics.get("公网出流量", 0)
-        if internet_in < thresholds.get("internet_in_rate", 1000) and internet_out < thresholds.get(
-            "internet_out_rate", 1000
-        ):
+        threshold_net = thresholds.get("internet_in_rate", 1000)
+        if internet_in < threshold_net and internet_out < threshold_net:
             conditions.append("公网流量极低")
 
         # 磁盘IOPS
         disk_read_iops = metrics.get("磁盘读IOPS", 0)
         disk_write_iops = metrics.get("磁盘写IOPS", 0)
-        if disk_read_iops < thresholds.get(
-            "disk_read_iops", 100
-        ) and disk_write_iops < thresholds.get("disk_write_iops", 100):
+        if disk_read_iops < thresholds.get("disk_read_iops", 100) and disk_write_iops < thresholds.get("disk_write_iops", 100):
             conditions.append("磁盘IOPS极低")
 
         # 判断是否闲置: 至少需要2个指标满足才判定为闲置

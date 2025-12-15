@@ -156,5 +156,56 @@ def show_account(name):
 [bold cyan]Access Key:[/bold cyan] {account.access_key_id[:8]}...{account.access_key_id[-4:]}
     """
 
-    panel = Panel(info.strip(), title=f"☁️  账号信息: {name}", border_style="green")
-    console.print(panel)
+@config.command("rules")
+def configure_rules():
+    """配置资源优化规则 (交互式)"""
+    from core.rules_manager import RulesManager
+    from rich.prompt import IntPrompt, Confirm, Prompt
+    
+    rm = RulesManager()
+    current_rules = rm.get_rules()
+    
+    console.print("\n[bold cyan]🔧 配置资源优化规则[/bold cyan]")
+    console.print("[dim]这些规则将用于判断资源是否闲置[/dim]\n")
+    
+    # ECS 规则
+    console.print("[bold]ECS (云服务器) 规则:[/bold]")
+    ecs_rules = current_rules["idle_rules"]["ecs"]
+    
+    cpu_threshold = IntPrompt.ask(
+        "CPU利用率阈值 (%)", 
+        default=ecs_rules.get("cpu_threshold_percent", 5)
+    )
+    
+    net_threshold = IntPrompt.ask(
+        "公网带宽阈值 (Bytes/s)", 
+        default=ecs_rules.get("network_threshold_bytes_sec", 1000)
+    )
+    
+    # 标签白名单
+    console.print("\n[bold]标签白名单 (豁免检查):[/bold]")
+    current_tags = ecs_rules.get("exclude_tags", [])
+    console.print(f"当前豁免: {current_tags}")
+    
+    new_tags = []
+    if Confirm.ask("是否修改豁免标签?"):
+        tags_str = Prompt.ask(
+            "请输入豁免标签 (逗号分隔)", 
+            default=",".join(current_tags)
+        )
+        new_tags = [t.strip() for t in tags_str.split(",") if t.strip()]
+    else:
+        new_tags = current_tags
+
+    # 保存配置
+    if Confirm.ask("\n是否保存上述配置?"):
+        new_rules = current_rules.copy()
+        new_rules["idle_rules"]["ecs"]["cpu_threshold_percent"] = cpu_threshold
+        new_rules["idle_rules"]["ecs"]["network_threshold_bytes_sec"] = net_threshold
+        new_rules["idle_rules"]["ecs"]["exclude_tags"] = new_tags
+        
+        rm.set_rules(new_rules)
+        console.print(f"\n[green]✅ 规则已更新并保存至: {rm.rules_file}[/green]")
+        console.print("[dim]提示: 您也可以直接编辑该 JSON 文件进行更精细的配置[/dim]")
+    else:
+        console.print("[yellow]操作已取消[/yellow]")

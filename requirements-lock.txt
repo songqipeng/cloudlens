@@ -162,3 +162,8 @@ xmltodict==1.0.2
 yarl==1.20.1
 zipp==3.23.0
 zopfli==0.2.3.post1
+
+# 账单自动获取依赖（新增）
+aliyun-python-sdk-core>=2.13.0
+aliyun-python-sdk-bssopenapi>=1.6.0
+python-dateutil>=2.8.0

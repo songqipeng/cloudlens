@@ -16,6 +16,7 @@ from cli.commands.cache_cmd import cache
 from cli.commands.misc_cmd import dashboard, repl, scheduler
 from cli.commands.analyze_cmd import analyze
 from cli.commands.remediate_cmd import remediate  # 新增
+from cli.commands.bill_cmd import bill  # 账单管理
 
 
 @click.group()
@@ -55,6 +56,7 @@ cli.add_command(query)
 cli.add_command(cache)
 cli.add_command(analyze)
 cli.add_command(remediate)  # 新增
+cli.add_command(bill)  # 账单管理
 
 # 注册单个命令
 cli.add_command(dashboard)

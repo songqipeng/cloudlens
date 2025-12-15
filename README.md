@@ -27,6 +27,8 @@
 ### v2.1 新增能力 ⭐
 - 📈 **成本趋势分析** - 环比/同比增长分析，按类型/区域统计
 - 🔮 **AI成本预测** - 基于Prophet ML模型，预测未来90天成本趋势
+- 💰 **折扣趋势分析** - 基于账单CSV，分析最近6个月折扣变化，支持产品/合同/实例维度
+- 📥 **账单自动获取** - 通过BSS OpenAPI自动获取账单数据，支持定时任务 ✨
 - 🛡️ **CIS Benchmark** - 10+安全基线检查，覆盖IAM/网络/数据/审计
 - 🔧 **自动修复引擎** - 批量修复资源问题，完整审计日志
 - ⚡ **异步I/O架构** - AsyncProvider基础，为高性能查询做准备
@@ -115,6 +117,9 @@ cl query ecs --<Tab>     → 显示选项参数
 # AI成本预测
 ./cl analyze forecast --account prod --days 90
 
+# 折扣趋势分析（基于账单CSV）
+./cl analyze discount --export
+
 # CIS安全合规检查
 ./cl analyze security --account prod --cis
 
@@ -162,6 +167,17 @@ cl query ecs --<Tab>     → 显示选项参数
 
 # AI成本预测 (v2.1 新增)
 ./cl analyze forecast --account prod --days 90
+
+# 账单自动获取 (v2.1 新增) ✨
+./cl bill test --account prod              # 测试API连接
+./cl bill fetch --account prod             # 获取最近3个月账单
+./cl bill fetch --account prod --start 2025-01 --end 2025-06  # 指定时间范围
+
+# 折扣趋势分析 (v2.1 新增)
+./cl analyze discount                      # 自动查找账单CSV
+./cl analyze discount --bill-dir ./bills   # 指定账单目录
+./cl analyze discount --export             # 导出HTML报告
+./cl analyze discount --format excel       # 导出Excel报告
 
 # 安全合规检查
 ./cl analyze security --account prod       # 基础安全检查

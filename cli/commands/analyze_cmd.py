@@ -4,6 +4,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress
 from rich import box
+from pathlib import Path
 
 from core.config import ConfigManager
 from core.context import ContextManager
@@ -21,14 +22,13 @@ def analyze():
 @analyze.command("idle")
 @click.option("--account", "-a", help="账号名称")
 @click.option("--days", "-d", default=7, type=int, help="分析天数")
+@click.option("--no-cache", is_flag=True, help="强制刷新缓存")
 @handle_exceptions
-def analyze_idle(account, days):
+def analyze_idle(account, days, no_cache):
     """检测闲置资源 - 基于监控指标分析"""
-    from core.idle_detector import IdleDetector
-    from providers.aliyun.provider import AliyunProvider
-
-    console.print(f"[cyan]🔍 分析最近 {days} 天的闲置资源...[/cyan]")
-
+    from core.services.analysis_service import AnalysisService
+    from core.rules_manager import RulesManager
+    
     # 智能解析账号
     cm = ConfigManager()
     ctx_mgr = ContextManager()
@@ -39,55 +39,35 @@ def analyze_idle(account, days):
             console.print("[yellow]⚠️  请指定账号: --account <name>[/yellow]")
             console.print("提示: cl config list 查看可用账号")
             return
+            
+    # 加载优化规则 (用于显示阈值)
+    rm = RulesManager()
+    rules = rm.get_rules()
+    cpu_threshold = rules["idle_rules"]["ecs"].get("cpu_threshold_percent", 5)
+    
+    console.print(f"[cyan]🔍 分析最近 {days} 天的闲置资源 (CPU < {cpu_threshold}%)...[/cyan]")
 
-    # 获取账号配置
-    account_config = cm.get_account(account)
-    if not account_config:
-        console.print(f"[red]❌ 账号 '{account}' 不存在[/red]")
-        return
+    try:
+        with Progress() as progress:
+            task = progress.add_task("[cyan]正在分析资源...", total=None) 
+            # Note: We can't easily track granular progress inside the service without passing a callback.
+            # For simplicity, we use an indeterminate progress bar here.
+            
+            idle_instances, is_cached = AnalysisService.analyze_idle_resources(account, days, no_cache)
+            progress.update(task, completed=100)
+            
+        if is_cached:
+            console.print(f"[green]⚡ 使用缓存数据 (上次分析于24小时内)[/green]")
+            console.print("[dim]提示: 使用 --no-cache 可强制刷新[/dim]")
+            
+        display_idle_results(idle_instances)
+        
+    except Exception as e:
+        console.print(f"[red]分析失败: {str(e)}[/red]")
 
-    # 创建Provider
-    provider = AliyunProvider(
-        account_name=account_config.name,
-        access_key=account_config.access_key_id,
-        secret_key=account_config.access_key_secret,
-        region=account_config.region,
-    )
 
-    # 获取ECS实例
-    with Progress() as progress:
-        task = progress.add_task("[cyan]正在查询ECS实例...", total=100)
-        instances = provider.list_instances()
-        progress.update(task, advance=100)
-
-    if not instances:
-        console.print("[yellow]未找到ECS实例[/yellow]")
-        return
-
-    # 分析闲置资源
-    idle_instances = []
-    with Progress() as progress:
-        task = progress.add_task("[cyan]正在分析闲置状态...", total=len(instances))
-
-        for inst in instances:
-            # 获取监控指标
-            metrics = IdleDetector.fetch_ecs_metrics(provider, inst.id, days)
-
-            # 判断是否闲置
-            is_idle, reasons = IdleDetector.is_ecs_idle(metrics)
-
-            if is_idle:
-                idle_instances.append(
-                    {
-                        "instance_id": inst.id,
-                        "name": inst.name or "-",
-                        "region": inst.region,
-                        "spec": inst.spec,
-                        "reasons": reasons,
-                    }
-                )
-
-            progress.update(task, advance=1)
+def display_idle_results(idle_instances):
+    """展示闲置资源结果"""
 
     # 展示结果
     if not idle_instances:
@@ -718,6 +698,111 @@ def analyze_tags(account):
             console.print(f"  • {item['id']} ({item['name']})")
 
     console.print("\n[bold]💡 建议: 为所有资源添加 env、project 等标签以便管理[/bold]")
+
+
+@analyze.command("discount")
+@click.option("--bill-dir", help="账单CSV目录路径")
+@click.option("--months", default=6, type=int, help="分析月数")
+@click.option("--export", is_flag=True, help="导出HTML报告")
+@click.option("--format", type=click.Choice(["html", "json", "excel"]), default="html", help="报告格式")
+@handle_exceptions
+def analyze_discount(bill_dir, months, export, format):
+    """折扣趋势分析 - 基于账单CSV分析最近6个月折扣变化"""
+    from core.discount_analyzer import DiscountTrendAnalyzer
+    from rich.panel import Panel
+    
+    console.print("[cyan]📊 分析账单折扣趋势...[/cyan]\n")
+    
+    analyzer = DiscountTrendAnalyzer()
+    
+    # 查找账单目录
+    if bill_dir:
+        bill_dirs = [Path(bill_dir)]
+    else:
+        bill_dirs = analyzer.find_bill_directories()
+    
+    if not bill_dirs:
+        console.print("[red]❌ 未找到账单CSV目录[/red]")
+        console.print("\n提示:")
+        console.print("  1. 请从阿里云控制台下载账单CSV文件（消费明细）")
+        console.print("  2. 将CSV文件放在以账号ID命名的目录中")
+        console.print("  3. 或使用 --bill-dir 参数指定目录路径")
+        return
+    
+    # 分析第一个目录（或指定目录）
+    target_dir = bill_dirs[0]
+    console.print(f"[cyan]📁 分析账单目录: {target_dir}[/cyan]\n")
+    
+    with Progress() as progress:
+        task = progress.add_task("[cyan]解析账单数据...", total=None)
+        result = analyzer.analyze_discount_trend(target_dir, months=months)
+        progress.update(task, completed=100)
+    
+    if 'error' in result:
+        console.print(f"[red]❌ 分析失败: {result['error']}[/red]")
+        return
+    
+    # 显示核心指标
+    trend = result['trend_analysis']
+    
+    console.print(Panel.fit(
+        f"[bold cyan]分析账号:[/bold cyan] {result['account_name']}\n"
+        f"[bold cyan]分析周期:[/bold cyan] {', '.join(result['analysis_periods'])}\n\n"
+        f"[bold green]最新折扣率:[/bold green] {trend['latest_discount_rate']*100:.2f}%\n"
+        f"[bold yellow]平均折扣率:[/bold yellow] {trend['average_discount_rate']*100:.2f}%\n"
+        f"[bold blue]折扣率变化:[/bold blue] {trend['discount_rate_change_pct']:+.2f}% (vs 首月)\n"
+        f"[bold magenta]趋势方向:[/bold magenta] {trend['trend_direction']}\n"
+        f"[bold]累计节省:[/bold] ¥{trend['total_savings_6m']:,.2f}",
+        title="💰 折扣趋势摘要"
+    ))
+    
+    # 产品折扣TOP 10
+    product_analysis = result['product_analysis']
+    if product_analysis:
+        console.print("\n[bold cyan]📦 产品折扣 TOP 10:[/bold cyan]")
+        table = Table()
+        table.add_column("产品", style="cyan")
+        table.add_column("累计折扣", style="green", justify="right")
+        table.add_column("平均折扣率", style="yellow", justify="right")
+        table.add_column("趋势", style="magenta")
+        
+        for product, data in list(product_analysis.items())[:10]:
+            trend_icon = "📈" if data['trend'] == '上升' else ("📉" if data['trend'] == '下降' else "➡️")
+            table.add_row(
+                product,
+                f"¥{data['total_discount']:,.2f}",
+                f"{data['avg_discount_rate']*100:.2f}%",
+                f"{trend_icon} {data['trend']}"
+            )
+        
+        console.print(table)
+    
+    # 合同折扣
+    contract_analysis = result['contract_analysis']
+    if contract_analysis:
+        console.print("\n[bold cyan]📄 合同折扣 TOP 5:[/bold cyan]")
+        for idx, (contract, data) in enumerate(list(contract_analysis.items())[:5], 1):
+            console.print(f"  {idx}. [bold]{data['discount_name']}[/bold]")
+            console.print(f"     合同: {contract}")
+            console.print(f"     累计节省: ¥{data['total_discount']:,.2f}")
+            console.print(f"     平均折扣率: {data['avg_discount_rate']*100:.2f}%")
+    
+    # 导出报告
+    if export:
+        console.print(f"\n[cyan]正在生成{format.upper()}报告...[/cyan]")
+        report_path = analyzer.generate_discount_report(target_dir, output_format=format)
+        console.print(f"[green]✅ 报告已生成: {report_path}[/green]")
+        
+        # 尝试打开报告
+        if format == 'html':
+            import os
+            if os.name == 'posix':
+                os.system(f"open '{report_path}'")
+    
+    console.print("\n[bold]💡 建议:[/bold]")
+    console.print("  • 定期下载账单CSV文件以跟踪折扣变化")
+    console.print("  • 关注折扣率下降的产品，及时与商务沟通续签")
+    console.print("  • 使用 --export 导出详细报告供团队分享")
 
 
 @analyze.command("security")

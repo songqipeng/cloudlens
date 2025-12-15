@@ -5,6 +5,8 @@ from typing import Dict, List
 
 from aliyunsdkcore.client import AcsClient
 from aliyunsdkecs.request.v20140526.DescribeInstancesRequest import DescribeInstancesRequest
+from aliyunsdkecs.request.v20140526.DescribeDisksRequest import DescribeDisksRequest
+from aliyunsdkecs.request.v20140526.DescribeSnapshotsRequest import DescribeSnapshotsRequest
 from aliyunsdkram.request.v20150501 import ListPoliciesForRoleRequest, ListPoliciesForUserRequest
 from aliyunsdkrds.request.v20140815.DescribeDBInstancesRequest import DescribeDBInstancesRequest
 from aliyunsdksts.request.v20150401 import GetCallerIdentityRequest
@@ -353,6 +355,95 @@ class AliyunProvider(BaseProvider):
         except Exception as e:
             logger.error(f"Failed to list OSS buckets: {e}")
         return buckets
+
+    def list_disks(self) -> List[Dict]:
+        """列出云盘（ECS Disks）"""
+        disks: List[Dict] = []
+        try:
+            page_num = 1
+            page_size = 100
+            total_count = None
+
+            while True:
+                request = DescribeDisksRequest()
+                request.set_PageSize(page_size)
+                request.set_PageNumber(page_num)
+                data = self._do_request(request)
+
+                if total_count is None:
+                    total_count = data.get("TotalCount", 0)
+
+                batch = data.get("Disks", {}).get("Disk", [])
+                if not batch:
+                    break
+
+                for d in batch:
+                    disks.append(
+                        {
+                            "id": d.get("DiskId"),
+                            "name": d.get("DiskName") or d.get("DiskId"),
+                            "status": d.get("Status", ""),
+                            "region": d.get("RegionId") or self.region,
+                            "zone": d.get("ZoneId", ""),
+                            "disk_category": d.get("Category", ""),
+                            "disk_type": d.get("Type", ""),  # system/data
+                            "size_gb": d.get("Size", 0),
+                            "instance_id": d.get("InstanceId", ""),
+                            "created_time": d.get("CreationTime"),
+                            "raw": d,
+                        }
+                    )
+
+                if total_count and len(disks) >= total_count:
+                    break
+                page_num += 1
+        except Exception as e:
+            logger.error(f"Failed to list Disks: {e}")
+        return [d for d in disks if d.get("id")]
+
+    def list_snapshots(self) -> List[Dict]:
+        """列出快照（ECS Snapshots）"""
+        snaps: List[Dict] = []
+        try:
+            page_num = 1
+            page_size = 100
+            total_count = None
+
+            while True:
+                request = DescribeSnapshotsRequest()
+                request.set_PageSize(page_size)
+                request.set_PageNumber(page_num)
+                data = self._do_request(request)
+
+                if total_count is None:
+                    total_count = data.get("TotalCount", 0)
+
+                batch = data.get("Snapshots", {}).get("Snapshot", [])
+                if not batch:
+                    break
+
+                for s in batch:
+                    raw = s or {}
+                    snaps.append(
+                        {
+                            "id": s.get("SnapshotId"),
+                            "name": s.get("SnapshotName") or s.get("SnapshotId"),
+                            "status": s.get("Status", ""),
+                            "region": s.get("RegionId") or self.region,
+                            "source_disk_id": s.get("SourceDiskId", ""),
+                            # 用于成本分摊的权重（GB）
+                            "size_gb": raw.get("SourceDiskSize") or 0,
+                            "created_time": s.get("CreationTime"),
+                            "raw": s,
+                        }
+                    )
+
+                if total_count and len(snaps) >= total_count:
+                    break
+                page_num += 1
+        except Exception as e:
+            logger.error(f"Failed to list Snapshots: {e}")
+        return [s for s in snaps if s.get("id")]
 
     def list_eip(self) -> List[Dict]:
         """列出弹性公网IP"""
