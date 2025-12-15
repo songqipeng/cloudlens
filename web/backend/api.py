@@ -2239,9 +2239,93 @@ def get_discount_trend(
                 "error": result['error']
             }
         
+        # 转换数据格式以匹配前端期望的结构
+        from datetime import datetime
+        
+        # 提取数据
+        monthly_trend = result.get('monthly_trend', [])
+        product_discounts = result.get('product_discounts', [])
+        instance_discounts = result.get('instance_discounts', [])
+        contract_discounts = result.get('contract_discounts', [])
+        summary = result.get('summary', {})
+        
+        # 构建前端期望的数据结构
+        response_data = {
+            "account_name": account,
+            "analysis_periods": [m['month'] for m in monthly_trend],
+            
+            # trend_analysis 格式
+            "trend_analysis": {
+                "timeline": [
+                    {
+                        "period": m['month'],
+                        "official_price": m['official_price'],
+                        "discount_amount": m['discount_amount'],
+                        "discount_rate": m['discount_rate'],
+                        "payable_amount": m['actual_amount']
+                    }
+                    for m in monthly_trend
+                ],
+                "latest_period": monthly_trend[-1]['month'] if monthly_trend else "",
+                "latest_discount_rate": summary.get('latest_discount_rate', 0),
+                "discount_rate_change": summary.get('trend_change_pct', 0) / 100,
+                "discount_rate_change_pct": summary.get('trend_change_pct', 0),
+                "discount_amount_change": 0,  # 可以计算
+                "trend_direction": summary.get('trend', '平稳'),
+                "average_discount_rate": summary.get('avg_discount_rate', 0),
+                "max_discount_rate": max([m['discount_rate'] for m in monthly_trend], default=0),
+                "min_discount_rate": min([m['discount_rate'] for m in monthly_trend], default=0),
+                "total_savings_6m": summary.get('total_discount', 0),
+            },
+            
+            # product_analysis 格式
+            "product_analysis": {
+                p['product']: {
+                    "total_discount": p['discount_amount'],
+                    "avg_discount_rate": p['discount_rate'],
+                    "latest_discount_rate": p['discount_rate'],
+                    "rate_change": 0,
+                    "trend": "平稳",
+                    "periods": [m['month'] for m in monthly_trend],
+                    "discount_rates": [p['discount_rate']] * len(monthly_trend),
+                }
+                for p in product_discounts
+            },
+            
+            # contract_analysis 格式（如果有合同数据）
+            "contract_analysis": {
+                c['contract_name']: {
+                    "discount_name": c['contract_name'],
+                    "total_discount": c.get('total_discount', 0),
+                    "avg_discount_rate": c.get('avg_discount_rate', 0),
+                    "latest_discount_rate": c.get('latest_discount_rate', 0),
+                    "periods": c.get('periods', []),
+                    "discount_amounts": c.get('discount_amounts', []),
+                }
+                for c in contract_discounts
+            },
+            
+            # top_instance_discounts 格式
+            "top_instance_discounts": [
+                {
+                    "instance_id": i['instance_id'],
+                    "instance_name": i.get('instance_name', i['instance_id']),
+                    "product_name": i['product'],
+                    "official_price": i['official_price'],
+                    "discount_amount": i['discount_amount'],
+                    "payable_amount": i['actual_amount'],
+                    "discount_rate": i['discount_rate'],
+                    "discount_pct": i['discount_rate'] * 100,
+                }
+                for i in instance_discounts
+            ],
+            
+            "generated_at": datetime.now().isoformat(),
+        }
+        
         return {
             "success": True,
-            "data": result,
+            "data": response_data,
             "cached": False,
             "source": "database",
             "account": account,
