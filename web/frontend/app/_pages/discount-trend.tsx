@@ -107,11 +107,14 @@ const getTrendColor = (trend: string) => {
 
 export default function DiscountTrendPage() {
   const { currentAccount } = useAccount()
-  const [months, setMonths] = useState(6)
+  const [months, setMonths] = useState(99) // 默认显示全部数据
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<DiscountTrendResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<"overview" | "products" | "contracts" | "instances">("overview")
+  const [customStartMonth, setCustomStartMonth] = useState("")
+  const [customEndMonth, setCustomEndMonth] = useState("")
+  const [timeRangeMode, setTimeRangeMode] = useState<"preset" | "custom">("preset")
 
   useEffect(() => {
     if (!currentAccount) {
@@ -294,27 +297,137 @@ export default function DiscountTrendPage() {
     <DashboardLayout>
       <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">折扣趋势分析</h2>
-            <p className="text-muted-foreground mt-1">基于账单CSV，分析最近6个月折扣变化趋势</p>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight">折扣趋势分析</h2>
+              <p className="text-muted-foreground mt-1">
+                {months >= 99 ? "显示全部历史数据" : `显示最近${months}个月数据`}
+                {trendData?.timeline && ` (${trendData.timeline.length}个月)`}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => fetchData(false)}
+                disabled={loading}
+                className="px-4 py-2 rounded-lg border border-border hover:bg-muted/40 transition-colors text-sm disabled:opacity-50"
+              >
+                加载缓存
+              </button>
+              <button
+                onClick={() => fetchData(true)}
+                disabled={loading}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm disabled:opacity-50"
+              >
+                强制刷新
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => fetchData(false)}
-              disabled={loading}
-              className="px-4 py-2 rounded-lg border border-border hover:bg-muted/40 transition-colors text-sm disabled:opacity-50"
-            >
-              加载缓存
-            </button>
-            <button
-              onClick={() => fetchData(true)}
-              disabled={loading}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm disabled:opacity-50"
-            >
-              强制刷新
-            </button>
-          </div>
+
+          {/* 时间范围选择器 */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                {/* 预设时间范围 */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">时间范围</label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => { setTimeRangeMode("preset"); setMonths(3); }}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        timeRangeMode === "preset" && months === 3
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      近3个月
+                    </button>
+                    <button
+                      onClick={() => { setTimeRangeMode("preset"); setMonths(6); }}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        timeRangeMode === "preset" && months === 6
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      近6个月
+                    </button>
+                    <button
+                      onClick={() => { setTimeRangeMode("preset"); setMonths(12); }}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        timeRangeMode === "preset" && months === 12
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      近1年
+                    </button>
+                    <button
+                      onClick={() => { setTimeRangeMode("preset"); setMonths(99); }}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        timeRangeMode === "preset" && months >= 99
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      全部时间
+                    </button>
+                    <button
+                      onClick={() => setTimeRangeMode("custom")}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        timeRangeMode === "custom"
+                          ? "bg-purple-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      自定义范围
+                    </button>
+                  </div>
+                </div>
+
+                {/* 自定义时间范围 */}
+                {timeRangeMode === "custom" && (
+                  <div className="flex flex-col sm:flex-row gap-3 items-end pt-2 border-t">
+                    <div className="flex-1">
+                      <label className="text-sm font-medium mb-1 block">开始月份</label>
+                      <input
+                        type="month"
+                        value={customStartMonth}
+                        onChange={(e) => setCustomStartMonth(e.target.value)}
+                        max={customEndMonth || undefined}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-gray-800 dark:border-gray-700"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-sm font-medium mb-1 block">结束月份</label>
+                      <input
+                        type="month"
+                        value={customEndMonth}
+                        onChange={(e) => setCustomEndMonth(e.target.value)}
+                        min={customStartMonth || undefined}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md dark:bg-gray-800 dark:border-gray-700"
+                      />
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (customStartMonth && customEndMonth) {
+                          // 计算月份差
+                          const start = new Date(customStartMonth + "-01")
+                          const end = new Date(customEndMonth + "-01")
+                          const monthsDiff = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1
+                          setMonths(monthsDiff > 0 ? monthsDiff : 1)
+                        }
+                      }}
+                      disabled={!customStartMonth || !customEndMonth}
+                      className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      应用
+                    </button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {loading ? (
