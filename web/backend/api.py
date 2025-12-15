@@ -2184,43 +2184,54 @@ def get_billing_instance_bill(
 
 @router.get("/discounts/trend")
 def get_discount_trend(
-    bill_dir: Optional[str] = Query(None, description="账单CSV目录路径，不指定则自动查找"),
-    months: int = Query(6, ge=1, le=12, description="分析月数"),
+    account: Optional[str] = Query(None, description="账号名称"),
+    months: int = Query(19, ge=1, le=24, description="分析月数，默认19个月（所有历史数据）"),
     force_refresh: bool = Query(False, description="强制刷新缓存"),
 ):
     """
-    折扣趋势分析 - 基于账单CSV文件分析最近N个月折扣变化
+    折扣趋势分析 - 基于数据库全量数据分析
     
-    这是基于离线账单CSV的分析，适合：
-    - 查看长期折扣趋势
+    数据来源：SQLite数据库（自动同步最新账单数据）
+    支持：
+    - 查看长期折扣趋势（最多19个月历史）
     - 分析商务合同折扣效果
-    - 按产品/实例维度查看折扣分布
+    - 按产品/实例/合同维度查看折扣分布
+    - 实时更新，无需手动下载CSV
     """
-    from core.discount_analyzer import DiscountTrendAnalyzer
-    from pathlib import Path
+    from core.discount_analyzer_db import DiscountAnalyzerDB
+    import os
     
     try:
-        analyzer = DiscountTrendAnalyzer()
+        # 获取账号信息
+        cm = ConfigManager()
+        if not account:
+            # 尝试获取当前账号
+            ctx = ContextManager()
+            account = ctx.get_last_account()
+        if not account:
+            # 使用第一个账号
+            accounts = cm.list_accounts()
+            if accounts:
+                account = accounts[0].name
+            else:
+                raise HTTPException(status_code=400, detail="未找到账号配置")
         
-        # 查找账单目录
-        if bill_dir:
-            bill_dirs = [Path(bill_dir)]
-        else:
-            # 从项目根目录查找账单目录
-            import os
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            bill_dirs = analyzer.find_bill_directories(project_root)
+        account_config = cm.get_account(account)
+        if not account_config:
+            raise HTTPException(status_code=404, detail=f"账号 '{account}' 不存在")
         
-        if not bill_dirs:
-            return {
-                "success": False,
-                "error": "未找到账单CSV目录，请使用 bill_dir 参数指定或将CSV文件放在项目根目录"
-            }
+        # 生成账号ID（与bill_fetcher保持一致）
+        account_id = f"{account_config.access_key_id[:10]}-{account}"
         
-        target_dir = bill_dirs[0]
+        # 使用数据库版折扣分析器
+        db_path = os.path.expanduser("~/.cloudlens/bills.db")
+        analyzer = DiscountAnalyzerDB(db_path=db_path)
         
-        # 分析
-        result = analyzer.analyze_discount_trend(target_dir, months=months, cache_hours=24 if not force_refresh else 0)
+        # 分析折扣趋势
+        result = analyzer.analyze_discount_trend(
+            account_id=account_id,
+            months=months
+        )
         
         if 'error' in result:
             return {
@@ -2231,39 +2242,54 @@ def get_discount_trend(
         return {
             "success": True,
             "data": result,
-            "cached": not force_refresh,
+            "cached": False,
+            "source": "database",
+            "account": account,
         }
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/discounts/products")
 def get_product_discounts(
-    bill_dir: Optional[str] = Query(None, description="账单CSV目录路径"),
+    account: Optional[str] = Query(None, description="账号名称"),
     product: Optional[str] = Query(None, description="产品名称过滤"),
+    months: int = Query(19, ge=1, le=24, description="分析月数"),
     force_refresh: bool = Query(False, description="强制刷新缓存"),
 ):
     """
-    产品折扣详情 - 查看特定产品的折扣明细
+    产品折扣详情 - 基于数据库查看特定产品的折扣明细
     """
-    from core.discount_analyzer import DiscountTrendAnalyzer
-    from pathlib import Path
+    from core.discount_analyzer_db import DiscountAnalyzerDB
+    import os
     
     try:
-        analyzer = DiscountTrendAnalyzer()
+        # 获取账号信息
+        cm = ConfigManager()
+        if not account:
+            ctx = ContextManager()
+            account = ctx.get_last_account()
+        if not account:
+            accounts = cm.list_accounts()
+            if accounts:
+                account = accounts[0].name
+            else:
+                raise HTTPException(status_code=400, detail="未找到账号配置")
         
-        if bill_dir:
-            bill_dirs = [Path(bill_dir)]
-        else:
-            # 从项目根目录查找账单目录
-            import os
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            bill_dirs = analyzer.find_bill_directories(project_root)
+        account_config = cm.get_account(account)
+        if not account_config:
+            raise HTTPException(status_code=404, detail=f"账号 '{account}' 不存在")
         
-        if not bill_dirs:
-            return {"success": False, "error": "未找到账单目录"}
+        # 生成账号ID
+        account_id = f"{account_config.access_key_id[:10]}-{account}"
         
-        result = analyzer.analyze_discount_trend(bill_dirs[0], cache_hours=24 if not force_refresh else 0)
+        # 使用数据库版折扣分析器
+        db_path = os.path.expanduser("~/.cloudlens/bills.db")
+        analyzer = DiscountAnalyzerDB(db_path=db_path)
+        
+        result = analyzer.analyze_discount_trend(account_id=account_id, months=months)
         
         if 'error' in result:
             return {"success": False, "error": result['error']}
@@ -2280,9 +2306,13 @@ def get_product_discounts(
             "data": {
                 "products": product_data,
                 "analysis_periods": result['analysis_periods'],
-            }
+            },
+            "source": "database",
+            "account": account,
         }
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 

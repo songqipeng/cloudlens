@@ -64,3 +64,22 @@ logs/
 
 # 数据目录
 data/
+
+# 账单数据（CSV文件和目录）
+bills_data/
+*-ydzn/
+*-zmyc/
+*-cf/
+ydzn/
+zmyc/
+cf/
+*.csv
+
+# 测试数据JSON
+*_ecs.json
+*_slb.json
+ecs.json
+slb.json
+
+# CloudLens本地数据
+~/.cloudlens/

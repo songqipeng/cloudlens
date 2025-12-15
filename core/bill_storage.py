@@ -447,16 +447,17 @@ class BillStorageManager:
             end_cycle = cycles[0] if cycles else None
             
             # 月度趋势
+            # 原价 = pretax_amount + invoice_discount（阿里云API不提供list_price）
             cursor.execute("""
-                SELECT 
+                SELECT
                     billing_cycle,
-                    SUM(list_price) as official_price,
+                    SUM(pretax_amount + invoice_discount) as official_price,
                     SUM(pretax_amount) as actual_amount,
-                    SUM(list_price - pretax_amount) as discount_amount,
-                    CASE 
-                        WHEN SUM(list_price) > 0 
-                        THEN (SUM(list_price - pretax_amount) / SUM(list_price))
-                        ELSE 0 
+                    SUM(invoice_discount) as discount_amount,
+                    CASE
+                        WHEN SUM(pretax_amount + invoice_discount) > 0
+                        THEN (SUM(invoice_discount) / SUM(pretax_amount + invoice_discount))
+                        ELSE 0
                     END as discount_rate
                 FROM bill_items
                 WHERE account_id = ? AND billing_cycle BETWEEN ? AND ?
@@ -474,15 +475,15 @@ class BillStorageManager:
             
             # 产品维度
             cursor.execute("""
-                SELECT 
+                SELECT
                     product_name,
-                    SUM(list_price) as official_price,
+                    SUM(pretax_amount + invoice_discount) as official_price,
                     SUM(pretax_amount) as actual_amount,
-                    SUM(list_price - pretax_amount) as discount_amount,
-                    CASE 
-                        WHEN SUM(list_price) > 0 
-                        THEN (SUM(list_price - pretax_amount) / SUM(list_price))
-                        ELSE 0 
+                    SUM(invoice_discount) as discount_amount,
+                    CASE
+                        WHEN SUM(pretax_amount + invoice_discount) > 0
+                        THEN (SUM(invoice_discount) / SUM(pretax_amount + invoice_discount))
+                        ELSE 0
                     END as discount_rate
                 FROM bill_items
                 WHERE account_id = ? AND billing_cycle BETWEEN ? AND ?
@@ -501,19 +502,19 @@ class BillStorageManager:
             
             # 实例维度（TOP 50）
             cursor.execute("""
-                SELECT 
+                SELECT
                     instance_id,
                     product_name,
-                    SUM(list_price) as official_price,
+                    SUM(pretax_amount + invoice_discount) as official_price,
                     SUM(pretax_amount) as actual_amount,
-                    SUM(list_price - pretax_amount) as discount_amount,
-                    CASE 
-                        WHEN SUM(list_price) > 0 
-                        THEN (SUM(list_price - pretax_amount) / SUM(list_price))
-                        ELSE 0 
+                    SUM(invoice_discount) as discount_amount,
+                    CASE
+                        WHEN SUM(pretax_amount + invoice_discount) > 0
+                        THEN (SUM(invoice_discount) / SUM(pretax_amount + invoice_discount))
+                        ELSE 0
                     END as discount_rate
                 FROM bill_items
-                WHERE account_id = ? 
+                WHERE account_id = ?
                     AND billing_cycle BETWEEN ? AND ?
                     AND instance_id != ''
                 GROUP BY instance_id, product_name
