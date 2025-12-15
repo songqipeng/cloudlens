@@ -2634,3 +2634,501 @@ def list_reports(account: Optional[str] = None, limit: int = Query(50, ge=1, le=
         "success": True,
         "data": []
     }
+
+
+# ==================== Phase 1: 高级折扣分析API ====================
+
+@router.get("/discounts/quarterly")
+def get_quarterly_discount_comparison(
+    account: Optional[str] = Query(None, description="账号名称"),
+    quarters: int = Query(8, ge=1, le=20, description="分析季度数"),
+):
+    """
+    季度折扣对比分析
+    
+    返回季度维度的折扣率、消费金额、环比变化等数据
+    """
+    import os
+    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    
+    cm = ConfigManager()
+    
+    # 解析账号
+    if not account:
+        accounts = cm.list_accounts()
+        if not accounts:
+            raise HTTPException(status_code=404, detail="未找到任何账号配置")
+        account = accounts[0].name if isinstance(accounts[0], CloudAccount) else accounts[0].get('name')
+    
+    account_config = cm.get_account(account)
+    if not account_config:
+        raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
+    
+    try:
+        db_path = os.path.expanduser("~/.cloudlens/bills.db")
+        analyzer = AdvancedDiscountAnalyzer(db_path)
+        
+        # 构造账号ID（与bill_cmd.py保持一致）
+        account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        result = analyzer.get_quarterly_comparison(account_id, quarters)
+        
+        if not result.get('success'):
+            raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
+        
+        return {
+            "success": True,
+            "data": result,
+            "account": account,
+            "source": "database"
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"季度对比分析失败: {str(e)}")
+
+
+@router.get("/discounts/yearly")
+def get_yearly_discount_comparison(
+    account: Optional[str] = Query(None, description="账号名称"),
+):
+    """
+    年度折扣对比分析
+    
+    返回年度维度的折扣率、消费金额、同比变化等数据
+    """
+    import os
+    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    
+    cm = ConfigManager()
+    
+    # 解析账号
+    if not account:
+        accounts = cm.list_accounts()
+        if not accounts:
+            raise HTTPException(status_code=404, detail="未找到任何账号配置")
+        account = accounts[0].name if isinstance(accounts[0], CloudAccount) else accounts[0].get('name')
+    
+    account_config = cm.get_account(account)
+    if not account_config:
+        raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
+    
+    try:
+        db_path = os.path.expanduser("~/.cloudlens/bills.db")
+        analyzer = AdvancedDiscountAnalyzer(db_path)
+        
+        # 构造账号ID（与bill_cmd.py保持一致）
+        account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        result = analyzer.get_yearly_comparison(account_id)
+        
+        if not result.get('success'):
+            raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
+        
+        return {
+            "success": True,
+            "data": result,
+            "account": account,
+            "source": "database"
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"年度对比分析失败: {str(e)}")
+
+
+@router.get("/discounts/product-trends")
+def get_product_discount_trends(
+    account: Optional[str] = Query(None, description="账号名称"),
+    months: int = Query(19, ge=1, le=999, description="分析月数"),
+    top_n: int = Query(20, ge=1, le=50, description="TOP N产品"),
+):
+    """
+    产品折扣趋势分析
+    
+    返回每个产品的月度折扣趋势、波动率、趋势变化等数据
+    """
+    import os
+    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    
+    cm = ConfigManager()
+    
+    # 解析账号
+    if not account:
+        accounts = cm.list_accounts()
+        if not accounts:
+            raise HTTPException(status_code=404, detail="未找到任何账号配置")
+        account = accounts[0].name if isinstance(accounts[0], CloudAccount) else accounts[0].get('name')
+    
+    account_config = cm.get_account(account)
+    if not account_config:
+        raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
+    
+    try:
+        db_path = os.path.expanduser("~/.cloudlens/bills.db")
+        analyzer = AdvancedDiscountAnalyzer(db_path)
+        
+        # 构造账号ID（与bill_cmd.py保持一致）
+        account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        result = analyzer.get_product_discount_trends(account_id, months, top_n)
+        
+        if not result.get('success'):
+            raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
+        
+        return {
+            "success": True,
+            "data": result,
+            "account": account,
+            "source": "database"
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"产品趋势分析失败: {str(e)}")
+
+
+@router.get("/discounts/regions")
+def get_region_discount_ranking(
+    account: Optional[str] = Query(None, description="账号名称"),
+    months: int = Query(19, ge=1, le=999, description="分析月数"),
+):
+    """
+    区域折扣排行分析
+    
+    返回各区域的折扣率、消费金额、实例数等数据
+    """
+    import os
+    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    
+    cm = ConfigManager()
+    
+    # 解析账号
+    if not account:
+        accounts = cm.list_accounts()
+        if not accounts:
+            raise HTTPException(status_code=404, detail="未找到任何账号配置")
+        account = accounts[0].name if isinstance(accounts[0], CloudAccount) else accounts[0].get('name')
+    
+    account_config = cm.get_account(account)
+    if not account_config:
+        raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
+    
+    try:
+        db_path = os.path.expanduser("~/.cloudlens/bills.db")
+        analyzer = AdvancedDiscountAnalyzer(db_path)
+        
+        # 构造账号ID（与bill_cmd.py保持一致）
+        account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        result = analyzer.get_region_discount_ranking(account_id, months)
+        
+        if not result.get('success'):
+            raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
+        
+        return {
+            "success": True,
+            "data": result,
+            "account": account,
+            "source": "database"
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"区域排行分析失败: {str(e)}")
+
+
+@router.get("/discounts/subscription-types")
+def get_subscription_type_comparison(
+    account: Optional[str] = Query(None, description="账号名称"),
+    months: int = Query(19, ge=1, le=999, description="分析月数"),
+):
+    """
+    计费方式对比分析（包年包月 vs 按量付费）
+    
+    返回不同计费方式的折扣率、消费金额、实例数对比，以及月度趋势
+    """
+    import os
+    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    
+    cm = ConfigManager()
+    
+    # 解析账号
+    if not account:
+        accounts = cm.list_accounts()
+        if not accounts:
+            raise HTTPException(status_code=404, detail="未找到任何账号配置")
+        account = accounts[0].name if isinstance(accounts[0], CloudAccount) else accounts[0].get('name')
+    
+    account_config = cm.get_account(account)
+    if not account_config:
+        raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
+    
+    try:
+        db_path = os.path.expanduser("~/.cloudlens/bills.db")
+        analyzer = AdvancedDiscountAnalyzer(db_path)
+        
+        # 构造账号ID（与bill_cmd.py保持一致）
+        account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        result = analyzer.get_subscription_type_comparison(account_id, months)
+        
+        if not result.get('success'):
+            raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
+        
+        return {
+            "success": True,
+            "data": result,
+            "account": account,
+            "source": "database"
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"计费方式对比分析失败: {str(e)}")
+
+
+@router.get("/discounts/optimization-suggestions")
+def get_optimization_suggestions(
+    account: Optional[str] = Query(None, description="账号名称"),
+    min_running_months: int = Query(6, ge=1, le=24, description="最少运行月数"),
+):
+    """
+    优化建议：识别长期运行的按量付费实例
+    
+    返回建议转为包年包月的实例列表及潜在节省金额
+    """
+    import os
+    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    
+    cm = ConfigManager()
+    
+    # 解析账号
+    if not account:
+        accounts = cm.list_accounts()
+        if not accounts:
+            raise HTTPException(status_code=404, detail="未找到任何账号配置")
+        account = accounts[0].name if isinstance(accounts[0], CloudAccount) else accounts[0].get('name')
+    
+    account_config = cm.get_account(account)
+    if not account_config:
+        raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
+    
+    try:
+        db_path = os.path.expanduser("~/.cloudlens/bills.db")
+        analyzer = AdvancedDiscountAnalyzer(db_path)
+        
+        # 构造账号ID（与bill_cmd.py保持一致）
+        account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        result = analyzer.get_optimization_suggestions(account_id, min_running_months)
+        
+        if not result.get('success'):
+            raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
+        
+        return {
+            "success": True,
+            "data": result,
+            "account": account,
+            "source": "database"
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"优化建议生成失败: {str(e)}")
+
+
+@router.get("/discounts/anomalies")
+def detect_discount_anomalies(
+    account: Optional[str] = Query(None, description="账号名称"),
+    months: int = Query(19, ge=1, le=999, description="分析月数"),
+    threshold: float = Query(0.10, ge=0.01, le=0.50, description="异常阈值"),
+):
+    """
+    折扣异常检测
+    
+    识别折扣率波动异常的月份（环比变化超过阈值）
+    """
+    import os
+    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    
+    cm = ConfigManager()
+    
+    # 解析账号
+    if not account:
+        accounts = cm.list_accounts()
+        if not accounts:
+            raise HTTPException(status_code=404, detail="未找到任何账号配置")
+        account = accounts[0].name if isinstance(accounts[0], CloudAccount) else accounts[0].get('name')
+    
+    account_config = cm.get_account(account)
+    if not account_config:
+        raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
+    
+    try:
+        db_path = os.path.expanduser("~/.cloudlens/bills.db")
+        analyzer = AdvancedDiscountAnalyzer(db_path)
+        
+        # 构造账号ID（与bill_cmd.py保持一致）
+        account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        result = analyzer.detect_anomalies(account_id, months, threshold)
+        
+        if not result.get('success'):
+            raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
+        
+        return {
+            "success": True,
+            "data": result,
+            "account": account,
+            "source": "database"
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"异常检测失败: {str(e)}")
+
+
+# ==================== Phase 2: 交叉维度分析API ====================
+
+@router.get("/discounts/product-region-matrix")
+def get_product_region_matrix(
+    account: Optional[str] = Query(None, description="账号名称"),
+    top_products: int = Query(10, ge=1, le=20, description="TOP N产品"),
+    top_regions: int = Query(10, ge=1, le=20, description="TOP N区域"),
+):
+    """
+    产品 × 区域交叉分析矩阵
+    
+    返回产品和区域交叉维度的折扣率热力图数据
+    """
+    import os
+    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    
+    cm = ConfigManager()
+    
+    # 解析账号
+    if not account:
+        accounts = cm.list_accounts()
+        if not accounts:
+            raise HTTPException(status_code=404, detail="未找到任何账号配置")
+        account = accounts[0].name if isinstance(accounts[0], CloudAccount) else accounts[0].get('name')
+    
+    account_config = cm.get_account(account)
+    if not account_config:
+        raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
+    
+    try:
+        db_path = os.path.expanduser("~/.cloudlens/bills.db")
+        analyzer = AdvancedDiscountAnalyzer(db_path)
+        
+        # 构造账号ID（与bill_cmd.py保持一致）
+        account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        result = analyzer.get_product_region_matrix(account_id, top_products, top_regions)
+        
+        if not result.get('success'):
+            raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
+        
+        return {
+            "success": True,
+            "data": result,
+            "account": account,
+            "source": "database"
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"产品×区域矩阵分析失败: {str(e)}")
+
+
+@router.get("/discounts/moving-average")
+def get_discount_moving_average(
+    account: Optional[str] = Query(None, description="账号名称"),
+    windows: str = Query("3,6,12", description="移动窗口大小（逗号分隔）"),
+):
+    """
+    折扣率移动平均分析
+    
+    返回不同窗口大小的移动平均数据，用于平滑趋势
+    """
+    import os
+    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    
+    cm = ConfigManager()
+    
+    # 解析账号
+    if not account:
+        accounts = cm.list_accounts()
+        if not accounts:
+            raise HTTPException(status_code=404, detail="未找到任何账号配置")
+        account = accounts[0].name if isinstance(accounts[0], CloudAccount) else accounts[0].get('name')
+    
+    account_config = cm.get_account(account)
+    if not account_config:
+        raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
+    
+    try:
+        # 解析窗口大小
+        window_sizes = [int(w.strip()) for w in windows.split(',')]
+        
+        db_path = os.path.expanduser("~/.cloudlens/bills.db")
+        analyzer = AdvancedDiscountAnalyzer(db_path)
+        
+        # 构造账号ID（与bill_cmd.py保持一致）
+        account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        result = analyzer.get_moving_average(account_id, window_sizes)
+        
+        if not result.get('success'):
+            raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
+        
+        return {
+            "success": True,
+            "data": result,
+            "account": account,
+            "source": "database"
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"移动平均分析失败: {str(e)}")
+
+
+@router.get("/discounts/cumulative")
+def get_cumulative_discount(
+    account: Optional[str] = Query(None, description="账号名称"),
+):
+    """
+    累计折扣金额分析
+    
+    返回折扣金额的累计爬升曲线数据
+    """
+    import os
+    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    
+    cm = ConfigManager()
+    
+    # 解析账号
+    if not account:
+        accounts = cm.list_accounts()
+        if not accounts:
+            raise HTTPException(status_code=404, detail="未找到任何账号配置")
+        account = accounts[0].name if isinstance(accounts[0], CloudAccount) else accounts[0].get('name')
+    
+    account_config = cm.get_account(account)
+    if not account_config:
+        raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
+    
+    try:
+        db_path = os.path.expanduser("~/.cloudlens/bills.db")
+        analyzer = AdvancedDiscountAnalyzer(db_path)
+        
+        # 构造账号ID（与bill_cmd.py保持一致）
+        account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        result = analyzer.get_cumulative_discount(account_id)
+        
+        if not result.get('success'):
+            raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
+        
+        return {
+            "success": True,
+            "data": result,
+            "account": account,
+            "source": "database"
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"累计折扣分析失败: {str(e)}")
