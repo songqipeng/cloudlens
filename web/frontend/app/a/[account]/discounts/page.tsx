@@ -1,8 +1,8 @@
 "use client"
 
-import DiscountTrendPage from "@/app/_pages/discount-trend"
+import AdvancedDiscountTrendPage from "@/app/_pages/discount-trend-advanced"
 
-export default DiscountTrendPage
+export default AdvancedDiscountTrendPage
 
 
 
