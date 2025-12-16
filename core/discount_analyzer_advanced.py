@@ -34,7 +34,9 @@ class AdvancedDiscountAnalyzer:
     def get_quarterly_comparison(
         self,
         account_id: str,
-        quarters: int = 8
+        quarters: int = 8,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> Dict:
         """
         季度对比分析
@@ -42,17 +44,31 @@ class AdvancedDiscountAnalyzer:
         Args:
             account_id: 账号ID
             quarters: 分析季度数
+            start_date: 开始日期 (YYYY-MM格式)
+            end_date: 结束日期 (YYYY-MM格式)
             
         Returns:
             季度对比数据
         """
-        logger.info(f"开始季度对比分析，账号={account_id}, 季度数={quarters}")
+        logger.info(f"开始季度对比分析，账号={account_id}, 季度数={quarters}, 时间范围={start_date}~{end_date}")
         
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
         try:
-            cursor.execute("""
+            # 构建时间过滤条件
+            time_filter = ""
+            params = [account_id]
+            if start_date:
+                time_filter += " AND billing_cycle >= ?"
+                params.append(start_date)
+            if end_date:
+                time_filter += " AND billing_cycle <= ?"
+                params.append(end_date)
+            
+            params.append(quarters)
+            
+            cursor.execute(f"""
                 SELECT 
                     SUBSTR(billing_cycle, 1, 4) as year,
                     CASE 
@@ -71,7 +87,7 @@ class AdvancedDiscountAnalyzer:
                     END as avg_discount_rate,
                     COUNT(DISTINCT billing_cycle) as month_count
                 FROM bill_items
-                WHERE account_id = ?
+                WHERE account_id = ? {time_filter}
                 GROUP BY year, quarter
                 ORDER BY year DESC, 
                     CASE quarter 
@@ -81,7 +97,7 @@ class AdvancedDiscountAnalyzer:
                         WHEN 'Q4' THEN 4 
                     END DESC
                 LIMIT ?
-            """, (account_id, quarters))
+            """, params)
             
             quarterly_data = []
             for row in cursor.fetchall():
@@ -128,25 +144,39 @@ class AdvancedDiscountAnalyzer:
     
     def get_yearly_comparison(
         self,
-        account_id: str
+        account_id: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> Dict:
         """
         年度对比分析
         
         Args:
             account_id: 账号ID
+            start_date: 开始日期 (YYYY-MM格式)
+            end_date: 结束日期 (YYYY-MM格式)
             
         Returns:
             年度对比数据
         """
-        logger.info(f"开始年度对比分析，账号={account_id}")
+        logger.info(f"开始年度对比分析，账号={account_id}, 时间范围={start_date}~{end_date}")
         
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
         try:
+            # 构建时间过滤条件
+            time_filter = ""
+            params = [account_id]
+            if start_date:
+                time_filter += " AND billing_cycle >= ?"
+                params.append(start_date)
+            if end_date:
+                time_filter += " AND billing_cycle <= ?"
+                params.append(end_date)
+            
             # 年度总览
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT 
                     SUBSTR(billing_cycle, 1, 4) as year,
                     COUNT(DISTINCT billing_cycle) as month_count,
@@ -159,10 +189,10 @@ class AdvancedDiscountAnalyzer:
                         ELSE 0 
                     END as avg_discount_rate
                 FROM bill_items
-                WHERE account_id = ?
+                WHERE account_id = ? {time_filter}
                 GROUP BY year
                 ORDER BY year
-            """, (account_id,))
+            """, params)
             
             yearly_data = []
             for row in cursor.fetchall():
@@ -214,7 +244,9 @@ class AdvancedDiscountAnalyzer:
         self,
         account_id: str,
         months: int = 19,
-        top_n: int = 20
+        top_n: int = 20,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> Dict:
         """
         产品折扣趋势分析（每个产品的月度折扣变化）
@@ -223,28 +255,43 @@ class AdvancedDiscountAnalyzer:
             account_id: 账号ID
             months: 分析月数
             top_n: TOP N产品
+            start_date: 开始日期 (YYYY-MM格式)
+            end_date: 结束日期 (YYYY-MM格式)
             
         Returns:
             产品趋势数据
         """
-        logger.info(f"开始产品折扣趋势分析，账号={account_id}, 月数={months}, TOP={top_n}")
+        logger.info(f"开始产品折扣趋势分析，账号={account_id}, 月数={months}, TOP={top_n}, 时间范围={start_date}~{end_date}")
         
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
         try:
+            # 构建时间过滤条件
+            time_filter = ""
+            params = [account_id]
+            if start_date:
+                time_filter += " AND billing_cycle >= ?"
+                params.append(start_date)
+            if end_date:
+                time_filter += " AND billing_cycle <= ?"
+                params.append(end_date)
+            
+            params.append(top_n)
+            
             # 先获取TOP N产品（按消费金额）
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT 
                     product_name,
                     SUM(pretax_amount) as total_paid
                 FROM bill_items
                 WHERE account_id = ?
                     AND product_name != ''
+                    {time_filter}
                 GROUP BY product_name
                 ORDER BY total_paid DESC
                 LIMIT ?
-            """, (account_id, top_n))
+            """, params)
             
             top_products = [row[0] for row in cursor.fetchall()]
             
@@ -253,6 +300,17 @@ class AdvancedDiscountAnalyzer:
             
             # 获取这些产品的月度趋势
             placeholders = ','.join(['?' for _ in top_products])
+            
+            # 重建时间过滤条件和参数
+            time_filter2 = ""
+            params2 = [account_id]
+            if start_date:
+                time_filter2 += " AND billing_cycle >= ?"
+                params2.append(start_date)
+            if end_date:
+                time_filter2 += " AND billing_cycle <= ?"
+                params2.append(end_date)
+            
             query = f"""
                 SELECT 
                     product_name,
@@ -269,12 +327,13 @@ class AdvancedDiscountAnalyzer:
                     COUNT(DISTINCT instance_id) as instance_count
                 FROM bill_items
                 WHERE account_id = ? 
+                    {time_filter2}
                     AND product_name IN ({placeholders})
                 GROUP BY product_name, billing_cycle
                 ORDER BY product_name, billing_cycle
             """
             
-            cursor.execute(query, [account_id] + top_products)
+            cursor.execute(query, params2 + top_products)
             
             # 按产品分组
             product_trends = defaultdict(list)
@@ -335,7 +394,9 @@ class AdvancedDiscountAnalyzer:
     def get_region_discount_ranking(
         self,
         account_id: str,
-        months: int = 19
+        months: int = 19,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> Dict:
         """
         区域折扣排行分析
@@ -343,17 +404,29 @@ class AdvancedDiscountAnalyzer:
         Args:
             account_id: 账号ID
             months: 分析月数
+            start_date: 开始日期 (YYYY-MM格式)
+            end_date: 结束日期 (YYYY-MM格式)
             
         Returns:
             区域排行数据
         """
-        logger.info(f"开始区域折扣排行分析，账号={account_id}, 月数={months}")
+        logger.info(f"开始区域折扣排行分析，账号={account_id}, 月数={months}, 时间范围={start_date}~{end_date}")
         
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
         try:
-            cursor.execute("""
+            # 构建时间过滤条件
+            time_filter = ""
+            params = [account_id]
+            if start_date:
+                time_filter += " AND billing_cycle >= ?"
+                params.append(start_date)
+            if end_date:
+                time_filter += " AND billing_cycle <= ?"
+                params.append(end_date)
+            
+            cursor.execute(f"""
                 SELECT 
                     region,
                     SUM(pretax_amount + invoice_discount) as total_original,
@@ -370,9 +443,10 @@ class AdvancedDiscountAnalyzer:
                 FROM bill_items
                 WHERE account_id = ?
                     AND region != ''
+                    {time_filter}
                 GROUP BY region
                 ORDER BY total_paid DESC
-            """, (account_id,))
+            """, params)
             
             regions = []
             for row in cursor.fetchall():
@@ -411,7 +485,9 @@ class AdvancedDiscountAnalyzer:
     def get_subscription_type_comparison(
         self,
         account_id: str,
-        months: int = 19
+        months: int = 19,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> Dict:
         """
         计费方式对比分析（包年包月 vs 按量付费）
@@ -419,18 +495,30 @@ class AdvancedDiscountAnalyzer:
         Args:
             account_id: 账号ID
             months: 分析月数
+            start_date: 开始日期 (YYYY-MM格式)
+            end_date: 结束日期 (YYYY-MM格式)
             
         Returns:
             计费方式对比数据
         """
-        logger.info(f"开始计费方式对比分析，账号={account_id}, 月数={months}")
+        logger.info(f"开始计费方式对比分析，账号={account_id}, 月数={months}, 时间范围={start_date}~{end_date}")
         
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
         try:
+            # 构建时间过滤条件
+            time_filter = ""
+            params = [account_id]
+            if start_date:
+                time_filter += " AND billing_cycle >= ?"
+                params.append(start_date)
+            if end_date:
+                time_filter += " AND billing_cycle <= ?"
+                params.append(end_date)
+            
             # 总体对比
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT 
                     subscription_type,
                     SUM(pretax_amount + invoice_discount) as total_original,
@@ -446,8 +534,9 @@ class AdvancedDiscountAnalyzer:
                 FROM bill_items
                 WHERE account_id = ?
                     AND subscription_type IN ('Subscription', 'PayAsYouGo')
+                    {time_filter}
                 GROUP BY subscription_type
-            """, (account_id,))
+            """, params)
             
             subscription_types = {}
             for row in cursor.fetchall():
@@ -534,7 +623,9 @@ class AdvancedDiscountAnalyzer:
     def get_optimization_suggestions(
         self,
         account_id: str,
-        min_running_months: int = 6
+        min_running_months: int = 6,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> Dict:
         """
         优化建议：识别长期运行的按量付费实例
@@ -542,17 +633,31 @@ class AdvancedDiscountAnalyzer:
         Args:
             account_id: 账号ID
             min_running_months: 最少运行月数
+            start_date: 开始日期 (YYYY-MM格式)
+            end_date: 结束日期 (YYYY-MM格式)
             
         Returns:
             优化建议列表
         """
-        logger.info(f"开始生成优化建议，账号={account_id}")
+        logger.info(f"开始生成优化建议，账号={account_id}, 时间范围={start_date}~{end_date}")
         
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
         try:
-            cursor.execute("""
+            # 构建时间过滤条件
+            time_filter = ""
+            params = [account_id]
+            if start_date:
+                time_filter += " AND billing_cycle >= ?"
+                params.append(start_date)
+            if end_date:
+                time_filter += " AND billing_cycle <= ?"
+                params.append(end_date)
+            
+            params.append(min_running_months)
+            
+            cursor.execute(f"""
                 SELECT 
                     instance_id,
                     product_name,
@@ -571,11 +676,12 @@ class AdvancedDiscountAnalyzer:
                 WHERE account_id = ?
                     AND subscription_type = 'PayAsYouGo'
                     AND instance_id != ''
+                    {time_filter}
                 GROUP BY instance_id, product_name, region
                 HAVING running_months >= ?
                 ORDER BY total_cost DESC
                 LIMIT 50
-            """, (account_id, min_running_months))
+            """, params)
             
             suggestions = []
             for row in cursor.fetchall():
@@ -620,7 +726,9 @@ class AdvancedDiscountAnalyzer:
         self,
         account_id: str,
         months: int = 19,
-        threshold: float = 0.10
+        threshold: float = 0.10,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> Dict:
         """
         异常检测：识别折扣率波动异常的月份
@@ -629,18 +737,30 @@ class AdvancedDiscountAnalyzer:
             account_id: 账号ID
             months: 分析月数
             threshold: 异常阈值（默认10%）
+            start_date: 开始日期 (YYYY-MM格式)
+            end_date: 结束日期 (YYYY-MM格式)
             
         Returns:
             异常检测结果
         """
-        logger.info(f"开始异常检测，账号={account_id}, 阈值={threshold*100}%")
+        logger.info(f"开始异常检测，账号={account_id}, 阈值={threshold*100}%, 时间范围={start_date}~{end_date}")
         
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
         try:
+            # 构建时间过滤条件
+            time_filter = ""
+            params = [account_id]
+            if start_date:
+                time_filter += " AND billing_cycle >= ?"
+                params.append(start_date)
+            if end_date:
+                time_filter += " AND billing_cycle <= ?"
+                params.append(end_date)
+            
             # 获取月度折扣率
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT 
                     billing_cycle,
                     SUM(pretax_amount + invoice_discount) as official_price,
@@ -652,10 +772,10 @@ class AdvancedDiscountAnalyzer:
                         ELSE 0 
                     END as discount_rate
                 FROM bill_items
-                WHERE account_id = ?
+                WHERE account_id = ? {time_filter}
                 GROUP BY billing_cycle
                 ORDER BY billing_cycle
-            """, (account_id,))
+            """, params)
             
             monthly_data = []
             for row in cursor.fetchall():
@@ -712,7 +832,9 @@ class AdvancedDiscountAnalyzer:
         self,
         account_id: str,
         top_products: int = 10,
-        top_regions: int = 10
+        top_regions: int = 10,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> Dict:
         """
         产品 × 区域交叉分析矩阵
@@ -721,43 +843,79 @@ class AdvancedDiscountAnalyzer:
             account_id: 账号ID
             top_products: TOP N产品
             top_regions: TOP N区域
+            start_date: 开始日期 (YYYY-MM格式)
+            end_date: 结束日期 (YYYY-MM格式)
             
         Returns:
             交叉分析矩阵
         """
-        logger.info(f"开始产品×区域交叉分析")
+        logger.info(f"开始产品×区域交叉分析，时间范围={start_date}~{end_date}")
         
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
         try:
+            # 构建时间过滤条件
+            time_filter = ""
+            params = [account_id]
+            if start_date:
+                time_filter += " AND billing_cycle >= ?"
+                params.append(start_date)
+            if end_date:
+                time_filter += " AND billing_cycle <= ?"
+                params.append(end_date)
+            
+            params.append(top_products)
+            
             # 获取TOP产品和区域
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT product_name, SUM(pretax_amount) as total
                 FROM bill_items
-                WHERE account_id = ?
+                WHERE account_id = ? {time_filter}
                 GROUP BY product_name
                 ORDER BY total DESC
                 LIMIT ?
-            """, (account_id, top_products))
+            """, params)
             products = [row[0] for row in cursor.fetchall()]
             
-            cursor.execute("""
+            # 重建参数
+            params2 = [account_id]
+            if start_date:
+                params2.append(start_date)
+            if end_date:
+                params2.append(end_date)
+            params2.append(top_regions)
+            
+            cursor.execute(f"""
                 SELECT region, SUM(pretax_amount) as total
                 FROM bill_items
-                WHERE account_id = ? AND region != ''
+                WHERE account_id = ? AND region != '' {time_filter}
                 GROUP BY region
                 ORDER BY total DESC
                 LIMIT ?
-            """, (account_id, top_regions))
+            """, params2)
             regions = [row[0] for row in cursor.fetchall()]
+            
+            # 重建时间过滤（不需要附加限制）
+            time_filter3 = ""
+            if start_date:
+                time_filter3 += " AND billing_cycle >= ?"
+            if end_date:
+                time_filter3 += " AND billing_cycle <= ?"
             
             # 获取交叉数据
             matrix = {}
             for product in products:
                 matrix[product] = {}
                 for region in regions:
-                    cursor.execute("""
+                    params3 = [account_id]
+                    if start_date:
+                        params3.append(start_date)
+                    if end_date:
+                        params3.append(end_date)
+                    params3.extend([product, region])
+                    
+                    cursor.execute(f"""
                         SELECT 
                             CASE 
                                 WHEN SUM(pretax_amount + invoice_discount) > 0 
@@ -767,9 +925,10 @@ class AdvancedDiscountAnalyzer:
                             SUM(pretax_amount) as total_paid
                         FROM bill_items
                         WHERE account_id = ?
+                            {time_filter3}
                             AND product_name = ?
                             AND region = ?
-                    """, (account_id, product, region))
+                    """, params3)
                     
                     row = cursor.fetchone()
                     matrix[product][region] = {
@@ -793,7 +952,9 @@ class AdvancedDiscountAnalyzer:
     def get_moving_average(
         self,
         account_id: str,
-        window_sizes: List[int] = [3, 6, 12]
+        window_sizes: List[int] = [3, 6, 12],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> Dict:
         """
         移动平均分析（平滑趋势）
@@ -801,18 +962,30 @@ class AdvancedDiscountAnalyzer:
         Args:
             account_id: 账号ID
             window_sizes: 窗口大小列表
+            start_date: 开始日期 (YYYY-MM格式)
+            end_date: 结束日期 (YYYY-MM格式)
             
         Returns:
             移动平均数据
         """
-        logger.info(f"开始移动平均分析，窗口={window_sizes}")
+        logger.info(f"开始移动平均分析，窗口={window_sizes}, 时间范围={start_date}~{end_date}")
         
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
         try:
+            # 构建时间过滤条件
+            time_filter = ""
+            params = [account_id]
+            if start_date:
+                time_filter += " AND billing_cycle >= ?"
+                params.append(start_date)
+            if end_date:
+                time_filter += " AND billing_cycle <= ?"
+                params.append(end_date)
+            
             # 获取月度折扣率
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT 
                     billing_cycle,
                     CASE 
@@ -821,10 +994,10 @@ class AdvancedDiscountAnalyzer:
                         ELSE 0 
                     END as discount_rate
                 FROM bill_items
-                WHERE account_id = ?
+                WHERE account_id = ? {time_filter}
                 GROUP BY billing_cycle
                 ORDER BY billing_cycle
-            """, (account_id,))
+            """, params)
             
             monthly_rates = [(row[0], row[1]) for row in cursor.fetchall()]
             
@@ -863,32 +1036,46 @@ class AdvancedDiscountAnalyzer:
     
     def get_cumulative_discount(
         self,
-        account_id: str
+        account_id: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> Dict:
         """
         累计折扣金额分析
         
         Args:
             account_id: 账号ID
+            start_date: 开始日期 (YYYY-MM格式)
+            end_date: 结束日期 (YYYY-MM格式)
             
         Returns:
             累计折扣数据
         """
-        logger.info(f"开始累计折扣分析")
+        logger.info(f"开始累计折扣分析，时间范围={start_date}~{end_date}")
         
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
         try:
-            cursor.execute("""
+            # 构建时间过滤条件
+            time_filter = ""
+            params = [account_id]
+            if start_date:
+                time_filter += " AND billing_cycle >= ?"
+                params.append(start_date)
+            if end_date:
+                time_filter += " AND billing_cycle <= ?"
+                params.append(end_date)
+            
+            cursor.execute(f"""
                 SELECT 
                     billing_cycle,
                     SUM(invoice_discount) as discount_amount
                 FROM bill_items
-                WHERE account_id = ?
+                WHERE account_id = ? {time_filter}
                 GROUP BY billing_cycle
                 ORDER BY billing_cycle
-            """, (account_id,))
+            """, params)
             
             cumulative_data = []
             cumulative_total = 0
@@ -916,7 +1103,9 @@ class AdvancedDiscountAnalyzer:
     def get_instance_lifecycle_analysis(
         self,
         account_id: str,
-        top_n: int = 50
+        top_n: int = 50,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
     ) -> Dict:
         """
         实例生命周期分析
@@ -926,18 +1115,32 @@ class AdvancedDiscountAnalyzer:
         Args:
             account_id: 账号ID
             top_n: TOP N实例
+            start_date: 开始日期 (YYYY-MM格式)
+            end_date: 结束日期 (YYYY-MM格式)
             
         Returns:
             实例生命周期数据
         """
-        logger.info(f"开始实例生命周期分析")
+        logger.info(f"开始实例生命周期分析，时间范围={start_date}~{end_date}")
         
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
         try:
+            # 构建时间过滤条件
+            time_filter = ""
+            params = [account_id]
+            if start_date:
+                time_filter += " AND billing_cycle >= ?"
+                params.append(start_date)
+            if end_date:
+                time_filter += " AND billing_cycle <= ?"
+                params.append(end_date)
+            
+            params.append(top_n)
+            
             # 获取TOP N实例（按总消费）
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT 
                     instance_id,
                     product_name,
@@ -956,17 +1159,28 @@ class AdvancedDiscountAnalyzer:
                 FROM bill_items
                 WHERE account_id = ?
                     AND instance_id != ''
+                    {time_filter}
                 GROUP BY instance_id, product_name, region, subscription_type
                 ORDER BY total_cost DESC
                 LIMIT ?
-            """, (account_id, top_n))
+            """, params)
             
             instances = []
             for row in cursor.fetchall():
                 instance_id = row[0]
                 
+                # 重建时间过滤
+                time_filter2 = ""
+                params2 = [account_id, instance_id]
+                if start_date:
+                    time_filter2 += " AND billing_cycle >= ?"
+                    params2.append(start_date)
+                if end_date:
+                    time_filter2 += " AND billing_cycle <= ?"
+                    params2.append(end_date)
+                
                 # 获取该实例的月度折扣趋势
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT 
                         billing_cycle,
                         SUM(pretax_amount) as monthly_cost,
@@ -976,10 +1190,10 @@ class AdvancedDiscountAnalyzer:
                             ELSE 0 
                         END as discount_rate
                     FROM bill_items
-                    WHERE account_id = ? AND instance_id = ?
+                    WHERE account_id = ? AND instance_id = ? {time_filter2}
                     GROUP BY billing_cycle
                     ORDER BY billing_cycle
-                """, (account_id, instance_id))
+                """, params2)
                 
                 monthly_trends = []
                 for trend_row in cursor.fetchall():

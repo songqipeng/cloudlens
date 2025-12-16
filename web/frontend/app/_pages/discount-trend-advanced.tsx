@@ -5,6 +5,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DateRangeSelector, DateRange } from "@/components/discount/DateRangeSelector"
 import { useAccount } from "@/contexts/account-context"
 import { apiGet } from "@/lib/api"
 import { RefreshCw, TrendingUp, TrendingDown, AlertTriangle, DollarSign } from "lucide-react"
@@ -38,6 +39,9 @@ export default function AdvancedDiscountTrendPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
+  // 时间范围状态
+  const [dateRange, setDateRange] = useState<DateRange>({ startDate: null, endDate: null })
+  
   // Data states for different analyses
   const [quarterlyData, setQuarterlyData] = useState<QuarterlyResponse | null>(null)
   const [yearlyData, setYearlyData] = useState<YearlyResponse | null>(null)
@@ -48,6 +52,18 @@ export default function AdvancedDiscountTrendPage() {
   const [anomalies, setAnomaliesData] = useState<AnomaliesResponse | null>(null)
   const [insights, setInsights] = useState<any>(null)
 
+  // 构建时间范围查询参数
+  const getDateRangeParams = () => {
+    let params = ''
+    if (dateRange.startDate) {
+      params += `&start_date=${dateRange.startDate}`
+    }
+    if (dateRange.endDate) {
+      params += `&end_date=${dateRange.endDate}`
+    }
+    return params
+  }
+
   const fetchAllData = async (forceRefresh = false) => {
     if (!currentAccount) return
     
@@ -55,15 +71,17 @@ export default function AdvancedDiscountTrendPage() {
     setError(null)
     
     try {
+      const dateParams = getDateRangeParams()
+      
       const [quarterly, yearly, products, regions, subscription, opts, anom, insightsData] = await Promise.all([
-        apiGet<QuarterlyResponse>(`/discounts/quarterly?account=${currentAccount}&quarters=8`),
-        apiGet<YearlyResponse>(`/discounts/yearly?account=${currentAccount}`),
-        apiGet<ProductTrendsResponse>(`/discounts/product-trends?account=${currentAccount}&months=19&top_n=10`),
-        apiGet<RegionsResponse>(`/discounts/regions?account=${currentAccount}`),
-        apiGet<SubscriptionTypesResponse>(`/discounts/subscription-types?account=${currentAccount}`),
-        apiGet<OptimizationSuggestionsResponse>(`/discounts/optimization-suggestions?account=${currentAccount}`),
-        apiGet<AnomaliesResponse>(`/discounts/anomalies?account=${currentAccount}&threshold=0.10`),
-        apiGet(`/discounts/insights?account=${currentAccount}`),
+        apiGet<QuarterlyResponse>(`/discounts/quarterly?account=${currentAccount}&quarters=8${dateParams}`),
+        apiGet<YearlyResponse>(`/discounts/yearly?account=${currentAccount}${dateParams}`),
+        apiGet<ProductTrendsResponse>(`/discounts/product-trends?account=${currentAccount}&months=19&top_n=10${dateParams}`),
+        apiGet<RegionsResponse>(`/discounts/regions?account=${currentAccount}${dateParams}`),
+        apiGet<SubscriptionTypesResponse>(`/discounts/subscription-types?account=${currentAccount}${dateParams}`),
+        apiGet<OptimizationSuggestionsResponse>(`/discounts/optimization-suggestions?account=${currentAccount}${dateParams}`),
+        apiGet<AnomaliesResponse>(`/discounts/anomalies?account=${currentAccount}&threshold=0.10${dateParams}`),
+        apiGet(`/discounts/insights?account=${currentAccount}${dateParams}`),
       ])
       
       setQuarterlyData(quarterly)
@@ -83,12 +101,14 @@ export default function AdvancedDiscountTrendPage() {
   }
 
   const handleExport = (exportType: string) => {
-    window.open(`http://localhost:8000/api/discounts/export?account=${currentAccount}&export_type=${exportType}`, '_blank')
+    const dateParams = getDateRangeParams()
+    window.open(`http://localhost:8000/api/discounts/export?account=${currentAccount}&export_type=${exportType}${dateParams}`, '_blank')
   }
 
+  // 当账号或时间范围改变时，重新加载数据
   useEffect(() => {
     fetchAllData()
-  }, [currentAccount])
+  }, [currentAccount, dateRange])
 
   const formatCurrency = (value: number) => {
     if (value >= 1000000) return `¥${(value / 1000000).toFixed(2)}M`
@@ -135,7 +155,7 @@ export default function AdvancedDiscountTrendPage() {
           <div>
             <h2 className="text-3xl font-bold tracking-tight">高级折扣分析</h2>
             <p className="text-muted-foreground mt-1">
-              多维度深度分析 • 8大分析维度 • 19个月历史数据
+              多维度深度分析 • 8大分析维度 • 自定义时间范围
             </p>
           </div>
           <div className="flex gap-2">
@@ -158,6 +178,16 @@ export default function AdvancedDiscountTrendPage() {
             </Button>
           </div>
         </div>
+
+        {/* 时间范围选择器 */}
+        <Card>
+          <CardContent className="pt-6">
+            <DateRangeSelector
+              onChange={(range) => setDateRange(range)}
+              className="w-full"
+            />
+          </CardContent>
+        </Card>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">

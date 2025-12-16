@@ -2642,6 +2642,8 @@ def list_reports(account: Optional[str] = None, limit: int = Query(50, ge=1, le=
 def get_quarterly_discount_comparison(
     account: Optional[str] = Query(None, description="账号名称"),
     quarters: int = Query(8, ge=1, le=20, description="分析季度数"),
+    start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM格式)"),
+    end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM格式)"),
 ):
     """
     季度折扣对比分析
@@ -2671,7 +2673,7 @@ def get_quarterly_discount_comparison(
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
         
-        result = analyzer.get_quarterly_comparison(account_id, quarters)
+        result = analyzer.get_quarterly_comparison(account_id, quarters, start_date, end_date)
         
         if not result.get('success'):
             raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
@@ -2690,6 +2692,8 @@ def get_quarterly_discount_comparison(
 @router.get("/discounts/yearly")
 def get_yearly_discount_comparison(
     account: Optional[str] = Query(None, description="账号名称"),
+    start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM格式)"),
+    end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM格式)"),
 ):
     """
     年度折扣对比分析
@@ -2719,7 +2723,7 @@ def get_yearly_discount_comparison(
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
         
-        result = analyzer.get_yearly_comparison(account_id)
+        result = analyzer.get_yearly_comparison(account_id, start_date, end_date)
         
         if not result.get('success'):
             raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
@@ -2740,6 +2744,8 @@ def get_product_discount_trends(
     account: Optional[str] = Query(None, description="账号名称"),
     months: int = Query(19, ge=1, le=999, description="分析月数"),
     top_n: int = Query(20, ge=1, le=50, description="TOP N产品"),
+    start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM格式)"),
+    end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM格式)"),
 ):
     """
     产品折扣趋势分析
@@ -2769,7 +2775,7 @@ def get_product_discount_trends(
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
         
-        result = analyzer.get_product_discount_trends(account_id, months, top_n)
+        result = analyzer.get_product_discount_trends(account_id, months, top_n, start_date, end_date)
         
         if not result.get('success'):
             raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
@@ -2789,6 +2795,8 @@ def get_product_discount_trends(
 def get_region_discount_ranking(
     account: Optional[str] = Query(None, description="账号名称"),
     months: int = Query(19, ge=1, le=999, description="分析月数"),
+    start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM格式)"),
+    end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM格式)"),
 ):
     """
     区域折扣排行分析
@@ -2818,7 +2826,7 @@ def get_region_discount_ranking(
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
         
-        result = analyzer.get_region_discount_ranking(account_id, months)
+        result = analyzer.get_region_discount_ranking(account_id, months, start_date, end_date)
         
         if not result.get('success'):
             raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
@@ -2838,6 +2846,8 @@ def get_region_discount_ranking(
 def get_subscription_type_comparison(
     account: Optional[str] = Query(None, description="账号名称"),
     months: int = Query(19, ge=1, le=999, description="分析月数"),
+    start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM格式)"),
+    end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM格式)"),
 ):
     """
     计费方式对比分析（包年包月 vs 按量付费）
@@ -2867,7 +2877,7 @@ def get_subscription_type_comparison(
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
         
-        result = analyzer.get_subscription_type_comparison(account_id, months)
+        result = analyzer.get_subscription_type_comparison(account_id, months, start_date, end_date)
         
         if not result.get('success'):
             raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
@@ -2887,6 +2897,8 @@ def get_subscription_type_comparison(
 def get_optimization_suggestions(
     account: Optional[str] = Query(None, description="账号名称"),
     min_running_months: int = Query(6, ge=1, le=24, description="最少运行月数"),
+    start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM格式)"),
+    end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM格式)"),
 ):
     """
     优化建议：识别长期运行的按量付费实例
@@ -2916,7 +2928,7 @@ def get_optimization_suggestions(
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
         
-        result = analyzer.get_optimization_suggestions(account_id, min_running_months)
+        result = analyzer.get_optimization_suggestions(account_id, min_running_months, start_date, end_date)
         
         if not result.get('success'):
             raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
@@ -2937,6 +2949,8 @@ def detect_discount_anomalies(
     account: Optional[str] = Query(None, description="账号名称"),
     months: int = Query(19, ge=1, le=999, description="分析月数"),
     threshold: float = Query(0.10, ge=0.01, le=0.50, description="异常阈值"),
+    start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM格式)"),
+    end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM格式)"),
 ):
     """
     折扣异常检测
@@ -2966,7 +2980,7 @@ def detect_discount_anomalies(
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
         
-        result = analyzer.detect_anomalies(account_id, months, threshold)
+        result = analyzer.detect_anomalies(account_id, months, threshold, start_date, end_date)
         
         if not result.get('success'):
             raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
@@ -2989,6 +3003,8 @@ def get_product_region_matrix(
     account: Optional[str] = Query(None, description="账号名称"),
     top_products: int = Query(10, ge=1, le=20, description="TOP N产品"),
     top_regions: int = Query(10, ge=1, le=20, description="TOP N区域"),
+    start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM格式)"),
+    end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM格式)"),
 ):
     """
     产品 × 区域交叉分析矩阵
@@ -3018,7 +3034,7 @@ def get_product_region_matrix(
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
         
-        result = analyzer.get_product_region_matrix(account_id, top_products, top_regions)
+        result = analyzer.get_product_region_matrix(account_id, top_products, top_regions, start_date, end_date)
         
         if not result.get('success'):
             raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
@@ -3038,6 +3054,8 @@ def get_product_region_matrix(
 def get_discount_moving_average(
     account: Optional[str] = Query(None, description="账号名称"),
     windows: str = Query("3,6,12", description="移动窗口大小（逗号分隔）"),
+    start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM格式)"),
+    end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM格式)"),
 ):
     """
     折扣率移动平均分析
@@ -3070,7 +3088,7 @@ def get_discount_moving_average(
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
         
-        result = analyzer.get_moving_average(account_id, window_sizes)
+        result = analyzer.get_moving_average(account_id, window_sizes, start_date, end_date)
         
         if not result.get('success'):
             raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
@@ -3089,6 +3107,8 @@ def get_discount_moving_average(
 @router.get("/discounts/cumulative")
 def get_cumulative_discount(
     account: Optional[str] = Query(None, description="账号名称"),
+    start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM格式)"),
+    end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM格式)"),
 ):
     """
     累计折扣金额分析
@@ -3118,7 +3138,7 @@ def get_cumulative_discount(
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
         
-        result = analyzer.get_cumulative_discount(account_id)
+        result = analyzer.get_cumulative_discount(account_id, start_date, end_date)
         
         if not result.get('success'):
             raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
@@ -3138,6 +3158,8 @@ def get_cumulative_discount(
 def get_instance_lifecycle(
     account: Optional[str] = Query(None, description="账号名称"),
     top_n: int = Query(50, ge=1, le=100, description="TOP N实例"),
+    start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM格式)"),
+    end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM格式)"),
 ):
     """
     实例生命周期分析
@@ -3167,7 +3189,7 @@ def get_instance_lifecycle(
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
         
-        result = analyzer.get_instance_lifecycle_analysis(account_id, top_n)
+        result = analyzer.get_instance_lifecycle_analysis(account_id, top_n, start_date, end_date)
         
         if not result.get('success'):
             raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
