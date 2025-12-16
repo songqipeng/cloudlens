@@ -8,6 +8,8 @@ from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 import json
 from pathlib import Path
+import sqlite3
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,9 @@ class CostTrendAnalyzer:
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.cost_history_file = self.data_dir / "cost_history.json"
+        
+        # 账单数据库路径
+        self.bills_db_path = os.path.expanduser("~/.cloudlens/bills.db")
 
     def record_cost_snapshot(
         self, account_name: str, resources: List, timestamp: Optional[datetime] = None
@@ -295,13 +300,189 @@ class CostTrendAnalyzer:
             "trend": "上升" if total_change > 0 else "下降" if total_change < 0 else "平稳",
         }
 
+    def get_real_cost_from_bills(self, account_name: str, days: int = 30) -> Dict:
+        """
+        从账单数据库读取真实成本数据
+        
+        Args:
+            account_name: 账号名称
+            days: 查询天数
+            
+        Returns:
+            成本趋势数据
+        """
+        # 检查数据库是否存在
+        if not os.path.exists(self.bills_db_path):
+            logger.warning(f"账单数据库不存在: {self.bills_db_path}")
+            return {"error": "No cost history available"}
+        
+        try:
+            conn = sqlite3.connect(self.bills_db_path)
+            cursor = conn.cursor()
+            
+            # 计算起始日期
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days)
+            start_billing_date = start_date.strftime("%Y-%m-%d")
+            
+            # 查询账号ID（可能是 access_key_id 前10位 + 账号名）
+            # 先尝试直接匹配
+            cursor.execute("""
+                SELECT DISTINCT account_id 
+                FROM bill_items 
+                WHERE account_id LIKE ?
+                LIMIT 1
+            """, (f"%{account_name}%",))
+            
+            result = cursor.fetchone()
+            if not result:
+                logger.warning(f"未找到账号 {account_name} 的账单数据")
+                conn.close()
+                return {"error": "No cost history available"}
+            
+            account_id = result[0]
+            logger.info(f"找到账号ID: {account_id}, 查询时间范围: {start_billing_date} 至今")
+            
+            # 按日期聚合成本数据
+            cursor.execute("""
+                SELECT 
+                    billing_date,
+                    SUM(pretax_amount) as daily_cost,
+                    COUNT(DISTINCT instance_id) as instance_count,
+                    COUNT(*) as record_count
+                FROM bill_items
+                WHERE account_id = ?
+                    AND billing_date >= ?
+                    AND billing_date IS NOT NULL
+                    AND pretax_amount IS NOT NULL
+                GROUP BY billing_date
+                ORDER BY billing_date
+            """, (account_id, start_billing_date))
+            
+            daily_data = cursor.fetchall()
+            
+            if not daily_data or len(daily_data) < 2:
+                logger.warning(f"账单数据不足，只有 {len(daily_data) if daily_data else 0} 天的数据")
+                conn.close()
+                return {"error": "Insufficient data for trend analysis"}
+            
+            # 构建图表数据
+            dates = []
+            costs = []
+            instance_counts = []
+            
+            for row in daily_data:
+                dates.append(row[0])
+                costs.append(round(row[1], 2))
+                instance_counts.append(row[2])
+            
+            # 按产品类型汇总
+            cursor.execute("""
+                SELECT 
+                    product_name,
+                    SUM(pretax_amount) as total_cost
+                FROM bill_items
+                WHERE account_id = ?
+                    AND billing_date >= ?
+                    AND product_name IS NOT NULL
+                    AND pretax_amount IS NOT NULL
+                GROUP BY product_name
+                ORDER BY total_cost DESC
+            """, (account_id, start_billing_date))
+            
+            cost_by_type = {}
+            for row in cursor.fetchall():
+                if row[0]:  # 确保产品名称不为空
+                    cost_by_type[row[0]] = round(row[1], 2)
+            
+            # 按区域汇总
+            cursor.execute("""
+                SELECT 
+                    region,
+                    SUM(pretax_amount) as total_cost
+                FROM bill_items
+                WHERE account_id = ?
+                    AND billing_date >= ?
+                    AND region IS NOT NULL
+                    AND pretax_amount IS NOT NULL
+                GROUP BY region
+                ORDER BY total_cost DESC
+            """, (account_id, start_billing_date))
+            
+            cost_by_region = {}
+            for row in cursor.fetchall():
+                if row[0]:  # 确保区域不为空
+                    cost_by_region[row[0]] = round(row[1], 2)
+            
+            conn.close()
+            
+            # 计算分析指标
+            latest_cost = costs[-1] if costs else 0
+            oldest_cost = costs[0] if costs else 0
+            avg_cost = sum(costs) / len(costs) if costs else 0
+            max_cost = max(costs) if costs else 0
+            min_cost = min(costs) if costs else 0
+            
+            total_change = latest_cost - oldest_cost
+            total_change_pct = (total_change / oldest_cost * 100) if oldest_cost > 0 else 0
+            
+            # 环比（最近两天）
+            mom_change = 0
+            mom_change_pct = 0
+            if len(costs) >= 2:
+                mom_change = costs[-1] - costs[-2]
+                mom_change_pct = (mom_change / costs[-2] * 100) if costs[-2] > 0 else 0
+            
+            analysis = {
+                "period_days": days,
+                "latest_cost": round(latest_cost, 2),
+                "oldest_cost": round(oldest_cost, 2),
+                "total_change": round(total_change, 2),
+                "total_change_pct": round(total_change_pct, 2),
+                "avg_cost": round(avg_cost, 2),
+                "max_cost": round(max_cost, 2),
+                "min_cost": round(min_cost, 2),
+                "mom_change": round(mom_change, 2),
+                "mom_change_pct": round(mom_change_pct, 2),
+                "trend": "上升" if total_change > 0 else "下降" if total_change < 0 else "平稳",
+            }
+            
+            return {
+                "account": account_name,
+                "period_days": days,
+                "analysis": analysis,
+                "chart_data": {
+                    "dates": dates,
+                    "costs": costs,
+                    "resource_counts": instance_counts,
+                },
+                "cost_by_type": cost_by_type,
+                "cost_by_region": cost_by_region,
+                "snapshots_count": len(daily_data),
+                "data_source": "real_bills"  # 标记数据来源
+            }
+            
+        except Exception as e:
+            logger.error(f"从账单数据库读取成本失败: {str(e)}")
+            return {"error": str(e)}
+
     def generate_trend_report(self, account_name: str, days: int = 30) -> Dict:
         """
-        生成趋势报告
+        生成趋势报告（优先使用真实账单数据）
         
         Returns:
             包含图表数据和分析的报告
         """
+        # 优先尝试从账单数据库读取真实数据
+        real_data = self.get_real_cost_from_bills(account_name, days)
+        
+        if "error" not in real_data:
+            logger.info(f"成功从账单数据库读取 {account_name} 的成本数据")
+            return real_data
+        
+        logger.warning(f"账单数据库读取失败，回退到估算数据: {real_data.get('error')}")
+        
+        # 回退到原有的估算逻辑
         history, analysis = self.get_cost_trend(account_name, days)
 
         if "error" in analysis:
@@ -334,4 +515,5 @@ class CostTrendAnalyzer:
             "cost_by_type": dict(type_summary),
             "cost_by_region": dict(region_summary),
             "snapshots_count": len(history),
+            "data_source": "estimated"  # 标记数据来源
         }

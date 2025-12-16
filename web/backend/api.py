@@ -394,6 +394,107 @@ def _get_billing_cycle_default() -> str:
     return datetime.now().strftime("%Y-%m")
 
 
+def _get_billing_overview_from_db(
+    account_name: str,
+    billing_cycle: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    从本地账单数据库读取成本概览（优先使用，速度快）
+    
+    Returns:
+        成本概览数据，如果数据库不存在或读取失败则返回 None
+    """
+    import sqlite3
+    import os
+    from datetime import datetime
+    
+    db_path = os.path.expanduser("~/.cloudlens/bills.db")
+    if not os.path.exists(db_path):
+        return None
+    
+    try:
+        if billing_cycle is None:
+            billing_cycle = datetime.now().strftime("%Y-%m")
+        
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # 查找匹配的 account_id
+        cursor.execute("""
+            SELECT DISTINCT account_id 
+            FROM bill_items 
+            WHERE account_id LIKE ?
+            LIMIT 1
+        """, (f"%{account_name}%",))
+        
+        result = cursor.fetchone()
+        if not result:
+            conn.close()
+            return None
+        
+        account_id = result[0]
+        
+        # 按产品聚合当月成本
+        cursor.execute("""
+            SELECT 
+                product_name,
+                product_code,
+                subscription_type,
+                SUM(pretax_amount) as total_pretax
+            FROM bill_items
+            WHERE account_id = ?
+                AND billing_cycle = ?
+                AND pretax_amount IS NOT NULL
+            GROUP BY product_name, product_code, subscription_type
+        """, (account_id, billing_cycle))
+        
+        by_product: Dict[str, float] = {}
+        by_product_name: Dict[str, str] = {}
+        by_product_subscription: Dict[str, Dict[str, float]] = {}
+        total = 0.0
+        
+        for row in cursor.fetchall():
+            product_name = row[0] or "unknown"
+            product_code = row[1] or "unknown"
+            subscription_type = row[2] or "Unknown"
+            pretax = row[3] or 0.0
+            
+            if pretax <= 0:
+                continue
+            
+            if product_code not in by_product_name:
+                by_product_name[product_code] = product_name
+            
+            by_product[product_code] = by_product.get(product_code, 0.0) + pretax
+            by_product_subscription.setdefault(product_code, {})
+            by_product_subscription[product_code][subscription_type] = (
+                by_product_subscription[product_code].get(subscription_type, 0.0) + pretax
+            )
+            
+            total += pretax
+        
+        conn.close()
+        
+        if total <= 0:
+            return None
+        
+        return {
+            "billing_cycle": billing_cycle,
+            "total_pretax": round(total, 2),
+            "by_product": {k: round(v, 2) for k, v in by_product.items()},
+            "by_product_name": by_product_name,
+            "by_product_subscription": {
+                code: {k: round(v, 2) for k, v in sub.items()}
+                for code, sub in by_product_subscription.items()
+            },
+            "data_source": "local_db"
+        }
+        
+    except Exception as e:
+        logger.error(f"从本地数据库读取账单概览失败: {str(e)}")
+        return None
+
+
 def _bss_query_instance_bill(
     account_config: CloudAccount,
     billing_cycle: str,
@@ -604,6 +705,15 @@ def _get_billing_overview_totals(
         cached = cache_manager.get(resource_type=cache_key, account_name=account_config.name)
         if isinstance(cached, dict) and "total_pretax" in cached and "by_product" in cached:
             return cached
+
+    # 优先尝试从本地数据库读取（快速）
+    if not force_refresh:
+        db_result = _get_billing_overview_from_db(account_config.name, billing_cycle)
+        if db_result is not None:
+            logger.info(f"✅ 从本地数据库读取账单概览: {account_config.name}, {billing_cycle}")
+            cache_manager.set(resource_type=cache_key, account_name=account_config.name, data=db_result)
+            return db_result
+        logger.warning(f"⚠️  本地数据库不可用，回退到云API查询: {account_config.name}")
 
     items = _bss_query_bill_overview(account_config, billing_cycle)
     by_product: Dict[str, float] = {}
