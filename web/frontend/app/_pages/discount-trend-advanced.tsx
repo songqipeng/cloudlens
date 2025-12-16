@@ -180,6 +180,7 @@ export default function AdvancedDiscountTrendPage() {
               subscription={subscriptionData}
               suggestions={suggestions}
               anomalies={anomalies}
+              insights={insights}
               formatCurrency={formatCurrency}
               formatPercent={formatPercent}
             />
@@ -240,7 +241,7 @@ export default function AdvancedDiscountTrendPage() {
 
 // ==================== Tab Components ====================
 
-function OverviewTab({ quarterly, yearly, products, regions, subscription, suggestions, anomalies, formatCurrency, formatPercent }: any) {
+function OverviewTab({ quarterly, yearly, products, regions, subscription, suggestions, anomalies, insights, formatCurrency, formatPercent }: any) {
   // 计算关键指标
   const latestQuarter = quarterly?.data?.quarters?.[quarterly.data.quarters.length - 1]
   const latestYear = yearly?.data?.years?.[yearly.data.years.length - 1]
