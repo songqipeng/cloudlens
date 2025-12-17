@@ -1239,6 +1239,13 @@ def list_resources(
                 if type == "vpc" and not r.name:
                     display_name = r.id or "-"
                 
+                # For VPC resources, vpc_id should be the VPC's own ID
+                # For other resources, vpc_id is the associated VPC ID
+                if type == "vpc":
+                    vpc_id_value = r.id or None
+                else:
+                    vpc_id_value = r.vpc_id if hasattr(r, "vpc_id") and r.vpc_id else None
+                
                 result.append(
                     {
                         "id": r.id or "-",
@@ -1254,7 +1261,7 @@ def list_resources(
                         else None,
                         "public_ips": r.public_ips if hasattr(r, "public_ips") else [],
                         "private_ips": r.private_ips if hasattr(r, "private_ips") else [],
-                        "vpc_id": r.vpc_id if hasattr(r, "vpc_id") and r.vpc_id else None,
+                        "vpc_id": vpc_id_value,
                     }
                 )
 
