@@ -264,24 +264,11 @@ class OSSAnalyzer(BaseResourceAnalyzer):
                     self.logger.info(f"    ⚠️  指标 {metric_name} 获取失败: {e}")
                     metrics_data[metric_desc] = 0
 
-            # 如果所有指标都是0，使用模拟数据
+            # 如果所有指标都是0，返回空数据而不是模拟数据
             if all(v == 0 for v in metrics_data.values()):
-                self.logger.info(f"    ⚠️  所有监控指标为0，使用模拟数据")
-                metrics_data = {
-                    "存储容量": 1024 * 1024 * 1024,  # 1GB
-                    "对象数量": 1000,
-                    "总请求数": 5000,
-                    "GET请求数": 3000,
-                    "PUT请求数": 1000,
-                    "DELETE请求数": 100,
-                    "HEAD请求数": 500,
-                    "POST请求数": 400,
-                    "入流量": 100 * 1024 * 1024,  # 100MB
-                    "出流量": 200 * 1024 * 1024,  # 200MB
-                    "首字节延迟": 50,
-                    "可用性": 99.9,
-                    "错误率": 0.1,
-                }
+                self.logger.info(f"    ⚠️  所有监控指标为0，返回空数据")
+                # 不再使用模拟数据，返回真实的0值
+                # 这样前端可以正确显示"无数据"状态
 
             return metrics_data
 

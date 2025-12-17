@@ -12,7 +12,7 @@
 
 ## 🚀 项目简介
 
-**CloudLens CLI** 是一款企业级多云资源治理与分析工具，专为运维团队打造。通过统一的命令行界面管理阿里云、腾讯云等多个云平台的资源，提供智能成本分析、安全合规检查和专业报告生成能力。
+**CloudLens** 是一款企业级多云资源治理与分析平台，提供 **CLI 命令行工具** 和 **Web 可视化界面** 两种使用方式。通过统一的接口管理阿里云、腾讯云等多个云平台的资源，提供智能成本分析、安全合规检查和专业报告生成能力。
 
 ## ✨ 核心功能
 
@@ -25,13 +25,15 @@
 - ⚡ **高性能查询** - 并发查询 + 智能缓存，速度提升 5 倍
 
 ### v2.1 新增能力 ⭐
-- 📈 **成本趋势分析** - 环比/同比增长分析，按类型/区域统计
+- 🌐 **Web 可视化界面** - 基于 Next.js + FastAPI 的现代化 Web 应用，支持中英文双语
+- 📈 **成本趋势分析** - 环比/同比增长分析，按类型/区域统计，支持自定义时间范围
 - 🔮 **AI成本预测** - 基于Prophet ML模型，预测未来90天成本趋势
 - 💰 **折扣趋势分析** - 基于账单CSV，分析最近6个月折扣变化，支持产品/合同/实例维度
 - 📥 **账单自动获取** - 通过BSS OpenAPI自动获取账单数据，支持定时任务 ✨
 - 🛡️ **CIS Benchmark** - 10+安全基线检查，覆盖IAM/网络/数据/审计
 - 🔧 **自动修复引擎** - 批量修复资源问题，完整审计日志
 - ⚡ **异步I/O架构** - AsyncProvider基础，为高性能查询做准备
+- 🎨 **现代化UI设计** - Finout风格界面，响应式布局，支持深色模式
 
 ### v2.0 特性
 - 🎨 **交互式 REPL** - 基于 `prompt_toolkit` 和 `rich` 的现代化命令行体验
@@ -104,6 +106,8 @@ cl query ecs --<Tab>     → 显示选项参数
 
 ### 4. 开始使用
 
+#### CLI 命令行方式
+
 ```bash
 # 查询ECS实例
 ./cl query ecs --account prod
@@ -129,6 +133,23 @@ cl query ecs --<Tab>     → 显示选项参数
 # 实际执行修复
 ./cl remediate tags --account prod --confirm
 ```
+
+#### Web 界面方式
+
+```bash
+# 启动后端API服务
+cd web/backend
+python -m uvicorn main:app --reload --port 8000
+
+# 启动前端开发服务器（新终端）
+cd web/frontend
+npm install
+npm run dev
+```
+
+访问 http://localhost:3000 即可使用 Web 界面。
+
+详细说明请参考 [Web 快速开始指南](docs/WEB_QUICKSTART.md)
 
 ## 📖 使用指南
 
@@ -331,10 +352,22 @@ cl topology generate --account prod
 
 ## 📚 文档
 
+### 核心文档
 - [产品介绍](PRODUCT_INTRODUCTION.md) - 详细的产品定位和功能介绍
 - [技术架构](TECHNICAL_ARCHITECTURE.md) - 系统架构和设计理念
 - [用户指南](USER_GUIDE.md) - 完整的使用手册
+- [快速开始](QUICKSTART.md) - 快速上手指南
 - [开发日志](CHANGELOG.md) - 版本更新记录
+
+### Web 界面文档
+- [Web 快速开始](docs/WEB_QUICKSTART.md) - Web 界面安装和使用指南
+- [折扣分析指南](docs/DISCOUNT_ANALYSIS_GUIDE.md) - 折扣分析功能详细说明
+- [账单自动获取](docs/BILL_AUTO_FETCH_GUIDE.md) - 账单自动获取功能说明
+
+### 开发文档
+- [贡献指南](CONTRIBUTING.md) - 如何参与项目开发
+- [插件开发](docs/PLUGIN_DEVELOPMENT.md) - 如何开发自定义插件
+- [Shell 自动补齐](docs/shell_completion.md) - Shell 自动补齐功能说明
 
 ## 🧪 测试
 

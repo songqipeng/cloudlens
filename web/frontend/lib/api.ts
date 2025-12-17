@@ -1,9 +1,27 @@
 /**
- * API 请求工具
+ * API 请求工具（增强版）
  * 自动在所有请求中包含当前选中的账号参数
+ * 支持重试、超时、请求去重
  */
 
 const API_BASE = "http://127.0.0.1:8000/api"
+
+// 请求去重Map
+const pendingRequests = new Map<string, Promise<any>>()
+
+/**
+ * API错误类
+ */
+export class ApiError extends Error {
+    constructor(
+        public status: number,
+        public detail: any,
+        message?: string
+    ) {
+        super(message || detail?.error || detail?.detail || `API请求失败: ${status}`)
+        this.name = "ApiError"
+    }
+}
 
 /**
  * 获取当前选中的账号（从 localStorage）
@@ -26,6 +44,15 @@ function getCurrentAccount(): string | null {
 }
 
 /**
+ * 获取当前语言设置（从 localStorage）
+ */
+function getCurrentLocale(): string {
+    if (typeof window === "undefined") return "zh"
+    // 使用与 LocaleContext 相同的 key
+    return localStorage.getItem("cloudlens_locale") || "zh"
+}
+
+/**
  * 构建带账号参数的 URL
  */
 function buildUrl(endpoint: string, params?: Record<string, any>): string {
@@ -40,10 +67,16 @@ function buildUrl(endpoint: string, params?: Record<string, any>): string {
         console.warn(`[API] ${endpoint} - 未找到账号参数`)
     }
     
+    // 添加语言参数
+    const locale = params?.locale || getCurrentLocale()
+    if (locale) {
+        url.searchParams.set("locale", locale)
+    }
+    
     // 添加其他参数
     if (params) {
         Object.entries(params).forEach(([key, value]) => {
-            if (key !== "account" && value !== undefined && value !== null) {
+            if (key !== "account" && key !== "locale" && value !== undefined && value !== null) {
                 url.searchParams.set(key, String(value))
             }
         })
@@ -53,59 +86,219 @@ function buildUrl(endpoint: string, params?: Record<string, any>): string {
 }
 
 /**
- * GET 请求
+ * GET 请求（增强版：支持重试、超时、请求去重）
  */
 export async function apiGet<T = any>(
     endpoint: string, 
     params?: Record<string, any>,
-    options?: RequestInit
+    options?: RequestInit & { 
+        retries?: number
+        timeout?: number
+        skipDedupe?: boolean
+    }
 ): Promise<T> {
     const url = buildUrl(endpoint, params)
-    const res = await fetch(url, options)
-    if (!res.ok) {
-        throw new Error(`API request failed: ${res.statusText}`)
+    const requestKey = `${options?.method || 'GET'}:${url}`
+    
+    // 请求去重
+    if (!options?.skipDedupe && pendingRequests.has(requestKey)) {
+        return pendingRequests.get(requestKey)!
     }
-    return res.json()
+    
+    const retries = options?.retries ?? 3
+    const timeout = options?.timeout ?? 30000
+    
+    const requestPromise = (async () => {
+        for (let i = 0; i < retries; i++) {
+            try {
+                const controller = new AbortController()
+                const timeoutId = setTimeout(() => controller.abort(), timeout)
+                
+                const res = await fetch(url, { 
+                    ...options, 
+                    signal: controller.signal 
+                })
+                clearTimeout(timeoutId)
+                
+                if (!res.ok) {
+                    const errorData = await res.json().catch(() => ({}))
+                    throw new ApiError(res.status, errorData)
+                }
+                
+                const data = await res.json()
+                pendingRequests.delete(requestKey)
+                return data
+            } catch (error) {
+                if (i === retries - 1) {
+                    pendingRequests.delete(requestKey)
+                    if (error instanceof ApiError) {
+                        throw error
+                    }
+                    throw new ApiError(500, { error: String(error) })
+                }
+                // 指数退避重试
+                await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)))
+            }
+        }
+    })()
+    
+    if (!options?.skipDedupe) {
+        pendingRequests.set(requestKey, requestPromise)
+    }
+    
+    return requestPromise
 }
 
 /**
- * POST 请求
+ * POST 请求（增强版）
  */
 export async function apiPost<T = any>(
     endpoint: string,
     data?: any,
-    params?: Record<string, any>
+    params?: Record<string, any>,
+    options?: RequestInit & { 
+        retries?: number
+        timeout?: number
+    }
 ): Promise<T> {
     const url = buildUrl(endpoint, params)
-    const res = await fetch(url, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: data ? JSON.stringify(data) : undefined,
-    })
-    if (!res.ok) {
-        throw new Error(`API request failed: ${res.statusText}`)
+    const retries = options?.retries ?? 1  // POST默认不重试
+    const timeout = options?.timeout ?? 30000
+    
+    for (let i = 0; i < retries; i++) {
+        try {
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), timeout)
+            
+            const res = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...options?.headers,
+                },
+                body: data ? JSON.stringify(data) : undefined,
+                ...options,
+                signal: controller.signal,
+            })
+            clearTimeout(timeoutId)
+            
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}))
+                throw new ApiError(res.status, errorData)
+            }
+            
+            return await res.json()
+        } catch (error) {
+            if (i === retries - 1) {
+                if (error instanceof ApiError) {
+                    throw error
+                }
+                throw new ApiError(500, { error: String(error) })
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)))
+        }
     }
-    return res.json()
+    throw new ApiError(500, { error: "Request failed after retries" })
 }
 
 /**
- * DELETE 请求
+ * PUT 请求（增强版）
+ */
+export async function apiPut<T = any>(
+    endpoint: string,
+    data?: any,
+    params?: Record<string, any>,
+    options?: RequestInit & { 
+        retries?: number
+        timeout?: number
+    }
+): Promise<T> {
+    const url = buildUrl(endpoint, params)
+    const retries = options?.retries ?? 1  // PUT默认不重试
+    const timeout = options?.timeout ?? 30000
+    
+    for (let i = 0; i < retries; i++) {
+        try {
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), timeout)
+            
+            const res = await fetch(url, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...options?.headers,
+                },
+                body: data ? JSON.stringify(data) : undefined,
+                ...options,
+                signal: controller.signal,
+            })
+            clearTimeout(timeoutId)
+            
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}))
+                throw new ApiError(res.status, errorData)
+            }
+            
+            return await res.json()
+        } catch (error) {
+            if (i === retries - 1) {
+                if (error instanceof ApiError) {
+                    throw error
+                }
+                throw new ApiError(500, { error: String(error) })
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)))
+        }
+    }
+    throw new ApiError(500, { error: "Request failed after retries" })
+}
+
+/**
+ * DELETE 请求（增强版）
  */
 export async function apiDelete<T = any>(
     endpoint: string,
-    params?: Record<string, any>
+    params?: Record<string, any>,
+    options?: RequestInit & { 
+        retries?: number
+        timeout?: number
+    }
 ): Promise<T> {
     const url = buildUrl(endpoint, params)
-    const res = await fetch(url, {
-        method: "DELETE",
-    })
-    if (!res.ok) {
-        throw new Error(`API request failed: ${res.statusText}`)
+    const retries = options?.retries ?? 1  // DELETE默认不重试
+    const timeout = options?.timeout ?? 30000
+    
+    for (let i = 0; i < retries; i++) {
+        try {
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), timeout)
+            
+            const res = await fetch(url, {
+                method: "DELETE",
+                ...options,
+                signal: controller.signal,
+            })
+            clearTimeout(timeoutId)
+            
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}))
+                throw new ApiError(res.status, errorData)
+            }
+            
+            return await res.json()
+        } catch (error) {
+            if (i === retries - 1) {
+                if (error instanceof ApiError) {
+                    throw error
+                }
+                throw new ApiError(500, { error: String(error) })
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)))
+        }
     }
-    return res.json()
+    throw new ApiError(500, { error: "Request failed after retries" })
 }
+
 
 
 

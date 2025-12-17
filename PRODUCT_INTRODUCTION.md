@@ -47,10 +47,12 @@
 - 统一的资源数据模型
 - 支持多账号、多region管理
 - 自动识别跨Provider重名账号
+- **CLI 命令行** 和 **Web 可视化界面** 两种使用方式
 
 **业务价值**：
 - 节省90%的平台切换时间
 - 一个界面查看所有资源
+- 支持团队协作，Web界面便于分享和展示
 
 ### 2. 智能成本分析
 
@@ -274,7 +276,9 @@ cl topology generate --account prod
 
 ## 快速开始
 
-### 1. 安装
+### 方式一：CLI 命令行
+
+#### 1. 安装
 ```bash
 git clone <repository>
 cd aliyunidle
@@ -282,7 +286,7 @@ pip install -r requirements.txt
 # PDF 报告需额外安装 weasyprint，或使用本地 wkhtmltopdf
 ```
 
-### 2. 配置账号
+#### 2. 配置账号
 ```bash
 cl config add \
   --provider aliyun \
@@ -292,7 +296,7 @@ cl config add \
   --sk YOUR_SK
 ```
 
-### 3. 开始使用
+#### 3. 开始使用
 ```bash
 # 查询ECS
 cl query ecs --account prod
@@ -304,6 +308,34 @@ cl report generate --account prod --format excel
 ./cloudlens query prod ecs
 ./cloudlens query ecs
 ```
+
+### 方式二：Web 界面
+
+#### 1. 安装依赖
+```bash
+# 后端依赖（已在requirements.txt中）
+pip install -r requirements.txt
+
+# 前端依赖
+cd web/frontend
+npm install
+```
+
+#### 2. 启动服务
+```bash
+# 启动后端API（终端1）
+cd web/backend
+python -m uvicorn main:app --reload --port 8000
+
+# 启动前端（终端2）
+cd web/frontend
+npm run dev
+```
+
+#### 3. 访问界面
+打开浏览器访问 http://localhost:3000
+
+详细说明请参考 [Web 快速开始指南](docs/WEB_QUICKSTART.md)
 
 ---
 

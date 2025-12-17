@@ -12,21 +12,12 @@ import {
     FileText, 
     Settings,
     BarChart3,
-    Percent
+    Percent,
+    Wallet
 } from "lucide-react"
 import { AccountSelector } from "@/components/account-selector"
 import { useAccount } from "@/contexts/account-context"
-
-const navItems = [
-    { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/resources", label: "Resources", icon: Server },
-    { href: "/cost", label: "Cost Analysis", icon: DollarSign },
-    { href: "/discounts", label: "折扣分析", icon: Percent },
-    { href: "/security", label: "Security", icon: Shield },
-    { href: "/optimization", label: "Optimization", icon: TrendingUp },
-    { href: "/reports", label: "Reports", icon: FileText },
-    { href: "/settings", label: "Settings", icon: Settings },
-]
+import { useLocale } from "@/contexts/locale-context"
 
 interface DashboardLayoutProps {
     children: ReactNode
@@ -35,6 +26,7 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children }: DashboardLayoutProps) {
     const pathname = usePathname()
     const { currentAccount } = useAccount()
+    const { t } = useLocale()
 
     // currentAccount 可能在首次渲染时还没从 /a/[account]/layout 同步进来
     // 优先从 URL 推断，避免侧边栏链接瞬间指向旧路由
@@ -53,28 +45,40 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         return `${base}${href}`
     }
     
+    const navItems = [
+        { href: "/", label: t.nav.dashboard, icon: LayoutDashboard },
+        { href: "/resources", label: t.nav.resources, icon: Server },
+        { href: "/cost", label: t.nav.costAnalysis, icon: DollarSign },
+        { href: "/budgets", label: t.nav.budget, icon: Wallet },
+        { href: "/custom-dashboards", label: t.nav.customDashboards, icon: LayoutDashboard },
+        { href: "/discounts", label: t.nav.discountAnalysis, icon: Percent },
+        { href: "/virtual-tags", label: t.nav.virtualTags, icon: BarChart3 },
+        { href: "/security", label: t.nav.security, icon: Shield },
+        { href: "/optimization", label: t.nav.optimization, icon: TrendingUp },
+        { href: "/reports", label: t.nav.reports, icon: FileText },
+        { href: "/settings", label: t.nav.settings, icon: Settings },
+    ]
+    
     return (
-        <div className="min-h-screen bg-gradient-to-br from-background via-background to-zinc-950 text-foreground font-sans">
-            {/* Sidebar */}
-            <aside className="fixed left-0 top-0 w-72 h-screen border-r border-border/50 bg-gradient-to-b from-card/95 via-card/90 to-card/95 backdrop-blur-xl hidden lg:block z-40 overflow-y-auto shadow-2xl">
+        <div className="min-h-screen bg-background text-foreground font-sans">
+            {/* Finout 风格侧边栏 */}
+            <aside className="fixed left-0 top-0 w-72 h-screen border-r border-[rgba(255,255,255,0.08)] bg-[rgba(15,15,20,0.95)] backdrop-blur-[20px] hidden lg:block z-40 overflow-y-auto">
                 <div className="p-6 h-full flex flex-col">
-                    {/* Logo */}
-                    <div className="mb-6 pb-6 border-b border-border/30">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary via-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-primary/40 ring-2 ring-primary/20">
-                                <BarChart3 className="w-7 h-7 text-white" />
+                    {/* Logo - Finout 风格：简洁 */}
+                    <div className="mb-6 pb-6 border-b border-[rgba(255,255,255,0.08)]">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
+                                <BarChart3 className="w-5 h-5 text-white" />
                             </div>
-                            <div>
-                                <h1 className="text-xl font-bold tracking-tight gradient-text">CloudLens</h1>
-                                <p className="text-xs text-muted-foreground font-medium">多云资源治理平台</p>
+                            <div className="flex-1 min-w-0">
+                                <h1 className="text-lg font-bold tracking-tight text-foreground">CloudLens</h1>
+                                <p className="text-xs text-muted-foreground truncate">{t.locale === 'zh' ? '多云资源治理平台' : 'Multi-Cloud Resource Governance Platform'}</p>
                             </div>
                         </div>
-                        {/* 账号选择器 */}
-                        <AccountSelector />
                     </div>
                     
-                    {/* Navigation */}
-                    <nav className="space-y-1.5 flex-1 py-4">
+                    {/* Navigation - Finout 风格：简洁清晰 */}
+                    <nav className="space-y-1 flex-1 py-4">
                         {navItems.map(item => {
                             const Icon = item.icon
                             const href = accountHref(item.href)
@@ -85,42 +89,35 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                                 <Link
                                     key={item.href}
                                     href={href}
-                                    className={`group relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 ${
+                                    className={`group relative flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                                         isActive
-                                            ? "bg-gradient-to-r from-primary/15 to-primary/5 text-primary shadow-lg shadow-primary/10 border border-primary/30"
-                                            : "text-muted-foreground hover:text-foreground hover:bg-muted/40 border border-transparent hover:border-border/50"
+                                            ? "bg-primary/15 text-primary border-l-2 border-l-primary"
+                                            : "text-muted-foreground hover:text-foreground hover:bg-[rgba(255,255,255,0.05)]"
                                     }`}
                                 >
-                                    {isActive && (
-                                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary rounded-r-full"></div>
-                                    )}
-                                    <Icon className={`h-5 w-5 transition-all ${isActive ? 'scale-110 text-primary' : 'group-hover:scale-110 group-hover:text-foreground'}`} />
+                                    <Icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
                                     <span className="flex-1">{item.label}</span>
-                                    {isActive && (
-                                        <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
-                                    )}
                                 </Link>
                             )
                         })}
                     </nav>
                     
-                    {/* Footer */}
-                    <div className="mt-auto pt-6 border-t border-border/30">
-                        <div className="text-xs text-muted-foreground space-y-1">
-                            <p className="font-semibold text-foreground">CloudLens v2.1</p>
-                            <p className="opacity-70">企业级多云资源治理平台</p>
-                        </div>
+                    {/* Footer - Finout 风格：简洁 */}
+                    <div className="mt-auto pt-6 border-t border-[rgba(255,255,255,0.08)]">
+                        {/* 账号选择器 - 移到底部 */}
+                        <AccountSelector />
                     </div>
                 </div>
             </aside>
 
-            {/* Main Content */}
+            {/* Main Content - Finout 风格：更大的内容区域 */}
             <main className="lg:ml-72 min-h-screen">
                 {children}
             </main>
         </div>
     )
 }
+
 
 
 

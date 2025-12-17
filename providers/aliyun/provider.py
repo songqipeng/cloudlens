@@ -105,6 +105,16 @@ class AliyunProvider(BaseProvider):
                         except:
                             pass
 
+                    # 解析标签
+                    tags = {}
+                    if inst.get("Tags") and inst["Tags"].get("Tag"):
+                        for tag_item in inst["Tags"]["Tag"]:
+                            if isinstance(tag_item, dict):
+                                tag_key = tag_item.get("TagKey", "")
+                                tag_value = tag_item.get("TagValue", "")
+                                if tag_key:
+                                    tags[tag_key] = tag_value
+
                     r = UnifiedResource(
                         id=inst["InstanceId"],
                         name=inst["InstanceName"],
@@ -122,6 +132,7 @@ class AliyunProvider(BaseProvider):
                         charge_type=inst["InstanceChargeType"],
                         created_time=created_time,
                         expired_time=expired_time,
+                        tags=tags,
                         raw_data=inst,
                     )
                     resources.append(r)
@@ -175,6 +186,16 @@ class AliyunProvider(BaseProvider):
                 if inst.get("ConnectionString"):
                     private_ips.append(inst["ConnectionString"])
 
+                # 解析标签
+                tags = {}
+                if inst.get("Tags") and inst["Tags"].get("Tag"):
+                    for tag_item in inst["Tags"]["Tag"]:
+                        if isinstance(tag_item, dict):
+                            tag_key = tag_item.get("TagKey", "")
+                            tag_value = tag_item.get("TagValue", "")
+                            if tag_key:
+                                tags[tag_key] = tag_value
+
                 r = UnifiedResource(
                     id=inst["DBInstanceId"],
                     name=inst.get("DBInstanceDescription", inst["DBInstanceId"]),
@@ -189,6 +210,7 @@ class AliyunProvider(BaseProvider):
                     spec=inst.get("DBInstanceClass"),
                     charge_type=inst.get("PayType", "PostPaid"),
                     expired_time=expired_time,
+                    tags=tags,
                     raw_data=inst,
                 )
                 resources.append(r)
@@ -304,6 +326,16 @@ class AliyunProvider(BaseProvider):
                 if inst.get("ConnectionDomain"):
                     private_ips.append(inst["ConnectionDomain"])
 
+                # 解析标签
+                tags = {}
+                if inst.get("Tags") and inst["Tags"].get("Tag"):
+                    for tag_item in inst["Tags"]["Tag"]:
+                        if isinstance(tag_item, dict):
+                            tag_key = tag_item.get("TagKey", "")
+                            tag_value = tag_item.get("TagValue", "")
+                            if tag_key:
+                                tags[tag_key] = tag_value
+
                 r = UnifiedResource(
                     id=inst["InstanceId"],
                     name=inst.get("InstanceName", inst["InstanceId"]),
@@ -318,6 +350,7 @@ class AliyunProvider(BaseProvider):
                     spec=inst.get("InstanceClass"),
                     charge_type=inst.get("ChargeType", "PostPaid"),
                     expired_time=expired_time,
+                    tags=tags,
                     raw_data=inst,
                 )
                 resources.append(r)

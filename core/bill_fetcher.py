@@ -69,7 +69,9 @@ class BillFetcher:
         self, 
         billing_cycle: str,
         max_records: Optional[int] = None,
-        page_size: int = 300
+        page_size: int = 300,
+        billing_date: Optional[str] = None,
+        granularity: Optional[str] = None
     ) -> List[Dict]:
         """
         获取实例账单明细（最详细的数据，类似CSV）
@@ -78,6 +80,8 @@ class BillFetcher:
             billing_cycle: 账期，格式：YYYY-MM（如：2025-12）
             max_records: 最大记录数，None表示获取所有
             page_size: 每页记录数，最大300
+            billing_date: 账单日期，格式：YYYY-MM-DD（可选，用于按天查询）
+            granularity: 查询粒度，可选值：DAILY（按天）、MONTHLY（按月，默认）
             
         Returns:
             账单明细列表
@@ -89,13 +93,21 @@ class BillFetcher:
         page_num = 1
         total_count = 0
         
-        logger.info(f"开始获取账单明细：账期={billing_cycle}")
+        if billing_date and granularity == "DAILY":
+            logger.info(f"开始获取按天账单明细：账期={billing_cycle}, 日期={billing_date}")
+        else:
+            logger.info(f"开始获取账单明细：账期={billing_cycle}")
         
         while True:
             request = QueryInstanceBillRequest.QueryInstanceBillRequest()
             request.set_BillingCycle(billing_cycle)
             request.set_PageNum(page_num)
             request.set_PageSize(page_size)
+            
+            # 如果指定了按天查询，添加相应参数
+            if granularity == "DAILY" and billing_date:
+                request.set_Granularity("DAILY")
+                request.set_BillingDate(billing_date)
             
             try:
                 response = self.client.do_action_with_exception(request)
@@ -111,7 +123,10 @@ class BillFetcher:
                 
                 if page_num == 1:
                     total_count = data.get("TotalCount", 0)
-                    logger.info(f"账期 {billing_cycle} 共有 {total_count} 条记录")
+                    if billing_date:
+                        logger.info(f"日期 {billing_date} 共有 {total_count} 条记录")
+                    else:
+                        logger.info(f"账期 {billing_cycle} 共有 {total_count} 条记录")
                 
                 if not items:
                     break
@@ -138,8 +153,61 @@ class BillFetcher:
                 logger.error(f"获取第 {page_num} 页数据失败: {str(e)}")
                 break
         
-        logger.info(f"账期 {billing_cycle} 共获取 {len(all_records)} 条记录")
+        if billing_date:
+            logger.info(f"日期 {billing_date} 共获取 {len(all_records)} 条记录")
+        else:
+            logger.info(f"账期 {billing_cycle} 共获取 {len(all_records)} 条记录")
         return all_records
+    
+    def fetch_daily_bills(
+        self,
+        start_date: str,
+        end_date: str,
+        max_records_per_day: Optional[int] = None
+    ) -> Dict[str, List[Dict]]:
+        """
+        按天获取账单数据
+        
+        Args:
+            start_date: 开始日期，格式：YYYY-MM-DD
+            end_date: 结束日期，格式：YYYY-MM-DD
+            max_records_per_day: 每天最大记录数，None表示获取所有
+            
+        Returns:
+            按日期分组的账单数据字典，key为日期（YYYY-MM-DD），value为账单列表
+        """
+        from datetime import datetime, timedelta
+        
+        daily_bills = {}
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+        
+        current_date = start
+        while current_date <= end:
+            date_str = current_date.strftime("%Y-%m-%d")
+            billing_cycle = current_date.strftime("%Y-%m")
+            
+            logger.info(f"获取日期 {date_str} 的账单数据...")
+            
+            try:
+                bills = self.fetch_instance_bill(
+                    billing_cycle=billing_cycle,
+                    billing_date=date_str,
+                    granularity="DAILY",
+                    max_records=max_records_per_day
+                )
+                daily_bills[date_str] = bills
+                logger.info(f"日期 {date_str} 获取到 {len(bills)} 条记录")
+            except Exception as e:
+                logger.warning(f"获取日期 {date_str} 的账单失败: {str(e)}")
+                daily_bills[date_str] = []
+            
+            current_date += timedelta(days=1)
+            
+            # API限流：每天之间稍作延迟
+            time.sleep(0.3)
+        
+        return daily_bills
     
     def fetch_bill_overview(self, billing_cycle: str) -> List[Dict]:
         """
@@ -447,3 +515,4 @@ if __name__ == "__main__":
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     main()
+

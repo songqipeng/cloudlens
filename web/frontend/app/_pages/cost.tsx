@@ -6,10 +6,12 @@ import { CostChart } from "@/components/cost-chart"
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useAccount } from "@/contexts/account-context"
+import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
 
 export default function CostPage() {
   const { currentAccount } = useAccount()
+  const { t } = useLocale()
   const [overview, setOverview] = useState<any>(null)
   const [trend, setTrend] = useState<any>(null)
   const [breakdown, setBreakdown] = useState<any>(null)
@@ -29,20 +31,35 @@ export default function CostPage() {
 
     try {
       const [overviewData, trendData, breakdownData] = await Promise.all([
-        apiGet("/cost/overview").catch(() => ({ data: null })),
-        apiGet("/dashboard/trend", { days: 30 }).catch(() => ({ chart_data: null })),
-        apiGet("/cost/breakdown").catch(() => ({ data: null })),
+        apiGet("/cost/overview", { account: currentAccount }).catch((e) => {
+          console.error("获取成本概览失败:", e)
+          return { success: false, data: null, error: String(e) }
+        }),
+        apiGet("/dashboard/trend", { account: currentAccount, days: 30 }).catch((e) => {
+          console.error("获取成本趋势失败:", e)
+          return { chart_data: null }
+        }),
+        apiGet("/cost/breakdown", { account: currentAccount }).catch((e) => {
+          console.error("获取成本构成失败:", e)
+          return { data: null }
+        }),
       ])
 
-      if (overviewData.data) {
+      if (overviewData?.data) {
         setOverview(overviewData.data)
+        // 如果上月成本为0，记录警告
+        if (overviewData.data.last_month === 0 && overviewData.data.last_cycle) {
+          console.warn(`⚠️ 上月成本为0: 账期=${overviewData.data.last_cycle}, 可能原因：1) 数据库中没有该账期数据 2) API查询失败 3) 该账期确实无成本`)
+        }
+      } else if (overviewData?.error) {
+        console.error("成本概览API返回错误:", overviewData.error)
       }
 
-      if (trendData.chart_data) {
+      if (trendData?.chart_data) {
         setTrend(trendData.chart_data)
       }
 
-      if (breakdownData.data) {
+      if (breakdownData?.data) {
         setBreakdown(breakdownData.data)
       }
     } catch (e) {
@@ -111,27 +128,27 @@ export default function CostPage() {
     const rest = normalized.slice(TOP_N)
     const restSum = rest.reduce((s, x) => s + x.value, 0)
     if (restSum <= 0) return top
-    return [...top, { code: "other", name: "其他", value: restSum }]
+    return [...top, { code: "other", name: t.costAnalysis.other, value: restSum }]
   })()
 
   return (
     <DashboardLayout>
       <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">成本分析</h2>
-          <p className="text-muted-foreground mt-1">查看和分析云资源成本</p>
+          <h2 className="text-3xl font-bold tracking-tight">{t.costAnalysis.title}</h2>
+          <p className="text-muted-foreground mt-1">{t.costAnalysis.description}</p>
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center h-40">
-            <div className="animate-pulse">加载中...</div>
+            <div className="animate-pulse">{t.common.loading}</div>
           </div>
         ) : (
           <>
             <div className="grid gap-4 md:grid-cols-4">
               <Card className="glass border border-border/50 hover:shadow-xl transition-all">
                 <CardHeader>
-                  <CardTitle className="text-sm text-muted-foreground">本月成本</CardTitle>
+                  <CardTitle className="text-sm text-muted-foreground">{t.costAnalysis.currentMonthCost}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold">¥{overview?.current_month?.toLocaleString() || 0}</div>
@@ -140,7 +157,7 @@ export default function CostPage() {
 
               <Card className="glass border border-border/50 hover:shadow-xl transition-all">
                 <CardHeader>
-                  <CardTitle className="text-sm text-muted-foreground">上月成本</CardTitle>
+                  <CardTitle className="text-sm text-muted-foreground">{t.costAnalysis.lastMonthCost}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold">¥{overview?.last_month?.toLocaleString() || 0}</div>
@@ -149,7 +166,7 @@ export default function CostPage() {
 
               <Card className="glass border border-border/50 hover:shadow-xl transition-all">
                 <CardHeader>
-                  <CardTitle className="text-sm text-muted-foreground">环比增长</CardTitle>
+                  <CardTitle className="text-sm text-muted-foreground">{t.costAnalysis.momGrowth}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className={`text-3xl font-bold ${(overview?.mom || 0) > 0 ? "text-red-500" : "text-green-500"}`}>
@@ -160,7 +177,7 @@ export default function CostPage() {
 
               <Card className="glass border border-border/50 hover:shadow-xl transition-all">
                 <CardHeader>
-                  <CardTitle className="text-sm text-muted-foreground">同比增长</CardTitle>
+                  <CardTitle className="text-sm text-muted-foreground">{t.costAnalysis.yoyGrowth}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className={`text-3xl font-bold ${(overview?.yoy || 0) > 0 ? "text-red-500" : "text-green-500"}`}>
@@ -175,7 +192,7 @@ export default function CostPage() {
 
               <Card className="glass border border-border/50 shadow-xl">
                 <CardHeader>
-                  <CardTitle>成本构成</CardTitle>
+                  <CardTitle>{t.costAnalysis.costBreakdown}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[450px]">
@@ -217,6 +234,7 @@ export default function CostPage() {
     </DashboardLayout>
   )
 }
+
 
 
 

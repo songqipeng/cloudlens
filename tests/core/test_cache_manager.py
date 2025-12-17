@@ -4,11 +4,11 @@ import tempfile
 import os
 import shutil
 from pathlib import Path
-from core.cache_manager import CacheManager
+from core.cache_manager import FileFileCacheManager
 
 
-class TestCacheManager:
-    """CacheManager测试类"""
+class TestFileCacheManager:
+    """FileCacheManager测试类"""
 
     @pytest.fixture
     def temp_cache_dir(self):
@@ -21,7 +21,7 @@ class TestCacheManager:
     @pytest.fixture
     def cache_manager(self, temp_cache_dir):
         """创建缓存管理器实例"""
-        return CacheManager(cache_dir=temp_cache_dir)
+        return FileCacheManager(cache_dir=temp_cache_dir)
 
     def test_save_and_load_data(self, cache_manager):
         """测试: 保存和加载数据"""
@@ -43,10 +43,10 @@ class TestCacheManager:
     def test_cache_with_different_regions(self, temp_cache_dir):
         """测试: 不同区域的缓存应该分开"""
         # 创建两个不同的缓存管理器,分别用于不同区域
-        cache_hz = CacheManager(
+        cache_hz = FileCacheManager(
             resource_type="ecs", tenant_name="test_account", cache_dir=temp_cache_dir
         )
-        cache_bj = CacheManager(
+        cache_bj = FileCacheManager(
             resource_type="ecs",
             tenant_name="test_account",
             cache_file="ecs_beijing.pkl",
@@ -114,7 +114,7 @@ class TestCacheExpiration:
 
     def test_cache_ttl_default(self):
         """测试: 默认TTL"""
-        # 这个测试需要CacheManager支持TTL
+        # 这个测试需要FileCacheManager支持TTL
         # 如果未实现,可以跳过
         pytest.skip("TTL feature not implemented yet")
 

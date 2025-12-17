@@ -7,11 +7,13 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useRouter } from "next/navigation"
 import { AlertTriangle, Shield, Lock, Tag, Server, Globe, Zap, Network } from "lucide-react"
 import { useAccount } from "@/contexts/account-context"
+import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
 
 export default function SecurityPage() {
   const router = useRouter()
   const { currentAccount } = useAccount()
+  const { t } = useLocale()
   const [overview, setOverview] = useState<any>(null)
   const [checks, setChecks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -107,13 +109,13 @@ export default function SecurityPage() {
     <DashboardLayout>
       <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">安全合规</h2>
-          <p className="text-muted-foreground mt-1">全面的安全检查和合规性分析</p>
+          <h2 className="text-3xl font-bold tracking-tight">{t.security.title}</h2>
+          <p className="text-muted-foreground mt-1">{t.security.description}</p>
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center h-40">
-            <div className="animate-pulse">加载中...</div>
+            <div className="animate-pulse">{t.common.loading}</div>
           </div>
         ) : (
           <>
@@ -122,7 +124,7 @@ export default function SecurityPage() {
                 <CardHeader>
                   <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
                     <Shield className="w-4 h-4" />
-                    安全评分
+                    {t.security.securityScore}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -134,7 +136,7 @@ export default function SecurityPage() {
                     <div className="mt-2 text-xs text-muted-foreground">
                       {overview.score_deductions.slice(0, 2).map((d: any, i: number) => (
                         <div key={i}>
-                          -{d.deduction}分: {d.reason}
+                          -{d.deduction}{t.security.points}: {d.reason}
                         </div>
                       ))}
                     </div>
@@ -146,12 +148,12 @@ export default function SecurityPage() {
                 <CardHeader>
                   <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
                     <Globe className="w-4 h-4" />
-                    公网暴露
+                    {t.security.publicExposure}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-red-500">{overview?.exposed_count || 0}</div>
-                  <p className="text-xs text-muted-foreground mt-1">高风险资源</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t.security.highRiskResources}</p>
                 </CardContent>
               </Card>
 
@@ -159,13 +161,13 @@ export default function SecurityPage() {
                 <CardHeader>
                   <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
                     <Lock className="w-4 h-4" />
-                    磁盘加密率
+                    {t.security.diskEncryptionRate}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold">{overview?.encryption_rate?.toFixed(1) || 0}%</div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {overview?.encrypted_count || 0} / {overview?.encrypted_count + overview?.unencrypted_count || 0} 已加密
+                    {overview?.encrypted_count || 0} / {overview?.encrypted_count + overview?.unencrypted_count || 0} {t.security.encrypted}
                   </p>
                 </CardContent>
               </Card>
@@ -174,12 +176,12 @@ export default function SecurityPage() {
                 <CardHeader>
                   <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
                     <Tag className="w-4 h-4" />
-                    标签覆盖率
+                    {t.security.tagCoverage}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold">{overview?.tag_coverage?.toFixed(1) || 0}%</div>
-                  <p className="text-xs text-muted-foreground mt-1">{overview?.missing_tags_count || 0} 个资源缺失标签</p>
+                  <p className="text-xs text-muted-foreground mt-1">{overview?.missing_tags_count || 0} {t.security.resourcesMissingTags}</p>
                 </CardContent>
               </Card>
             </div>
@@ -189,7 +191,7 @@ export default function SecurityPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <AlertTriangle className="w-5 h-5 text-yellow-500" />
-                    安全改进建议
+                    {t.security.securityImprovements}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -206,7 +208,7 @@ export default function SecurityPage() {
 
             <Card className="glass border border-border/50 shadow-xl">
               <CardHeader>
-                <CardTitle>详细安全检查结果</CardTitle>
+                <CardTitle>{t.security.detailedResults}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -233,17 +235,17 @@ export default function SecurityPage() {
                           <div className="flex items-center gap-3">
                             {check.count !== undefined && (
                               <div className="text-sm font-medium">
-                                发现 <span className="text-primary">{check.count}</span> 个问题
+                                {t.security.foundIssues} <span className="text-primary">{check.count}</span> {t.security.issues}
                               </div>
                             )}
                             {check.coverage !== undefined && (
                               <div className="text-sm font-medium">
-                                覆盖率: <span className="text-primary">{check.coverage}%</span>
+                                {t.security.coverage}: <span className="text-primary">{check.coverage}%</span>
                               </div>
                             )}
                             {check.encryption_rate !== undefined && (
                               <div className="text-sm font-medium">
-                                加密率: <span className="text-primary">{check.encryption_rate}%</span>
+                                {t.security.encryptionRate}: <span className="text-primary">{check.encryption_rate}%</span>
                               </div>
                             )}
                             <StatusBadge status={check.status} />
@@ -263,14 +265,14 @@ export default function SecurityPage() {
                         <div className="border-t border-border/50 p-4 bg-background/50">
                           {check.recommendation && (
                             <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                              <div className="text-sm font-medium text-blue-400 mb-1">💡 建议</div>
+                              <div className="text-sm font-medium text-blue-400 mb-1">💡 {t.security.suggestion}</div>
                               <div className="text-sm text-muted-foreground">{check.recommendation}</div>
                             </div>
                           )}
 
                           {check.resources && check.resources.length > 0 && (
                             <div>
-                              <div className="text-sm font-medium mb-2">问题资源 ({check.resources.length}):</div>
+                              <div className="text-sm font-medium mb-2">{t.security.problemResources} ({check.resources.length}):</div>
                               <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
                                 {check.resources.map((resource: any, rIdx: number) => (
                                   <div
@@ -283,8 +285,8 @@ export default function SecurityPage() {
                                   >
                                     <div className="font-medium truncate">{resource.name || resource.id}</div>
                                     <div className="text-muted-foreground truncate">{resource.id}</div>
-                                    {resource.public_ips && <div className="text-muted-foreground mt-1">IP: {resource.public_ips.join(", ")}</div>}
-                                    {resource.region && <div className="text-muted-foreground">区域: {resource.region}</div>}
+                                    {resource.public_ips && <div className="text-muted-foreground mt-1">{t.security.ip}: {resource.public_ips.join(", ")}</div>}
+                                    {resource.region && <div className="text-muted-foreground">{t.security.region}: {resource.region}</div>}
                                   </div>
                                 ))}
                               </div>
@@ -303,6 +305,7 @@ export default function SecurityPage() {
     </DashboardLayout>
   )
 }
+
 
 
 

@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/ui/badge"
 import { useRouter } from "next/navigation"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useAccount } from "@/contexts/account-context"
+import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
 
 interface Resource {
@@ -19,11 +20,13 @@ interface Resource {
   cost: number
   tags: Record<string, string>
   created_time: string | null
+  vpc_id?: string | null
 }
 
 export default function ResourcesPage() {
   const router = useRouter()
   const { currentAccount } = useAccount()
+  const { t } = useLocale()
   const [resources, setResources] = useState<Resource[]>([])
   const [loading, setLoading] = useState(true)
   const [resourceType, setResourceType] = useState("ecs")
@@ -72,18 +75,24 @@ export default function ResourcesPage() {
   const columns: TableColumn<Resource>[] = [
     {
       key: "name",
-      label: "名称 / ID",
+      label: t.resources.nameId,
       sortable: true,
-      render: (value, row) => (
-        <div>
-          <div className="font-medium">{row.name || "-"}</div>
-          <div className="text-xs text-muted-foreground font-mono">{row.id}</div>
-        </div>
-      ),
+      render: (value, row) => {
+        const displayName = row.name && row.name !== "-" ? row.name : (row.id || "-")
+        const displayId = row.id || "-"
+        return (
+          <div>
+            <div className="font-medium">{displayName}</div>
+            {displayId !== displayName && (
+              <div className="text-xs text-muted-foreground font-mono">{displayId}</div>
+            )}
+          </div>
+        )
+      },
     },
     {
       key: "type",
-      label: "类型",
+      label: t.resources.type,
       render: (value) => {
         const m: Record<string, string> = {
           ecs: "ECS",
@@ -102,28 +111,33 @@ export default function ResourcesPage() {
     },
     {
       key: "status",
-      label: "状态",
+      label: t.resources.status,
       sortable: true,
       render: (value) => <StatusBadge status={value} />,
     },
     {
       key: "region",
-      label: "区域",
+      label: t.resources.region,
       sortable: true,
     },
     {
+      key: "vpc_id",
+      label: t.resources.vpc,
+      render: (value) => (value ? <span className="font-mono text-xs">{value}</span> : "-"),
+    },
+    {
       key: "spec",
-      label: "规格",
+      label: t.resources.spec,
     },
     {
       key: "cost",
-      label: "月度成本",
+      label: t.resources.monthlyCost,
       sortable: true,
       render: (value) => `¥${value.toLocaleString()}`,
     },
     {
       key: "created_time",
-      label: "创建时间",
+      label: t.resources.createdTime,
       render: (value) => (value ? new Date(value).toLocaleDateString() : "-"),
     },
   ]
@@ -137,15 +151,15 @@ export default function ResourcesPage() {
       <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">资源管理</h2>
-            <p className="text-muted-foreground mt-1">查看和管理所有云资源</p>
+            <h2 className="text-3xl font-bold tracking-tight">{t.resources.title}</h2>
+            <p className="text-muted-foreground mt-1">{t.resources.description}</p>
           </div>
         </div>
 
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>资源列表</CardTitle>
+              <CardTitle>{t.resources.resourceList}</CardTitle>
               <div className="flex gap-2">
                 {[
                   { key: "ecs", label: "ECS" },
@@ -181,7 +195,7 @@ export default function ResourcesPage() {
             <div className="mb-4">
               <input
                 type="text"
-                placeholder="搜索资源..."
+                placeholder={t.resources.searchPlaceholder}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full px-4 py-2.5 rounded-xl border border-input/50 bg-background/60 backdrop-blur-sm text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all shadow-sm"
@@ -190,7 +204,7 @@ export default function ResourcesPage() {
 
             {loading ? (
               <div className="flex items-center justify-center h-40">
-                <div className="animate-pulse">加载中...</div>
+                <div className="animate-pulse">{t.common.loading}</div>
               </div>
             ) : (
               <>
@@ -205,7 +219,7 @@ export default function ResourcesPage() {
 
                 <div className="flex items-center justify-between mt-4">
                   <div className="text-sm text-muted-foreground">
-                    共 {total} 个资源，第 {page} / {totalPages} 页
+                    {t.resources.totalResources.replace('{total}', String(total)).replace('{page}', String(page)).replace('{totalPages}', String(totalPages))}
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -213,14 +227,14 @@ export default function ResourcesPage() {
                       disabled={page === 1}
                       className="px-4 py-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                      上一页
+                      {t.resources.previousPage}
                     </button>
                     <button
                       onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                       disabled={page === totalPages}
                       className="px-4 py-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                      下一页
+                      {t.resources.nextPage}
                     </button>
                   </div>
                 </div>
@@ -232,6 +246,7 @@ export default function ResourcesPage() {
     </DashboardLayout>
   )
 }
+
 
 
 

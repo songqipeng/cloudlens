@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { FileText, Download, FileSpreadsheet, FileCode, FileType, Sparkles, CheckCircle2, Clock, AlertCircle } from "lucide-react"
 import { useAccount } from "@/contexts/account-context"
+import { useLocale } from "@/contexts/locale-context"
 import { apiPost } from "@/lib/api"
 
 interface ReportType {
@@ -22,64 +23,65 @@ interface ReportFormat {
   icon: React.ReactNode
 }
 
-const reportTypes: ReportType[] = [
-  {
-    id: "comprehensive",
-    name: "综合报告",
-    description: "包含资源清单、成本分析、安全检查和优化建议的完整报告",
-    icon: <FileText className="w-6 h-6" />,
-    color: "from-blue-500 to-cyan-500",
-  },
-  {
-    id: "resources",
-    name: "资源清单",
-    description: "详细的资源列表，包括所有云资源的配置和状态信息",
-    icon: <FileSpreadsheet className="w-6 h-6" />,
-    color: "from-green-500 to-emerald-500",
-  },
-  {
-    id: "cost",
-    name: "成本分析",
-    description: "详细的成本分析报告，包括成本趋势、构成和优化建议",
-    icon: <FileType className="w-6 h-6" />,
-    color: "from-yellow-500 to-orange-500",
-  },
-  {
-    id: "security",
-    name: "安全报告",
-    description: "安全合规检查报告，包括风险评估和合规性分析",
-    icon: <FileCode className="w-6 h-6" />,
-    color: "from-red-500 to-pink-500",
-  },
-]
-
-const reportFormats: ReportFormat[] = [
-  {
-    id: "excel",
-    name: "Excel",
-    description: "适合数据分析和进一步处理",
-    icon: <FileSpreadsheet className="w-5 h-5" />,
-  },
-  {
-    id: "html",
-    name: "HTML",
-    description: "精美的网页格式，适合在线查看和分享",
-    icon: <FileCode className="w-5 h-5" />,
-  },
-  {
-    id: "pdf",
-    name: "PDF",
-    description: "专业的文档格式，适合打印和归档",
-    icon: <FileText className="w-5 h-5" />,
-  },
-]
-
 export default function ReportsPage() {
   const { currentAccount } = useAccount()
+  const { t } = useLocale()
   const [reportType, setReportType] = useState("comprehensive")
   const [format, setFormat] = useState("excel")
   const [generating, setGenerating] = useState(false)
   const [recentReports, setRecentReports] = useState<any[]>([])
+  
+  const reportTypes: ReportType[] = [
+    {
+      id: "comprehensive",
+      name: t.reports.types.comprehensive.name,
+      description: t.reports.types.comprehensive.description,
+      icon: <FileText className="w-6 h-6" />,
+      color: "from-blue-500 to-cyan-500",
+    },
+    {
+      id: "resources",
+      name: t.reports.types.resource.name,
+      description: t.reports.types.resource.description,
+      icon: <FileSpreadsheet className="w-6 h-6" />,
+      color: "from-green-500 to-emerald-500",
+    },
+    {
+      id: "cost",
+      name: t.reports.types.cost.name,
+      description: t.reports.types.cost.description,
+      icon: <FileType className="w-6 h-6" />,
+      color: "from-yellow-500 to-orange-500",
+    },
+    {
+      id: "security",
+      name: t.reports.types.security.name,
+      description: t.reports.types.security.description,
+      icon: <FileCode className="w-6 h-6" />,
+      color: "from-red-500 to-pink-500",
+    },
+  ]
+
+  const reportFormats: ReportFormat[] = [
+    {
+      id: "excel",
+      name: t.reports.formats.excel.name,
+      description: t.reports.formats.excel.description,
+      icon: <FileSpreadsheet className="w-5 h-5" />,
+    },
+    {
+      id: "html",
+      name: t.reports.formats.html.name,
+      description: t.reports.formats.html.description,
+      icon: <FileCode className="w-5 h-5" />,
+    },
+    {
+      id: "pdf",
+      name: t.reports.formats.pdf.name,
+      description: t.reports.formats.pdf.description,
+      icon: <FileText className="w-5 h-5" />,
+    },
+  ]
 
   useEffect(() => {
     // TODO: fetchRecentReports()
@@ -87,7 +89,7 @@ export default function ReportsPage() {
 
   const handleGenerate = async () => {
     if (!currentAccount) {
-      alert("请先选择账号")
+      alert(t.reports.selectAccountFirst)
       return
     }
 
@@ -113,14 +115,14 @@ export default function ReportsPage() {
 
         setTimeout(() => {
           setGenerating(false)
-          alert("报告生成成功！")
+          alert(t.reports.generateSuccess)
         }, 500)
         return
       }
-      throw new Error("生成失败")
+      throw new Error(t.reports.generateFailed)
     } catch (e) {
       console.error("Failed to generate report:", e)
-      alert("报告生成失败: " + String(e))
+      alert(t.reports.generateFailed + ": " + String(e))
     } finally {
       setGenerating(false)
     }
@@ -133,14 +135,14 @@ export default function ReportsPage() {
     <DashboardLayout>
       <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-8">
         <div className="space-y-2">
-          <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-cyan-500 bg-clip-text text-transparent">报告生成</h2>
-          <p className="text-lg text-muted-foreground">生成专业的资源分析报告，支持多种格式和类型</p>
+          <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-cyan-500 bg-clip-text text-transparent">{t.reports.title}</h2>
+          <p className="text-lg text-muted-foreground">{t.reports.description}</p>
         </div>
 
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
-            <h3 className="text-xl font-semibold">选择报告类型</h3>
+            <h3 className="text-xl font-semibold">{t.reports.selectReportType}</h3>
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {reportTypes.map((type) => (
@@ -171,7 +173,7 @@ export default function ReportsPage() {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <FileType className="w-5 h-5 text-primary" />
-            <h3 className="text-xl font-semibold">选择输出格式</h3>
+            <h3 className="text-xl font-semibold">{t.reports.selectFormat}</h3>
           </div>
           <div className="grid gap-4 md:grid-cols-3">
             {reportFormats.map((fmt) => (
@@ -201,9 +203,9 @@ export default function ReportsPage() {
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-2xl mb-2">生成报告</CardTitle>
+                    <CardTitle className="text-2xl mb-2">{t.reports.generateReport}</CardTitle>
                     <p className="text-sm text-muted-foreground">
-                      已选择: <span className="font-semibold text-foreground">{selectedType.name}</span> · 格式:{" "}
+                      {t.reports.selected}: <span className="font-semibold text-foreground">{selectedType.name}</span> · {t.reports.format}:{" "}
                       <span className="font-semibold text-foreground">{selectedFormat.name}</span>
                     </p>
                   </div>
@@ -214,14 +216,14 @@ export default function ReportsPage() {
                 <div className="space-y-6">
                   <div className="grid gap-4 md:grid-cols-2 p-4 bg-muted/30 rounded-xl">
                     <div>
-                      <div className="text-xs text-muted-foreground mb-1">报告类型</div>
+                      <div className="text-xs text-muted-foreground mb-1">{t.reports.reportType}</div>
                       <div className="font-semibold flex items-center gap-2">
                         {selectedType.icon}
                         {selectedType.name}
                       </div>
                     </div>
                     <div>
-                      <div className="text-xs text-muted-foreground mb-1">输出格式</div>
+                      <div className="text-xs text-muted-foreground mb-1">{t.reports.outputFormat}</div>
                       <div className="font-semibold flex items-center gap-2">
                         {selectedFormat.icon}
                         {selectedFormat.name}
@@ -241,12 +243,12 @@ export default function ReportsPage() {
                     {generating ? (
                       <div className="flex items-center justify-center gap-3">
                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                        <span>正在生成报告...</span>
+                        <span>{t.reports.generating}</span>
                       </div>
                     ) : (
                       <div className="flex items-center justify-center gap-3">
                         <Download className="w-5 h-5" />
-                        <span>生成并下载报告</span>
+                        <span>{t.reports.generateAndDownload}</span>
                       </div>
                     )}
                   </button>
@@ -254,12 +256,12 @@ export default function ReportsPage() {
                   <div className="flex items-start gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
                     <AlertCircle className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-muted-foreground">
-                      <div className="font-medium text-blue-400 mb-1">💡 提示</div>
+                      <div className="font-medium text-blue-400 mb-1">💡 {t.reports.tip}</div>
                       <div>
-                        报告生成可能需要几分钟时间，请耐心等待。生成完成后将自动下载。
-                        {format === "excel" && " Excel 格式适合数据分析和进一步处理。"}
-                        {format === "html" && " HTML 格式包含精美的样式，适合在线查看和分享。"}
-                        {format === "pdf" && " PDF 格式适合打印和归档保存。"}
+                        {t.reports.tipContent}
+                        {format === "excel" && t.reports.excelTip}
+                        {format === "html" && t.reports.htmlTip}
+                        {format === "pdf" && t.reports.pdfTip}
                       </div>
                     </div>
                   </div>
@@ -300,6 +302,7 @@ export default function ReportsPage() {
     </DashboardLayout>
   )
 }
+
 
 
 

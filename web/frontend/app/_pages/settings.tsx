@@ -3,9 +3,12 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
+import { useLocale } from "@/contexts/locale-context"
+import { LanguageSwitcher } from "@/components/language-switcher"
 import { apiGet, apiPost } from "@/lib/api"
 
 export default function SettingsPage() {
+  const { t } = useLocale()
   const [rules, setRules] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -26,9 +29,9 @@ export default function SettingsPage() {
     setSaving(true)
     try {
       await apiPost("/config/rules", rules)
-      alert("设置保存成功！")
+      alert(t.settings.saveSuccess)
     } catch (e) {
-      alert("保存失败: " + String(e))
+      alert(t.settings.saveFailed + ": " + String(e))
     }
     setSaving(false)
   }
@@ -37,7 +40,7 @@ export default function SettingsPage() {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-pulse">加载中...</div>
+          <div className="animate-pulse">{t.common.loading}</div>
         </div>
       </DashboardLayout>
     )
@@ -99,13 +102,56 @@ export default function SettingsPage() {
             disabled={saving}
             className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition shadow-lg shadow-primary/20 disabled:opacity-50"
           >
-            {saving ? "保存中..." : "保存更改"}
+            {saving ? (t.locale === 'zh' ? '保存中...' : 'Saving...') : t.common.save}
           </button>
         </div>
+
+        {/* 语言设置 */}
+        <Card className="glass">
+          <CardHeader>
+            <CardTitle>{t.locale === 'zh' ? '语言设置' : 'Language Settings'}</CardTitle>
+            <CardDescription>{t.locale === 'zh' ? '选择界面显示语言' : 'Select interface display language'}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground mb-2">{t.locale === 'zh' ? '当前语言' : 'Current Language'}</p>
+                <p className="text-base font-semibold">{t.locale === 'zh' ? '中文' : 'English'}</p>
+              </div>
+              <LanguageSwitcher />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 关于信息 */}
+        <Card className="glass">
+          <CardHeader>
+            <CardTitle>{t.locale === 'zh' ? '关于' : 'About'}</CardTitle>
+            <CardDescription>{t.locale === 'zh' ? 'CloudLens 版本信息' : 'CloudLens Version Information'}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between py-2 border-b border-border/50">
+              <span className="text-sm text-muted-foreground">{t.locale === 'zh' ? '版本' : 'Version'}</span>
+              <span className="text-sm font-semibold text-foreground">CloudLens v2.1</span>
+            </div>
+            <div className="flex items-center justify-between py-2 border-b border-border/50">
+              <span className="text-sm text-muted-foreground">{t.locale === 'zh' ? '描述' : 'Description'}</span>
+              <span className="text-sm text-foreground">{t.locale === 'zh' ? '多云资源治理平台' : 'Multi-Cloud Resource Governance Platform'}</span>
+            </div>
+            <div className="pt-2">
+              <p className="text-xs text-muted-foreground">
+                {t.locale === 'zh' 
+                  ? 'CloudLens 是一个企业级多云资源治理与分析工具，帮助您优化云资源使用，降低成本。'
+                  : 'CloudLens is an enterprise-grade multi-cloud resource governance and analysis tool that helps you optimize cloud resource usage and reduce costs.'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   )
 }
+
 
 
 

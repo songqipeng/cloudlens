@@ -7,6 +7,7 @@ import { CostChart } from "@/components/cost-chart"
 import { IdleTable } from "@/components/idle-table"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useAccount } from "@/contexts/account-context"
+import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
 
 export default function DashboardPage() {
@@ -93,6 +94,8 @@ export default function DashboardPage() {
     fetchData()
   }, [currentAccount])
 
+  const { t } = useLocale()
+
   if (!currentAccount) {
     return (
       <DashboardLayout>
@@ -109,13 +112,13 @@ export default function DashboardPage() {
               </svg>
             </div>
             <div>
-              <h3 className="text-xl font-semibold text-foreground mb-2">请选择账号</h3>
-              <p className="text-muted-foreground text-sm mb-4">请在左侧侧边栏选择要查看的云账号</p>
+              <h3 className="text-xl font-semibold text-foreground mb-2">{t.dashboard.selectAccount}</h3>
+              <p className="text-muted-foreground text-sm mb-4">{t.dashboard.selectAccountDesc}</p>
               <Link
                 href="/settings/accounts"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
               >
-                前往账号管理
+                {t.dashboard.goToAccountManagement}
               </Link>
             </div>
           </div>
@@ -127,18 +130,34 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center space-y-4">
-            <div className="relative">
-              <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto"></div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-8 h-8 bg-primary/10 rounded-full"></div>
+        <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
+          {/* Header Skeleton */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+            <div className="space-y-2">
+              <div className="h-9 w-48 bg-muted/50 rounded-lg animate-pulse"></div>
+              <div className="h-5 w-32 bg-muted/50 rounded animate-pulse"></div>
+            </div>
+            <div className="h-10 w-32 bg-muted/50 rounded-lg animate-pulse"></div>
+          </div>
+          
+          {/* Summary Cards Skeleton */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="rounded-xl border border-border/50 bg-card/75 p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="h-4 w-24 bg-muted/50 rounded animate-pulse"></div>
+                  <div className="h-10 w-10 bg-muted/50 rounded-xl animate-pulse"></div>
+                </div>
+                <div className="h-10 w-32 bg-muted/50 rounded animate-pulse"></div>
+                <div className="h-3 w-20 bg-muted/50 rounded animate-pulse"></div>
               </div>
-            </div>
-            <div>
-              <p className="text-foreground font-medium">正在加载 CloudLens Dashboard</p>
-              <p className="text-muted-foreground text-sm mt-1">请稍候...</p>
-            </div>
+            ))}
+          </div>
+          
+          {/* Chart Skeleton */}
+          <div className="rounded-xl border border-border/50 bg-card/75 p-6">
+            <div className="h-8 w-48 bg-muted/50 rounded mb-4 animate-pulse"></div>
+            <div className="h-[450px] w-full bg-muted/30 rounded-lg animate-pulse"></div>
           </div>
         </div>
       </DashboardLayout>
@@ -178,20 +197,18 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
+      <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6 animate-fade-in">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">Dashboard</h1>
-            <p className="text-muted-foreground">
-              账号: <span className="text-primary font-mono font-semibold">{currentAccount || summary?.account || "N/A"}</span>
-            </p>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">{t.dashboard.title}</h1>
           </div>
-          <button
-            onClick={handleScan}
-            disabled={scanning}
-            className="px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
-          >
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleScan}
+              disabled={scanning}
+              className="px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-all duration-200 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap hover:-translate-y-0.5"
+            >
             {scanning ? (
               <>
                 <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
@@ -202,17 +219,18 @@ export default function DashboardPage() {
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   ></path>
                 </svg>
-                扫描中...
+                {t.dashboard.scanning}
               </>
             ) : (
               <>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                立即扫描
+                {t.dashboard.scanNow}
               </>
             )}
-          </button>
+            </button>
+          </div>
         </div>
 
         {/* Summary Cards */}
@@ -241,6 +259,7 @@ export default function DashboardPage() {
     </DashboardLayout>
   )
 }
+
 
 
 

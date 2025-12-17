@@ -317,3 +317,4 @@ curl "http://127.0.0.1:8000/api/resources?type=ecs&page=1&pageSize=20"
 
 
 
+

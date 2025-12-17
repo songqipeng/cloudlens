@@ -7,6 +7,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useRouter } from "next/navigation"
 import { TrendingDown, DollarSign, AlertCircle, Tag, Server, Globe, Lock, Network, ArrowRight } from "lucide-react"
 import { useAccount } from "@/contexts/account-context"
+import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
 
 interface Suggestion {
@@ -36,6 +37,7 @@ interface OptimizationData {
 export default function OptimizationPage() {
   const router = useRouter()
   const { currentAccount } = useAccount()
+  const { t } = useLocale()
   const [data, setData] = useState<OptimizationData | null>(null)
   const [loading, setLoading] = useState(true)
   const [expandedSuggestions, setExpandedSuggestions] = useState<Set<string>>(new Set())
@@ -93,14 +95,31 @@ export default function OptimizationPage() {
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case "成本优化":
+      case "Cost Optimization":
         return <DollarSign className="w-4 h-4" />
       case "安全优化":
+      case "Security Optimization":
         return <Lock className="w-4 h-4" />
       case "资源管理":
+      case "Resource Management":
         return <Tag className="w-4 h-4" />
       default:
         return <TrendingDown className="w-4 h-4" />
     }
+  }
+  
+  const getCategoryLabel = (category: string) => {
+    if (category === "成本优化" || category === "Cost Optimization") return t.optimization.costOptimization
+    if (category === "安全优化" || category === "Security Optimization") return t.optimization.securityOptimization
+    if (category === "资源管理" || category === "Resource Management") return t.optimization.resourceManagement
+    return category
+  }
+  
+  const getPriorityLabel = (priority: string) => {
+    if (priority === "high") return t.optimization.highPriority
+    if (priority === "medium") return t.optimization.mediumPriority
+    if (priority === "low") return t.optimization.lowPriority
+    return priority
   }
 
   const getTypeIcon = (type: string) => {
@@ -133,20 +152,20 @@ export default function OptimizationPage() {
     <DashboardLayout>
       <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">优化建议</h2>
-          <p className="text-muted-foreground mt-1">基于资源分析提供的详细优化建议</p>
+          <h2 className="text-3xl font-bold tracking-tight">{t.optimization.title}</h2>
+          <p className="text-muted-foreground mt-1">{t.optimization.description}</p>
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center h-40">
-            <div className="animate-pulse">加载中...</div>
+            <div className="animate-pulse">{t.common.loading}</div>
           </div>
         ) : !data || data.suggestions.length === 0 ? (
           <Card className="glass border border-border/50">
             <CardContent className="py-12 text-center">
               <TrendingDown className="w-16 h-16 mx-auto mb-4 opacity-50 text-muted-foreground" />
-              <p className="text-lg font-medium text-foreground mb-2">暂无优化建议</p>
-              <p className="text-sm text-muted-foreground">当前资源使用情况良好，未发现明显的优化机会</p>
+              <p className="text-lg font-medium text-foreground mb-2">{t.optimization.noSuggestions}</p>
+              <p className="text-sm text-muted-foreground">{t.optimization.noSuggestionsDesc}</p>
             </CardContent>
           </Card>
         ) : (
@@ -156,42 +175,42 @@ export default function OptimizationPage() {
                 <CardHeader>
                   <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
                     <TrendingDown className="w-4 h-4" />
-                    总节省潜力
+                    {t.optimization.totalSavingsPotential}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-green-500">¥{data.summary.total_savings_potential?.toLocaleString() || 0}</div>
-                  <p className="text-xs text-muted-foreground mt-1">月度节省潜力</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t.optimization.monthlySavingsPotential}</p>
                 </CardContent>
               </Card>
 
               <Card className="glass border border-border/50 hover:shadow-xl transition-all">
                 <CardHeader>
-                  <CardTitle className="text-sm text-muted-foreground">优化建议数</CardTitle>
+                  <CardTitle className="text-sm text-muted-foreground">{t.optimization.suggestionCount}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold">{data.summary.total_suggestions || 0}</div>
-                  <p className="text-xs text-muted-foreground mt-1">条优化建议</p>
+                  <p className="text-xs text-muted-foreground mt-1">{data.summary.total_suggestions || 0} {t.optimization.suggestions}</p>
                 </CardContent>
               </Card>
 
               <Card className="glass border border-border/50 hover:shadow-xl transition-all">
                 <CardHeader>
-                  <CardTitle className="text-sm text-muted-foreground">高优先级</CardTitle>
+                  <CardTitle className="text-sm text-muted-foreground">{t.optimization.highPriority}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-red-500">{data.summary.high_priority_count || 0}</div>
-                  <p className="text-xs text-muted-foreground mt-1">需要立即关注</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t.optimization.needImmediateAttention}</p>
                 </CardContent>
               </Card>
 
               <Card className="glass border border-border/50 hover:shadow-xl transition-all">
                 <CardHeader>
-                  <CardTitle className="text-sm text-muted-foreground">中优先级</CardTitle>
+                  <CardTitle className="text-sm text-muted-foreground">{t.optimization.mediumPriority}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-yellow-500">{data.summary.medium_priority_count || 0}</div>
-                  <p className="text-xs text-muted-foreground mt-1">建议尽快处理</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t.optimization.suggestHandleSoon}</p>
                 </CardContent>
               </Card>
             </div>
@@ -203,7 +222,7 @@ export default function OptimizationPage() {
                   filter === "all" ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" : "bg-muted/50 text-muted-foreground hover:bg-muted"
                 }`}
               >
-                全部 ({data.summary.total_suggestions || 0})
+                {t.optimization.all} ({data.summary.total_suggestions || 0})
               </button>
               <button
                 onClick={() => setFilter("high")}
@@ -211,7 +230,7 @@ export default function OptimizationPage() {
                   filter === "high" ? "bg-red-500 text-white shadow-md shadow-red-500/20" : "bg-muted/50 text-muted-foreground hover:bg-muted"
                 }`}
               >
-                高优先级 ({data.summary.high_priority_count || 0})
+                {t.optimization.highPriority} ({data.summary.high_priority_count || 0})
               </button>
               <button
                 onClick={() => setFilter("medium")}
@@ -219,7 +238,7 @@ export default function OptimizationPage() {
                   filter === "medium" ? "bg-yellow-500 text-white shadow-md shadow-yellow-500/20" : "bg-muted/50 text-muted-foreground hover:bg-muted"
                 }`}
               >
-                中优先级 ({data.summary.medium_priority_count || 0})
+                {t.optimization.mediumPriority} ({data.summary.medium_priority_count || 0})
               </button>
               <button
                 onClick={() => setFilter("low")}
@@ -227,7 +246,7 @@ export default function OptimizationPage() {
                   filter === "low" ? "bg-blue-500 text-white shadow-md shadow-blue-500/20" : "bg-muted/50 text-muted-foreground hover:bg-muted"
                 }`}
               >
-                低优先级 ({data.summary.low_priority_count || 0})
+                {t.optimization.lowPriority} ({data.summary.low_priority_count || 0})
               </button>
             </div>
 
@@ -252,23 +271,23 @@ export default function OptimizationPage() {
                             <div className="flex items-center gap-2 mb-2">
                               <CardTitle className="text-lg">{suggestion.title}</CardTitle>
                               <Badge className={getPriorityColor(suggestion.priority)}>
-                                {suggestion.priority === "high" ? "高优先级" : suggestion.priority === "medium" ? "中优先级" : "低优先级"}
+                                {getPriorityLabel(suggestion.priority)}
                               </Badge>
                               <Badge variant="info" className="flex items-center gap-1">
                                 {getCategoryIcon(suggestion.category)}
-                                {suggestion.category}
+                                {getCategoryLabel(suggestion.category)}
                               </Badge>
                             </div>
                             <p className="text-sm text-muted-foreground mb-3">{suggestion.description}</p>
                             <div className="flex items-center gap-6 text-sm">
                               <div>
-                                <span className="text-muted-foreground">涉及资源: </span>
-                                <span className="font-semibold text-foreground">{suggestion.resource_count} 个</span>
+                                <span className="text-muted-foreground">{t.optimization.relatedResources}: </span>
+                                <span className="font-semibold text-foreground">{suggestion.resource_count}{t.optimization.unit ? ` ${t.optimization.unit}` : ''}</span>
                               </div>
                               {suggestion.savings_potential > 0 && (
                                 <div>
-                                  <span className="text-muted-foreground">节省潜力: </span>
-                                  <span className="font-semibold text-green-500">¥{suggestion.savings_potential.toLocaleString()}/月</span>
+                                  <span className="text-muted-foreground">{t.optimization.savingsPotential}: </span>
+                                  <span className="font-semibold text-green-500">¥{suggestion.savings_potential.toLocaleString()}{t.optimization.perMonth}</span>
                                 </div>
                               )}
                             </div>
@@ -293,7 +312,7 @@ export default function OptimizationPage() {
                           <div className="flex items-start gap-2">
                             <AlertCircle className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
                             <div>
-                              <div className="text-sm font-medium text-blue-400 mb-1">💡 优化建议</div>
+                              <div className="text-sm font-medium text-blue-400 mb-1">💡 {t.optimization.optimizationSuggestion}</div>
                               <div className="text-sm text-muted-foreground">{suggestion.recommendation}</div>
                             </div>
                           </div>
@@ -302,7 +321,7 @@ export default function OptimizationPage() {
 
                       {suggestion.resources && suggestion.resources.length > 0 && (
                         <div>
-                          <div className="text-sm font-semibold mb-3">相关资源 ({suggestion.resources.length}):</div>
+                          <div className="text-sm font-semibold mb-3">{t.optimization.relatedResources} ({suggestion.resources.length}):</div>
                           <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
                             {suggestion.resources.map((resource: any, rIdx: number) => (
                               <div
@@ -336,6 +355,7 @@ export default function OptimizationPage() {
     </DashboardLayout>
   )
 }
+
 
 
 

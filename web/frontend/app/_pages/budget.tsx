@@ -4,10 +4,12 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useAccount } from "@/contexts/account-context"
+import { useLocale } from "@/contexts/locale-context"
 import { apiGet, apiPost } from "@/lib/api"
 
 export default function BudgetPage() {
   const { currentAccount } = useAccount()
+  const { t } = useLocale()
   const [budget, setBudget] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -42,7 +44,7 @@ export default function BudgetPage() {
 
   const handleSave = async () => {
     if (!currentAccount) {
-      alert("请先选择账号")
+      alert(t.budget.selectAccountFirst)
       return
     }
 
@@ -52,10 +54,10 @@ export default function BudgetPage() {
         monthly_budget: monthlyBudget,
         annual_budget: annualBudget,
       })
-      alert("预算设置成功！")
+      alert(t.budget.saveSuccess)
       fetchBudget()
     } catch (e) {
-      alert("保存失败")
+      alert(t.budget.saveFailed)
     } finally {
       setSaving(false)
     }
@@ -65,7 +67,7 @@ export default function BudgetPage() {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-pulse">加载中...</div>
+          <div className="animate-pulse">{t.common.loading}</div>
         </div>
       </DashboardLayout>
     )
@@ -77,17 +79,17 @@ export default function BudgetPage() {
     <DashboardLayout>
       <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">预算管理</h2>
-          <p className="text-muted-foreground mt-1">设置和管理成本预算</p>
+          <h2 className="text-3xl font-bold tracking-tight">{t.budget.title}</h2>
+          <p className="text-muted-foreground mt-1">{t.budget.description}</p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>预算设置</CardTitle>
+            <CardTitle>{t.budget.budgetSettings}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">月度预算 (CNY)</label>
+              <label className="text-sm font-medium mb-2 block">{t.budget.monthlyBudget}</label>
               <input
                 type="number"
                 value={monthlyBudget}
@@ -97,7 +99,7 @@ export default function BudgetPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">年度预算 (CNY)</label>
+              <label className="text-sm font-medium mb-2 block">{t.budget.annualBudget}</label>
               <input
                 type="number"
                 value={annualBudget}
@@ -111,7 +113,7 @@ export default function BudgetPage() {
               disabled={saving}
               className="w-full px-4 py-2.5 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 disabled:opacity-50 transition-all shadow-lg shadow-primary/20"
             >
-              {saving ? "保存中..." : "保存预算"}
+              {saving ? t.budget.saving : t.budget.saveBudget}
             </button>
           </CardContent>
         </Card>
@@ -119,13 +121,13 @@ export default function BudgetPage() {
         {budget && budget.monthly_budget > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>预算使用情况</CardTitle>
+              <CardTitle>{t.budget.budgetUsage}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-2">
-                    <span>本月已使用</span>
+                    <span>{t.budget.currentMonthUsed}</span>
                     <span className="font-semibold">¥{budget.current_month_spent?.toLocaleString() || 0}</span>
                   </div>
                   <div className="w-full bg-muted/50 rounded-full h-3 overflow-hidden">
@@ -137,7 +139,7 @@ export default function BudgetPage() {
                     />
                   </div>
                   <div className="text-xs text-muted-foreground mt-2">
-                    使用率: <span className="font-semibold">{usageRate.toFixed(1)}%</span>
+                    {t.budget.usageRate}: <span className="font-semibold">{usageRate.toFixed(1)}%</span>
                   </div>
                 </div>
               </div>
@@ -148,6 +150,7 @@ export default function BudgetPage() {
     </DashboardLayout>
   )
 }
+
 
 
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-统一缓存管理器
+文件缓存管理器（Legacy）
 使用msgpack替代pickle，消除安全风险
+注意：此模块已标记为Legacy，新代码应使用 core.cache.CacheManager (SQLite缓存)
 """
 
 import time
@@ -12,8 +13,8 @@ from typing import Any, Callable, List, Optional
 import msgpack
 
 
-class CacheManager:
-    """统一缓存管理器"""
+class FileCacheManager:
+    """文件缓存管理器（Legacy - 使用SQLite缓存替代）"""
 
     def __init__(
         self,

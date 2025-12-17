@@ -138,7 +138,7 @@ export function DropdownMenu({ trigger, items, align = "right" }: DropdownMenuPr
                             } ${item.disabled ? "opacity-50 cursor-not-allowed" : ""}`}
                         >
                             {item.icon}
-                            {item.label}
+                            <span className={item.variant === "danger" ? "" : ""}>{item.label}</span>
                         </button>
                     ))}
                 </div>
@@ -146,6 +146,7 @@ export function DropdownMenu({ trigger, items, align = "right" }: DropdownMenuPr
         </div>
     )
 }
+
 
 
 

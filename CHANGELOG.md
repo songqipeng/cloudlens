@@ -1,6 +1,33 @@
 # Changelog
 
-All notable changes to CloudLens CLI will be documented in this file.
+All notable changes to CloudLens will be documented in this file.
+
+## [2.1.1] - 2025-01-XX
+
+### Changed
+- 📚 **文档清理** - 删除所有过程文档和过时文档，只保留核心文档
+  - 删除所有 PHASE*、*_PLAN.md、*_REPORT.md、*_SUMMARY.md 等过程文档
+  - 删除过时的分析报告和对比文档
+  - 更新 README.md 和 PRODUCT_INTRODUCTION.md，添加 Web 界面相关内容
+  - 统一文档结构，提升可维护性
+
+### Fixed
+- 🐛 修复资源列表中 VPC 名称/ID 显示为空的问题
+- 🐛 修复后端国际化 API 参数顺序问题
+
+## [2.1.0] - 2025-01-XX
+
+### Added
+- 🌐 **Web 可视化界面** - 基于 Next.js + FastAPI 的现代化 Web 应用
+  - 支持中英文双语切换
+  - Dashboard 仪表盘，实时展示成本、资源、安全等关键指标
+  - 资源管理页面，支持多类型资源查询和筛选
+  - 成本分析页面，支持成本趋势和明细查看
+  - 折扣分析页面，支持折扣趋势和高级分析
+  - 安全合规页面，展示安全评分和检查结果
+  - 优化建议页面，提供资源优化建议
+  - 预算管理、告警管理、成本分配、AI优化等高级功能
+  - Finout 风格的现代化 UI 设计
 
 ## [2.0.0] - 2025-11-28
 

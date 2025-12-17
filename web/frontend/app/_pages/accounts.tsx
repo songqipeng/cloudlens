@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConfirmModal, Modal } from "@/components/ui/modal"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useAccount } from "@/contexts/account-context"
+import { useLocale } from "@/contexts/locale-context"
 import { apiGet, apiDelete, apiPost } from "@/lib/api"
 import { Eye, EyeOff, Plus } from "lucide-react"
 
@@ -17,6 +18,7 @@ interface Account {
 
 export default function AccountsPage() {
   const { refreshAccounts: refreshAccountContext, setCurrentAccount } = useAccount()
+  const { t } = useLocale()
   const router = useRouter()
   const pathname = usePathname()
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -86,9 +88,9 @@ export default function AccountsPage() {
     const accessKeyId = form.access_key_id.trim()
     const accessKeySecret = form.access_key_secret.trim()
 
-    if (!name) return setAddError("请输入账号名称（例如：zmyc）")
-    if (!accessKeyId) return setAddError("请输入 AccessKeyId")
-    if (!accessKeySecret) return setAddError("请输入 AccessKeySecret")
+    if (!name) return setAddError(t.accounts.nameRequired)
+    if (!accessKeyId) return setAddError(t.accounts.keyIdRequired)
+    if (!accessKeySecret) return setAddError(t.accounts.secretRequired)
 
     setAdding(true)
     try {
@@ -128,8 +130,8 @@ export default function AccountsPage() {
       <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">账号管理</h2>
-            <p className="text-muted-foreground mt-1">管理云账号配置</p>
+            <h2 className="text-3xl font-bold tracking-tight">{t.accounts.title}</h2>
+            <p className="text-muted-foreground mt-1">{t.accounts.description}</p>
           </div>
           <button
             onClick={() => {
@@ -139,26 +141,26 @@ export default function AccountsPage() {
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-lg shadow-primary/15"
           >
             <Plus className="w-4 h-4" />
-            添加账号
+            {t.accounts.addAccount}
           </button>
         </div>
 
         <Card className="glass border border-border/50 shadow-xl">
           <CardHeader>
-            <CardTitle>已配置账号</CardTitle>
+            <CardTitle>{t.accounts.configuredAccounts}</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="flex items-center justify-center h-40">
-                <div className="animate-pulse">加载中...</div>
+                <div className="animate-pulse">{t.common.loading}</div>
               </div>
             ) : accounts.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
                 </svg>
-                <p className="text-base">暂无账号</p>
-                <p className="text-sm mt-1 opacity-70">请添加云账号配置</p>
+                <p className="text-base">{t.accounts.noAccounts}</p>
+                <p className="text-sm mt-1 opacity-70">{t.accounts.noAccountsDesc}</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -169,7 +171,7 @@ export default function AccountsPage() {
                   >
                     <div>
                       <div className="font-semibold text-foreground">{account.name}</div>
-                      <div className="text-sm text-muted-foreground mt-1">区域: {account.region} | AK: {account.access_key_id.substring(0, 8)}...</div>
+                      <div className="text-sm text-muted-foreground mt-1">{t.accounts.region}: {account.region} | AK: {account.access_key_id.substring(0, 8)}...</div>
                     </div>
                     <button
                       onClick={() => {
@@ -178,7 +180,7 @@ export default function AccountsPage() {
                       }}
                       className="px-4 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
                     >
-                      删除
+                      {t.accounts.delete}
                     </button>
                   </div>
                 ))}
@@ -194,10 +196,10 @@ export default function AccountsPage() {
             setSelectedAccount(null)
           }}
           onConfirm={handleDelete}
-          title="确认删除"
-          message={`确定要删除账号 "${selectedAccount}" 吗？此操作不可恢复。`}
-          confirmText="删除"
-          cancelText="取消"
+          title={t.accounts.confirmDelete}
+          message={t.accounts.confirmDeleteMessage.replace('{account}', selectedAccount || '')}
+          confirmText={t.accounts.delete}
+          cancelText={t.common.cancel}
           variant="danger"
         />
 
@@ -207,12 +209,12 @@ export default function AccountsPage() {
             setShowAddModal(false)
             resetAddForm()
           }}
-          title="添加云账号"
+          title={t.accounts.addCloudAccount}
           size="md"
         >
           <div className="space-y-5">
             <div className="text-sm text-muted-foreground">
-              需要填写云厂商的访问密钥（AccessKey）。建议使用 <span className="text-foreground font-medium">最小权限</span> 的 RAM 子账号密钥。
+              {t.accounts.addAccountDesc}
             </div>
 
             {addError && (
@@ -223,39 +225,39 @@ export default function AccountsPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <div className="text-sm font-medium">账号名称</div>
+                <div className="text-sm font-medium">{t.accounts.accountName}</div>
                 <input
                   value={form.name}
                   onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
-                  placeholder="例如：zmyc"
+                  placeholder={t.accounts.accountNamePlaceholder}
                   className="w-full px-3 py-2.5 rounded-lg border border-border/60 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
                 />
               </div>
 
               <div className="space-y-2">
-                <div className="text-sm font-medium">云厂商</div>
+                <div className="text-sm font-medium">{t.accounts.provider}</div>
                 <select
                   value={form.provider}
                   onChange={(e) => setForm((s) => ({ ...s, provider: e.target.value }))}
                   className="w-full px-3 py-2.5 rounded-lg border border-border/60 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
                 >
-                  <option value="aliyun">阿里云（aliyun）</option>
-                  <option value="tencent">腾讯云（tencent）</option>
+                  <option value="aliyun">{t.accounts.aliyun}</option>
+                  <option value="tencent">{t.accounts.tencent}</option>
                 </select>
               </div>
 
               <div className="space-y-2">
-                <div className="text-sm font-medium">Region</div>
+                <div className="text-sm font-medium">{t.accounts.region}</div>
                 <input
                   value={form.region}
                   onChange={(e) => setForm((s) => ({ ...s, region: e.target.value }))}
-                  placeholder="例如：cn-hangzhou"
+                  placeholder={t.accounts.regionPlaceholder}
                   className="w-full px-3 py-2.5 rounded-lg border border-border/60 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
                 />
               </div>
 
               <div className="space-y-2">
-                <div className="text-sm font-medium">AccessKeyId</div>
+                <div className="text-sm font-medium">{t.accounts.accessKeyId}</div>
                 <input
                   value={form.access_key_id}
                   onChange={(e) => setForm((s) => ({ ...s, access_key_id: e.target.value }))}
@@ -266,13 +268,13 @@ export default function AccountsPage() {
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <div className="text-sm font-medium">AccessKeySecret</div>
+                <div className="text-sm font-medium">{t.accounts.accessKeySecret}</div>
                 <div className="relative">
                   <input
                     type={showSecret ? "text" : "password"}
                     value={form.access_key_secret}
                     onChange={(e) => setForm((s) => ({ ...s, access_key_secret: e.target.value }))}
-                    placeholder="请输入 AccessKeySecret"
+                    placeholder={t.accounts.accessKeySecret}
                     className="w-full pr-10 px-3 py-2.5 rounded-lg border border-border/60 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm font-mono"
                     autoComplete="new-password"
                   />
@@ -280,13 +282,13 @@ export default function AccountsPage() {
                     type="button"
                     onClick={() => setShowSecret((v) => !v)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-md hover:bg-muted/40 text-muted-foreground"
-                    title={showSecret ? "隐藏" : "显示"}
+                    title={showSecret ? t.accounts.hide : t.accounts.show}
                   >
                     {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Secret 将被保存到本地配置文件/存储中，用于后端调用云 API。
+                  {t.accounts.secretNote}
                 </div>
               </div>
             </div>
@@ -300,14 +302,14 @@ export default function AccountsPage() {
                 className="px-4 py-2.5 rounded-lg border border-border hover:bg-muted/40 transition-colors text-sm"
                 disabled={adding}
               >
-                取消
+                {t.common.cancel}
               </button>
               <button
                 onClick={handleAdd}
                 disabled={adding}
                 className="px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {adding ? "保存中..." : "保存并切换"}
+                {adding ? t.accounts.saving : t.accounts.saveAndSwitch}
               </button>
             </div>
           </div>
@@ -316,6 +318,7 @@ export default function AccountsPage() {
     </DashboardLayout>
   )
 }
+
 
 
 

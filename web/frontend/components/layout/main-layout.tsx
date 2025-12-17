@@ -11,12 +11,14 @@ export function MainLayout({ children }: MainLayoutProps) {
     return (
         <div className="min-h-screen bg-background text-foreground font-sans flex">
             <Sidebar />
-            <main className="flex-1 p-8">
+            {/* Finout 风格：更大的内容区域，更好的间距 */}
+            <main className="flex-1 p-6 md:p-8 lg:p-10 overflow-auto">
                 {children}
             </main>
         </div>
     )
 }
+
 
 
 

@@ -5,6 +5,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableColumn } from "@/components/ui/table"
 import { useAccount } from "@/contexts/account-context"
+import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
 
 type SubscriptionType = "Subscription" | "PayAsYouGo" | "Unknown"
@@ -45,20 +46,22 @@ interface DiscountsResponse {
 }
 
 const fmtCny = (n: number) => `¥${(Number.isFinite(n) ? n : 0).toLocaleString()}`
-const fmtZhe = (z: number | null | undefined, free?: boolean) => {
-  if (free) return "免费"
-  if (z === null || z === undefined || !Number.isFinite(z)) return "-"
-  return `${Number(z).toFixed(1)}折`
-}
-
-const typeLabel = (t: string) => {
-  if (t === "Subscription") return "包年包月"
-  if (t === "PayAsYouGo") return "按量付费"
-  return t || "-"
-}
 
 export default function DiscountsPage() {
   const { currentAccount } = useAccount()
+  const { t } = useLocale()
+  
+  const fmtZhe = (z: number | null | undefined, free?: boolean) => {
+    if (free) return t.discounts.free
+    if (z === null || z === undefined || !Number.isFinite(z)) return "-"
+    return `${Number(z).toFixed(1)}${t.locale === 'zh' ? '折' : ' off'}`
+  }
+
+  const typeLabel = (tType: string) => {
+    if (tType === "Subscription") return t.discounts.subscription
+    if (tType === "PayAsYouGo") return t.discounts.payAsYouGo
+    return tType || "-"
+  }
   const [billingCycle, setBillingCycle] = useState(() => new Date().toISOString().slice(0, 7))
   const [mode, setMode] = useState<"all" | "Subscription" | "PayAsYouGo">("all")
   const [search, setSearch] = useState("")
@@ -102,7 +105,7 @@ export default function DiscountsPage() {
     setLoading(true)
     setElapsedSec(0)
     setError(null)
-    setStatusText(force ? "正在强制刷新：拉取阿里云账单与折扣数据..." : "正在加载：优先读取缓存（更快）...")
+    setStatusText(force ? t.discounts.forceRefreshing : t.discounts.loadingCache)
     try {
       const timeoutMs = force ? 60000 : 15000
       const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
@@ -119,7 +122,7 @@ export default function DiscountsPage() {
         // 如果是被“新请求”中断（比如你快速切换账期/反复点击），不提示错误
         if (reqSeq !== reqSeqRef.current) return
         const waited = Math.floor((Date.now() - startedAt) / 1000)
-        setError(`请求超时（已等待 ${waited}s）。可以先尝试“加载缓存”，或稍后再点“强制刷新”。`)
+        setError(t.discounts.timeoutMessage.replace('{seconds}', String(waited)))
       } else {
         if (reqSeq !== reqSeqRef.current) return
         setError(String(e))
@@ -149,7 +152,7 @@ export default function DiscountsPage() {
   const columns: TableColumn<DiscountRow>[] = [
     {
       key: "product_name",
-      label: "产品",
+      label: t.discounts.product,
       sortable: true,
       render: (value, row) => (
         <div>
@@ -160,44 +163,44 @@ export default function DiscountsPage() {
     },
     {
       key: "subscription_type",
-      label: "计费方式",
+      label: t.discounts.billingType,
       sortable: true,
       render: (value) => <span className="text-sm">{typeLabel(String(value || ""))}</span>,
     },
     {
       key: "pretax_gross_amount",
-      label: "原价(税前)",
+      label: t.discounts.originalPrice,
       sortable: true,
       render: (v) => <span className="font-mono">{fmtCny(Number(v || 0))}</span>,
     },
     {
       key: "pretax_amount",
-      label: "折后(税前)",
+      label: t.discounts.discountedPrice,
       sortable: true,
       render: (v) => <span className="font-mono">{fmtCny(Number(v || 0))}</span>,
     },
     {
       key: "discount_amount",
-      label: "节省",
+      label: t.discounts.savings,
       sortable: true,
       render: (v) => <span className="font-mono text-primary">{fmtCny(Number(v || 0))}</span>,
     },
     {
       key: "discount_pct",
-      label: "折扣",
+      label: t.discounts.overallDiscount,
       sortable: true,
       render: (v, row) => (
         <div className="font-mono">
           <div className="font-semibold">{fmtZhe(row.discount_zhe, row.free)}</div>
           <div className="text-[11px] text-muted-foreground">
-            {row.discount_rate === null ? "-" : `实付比例 ${Number(row.discount_rate).toFixed(4)}`}
+            {row.discount_rate === null ? "-" : `${t.discounts.actualPaymentRate} ${Number(row.discount_rate).toFixed(4)}`}
           </div>
         </div>
       ),
     },
     {
       key: "outstanding_amount",
-      label: "未结算",
+      label: t.discounts.unpaid,
       sortable: true,
       render: (v) => <span className="font-mono">{fmtCny(Number(v || 0))}</span>,
     },
@@ -209,14 +212,14 @@ export default function DiscountsPage() {
     <DashboardLayout>
       <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
         <div className="flex flex-col gap-2">
-          <h2 className="text-3xl font-bold tracking-tight">折扣分析</h2>
-          <p className="text-muted-foreground">按产品 + 计费方式汇总折扣（包年包月 / 按量付费）</p>
+          <h2 className="text-3xl font-bold tracking-tight">{t.discounts.title}</h2>
+          <p className="text-muted-foreground">{t.discounts.description}</p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-4">
           <Card className="glass border border-border/50 hover:shadow-xl transition-all">
             <CardHeader>
-              <CardTitle className="text-sm text-muted-foreground">账期</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">{t.discounts.billingCycle}</CardTitle>
             </CardHeader>
             <CardContent>
               <input
@@ -226,14 +229,14 @@ export default function DiscountsPage() {
                 className="w-full px-3 py-2 rounded-lg border border-border/60 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm font-mono"
               />
               <div className="text-xs text-muted-foreground mt-2">
-                当前：<span className="font-mono">{data?.billing_cycle || "-"}</span>
+                {t.discounts.current}：<span className="font-mono">{data?.billing_cycle || "-"}</span>
               </div>
             </CardContent>
           </Card>
 
           <Card className="glass border border-border/50 hover:shadow-xl transition-all">
             <CardHeader>
-              <CardTitle className="text-sm text-muted-foreground">原价(税前)</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">{t.discounts.originalPrice}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{fmtCny(Number(summary?.total_pretax_gross_amount || 0))}</div>
@@ -242,7 +245,7 @@ export default function DiscountsPage() {
 
           <Card className="glass border border-border/50 hover:shadow-xl transition-all">
             <CardHeader>
-              <CardTitle className="text-sm text-muted-foreground">折后(税前)</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">{t.discounts.discountedPrice}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{fmtCny(Number(summary?.total_pretax_amount || 0))}</div>
@@ -251,11 +254,11 @@ export default function DiscountsPage() {
 
           <Card className="glass border border-border/50 hover:shadow-xl transition-all">
             <CardHeader>
-              <CardTitle className="text-sm text-muted-foreground">节省 / 折扣</CardTitle>
+              <CardTitle className="text-sm text-muted-foreground">{t.discounts.savingsDiscount}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-primary">{fmtCny(Number(summary?.total_discount_amount || 0))}</div>
-              <div className="text-xs text-muted-foreground mt-1">整体折扣：{fmtZhe(summary?.discount_zhe, summary?.free)}</div>
+              <div className="text-xs text-muted-foreground mt-1">{t.discounts.overallDiscount}：{fmtZhe(summary?.discount_zhe, summary?.free)}</div>
             </CardContent>
           </Card>
         </div>
@@ -263,13 +266,13 @@ export default function DiscountsPage() {
         <Card className="glass border border-border/50 shadow-xl">
           <CardHeader>
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-              <CardTitle>明细</CardTitle>
+              <CardTitle>{t.discounts.details}</CardTitle>
               <div className="flex flex-col sm:flex-row gap-2">
                 <div className="flex gap-2">
                   {[
-                    { k: "all" as const, label: "全部" },
-                    { k: "Subscription" as const, label: "包年包月" },
-                    { k: "PayAsYouGo" as const, label: "按量付费" },
+                    { k: "all" as const, label: t.discounts.all },
+                    { k: "Subscription" as const, label: t.discounts.subscription },
+                    { k: "PayAsYouGo" as const, label: t.discounts.payAsYouGo },
                   ].map((t) => (
                     <button
                       key={t.k}
@@ -287,20 +290,20 @@ export default function DiscountsPage() {
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="搜索产品/代码..."
+                  placeholder={t.discounts.searchPlaceholder}
                   className="px-4 py-2 rounded-lg border border-border/60 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
                 />
                 <button
                   onClick={() => fetchData(false)}
                   className="px-4 py-2 rounded-lg border border-border hover:bg-muted/40 transition-colors text-sm"
                 >
-                  加载缓存
+                  {t.discounts.loadCache}
                 </button>
                 <button
                   onClick={() => fetchData(true)}
                   className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm"
                 >
-                  强制刷新
+                  {t.discounts.forceRefresh}
                 </button>
               </div>
             </div>
@@ -309,26 +312,26 @@ export default function DiscountsPage() {
             {loading ? (
               <div className="flex items-center justify-center h-40">
                 <div className="text-center space-y-2">
-                  <div className="animate-pulse text-sm">{statusText || "加载中..."}</div>
-                  <div className="text-xs text-muted-foreground">已等待 {elapsedSec}s</div>
+                  <div className="animate-pulse text-sm">{statusText || t.common.loading}</div>
+                  <div className="text-xs text-muted-foreground">{t.discounts.waited.replace('{seconds}', String(elapsedSec))}</div>
                   <button
                     onClick={() => abortRef.current?.abort()}
                     className="mt-2 px-3 py-1.5 rounded-lg border border-border hover:bg-muted/40 transition-colors text-xs"
                   >
-                    取消本次请求
+                    {t.discounts.cancelRequest}
                   </button>
                 </div>
               </div>
             ) : error ? (
               <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-sm">
-                <div className="font-medium text-destructive mb-2">加载失败</div>
+                <div className="font-medium text-destructive mb-2">{t.discounts.loadFailed}</div>
                 <div className="text-muted-foreground break-words">{error}</div>
               </div>
             ) : (
               <Table data={rows} columns={columns} />
             )}
             <div className="text-xs text-muted-foreground mt-3">
-              说明：按量付费可能存在未结算金额（PaymentAmount=0），请结合“未结算”与“折后(税前)”理解。
+              {t.discounts.note}
             </div>
           </CardContent>
         </Card>
@@ -336,6 +339,7 @@ export default function DiscountsPage() {
     </DashboardLayout>
   )
 }
+
 
 
 

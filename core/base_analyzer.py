@@ -7,7 +7,8 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.cache_manager import CacheManager
+from core.cache_manager import FileCacheManager
+from core.cache import CacheManager
 from core.db_manager import DatabaseManager
 from core.threshold_manager import ThresholdManager
 

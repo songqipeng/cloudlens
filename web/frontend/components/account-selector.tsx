@@ -4,10 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useAccount } from "@/contexts/account-context"
+import { useLocale } from "@/contexts/locale-context"
 import { Check, ChevronDown, Search, User, RefreshCw, Plus, Settings } from "lucide-react"
 
 export function AccountSelector() {
     const { currentAccount, accounts, setCurrentAccount, refreshAccounts, loading } = useAccount()
+    const { t } = useLocale()
     const router = useRouter()
     const pathname = usePathname()
     const [isOpen, setIsOpen] = useState(false)
@@ -54,9 +56,9 @@ export function AccountSelector() {
                         <User className="w-4 h-4 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0 text-left">
-                        <div className="text-[11px] text-muted-foreground leading-none mb-1">当前账号</div>
+                        <div className="text-[11px] text-muted-foreground leading-none mb-1">{t.locale === 'zh' ? '当前账号' : 'Current Account'}</div>
                         <div className="font-semibold text-foreground truncate leading-snug">
-                            {selectedAccount ? selectedAccount.name : "请选择账号"}
+                            {selectedAccount ? selectedAccount.name : (t.locale === 'zh' ? '请选择账号' : 'Select Account')}
                         </div>
                         {selectedAccount?.region && (
                             <div className="text-[11px] text-muted-foreground/90 truncate mt-0.5">
@@ -78,9 +80,9 @@ export function AccountSelector() {
                         <div className="p-4 border-b border-border/50 bg-gradient-to-r from-primary/8 via-cyan-500/8 to-primary/8">
                             <div className="flex items-center justify-between gap-3">
                                 <div className="min-w-0">
-                                    <div className="text-sm font-semibold text-foreground leading-snug">账号</div>
+                                    <div className="text-sm font-semibold text-foreground leading-snug">{t.locale === 'zh' ? '账号' : 'Account'}</div>
                                     <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                                        当前：<span className="font-medium text-foreground">{selectedAccount?.name || "未选择"}</span>
+                                        {t.locale === 'zh' ? '当前：' : 'Current: '}<span className="font-medium text-foreground">{selectedAccount?.name || (t.locale === 'zh' ? '未选择' : 'Not Selected')}</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -213,6 +215,7 @@ export function AccountSelector() {
 
 // 兼容默认导入（有些地方可能会写成 `import AccountSelector from ...`）
 export default AccountSelector
+
 
 
 

@@ -105,7 +105,7 @@ class BillStorageManager:
                 )
             """)
             
-            # 创建索引
+            # 创建索引（优化查询性能）
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_bill_items_account_cycle 
                 ON bill_items(account_id, billing_cycle)
@@ -124,6 +124,28 @@ class BillStorageManager:
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_bill_items_instance 
                 ON bill_items(instance_id)
+            """)
+            
+            # 添加复合索引（优化常用查询组合）
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_bill_items_account_date 
+                ON bill_items(account_id, billing_date)
+            """)
+            
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_bill_items_product_date 
+                ON bill_items(product_code, billing_date)
+            """)
+            
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_bill_items_account_product 
+                ON bill_items(account_id, product_code)
+            """)
+            
+            # 优化折扣分析查询
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_bill_items_subscription 
+                ON bill_items(subscription_type, billing_date)
             """)
             
             # 创建账期统计表（快速查询用）
@@ -600,3 +622,4 @@ def main():
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     main()
+

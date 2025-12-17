@@ -386,3 +386,4 @@ def show_stats(db_path):
     
     except Exception as e:
         console.print(f"[red]❌ 查询失败: {str(e)}[/red]")
+

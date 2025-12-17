@@ -1,13 +1,22 @@
 
 from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from typing import List, Dict, Optional, Any
+from datetime import datetime
+import sys
+import logging
+
+logger = logging.getLogger(__name__)
 from core.config import ConfigManager, CloudAccount
+from web.backend.i18n import get_translation, get_locale_from_request, Locale
 from core.context import ContextManager
 from core.cost_trend_analyzer import CostTrendAnalyzer
-from core.cache import CacheManager as ResourceCacheManager
-from core.cache import CacheManager  # For idle_result and other caches
+from core.cache import CacheManager  # SQLite缓存管理器（统一使用）
 from core.rules_manager import RulesManager
 from core.services.analysis_service import AnalysisService
+from core.virtual_tags import VirtualTagStorage, VirtualTag, TagRule, TagEngine
+from core.bill_storage import BillStorageManager
+from core.dashboard_manager import DashboardStorage, Dashboard, WidgetConfig
+from web.backend.error_handler import api_error_handler
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api")
@@ -80,7 +89,8 @@ def trigger_analysis(req: TriggerAnalysisRequest, background_tasks: BackgroundTa
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/dashboard/summary")
-def get_summary(account: Optional[str] = None, force_refresh: bool = Query(False, description="强制刷新缓存")):
+@api_error_handler
+async def get_summary(account: Optional[str] = None, force_refresh: bool = Query(False, description="强制刷新缓存")):
     """Get dashboard summary metrics（带24小时缓存）"""
     import logging
     logger = logging.getLogger(__name__)
@@ -93,18 +103,18 @@ def get_summary(account: Optional[str] = None, force_refresh: bool = Query(False
     
     # 调试日志
     logger.info(f"[get_summary] 收到账号参数: {account}, force_refresh: {force_refresh}")
-    print(f"[DEBUG get_summary] 收到账号参数: {account}, force_refresh: {force_refresh}")
-    print(f"[DEBUG get_summary] 收到账号参数: {account}, force_refresh: {force_refresh}")
+    logger.debug(f"收到账号参数: {account}, force_refresh: {force_refresh}")
+    logger.debug(f"收到账号参数: {account}, force_refresh: {force_refresh}")
 
     # 初始化缓存管理器，TTL设置为24小时（86400秒）
-    cache_manager = ResourceCacheManager(ttl_seconds=86400)
+    cache_manager = CacheManager(ttl_seconds=86400)
     
     # 尝试从缓存获取数据
     cached_result = None
     if not force_refresh:
         cached_result = cache_manager.get(resource_type="dashboard_summary", account_name=account)
         if cached_result:
-            print(f"[DEBUG get_summary] 使用缓存数据，账号: {account}")
+            logger.debug(f"使用缓存数据，账号: {account}")
     
     # 如果缓存有效，直接使用缓存数据
     if cached_result is not None:
@@ -113,7 +123,7 @@ def get_summary(account: Optional[str] = None, force_refresh: bool = Query(False
             "cached": True,
         }
 
-    print(f"[DEBUG get_summary] 缓存未命中，重新计算，账号: {account}")
+    logger.debug(f"缓存未命中，重新计算，账号: {account}")
     account_config = cm.get_account(account)
     if not account_config:
         print(f"[DEBUG get_summary] 账号 '{account}' 未找到")
@@ -130,23 +140,79 @@ def get_summary(account: Optional[str] = None, force_refresh: bool = Query(False
     except Exception:
         billing_total_cost = None
 
-    # Get Cost Data
-    analyzer = CostTrendAnalyzer()
+    # Get Cost Data - 使用真实账单数据比较本月和上月
+    from datetime import datetime, timedelta
+    now = datetime.now()
+    current_cycle = now.strftime("%Y-%m")
+    first_day_this_month = now.replace(day=1)
+    last_day_last_month = first_day_this_month - timedelta(days=1)
+    last_cycle = last_day_last_month.strftime("%Y-%m")
+    
     try:
-        history, analysis = analyzer.get_cost_trend(account, days=30)
-        # 当历史数据不足时，analysis 会包含 error；不要把 total_cost 误置为 0（会影响汇总与节省潜力）
-        if isinstance(analysis, dict) and "error" in analysis:
+        # 获取本月和上月的账单数据
+        current_totals = _get_billing_overview_totals(account_config, billing_cycle=current_cycle, force_refresh=False) if account_config else None
+        last_totals = _get_billing_overview_totals(account_config, billing_cycle=last_cycle, force_refresh=False) if account_config else None
+        
+        # 如果数据库没有上月数据，尝试通过API获取
+        if last_totals is None or (last_totals.get("total_pretax", 0) == 0 and last_totals.get("data_source") == "local_db"):
+            logger.info(f"上月数据不可用，尝试通过API获取: {last_cycle}")
+            try:
+                last_totals = _get_billing_overview_totals(account_config, billing_cycle=last_cycle, force_refresh=True)
+            except Exception as e:
+                logger.error(f"获取上月数据失败: {str(e)}")
+                last_totals = None
+        
+        current_cost = float((current_totals or {}).get("total_pretax") or 0.0)
+        last_cost = float((last_totals or {}).get("total_pretax") or 0.0)
+        
+        # 计算趋势（本月 vs 上月）
+        if last_cost > 0:
+            trend_pct = ((current_cost - last_cost) / last_cost) * 100
+            if trend_pct > 1:
+                trend = "上升"
+            elif trend_pct < -1:
+                trend = "下降"
+            else:
+                trend = "平稳"
+        else:
+            trend = "数据不足"
+            trend_pct = 0.0
+        
+        # 使用本月成本作为total_cost（如果账单数据可用）
+        if current_cost > 0:
+            total_cost = current_cost
+        else:
+            # 如果账单数据不可用，尝试使用历史趋势数据
+            analyzer = CostTrendAnalyzer()
+            try:
+                history, analysis = analyzer.get_cost_trend(account, days=30)
+                if isinstance(analysis, dict) and "error" not in analysis:
+                    total_cost = analysis.get("latest_cost", 0.0)
+                else:
+                    total_cost = None
+            except Exception:
+                total_cost = None
+        
+        logger.info(f"成本趋势计算: 本月({current_cycle})={current_cost:.2f}, 上月({last_cycle})={last_cost:.2f}, 趋势={trend}, 变化={trend_pct:.2f}%")
+        
+    except Exception as e:
+        logger.error(f"计算成本趋势失败: {str(e)}")
+        # Fallback: 使用历史趋势数据
+        analyzer = CostTrendAnalyzer()
+        try:
+            history, analysis = analyzer.get_cost_trend(account, days=30)
+            if isinstance(analysis, dict) and "error" in analysis:
+                total_cost = None
+                trend = "N/A"
+                trend_pct = 0.0
+            else:
+                total_cost = analysis.get("latest_cost", 0.0)
+                trend = analysis.get("trend", "Unknown")
+                trend_pct = analysis.get("total_change_pct", 0.0)
+        except Exception:
             total_cost = None
             trend = "N/A"
             trend_pct = 0.0
-        else:
-            total_cost = analysis.get("latest_cost", 0.0)
-            trend = analysis.get("trend", "Unknown")
-            trend_pct = analysis.get("total_change_pct", 0.0)
-    except Exception:
-        total_cost = None
-        trend = "N/A"
-        trend_pct = 0.0
 
     # Get Idle Data
     cache = CacheManager(ttl_seconds=86400)
@@ -168,9 +234,39 @@ def get_summary(account: Optional[str] = None, force_refresh: bool = Query(False
         }
         total_resources = sum(resource_breakdown.values())
         
-        # Tag Coverage
-        tagged_count = sum(1 for inst in instances if hasattr(inst, 'tags') and inst.tags)
-        tag_coverage = (tagged_count / len(instances) * 100) if instances else 0
+        # Tag Coverage - 统计所有资源（ECS + RDS + Redis）的标签覆盖率
+        all_resources = list(instances) + list(rds_list) + list(redis_list)
+        tagged_count = 0
+        for resource in all_resources:
+            has_tags = False
+            # 检查资源是否有tags属性且tags不为空
+            if hasattr(resource, 'tags'):
+                # UnifiedResource对象，tags是字典
+                if resource.tags and isinstance(resource.tags, dict) and len(resource.tags) > 0:
+                    has_tags = True
+            elif isinstance(resource, dict):
+                # 字典格式的资源，检查tags字段
+                tags = resource.get('tags') or resource.get('Tags') or {}
+                if tags and isinstance(tags, dict) and len(tags) > 0:
+                    has_tags = True
+            
+            # 如果tags为空，尝试从raw_data中提取
+            if not has_tags and hasattr(resource, 'raw_data') and resource.raw_data:
+                raw_tags = resource.raw_data.get('Tags') or resource.raw_data.get('tags') or {}
+                if raw_tags:
+                    # 处理阿里云API返回的Tags格式: {'Tag': [{'TagKey': '...', 'TagValue': '...'}]}
+                    if isinstance(raw_tags, dict) and 'Tag' in raw_tags:
+                        tag_list = raw_tags['Tag']
+                        if isinstance(tag_list, list) and len(tag_list) > 0:
+                            has_tags = True
+                    elif isinstance(raw_tags, dict) and len(raw_tags) > 0:
+                        has_tags = True
+            
+            if has_tags:
+                tagged_count += 1
+        
+        tag_coverage = (tagged_count / total_resources * 100) if total_resources > 0 else 0
+        logger.info(f"标签覆盖率计算: 总资源数={total_resources}, 有标签资源数={tagged_count}, 覆盖率={tag_coverage:.2f}%")
         
         # Alert Count (simplified - TODO: implement actual alert system)
         alert_count = 0
@@ -266,16 +362,36 @@ def get_summary(account: Optional[str] = None, force_refresh: bool = Query(False
 
 
 @router.get("/dashboard/trend")
-def get_trend(account: Optional[str] = None, days: int = 30, force_refresh: bool = Query(False, description="强制刷新缓存")):
-    """Get cost trend chart data（带24小时缓存）"""
+@api_error_handler
+async def get_trend(
+    account: Optional[str] = None, 
+    days: int = 30, 
+    start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
+    force_refresh: bool = Query(False, description="强制刷新缓存")
+):
+    """Get cost trend chart data（带24小时缓存）
+    
+    Args:
+        account: 账号名称
+        days: 查询天数，0表示获取所有历史数据（当start_date和end_date都提供时，此参数被忽略）
+        start_date: 开始日期 YYYY-MM-DD格式
+        end_date: 结束日期 YYYY-MM-DD格式
+        force_refresh: 是否强制刷新缓存
+    """
     if not account:
         raise HTTPException(status_code=400, detail="账号参数是必需的")
-    print(f"[DEBUG get_trend] 收到账号参数: {account}, days: {days}")
-    # 初始化缓存管理器，TTL设置为24小时（86400秒）
-    cache_manager = ResourceCacheManager(ttl_seconds=86400)
     
-    # 生成缓存键（包含 days 参数）
-    cache_key = f"dashboard_trend_{days}"
+    # 如果提供了日期范围，使用日期范围；否则使用days参数
+    if start_date and end_date:
+        logger.debug(f"收到账号参数: {account}, 日期范围: {start_date} 至 {end_date}")
+        cache_key = f"dashboard_trend_{start_date}_{end_date}"
+    else:
+        logger.debug(f"收到账号参数: {account}, days: {days} ({'全部历史' if days == 0 else f'最近{days}天'})")
+        cache_key = f"dashboard_trend_{days}"
+    
+    # 初始化缓存管理器，TTL设置为24小时（86400秒）
+    cache_manager = CacheManager(ttl_seconds=86400)
     
     # 尝试从缓存获取数据
     cached_result = None
@@ -291,7 +407,16 @@ def get_trend(account: Optional[str] = None, days: int = 30, force_refresh: bool
     
     analyzer = CostTrendAnalyzer()
     try:
-        report = analyzer.generate_trend_report(account, days)
+        # 如果提供了日期范围，计算days参数；否则使用传入的days
+        if start_date and end_date:
+            from datetime import datetime
+            start = datetime.strptime(start_date, "%Y-%m-%d")
+            end = datetime.strptime(end_date, "%Y-%m-%d")
+            calculated_days = (end - start).days
+            # 使用日期范围生成报告
+            report = analyzer.generate_trend_report(account, calculated_days, start_date=start_date, end_date=end_date)
+        else:
+            report = analyzer.generate_trend_report(account, days)
         if "error" in report:
             # 趋势图常见的“无数据/数据不足”不应该作为服务端错误；
             # 返回 200 + 空 chart_data，前端可自然降级为“不展示趋势图”。
@@ -329,7 +454,7 @@ def get_idle_resources(account: Optional[str] = None, force_refresh: bool = Quer
         raise HTTPException(status_code=400, detail="账号参数是必需的")
     print(f"[DEBUG get_idle_resources] 收到账号参数: {account}")
     # 初始化缓存管理器，TTL设置为24小时（86400秒）
-    cache_manager = ResourceCacheManager(ttl_seconds=86400)
+    cache_manager = CacheManager(ttl_seconds=86400)
     
     # 尝试从缓存获取数据
     cached_result = None
@@ -475,7 +600,11 @@ def _get_billing_overview_from_db(
         
         conn.close()
         
-        if total <= 0:
+        # 检查是否有任何记录（即使总成本为0，也可能有记录）
+        # 如果没有记录，返回None让API查询；如果有记录但总成本为0，也返回数据（可能是真实情况）
+        if len(by_product) == 0:
+            # 没有找到任何记录，返回None让API查询
+            logger.info(f"数据库中没有账期 {billing_cycle} 的数据，将使用API查询")
             return None
         
         return {
@@ -604,7 +733,7 @@ def _get_cost_map_from_billing(resource_type: str, account_config: CloudAccount,
     }
     expected_prefix = expected_prefix_map.get(resource_type)
 
-    cache_manager = ResourceCacheManager(ttl_seconds=86400)
+    cache_manager = CacheManager(ttl_seconds=86400)
     cache_key = f"billing_cost_map_{resource_type}_{billing_cycle}"
     cached = cache_manager.get(resource_type=cache_key, account_name=account_config.name)
     if isinstance(cached, dict) and cached:
@@ -700,22 +829,33 @@ def _get_billing_overview_totals(
         billing_cycle = _get_billing_cycle_default()
 
     cache_key = f"billing_overview_totals_{billing_cycle}"
-    cache_manager = ResourceCacheManager(ttl_seconds=86400)
+    cache_manager = CacheManager(ttl_seconds=86400)
     if not force_refresh:
         cached = cache_manager.get(resource_type=cache_key, account_name=account_config.name)
-        if isinstance(cached, dict) and "total_pretax" in cached and "by_product" in cached:
-            return cached
+        # CacheManager.get() 返回 List[Any]，但我们需要 dict，所以取第一个元素
+        if cached and isinstance(cached, list) and len(cached) > 0:
+            cached_dict = cached[0] if isinstance(cached[0], dict) else None
+            if cached_dict and "total_pretax" in cached_dict and "by_product" in cached_dict:
+                return cached_dict
 
     # 优先尝试从本地数据库读取（快速）
     if not force_refresh:
         db_result = _get_billing_overview_from_db(account_config.name, billing_cycle)
         if db_result is not None:
-            logger.info(f"✅ 从本地数据库读取账单概览: {account_config.name}, {billing_cycle}")
-            cache_manager.set(resource_type=cache_key, account_name=account_config.name, data=db_result)
+            logger.info(f"✅ 从本地数据库读取账单概览: {account_config.name}, {billing_cycle}, 总成本={db_result.get('total_pretax', 0)}")
+            cache_manager.set(resource_type=cache_key, account_name=account_config.name, data=[db_result])
             return db_result
-        logger.warning(f"⚠️  本地数据库不可用，回退到云API查询: {account_config.name}")
+        logger.info(f"📡 数据库中没有账期 {billing_cycle} 的数据，通过API查询: {account_config.name}")
 
-    items = _bss_query_bill_overview(account_config, billing_cycle)
+    # 从API查询账单数据
+    logger.info(f"正在通过BSS API查询账单概览: {account_config.name}, {billing_cycle}")
+    try:
+        items = _bss_query_bill_overview(account_config, billing_cycle)
+        if not items:
+            logger.warning(f"⚠️  API查询返回空数据: {account_config.name}, {billing_cycle}")
+    except Exception as e:
+        logger.error(f"❌ BSS API查询失败: {account_config.name}, {billing_cycle}, 错误={str(e)}")
+        raise
     by_product: Dict[str, float] = {}
     by_product_name: Dict[str, str] = {}
     by_product_subscription: Dict[str, Dict[str, float]] = {}
@@ -753,8 +893,15 @@ def _get_billing_overview_totals(
             code: {k: round(float(v), 2) for k, v in sub.items()}
             for code, sub in by_product_subscription.items()
         },
+        "data_source": "bss_api",  # 标记数据来源
     }
-    cache_manager.set(resource_type=cache_key, account_name=account_config.name, data=result)
+    
+    # 如果总成本为0，记录警告
+    if total == 0:
+        logger.warning(f"⚠️  API查询账期 {billing_cycle} 的总成本为0，可能该账期确实无成本")
+    
+    cache_manager.set(resource_type=cache_key, account_name=account_config.name, data=[result])
+    logger.info(f"✅ 通过API获取账单概览成功: {account_config.name}, {billing_cycle}, 总成本={total}")
     return result
 
 
@@ -920,7 +1067,7 @@ def list_resources(
     print(f"[DEBUG list_resources] 使用账号: {account_name}")
     
     # 初始化缓存管理器，TTL设置为24小时（86400秒）
-    cache_manager = ResourceCacheManager(ttl_seconds=86400)
+    cache_manager = CacheManager(ttl_seconds=86400)
     
     # 尝试从缓存获取数据
     cached_result = None
@@ -962,15 +1109,31 @@ def list_resources(
             resources = []
             for vpc in vpcs:
                 from models.resource import UnifiedResource, ResourceType, ResourceStatus
+                
+                # Get VPC ID and name from dict - check both possible key formats
+                vpc_id = vpc.get("id") or vpc.get("VpcId") or ""
+                vpc_name = vpc.get("name") or vpc.get("VpcName") or ""
+                
+                # Log for debugging
+                logger.info(f"Processing VPC: id={vpc_id}, name={vpc_name}, raw_vpc={vpc}")
+                
+                # If name is empty or just whitespace, use ID as name
+                if not vpc_name or not vpc_name.strip():
+                    vpc_name = vpc_id if vpc_id else "未命名VPC"
+                
+                # Ensure we have at least an ID
+                if not vpc_id:
+                    logger.warning(f"VPC missing ID, skipping: {vpc}")
+                    continue
 
                 resources.append(
                     UnifiedResource(
-                        id=vpc.get("VpcId", ""),
-                        name=vpc.get("VpcName", ""),
+                        id=vpc_id,
+                        name=vpc_name,
                         resource_type=ResourceType.VPC,
                         status=ResourceStatus.RUNNING,
                         provider=provider.provider_name,
-                        region=vpc.get("RegionId", account_name),
+                        region=vpc.get("region") or vpc.get("RegionId", account_name),
                     )
                 )
         else:
@@ -1061,6 +1224,7 @@ def list_resources(
                     "created_time": r.get("created_time") if isinstance(r.get("created_time"), str) else None,
                         "public_ips": [r.get("ip_address")] if r.get("ip_address") else [],
                         "private_ips": [],
+                        "vpc_id": r.get("vpc_id") or r.get("VpcId") or None,
                     }
                 )
         else:
@@ -1070,10 +1234,15 @@ def list_resources(
                 if cost is None:
                     cost = _estimate_monthly_cost(r)
 
+                # For VPC resources, ensure name is not empty
+                display_name = r.name or r.id or "-"
+                if type == "vpc" and not r.name:
+                    display_name = r.id or "-"
+                
                 result.append(
                     {
-                        "id": r.id,
-                        "name": r.name or "-",
+                        "id": r.id or "-",
+                        "name": display_name,
                         "type": type,
                         "status": r.status.value if hasattr(r.status, "value") else str(r.status),
                         "region": r.region,
@@ -1085,6 +1254,7 @@ def list_resources(
                         else None,
                         "public_ips": r.public_ips if hasattr(r, "public_ips") else [],
                         "private_ips": r.private_ips if hasattr(r, "private_ips") else [],
+                        "vpc_id": r.vpc_id if hasattr(r, "vpc_id") and r.vpc_id else None,
                     }
                 )
 
@@ -1375,7 +1545,7 @@ def get_cost_overview(account: Optional[str] = None, force_refresh: bool = Query
     provider, account_name = _get_provider_for_account(account)
     
     # 初始化缓存管理器，TTL设置为24小时（86400秒）
-    cache_manager = ResourceCacheManager(ttl_seconds=86400)
+    cache_manager = CacheManager(ttl_seconds=86400)
     
     # 尝试从缓存获取数据
     cached_result = None
@@ -1396,16 +1566,45 @@ def get_cost_overview(account: Optional[str] = None, force_refresh: bool = Query
     
     try:
         # 账单优先：使用 BSS 账单概览作为“全量成本”口径
-        from datetime import datetime
+        from datetime import datetime, timedelta
         now = datetime.now()
         current_cycle = now.strftime("%Y-%m")
-        last_cycle = (now.replace(day=1) - __import__("datetime").timedelta(days=1)).strftime("%Y-%m")
+        # 计算上月账期：先获取当月第一天，然后减去1天，得到上个月的最后一天，再格式化
+        first_day_this_month = now.replace(day=1)
+        last_day_last_month = first_day_this_month - timedelta(days=1)
+        last_cycle = last_day_last_month.strftime("%Y-%m")
+        
+        logger.info(f"📊 成本概览查询: 账号={account_name}, 当前账期={current_cycle}, 上月账期={last_cycle}")
 
-        current_totals = _get_billing_overview_totals(account_config, billing_cycle=current_cycle) if account_config else None
-        last_totals = _get_billing_overview_totals(account_config, billing_cycle=last_cycle) if account_config else None
+        # 先尝试从数据库/缓存获取，如果失败则通过API获取
+        current_totals = _get_billing_overview_totals(account_config, billing_cycle=current_cycle, force_refresh=False) if account_config else None
+        
+        # 对于上月数据，如果数据库没有，强制通过API获取
+        last_totals = None
+        if account_config:
+            # 先尝试从数据库获取
+            last_totals = _get_billing_overview_totals(account_config, billing_cycle=last_cycle, force_refresh=False)
+            # 如果数据库没有数据（返回None或总成本为0），强制通过API获取
+            if last_totals is None or (last_totals.get("total_pretax", 0) == 0 and last_totals.get("data_source") == "local_db"):
+                logger.info(f"🔄 上月数据不可用，强制通过API获取: {last_cycle}")
+                try:
+                    last_totals = _get_billing_overview_totals(account_config, billing_cycle=last_cycle, force_refresh=True)
+                except Exception as e:
+                    logger.error(f"❌ 强制刷新上月数据失败: {str(e)}")
+                    last_totals = None
 
         current_month_cost = float((current_totals or {}).get("total_pretax") or 0.0)
         last_month_cost = float((last_totals or {}).get("total_pretax") or 0.0)
+        
+        logger.info(f"💰 成本数据: 本月={current_month_cost}, 上月={last_month_cost}, 本月数据源={current_totals.get('data_source') if current_totals else 'None'}, 上月数据源={last_totals.get('data_source') if last_totals else 'None'}")
+        
+        # 如果上月数据为0，记录警告
+        if last_month_cost == 0:
+            if last_totals is None:
+                logger.warning(f"⚠️  上月账期 {last_cycle} 数据不可用（返回None），可能原因：1) 数据库中没有该账期数据 2) API查询失败 3) 该账期确实无成本")
+            else:
+                logger.warning(f"⚠️  上月账期 {last_cycle} 成本为0，可能该账期确实无成本或数据未同步")
+        
         mom = ((current_month_cost - last_month_cost) / last_month_cost * 100) if last_month_cost > 0 else 0.0
         yoy = 0.0  # TODO: 支持去年同期账期对比
         
@@ -1414,6 +1613,8 @@ def get_cost_overview(account: Optional[str] = None, force_refresh: bool = Query
             "last_month": round(last_month_cost, 2),
             "yoy": round(yoy, 2),
             "mom": round(mom, 2),
+            "current_cycle": current_cycle,
+            "last_cycle": last_cycle,
         }
         
         # 保存到缓存（24小时有效）
@@ -1425,8 +1626,11 @@ def get_cost_overview(account: Optional[str] = None, force_refresh: bool = Query
             "cached": False,
         }
     except Exception as e:
+        logger.error(f"❌ 获取成本概览失败: {str(e)}", exc_info=True)
+        # 返回错误信息，而不是静默返回0
         return {
-            "success": True,
+            "success": False,
+            "error": str(e),
             "data": {
                 "current_month": 0,
                 "last_month": 0,
@@ -1447,7 +1651,7 @@ def get_cost_breakdown(
     provider, account_name = _get_provider_for_account(account)
     
     # 初始化缓存管理器，TTL设置为24小时（86400秒）
-    cache_manager = ResourceCacheManager(ttl_seconds=86400)
+    cache_manager = CacheManager(ttl_seconds=86400)
     
     # 尝试从缓存获取数据
     cached_result = None
@@ -1526,25 +1730,47 @@ def get_cost_breakdown(
 # ==================== Phase 2: Security APIs ====================
 
 @router.get("/security/overview")
-def get_security_overview(account: Optional[str] = None, force_refresh: bool = Query(False, description="强制刷新缓存")):
+def get_security_overview(
+    account: Optional[str] = None, 
+    force_refresh: bool = Query(False, description="强制刷新缓存"),
+    locale: Optional[str] = Query("zh", description="语言设置: zh 或 en")
+):
     """获取安全概览（带24小时缓存）"""
+    # 获取语言设置
+    lang: Locale = get_locale_from_request(
+        request_headers=None,
+        query_params={"locale": locale}
+    )
+    
     provider, account_name = _get_provider_for_account(account)
     
     # 初始化缓存管理器，TTL设置为24小时（86400秒）
-    cache_manager = ResourceCacheManager(ttl_seconds=86400)
+    cache_manager = CacheManager(ttl_seconds=86400)
     
     # 尝试从缓存获取数据
+    # 注意：为了支持多语言，我们需要重新生成翻译后的文本
+    # 方案：缓存原始数据（数字），返回时根据语言翻译
     cached_result = None
     if not force_refresh:
         cached_result = cache_manager.get(resource_type="security_overview", account_name=account_name)
     
-    # 如果缓存有效，直接使用缓存数据
+    # 如果缓存有效，需要根据语言重新翻译
     if cached_result is not None:
-        return {
-            "success": True,
-            "data": cached_result,
-            "cached": True,
-        }
+        # 重新生成 score_deductions（需要原始数据）
+        # 由于缓存中可能已经包含翻译后的文本，我们需要重新计算
+        # 为了简化，如果语言不是中文，我们强制刷新以重新生成
+        # 更好的方案是缓存原始数据（不翻译），但需要修改缓存结构
+        # 暂时：如果语言是英文且缓存存在，我们重新生成（跳过缓存）
+        if lang == "en":
+            # 英文模式下，跳过缓存，重新生成以确保翻译正确
+            cached_result = None
+        else:
+            # 中文模式下，直接使用缓存
+            return {
+                "success": True,
+                "data": cached_result,
+                "cached": True,
+            }
     
     try:
         from core.security_compliance import SecurityComplianceAnalyzer
@@ -1585,36 +1811,54 @@ def get_security_overview(account: Optional[str] = None, force_refresh: bool = Q
         if len(exposed) > 0:
             deduction = min(len(exposed) * 5, 30)  # 最多扣30分
             security_score -= deduction
-            score_deductions.append({"reason": f"公网暴露 {len(exposed)} 个资源", "deduction": deduction})
+            score_deductions.append({
+                "reason": get_translation("security.score_deductions.public_exposure", lang, count=len(exposed)),
+                "deduction": deduction
+            })
         
         if len(stopped) > 0:
             deduction = min(len(stopped) * 2, 20)  # 最多扣20分
             security_score -= deduction
-            score_deductions.append({"reason": f"长期停止 {len(stopped)} 个实例", "deduction": deduction})
+            score_deductions.append({
+                "reason": get_translation("security.score_deductions.stopped_instances", lang, count=len(stopped)),
+                "deduction": deduction
+            })
         
         if tag_coverage < 80:
             deduction = 10 if tag_coverage < 50 else 5
             security_score -= deduction
-            score_deductions.append({"reason": f"标签覆盖率仅 {tag_coverage}%", "deduction": deduction})
+            score_deductions.append({
+                "reason": get_translation("security.score_deductions.tag_coverage", lang, coverage=tag_coverage),
+                "deduction": deduction
+            })
         
         if encryption_info.get("encryption_rate", 100) < 50:
             deduction = 15
             security_score -= deduction
-            score_deductions.append({"reason": f"磁盘加密率仅 {encryption_info.get('encryption_rate', 0)}%", "deduction": deduction})
+            score_deductions.append({
+                "reason": get_translation("security.score_deductions.disk_encryption", lang, rate=encryption_info.get('encryption_rate', 0)),
+                "deduction": deduction
+            })
         
         if len(preemptible) > 0:
             deduction = min(len(preemptible) * 3, 15)  # 最多扣15分
             security_score -= deduction
-            score_deductions.append({"reason": f"抢占式实例 {len(preemptible)} 个", "deduction": deduction})
+            score_deductions.append({
+                "reason": get_translation("security.score_deductions.preemptible_instances", lang, count=len(preemptible)),
+                "deduction": deduction
+            })
         
         if eip_info.get("unbound_rate", 0) > 20:
             deduction = 5
             security_score -= deduction
-            score_deductions.append({"reason": f"未绑定EIP率 {eip_info.get('unbound_rate', 0)}%", "deduction": deduction})
+            score_deductions.append({
+                "reason": get_translation("security.score_deductions.eip_unbound", lang, rate=eip_info.get('unbound_rate', 0)),
+                "deduction": deduction
+            })
         
         security_score = max(0, min(100, security_score))
         
-        # 生成安全改进建议
+        # 生成安全改进建议（支持国际化）
         security_summary = {
             "exposed_count": len(exposed),
             "stopped_count": len(stopped),
@@ -1623,7 +1867,7 @@ def get_security_overview(account: Optional[str] = None, force_refresh: bool = Q
             "preemptible_count": len(preemptible),
             "unbound_eip": eip_info.get("unbound", 0),
         }
-        suggestions = analyzer.suggest_security_improvements(security_summary)
+        suggestions = analyzer.suggest_security_improvements(security_summary, locale=lang)
         
         result_data = {
             "security_score": security_score,
@@ -1678,19 +1922,30 @@ def get_security_overview(account: Optional[str] = None, force_refresh: bool = Q
 
 
 @router.get("/security/checks")
-def get_security_checks(account: Optional[str] = None, force_refresh: bool = Query(False, description="强制刷新缓存")):
+def get_security_checks(
+    account: Optional[str] = None, 
+    force_refresh: bool = Query(False, description="强制刷新缓存"),
+    locale: Optional[str] = Query("zh", description="语言设置: zh 或 en")
+):
     """获取安全检查结果（带24小时缓存）"""
+    # 获取语言设置
+    lang: Locale = get_locale_from_request(
+        request_headers=None,
+        query_params={"locale": locale}
+    )
+    
     provider, account_name = _get_provider_for_account(account)
     
     # 初始化缓存管理器，TTL设置为24小时（86400秒）
-    cache_manager = ResourceCacheManager(ttl_seconds=86400)
+    cache_manager = CacheManager(ttl_seconds=86400)
     
     # 尝试从缓存获取数据
+    # 注意：为了支持多语言，如果语言不是中文，我们跳过缓存重新生成
     cached_result = None
-    if not force_refresh:
+    if not force_refresh and lang == "zh":
         cached_result = cache_manager.get(resource_type="security_checks", account_name=account_name)
     
-    # 如果缓存有效，直接使用缓存数据
+    # 如果缓存有效，直接使用缓存数据（中文）
     if cached_result is not None:
         return {
             "success": True,
@@ -1729,19 +1984,19 @@ def get_security_checks(account: Optional[str] = None, force_refresh: bool = Que
         if exposed:
             checks.append({
                 "type": "public_exposure",
-                "title": "公网暴露检测",
-                "description": "检测到有资源暴露在公网，存在安全风险",
+                "title": get_translation("security.public_exposure.title", lang),
+                "description": get_translation("security.public_exposure.description_failed", lang),
                 "status": "failed",
                 "severity": "HIGH",
                 "count": len(exposed),
                 "resources": exposed[:20],
-                "recommendation": "评估是否真的需要公网访问，配置安全组白名单限制访问源，考虑使用 NAT 网关或 SLB",
+                "recommendation": get_translation("security.public_exposure.recommendation", lang),
             })
         else:
             checks.append({
                 "type": "public_exposure",
-                "title": "公网暴露检测",
-                "description": "未发现公网暴露的资源",
+                "title": get_translation("security.public_exposure.title", lang),
+                "description": get_translation("security.public_exposure.description_passed", lang),
                 "status": "passed",
                 "severity": "INFO",
                 "count": 0,
@@ -1752,19 +2007,19 @@ def get_security_checks(account: Optional[str] = None, force_refresh: bool = Que
         if stopped:
             checks.append({
                 "type": "stopped_instances",
-                "title": "停止实例检测",
-                "description": "检测到长期停止的实例，仍产生磁盘费用",
+                "title": get_translation("security.stopped_instances.title", lang),
+                "description": get_translation("security.stopped_instances.description", lang),
                 "status": "warning",
                 "severity": "MEDIUM",
                 "count": len(stopped),
                 "resources": stopped[:20],
-                "recommendation": "评估是否需要这些实例，如不需要建议释放以节省成本",
+                "recommendation": get_translation("security.stopped_instances.recommendation", lang),
             })
         else:
             checks.append({
                 "type": "stopped_instances",
-                "title": "停止实例检测",
-                "description": "未发现长期停止的实例",
+                "title": get_translation("security.stopped_instances.title", lang),
+                "description": get_translation("security.stopped_instances.description", lang),
                 "status": "passed",
                 "severity": "INFO",
                 "count": 0,
@@ -1772,38 +2027,51 @@ def get_security_checks(account: Optional[str] = None, force_refresh: bool = Que
             })
         
         # 标签检查
-        checks.append({
-            "type": "tag_coverage",
-            "title": "标签覆盖率检查",
-            "description": "检查资源标签完整性，影响成本分摊和管理",
-            "status": "passed" if tag_coverage >= 80 else "warning",
-            "severity": "MEDIUM" if tag_coverage < 80 else "INFO",
-            "coverage": tag_coverage,
-            "missing_count": len(no_tags),
-            "resources": no_tags[:20],
-            "recommendation": f"当前标签覆盖率为 {tag_coverage}%，建议完善资源标签以便于管理和成本分摊",
-        })
+        if tag_coverage >= 80:
+            checks.append({
+                "type": "tag_coverage",
+                "title": get_translation("security.tag_coverage.title", lang),
+                "description": get_translation("security.tag_coverage.description_passed", lang),
+                "status": "passed",
+                "severity": "INFO",
+                "coverage": tag_coverage,
+                "missing_count": len(no_tags),
+                "resources": [],
+                "recommendation": get_translation("security.tag_coverage.recommendation", lang),
+            })
+        else:
+            checks.append({
+                "type": "tag_coverage",
+                "title": get_translation("security.tag_coverage.title"),
+                "description": get_translation("security.tag_coverage.description_failed"),
+                "status": "warning",
+                "severity": "MEDIUM",
+                "coverage": tag_coverage,
+                "missing_count": len(no_tags),
+                "resources": no_tags[:20],
+                "recommendation": get_translation("security.tag_coverage.recommendation", lang),
+            })
         
         # 磁盘加密检查
         encryption_rate = encryption_info.get("encryption_rate", 100)
         if encryption_rate < 100:
             checks.append({
                 "type": "disk_encryption",
-                "title": "磁盘加密检查",
-                "description": "检查实例磁盘加密状态",
+                "title": get_translation("security.disk_encryption.title"),
+                "description": get_translation("security.disk_encryption.description_failed"),
                 "status": "warning" if encryption_rate < 50 else "passed",
                 "severity": "HIGH" if encryption_rate < 50 else "MEDIUM",
                 "encryption_rate": encryption_rate,
                 "encrypted_count": encryption_info.get("encrypted", 0),
                 "unencrypted_count": encryption_info.get("unencrypted_count", 0),
                 "resources": encryption_info.get("unencrypted_instances", [])[:20],
-                "recommendation": f"当前加密率为 {encryption_rate}%，建议为所有实例启用磁盘加密以保护数据安全",
+                "recommendation": get_translation("security.disk_encryption.recommendation", lang),
             })
         else:
             checks.append({
                 "type": "disk_encryption",
-                "title": "磁盘加密检查",
-                "description": "所有实例已启用磁盘加密",
+                "title": get_translation("security.disk_encryption.title"),
+                "description": get_translation("security.disk_encryption.description_passed", lang),
                 "status": "passed",
                 "severity": "INFO",
                 "encryption_rate": encryption_rate,
@@ -1816,19 +2084,19 @@ def get_security_checks(account: Optional[str] = None, force_refresh: bool = Que
         if preemptible:
             checks.append({
                 "type": "preemptible_instances",
-                "title": "抢占式实例检查",
-                "description": "检测到抢占式实例，生产环境不建议使用",
+                "title": get_translation("security.preemptible_instances.title", lang),
+                "description": get_translation("security.preemptible_instances.description", lang),
                 "status": "warning",
                 "severity": "MEDIUM",
                 "count": len(preemptible),
                 "resources": preemptible[:20],
-                "recommendation": "抢占式实例可能随时被回收，生产环境建议使用包年包月或按量付费实例",
+                "recommendation": get_translation("security.preemptible_instances.recommendation", lang),
             })
         else:
             checks.append({
                 "type": "preemptible_instances",
-                "title": "抢占式实例检查",
-                "description": "未发现抢占式实例",
+                "title": get_translation("security.preemptible_instances.title", lang),
+                "description": get_translation("security.preemptible_instances.description", lang),
                 "status": "passed",
                 "severity": "INFO",
                 "count": 0,
@@ -1841,8 +2109,8 @@ def get_security_checks(account: Optional[str] = None, force_refresh: bool = Que
             if unbound_rate > 20:
                 checks.append({
                     "type": "eip_usage",
-                    "title": "EIP使用情况检查",
-                    "description": "检测到未绑定的EIP，产生不必要的费用",
+                    "title": get_translation("security.eip_usage.title", lang),
+                    "description": get_translation("security.eip_usage.description_failed", lang),
                     "status": "warning",
                     "severity": "MEDIUM",
                     "total": eip_info.get("total", 0),
@@ -1850,13 +2118,13 @@ def get_security_checks(account: Optional[str] = None, force_refresh: bool = Que
                     "unbound": eip_info.get("unbound", 0),
                     "unbound_rate": unbound_rate,
                     "resources": eip_info.get("unbound_eips", [])[:20],
-                    "recommendation": f"发现 {eip_info.get('unbound', 0)} 个未绑定的EIP，建议释放以节省成本",
+                    "recommendation": get_translation("security.eip_usage.recommendation", lang, unbound=eip_info.get('unbound', 0)),
                 })
             else:
                 checks.append({
                     "type": "eip_usage",
-                    "title": "EIP使用情况检查",
-                    "description": "EIP使用情况良好",
+                    "title": get_translation("security.eip_usage.title"),
+                    "description": get_translation("security.eip_usage.description_passed", lang),
                     "status": "passed",
                     "severity": "INFO",
                     "total": eip_info.get("total", 0),
@@ -1885,19 +2153,30 @@ def get_security_checks(account: Optional[str] = None, force_refresh: bool = Que
 # ==================== Phase 2: Optimization APIs ====================
 
 @router.get("/optimization/suggestions")
-def get_optimization_suggestions(account: Optional[str] = None, force_refresh: bool = Query(False, description="强制刷新缓存")):
+def get_optimization_suggestions(
+    account: Optional[str] = None, 
+    force_refresh: bool = Query(False, description="强制刷新缓存"),
+    locale: Optional[str] = Query("zh", description="语言设置: zh 或 en")
+):
     """获取优化建议（带24小时缓存）"""
+    # 获取语言设置
+    lang: Locale = get_locale_from_request(
+        request_headers=None,
+        query_params={"locale": locale}
+    )
+    
     provider, account_name = _get_provider_for_account(account)
     
     # 初始化缓存管理器，TTL设置为24小时（86400秒）
-    cache_manager = ResourceCacheManager(ttl_seconds=86400)
+    cache_manager = CacheManager(ttl_seconds=86400)
     
     # 尝试从缓存获取数据
+    # 注意：为了支持多语言，如果语言不是中文，我们跳过缓存重新生成
     cached_result = None
-    if not force_refresh:
+    if not force_refresh and lang == "zh":
         cached_result = cache_manager.get(resource_type="optimization_suggestions", account_name=account_name)
     
-    # 如果缓存有效，直接使用缓存数据
+    # 如果缓存有效，直接使用缓存数据（中文）
     if cached_result is not None:
         return {
             "success": True,
@@ -1941,15 +2220,15 @@ def get_optimization_suggestions(account: Optional[str] = None, force_refresh: b
             
             suggestions.append({
                 "type": "idle_resources",
-                "category": "成本优化",
+                "category": get_translation("optimization.idle_resources.category", lang),
                 "priority": "high",
-                "title": "闲置资源优化",
-                "description": f"发现 {len(idle_data)} 个闲置资源，CPU和内存利用率极低，建议释放或降配",
+                "title": get_translation("optimization.idle_resources.title", lang),
+                "description": get_translation("optimization.idle_resources.description", lang, count=len(idle_data)),
                 "savings_potential": round(total_savings, 2),
                 "resource_count": len(idle_data),
                 "resources": idle_data[:10],  # 返回前10个
                 "action": "release_or_downgrade",
-                "recommendation": "评估资源使用情况，如确实不需要可释放，如需保留可考虑降配以节省成本",
+                "recommendation": get_translation("optimization.idle_resources.recommendation", lang),
             })
         
         # 3. 停止实例建议
@@ -1972,15 +2251,15 @@ def get_optimization_suggestions(account: Optional[str] = None, force_refresh: b
             
             suggestions.append({
                 "type": "stopped_instances",
-                "category": "成本优化",
+                "category": get_translation("optimization.stopped_instances.category", lang),
                 "priority": "medium",
-                "title": "停止实例优化",
-                "description": f"发现 {len(stopped)} 个长期停止的实例，仍产生磁盘费用",
+                "title": get_translation("optimization.stopped_instances.title", lang),
+                "description": get_translation("optimization.stopped_instances.description", lang, count=len(stopped)),
                 "savings_potential": round(stopped_savings, 2),
                 "resource_count": len(stopped),
                 "resources": stopped[:10],
                 "action": "release",
-                "recommendation": "评估是否需要这些实例，如不需要建议释放以节省磁盘费用",
+                "recommendation": get_translation("optimization.stopped_instances.recommendation", lang),
             })
         
         # 4. 未绑定EIP建议
@@ -1994,15 +2273,15 @@ def get_optimization_suggestions(account: Optional[str] = None, force_refresh: b
                     eip_savings = len(unbound_eips) * 20
                     suggestions.append({
                         "type": "unbound_eips",
-                        "category": "成本优化",
+                        "category": get_translation("optimization.unbound_eips.category", lang),
                         "priority": "high",
-                        "title": "未绑定EIP优化",
-                        "description": f"发现 {len(unbound_eips)} 个未绑定的EIP，产生不必要的费用",
+                        "title": get_translation("optimization.unbound_eips.title", lang),
+                        "description": get_translation("optimization.unbound_eips.description", lang, count=len(unbound_eips)),
                         "savings_potential": eip_savings,
                         "resource_count": len(unbound_eips),
                         "resources": unbound_eips[:10],
                         "action": "release",
-                        "recommendation": "未绑定的EIP持续产生费用，建议释放以节省成本",
+                        "recommendation": get_translation("optimization.unbound_eips.recommendation", lang),
                     })
         except:
             pass
@@ -2012,15 +2291,15 @@ def get_optimization_suggestions(account: Optional[str] = None, force_refresh: b
         if len(no_tags) > 0:
             suggestions.append({
                 "type": "missing_tags",
-                "category": "资源管理",
+                "category": get_translation("optimization.missing_tags.category", lang),
                 "priority": "medium",
-                "title": "标签完善",
-                "description": f"发现 {len(no_tags)} 个资源缺少标签，影响成本分摊和资源管理",
+                "title": get_translation("optimization.missing_tags.title", lang),
+                "description": get_translation("optimization.missing_tags.description", lang, count=len(no_tags)),
                 "savings_potential": 0,
                 "resource_count": len(no_tags),
                 "resources": no_tags[:10],
                 "action": "add_tags",
-                "recommendation": "为资源添加标签（如：Environment、Project、Owner等）以便于成本分摊和资源管理",
+                "recommendation": get_translation("optimization.missing_tags.recommendation", lang),
             })
         
         # 6. 规格降配建议（从 OptimizationEngine 获取）
@@ -2029,15 +2308,15 @@ def get_optimization_suggestions(account: Optional[str] = None, force_refresh: b
             total_downgrade_savings = sum(opp.get("estimated_savings", 0) for opp in downgrade_opportunities)
             suggestions.append({
                 "type": "spec_downgrade",
-                "category": "成本优化",
+                "category": get_translation("optimization.spec_downgrade.category", lang),
                 "priority": "medium",
-                "title": "规格降配建议",
-                "description": f"发现 {len(downgrade_opportunities)} 个实例可降配，资源利用率较低",
+                "title": get_translation("optimization.spec_downgrade.title", lang),
+                "description": get_translation("optimization.spec_downgrade.description", lang, count=len(downgrade_opportunities)),
                 "savings_potential": round(total_downgrade_savings, 2),
                 "resource_count": len(downgrade_opportunities),
                 "resources": downgrade_opportunities[:10],
                 "action": "downgrade",
-                "recommendation": "根据实际使用情况降配实例规格，可节省约30%成本",
+                "recommendation": get_translation("optimization.spec_downgrade.recommendation", lang),
             })
         
         # 7. 公网暴露优化建议
@@ -2045,15 +2324,15 @@ def get_optimization_suggestions(account: Optional[str] = None, force_refresh: b
         if exposed:
             suggestions.append({
                 "type": "public_exposure",
-                "category": "安全优化",
+                "category": get_translation("optimization.public_exposure.category", lang),
                 "priority": "high",
-                "title": "公网暴露优化",
-                "description": f"发现 {len(exposed)} 个资源暴露在公网，存在安全风险",
+                "title": get_translation("optimization.public_exposure.title", lang),
+                "description": get_translation("optimization.public_exposure.description", lang, count=len(exposed)),
                 "savings_potential": 0,
                 "resource_count": len(exposed),
                 "resources": exposed[:10],
                 "action": "secure",
-                "recommendation": "评估是否真的需要公网访问，配置安全组白名单，考虑使用 NAT 网关或 SLB",
+                "recommendation": get_translation("optimization.public_exposure.recommendation", lang),
             })
         
         # 8. 磁盘加密建议
@@ -2061,15 +2340,15 @@ def get_optimization_suggestions(account: Optional[str] = None, force_refresh: b
         if encryption_info.get("encryption_rate", 100) < 50:
             suggestions.append({
                 "type": "disk_encryption",
-                "category": "安全优化",
+                "category": get_translation("optimization.disk_encryption.category", lang),
                 "priority": "high",
-                "title": "磁盘加密优化",
-                "description": f"发现 {encryption_info.get('unencrypted_count', 0)} 个实例未启用磁盘加密",
+                "title": get_translation("optimization.disk_encryption.title", lang),
+                "description": get_translation("optimization.disk_encryption.description", lang, count=encryption_info.get('unencrypted_count', 0)),
                 "savings_potential": 0,
                 "resource_count": encryption_info.get("unencrypted_count", 0),
                 "resources": encryption_info.get("unencrypted_instances", [])[:10],
                 "action": "enable_encryption",
-                "recommendation": "为所有实例启用磁盘加密以保护数据安全，符合合规要求",
+                "recommendation": get_translation("optimization.disk_encryption.recommendation", lang),
             })
         
         # 按优先级和节省潜力排序
@@ -2539,7 +2818,7 @@ def get_billing_discounts(
     if not billing_cycle:
         billing_cycle = _get_billing_cycle_default()
 
-    cache_manager = ResourceCacheManager(ttl_seconds=86400)
+    cache_manager = CacheManager(ttl_seconds=86400)
     cache_key = f"billing_discounts_{billing_cycle}"
     if not force_refresh:
         cached = cache_manager.get(resource_type=cache_key, account_name=account_config.name)
@@ -3418,3 +3697,843 @@ def export_discount_data(
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"数据导出失败: {str(e)}")
+
+
+# ==================== 虚拟标签系统 API ====================
+
+class TagRuleRequest(BaseModel):
+    """标签规则请求模型"""
+    field: str
+    operator: str
+    pattern: str
+    priority: int = 0
+
+
+class VirtualTagRequest(BaseModel):
+    """虚拟标签请求模型"""
+    name: str
+    tag_key: str
+    tag_value: str
+    rules: List[TagRuleRequest]
+    priority: int = 0
+
+
+class TagPreviewRequest(BaseModel):
+    """标签预览请求模型"""
+    tag_id: Optional[str] = None
+    rules: Optional[List[TagRuleRequest]] = None
+    account: Optional[str] = None
+    resource_type: Optional[str] = None
+
+
+# 初始化存储管理器
+_tag_storage = VirtualTagStorage()
+
+
+@router.get("/virtual-tags")
+def list_virtual_tags() -> Dict[str, Any]:
+    """获取所有虚拟标签列表"""
+    try:
+        tags = _tag_storage.list_tags()
+        return {
+            "success": True,
+            "data": [tag.to_dict() for tag in tags],
+            "count": len(tags)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取标签列表失败: {str(e)}")
+
+
+@router.get("/virtual-tags/{tag_id}")
+def get_virtual_tag(tag_id: str) -> Dict[str, Any]:
+    """获取虚拟标签详情"""
+    try:
+        tag = _tag_storage.get_tag(tag_id)
+        if not tag:
+            raise HTTPException(status_code=404, detail=f"标签 {tag_id} 不存在")
+        return {
+            "success": True,
+            "data": tag.to_dict()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取标签详情失败: {str(e)}")
+
+
+@router.post("/virtual-tags")
+def create_virtual_tag(req: VirtualTagRequest) -> Dict[str, Any]:
+    """创建虚拟标签"""
+    try:
+        # 验证标签key和value
+        if not req.tag_key or not req.tag_value:
+            raise HTTPException(status_code=400, detail="标签key和value不能为空")
+        
+        # 验证规则
+        if not req.rules:
+            raise HTTPException(status_code=400, detail="至少需要一个规则")
+        
+        # 转换为TagRule对象
+        rules = [
+            TagRule(
+                id="",  # 将在存储时生成
+                tag_id="",  # 将在存储时设置
+                field=rule.field,
+                operator=rule.operator,
+                pattern=rule.pattern,
+                priority=rule.priority
+            )
+            for rule in req.rules
+        ]
+        
+        # 创建VirtualTag对象
+        tag = VirtualTag(
+            id="",  # 将在存储时生成
+            name=req.name,
+            tag_key=req.tag_key,
+            tag_value=req.tag_value,
+            rules=rules,
+            priority=req.priority
+        )
+        
+        # 保存到数据库
+        tag_id = _tag_storage.create_tag(tag)
+        
+        # 返回创建的标签
+        created_tag = _tag_storage.get_tag(tag_id)
+        return {
+            "success": True,
+            "message": "标签创建成功",
+            "data": created_tag.to_dict()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"创建标签失败: {str(e)}")
+
+
+@router.put("/virtual-tags/{tag_id}")
+def update_virtual_tag(tag_id: str, req: VirtualTagRequest) -> Dict[str, Any]:
+    """更新虚拟标签"""
+    try:
+        # 检查标签是否存在
+        existing_tag = _tag_storage.get_tag(tag_id)
+        if not existing_tag:
+            raise HTTPException(status_code=404, detail=f"标签 {tag_id} 不存在")
+        
+        # 验证规则
+        if not req.rules:
+            raise HTTPException(status_code=400, detail="至少需要一个规则")
+        
+        # 转换为TagRule对象
+        rules = [
+            TagRule(
+                id="",  # 将在存储时生成
+                tag_id=tag_id,
+                field=rule.field,
+                operator=rule.operator,
+                pattern=rule.pattern,
+                priority=rule.priority
+            )
+            for rule in req.rules
+        ]
+        
+        # 更新标签
+        tag = VirtualTag(
+            id=tag_id,
+            name=req.name,
+            tag_key=req.tag_key,
+            tag_value=req.tag_value,
+            rules=rules,
+            priority=req.priority,
+            created_at=existing_tag.created_at,
+            updated_at=None  # 将在存储时更新
+        )
+        
+        # 保存到数据库
+        success = _tag_storage.update_tag(tag)
+        if not success:
+            raise HTTPException(status_code=500, detail="更新标签失败")
+        
+        # 返回更新的标签
+        updated_tag = _tag_storage.get_tag(tag_id)
+        return {
+            "success": True,
+            "message": "标签更新成功",
+            "data": updated_tag.to_dict()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新标签失败: {str(e)}")
+
+
+@router.delete("/virtual-tags/{tag_id}")
+def delete_virtual_tag(tag_id: str) -> Dict[str, Any]:
+    """删除虚拟标签"""
+    try:
+        success = _tag_storage.delete_tag(tag_id)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"标签 {tag_id} 不存在")
+        return {
+            "success": True,
+            "message": "标签删除成功"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除标签失败: {str(e)}")
+
+
+@router.post("/virtual-tags/preview")
+def preview_tag_matches(req: TagPreviewRequest) -> Dict[str, Any]:
+    """预览标签匹配的资源"""
+    try:
+        # 获取账号配置
+        account = req.account
+        if not account:
+            raise HTTPException(status_code=400, detail="账号参数是必需的")
+        
+        provider, account_name = _get_provider_for_account(account)
+        
+        # 获取标签规则
+        if req.tag_id:
+            # 使用现有标签
+            tag = _tag_storage.get_tag(req.tag_id)
+            if not tag:
+                raise HTTPException(status_code=404, detail=f"标签 {req.tag_id} 不存在")
+            rules = tag.rules
+        elif req.rules:
+            # 使用预览规则
+            rules = [
+                TagRule(
+                    id="",
+                    tag_id="",
+                    field=rule.field,
+                    operator=rule.operator,
+                    pattern=rule.pattern,
+                    priority=rule.priority
+                )
+                for rule in req.rules
+            ]
+        else:
+            raise HTTPException(status_code=400, detail="需要提供tag_id或rules")
+        
+        # 获取资源列表
+        resource_type = req.resource_type or "ecs"
+        if resource_type == "ecs":
+            resources = provider.list_instances()
+        elif resource_type == "rds":
+            resources = provider.list_rds()
+        elif resource_type == "redis":
+            resources = provider.list_redis()
+        else:
+            resources = provider.list_instances()  # 默认ECS
+        
+        # 转换为字典格式
+        resource_dicts = []
+        for resource in resources:
+            resource_dict = {
+                "id": getattr(resource, "id", ""),
+                "name": getattr(resource, "name", ""),
+                "type": resource_type,
+                "region": getattr(resource, "region", ""),
+                "status": str(getattr(resource, "status", "")),
+                "spec": getattr(resource, "spec", ""),
+            }
+            resource_dicts.append(resource_dict)
+        
+        # 匹配资源
+        matched_resources = []
+        for resource_dict in resource_dicts:
+            # 检查是否匹配所有规则
+            match = True
+            for rule in rules:
+                if not TagEngine.match_rule(resource_dict, rule):
+                    match = False
+                    break
+            if match:
+                matched_resources.append(resource_dict)
+        
+        return {
+            "success": True,
+            "data": {
+                "matched_count": len(matched_resources),
+                "total_count": len(resource_dicts),
+                "resources": matched_resources[:100],  # 限制返回数量
+                "rules": [{"field": r.field, "operator": r.operator, "pattern": r.pattern} for r in rules]
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"预览标签匹配失败: {str(e)}")
+
+
+@router.get("/virtual-tags/{tag_id}/cost")
+def get_tag_cost(
+    tag_id: str,
+    account: Optional[str] = None,
+    days: int = Query(30, ge=1, le=365)
+) -> Dict[str, Any]:
+    """获取标签的成本统计"""
+    try:
+        # 获取标签
+        tag = _tag_storage.get_tag(tag_id)
+        if not tag:
+            raise HTTPException(status_code=404, detail=f"标签 {tag_id} 不存在")
+        
+        # TODO: 实现成本计算
+        # 需要：
+        # 1. 获取匹配的资源
+        # 2. 从账单数据中计算这些资源的成本
+        # 3. 返回成本统计
+        
+        # 临时返回示例数据
+        return {
+            "success": True,
+            "data": {
+                "tag_id": tag_id,
+                "tag_name": tag.name,
+                "total_cost": 0.0,
+                "resource_count": 0,
+                "message": "成本计算功能开发中"
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取标签成本失败: {str(e)}")
+
+
+@router.post("/virtual-tags/clear-cache")
+def clear_tag_cache(tag_id: Optional[str] = None) -> Dict[str, Any]:
+    """清除标签匹配缓存"""
+    try:
+        _tag_storage.clear_cache(tag_id)
+        return {
+            "success": True,
+            "message": "缓存清除成功"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"清除缓存失败: {str(e)}")
+
+
+# ==================== 预算管理 API ====================
+
+class AlertThresholdRequest(BaseModel):
+    """告警阈值请求模型"""
+    percentage: float
+    enabled: bool = True
+    notification_channels: List[str] = []
+
+
+class BudgetRequest(BaseModel):
+    """预算请求模型"""
+    name: str
+    amount: float
+    period: str  # monthly/quarterly/yearly
+    type: str    # total/tag/service
+    start_date: str  # ISO格式日期
+    tag_filter: Optional[str] = None
+    service_filter: Optional[str] = None
+    alerts: List[AlertThresholdRequest] = []
+    account_id: Optional[str] = None
+
+
+# 初始化存储管理器
+# 强制重新加载模块以确保使用最新代码
+import importlib
+if 'core.budget_manager' in sys.modules:
+    importlib.reload(sys.modules['core.budget_manager'])
+
+# 在这里导入预算管理模块（在重新加载后）
+from core.budget_manager import BudgetStorage, Budget, BudgetPeriod, BudgetType, AlertThreshold, BudgetCalculator, BudgetStatus
+
+_budget_storage = BudgetStorage()
+_bill_storage = BillStorageManager()
+
+
+@router.get("/budgets")
+def list_budgets(account: Optional[str] = None) -> Dict[str, Any]:
+    """获取预算列表"""
+    try:
+        # 获取账号ID
+        account_id = None
+        if account:
+            cm = ConfigManager()
+            account_config = cm.get_account(account)
+            if account_config:
+                account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        budgets = _budget_storage.list_budgets(account_id)
+        return {
+            "success": True,
+            "data": [budget.to_dict() for budget in budgets],
+            "count": len(budgets)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取预算列表失败: {str(e)}")
+
+
+@router.get("/budgets/{budget_id}")
+def get_budget(budget_id: str) -> Dict[str, Any]:
+    """获取预算详情"""
+    try:
+        budget = _budget_storage.get_budget(budget_id)
+        if not budget:
+            raise HTTPException(status_code=404, detail=f"预算 {budget_id} 不存在")
+        return {
+            "success": True,
+            "data": budget.to_dict()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取预算详情失败: {str(e)}")
+
+
+@router.post("/budgets")
+def create_budget(req: BudgetRequest) -> Dict[str, Any]:
+    """创建预算"""
+    try:
+        # 解析开始日期
+        start_date = datetime.fromisoformat(req.start_date.replace('Z', '+00:00'))
+        if start_date.tzinfo:
+            start_date = start_date.replace(tzinfo=None)
+        
+        # 计算结束日期
+        calculator = BudgetCalculator()
+        start_date, end_date = calculator.calculate_period_dates(req.period, start_date)
+        
+        # 转换告警规则
+        alerts = [
+            AlertThreshold(
+                percentage=alert.percentage,
+                enabled=alert.enabled,
+                notification_channels=alert.notification_channels
+            )
+            for alert in req.alerts
+        ]
+        
+        # 创建预算对象
+        budget = Budget(
+            id="",  # 将在存储时生成
+            name=req.name,
+            amount=req.amount,
+            period=req.period,
+            type=req.type,
+            start_date=start_date,
+            end_date=end_date,
+            tag_filter=req.tag_filter,
+            service_filter=req.service_filter,
+            alerts=alerts,
+            account_id=req.account_id
+        )
+        
+        # 保存到数据库
+        budget_id = _budget_storage.create_budget(budget)
+        
+        # 返回创建的预算
+        created_budget = _budget_storage.get_budget(budget_id)
+        return {
+            "success": True,
+            "message": "预算创建成功",
+            "data": created_budget.to_dict()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"创建预算失败: {str(e)}")
+
+
+@router.put("/budgets/{budget_id}")
+def update_budget(budget_id: str, req: BudgetRequest) -> Dict[str, Any]:
+    """更新预算"""
+    try:
+        # 检查预算是否存在
+        existing_budget = _budget_storage.get_budget(budget_id)
+        if not existing_budget:
+            raise HTTPException(status_code=404, detail=f"预算 {budget_id} 不存在")
+        
+        # 解析开始日期
+        start_date = datetime.fromisoformat(req.start_date.replace('Z', '+00:00'))
+        if start_date.tzinfo:
+            start_date = start_date.replace(tzinfo=None)
+        
+        # 计算结束日期
+        calculator = BudgetCalculator()
+        start_date, end_date = calculator.calculate_period_dates(req.period, start_date)
+        
+        # 转换告警规则
+        alerts = [
+            AlertThreshold(
+                percentage=alert.percentage,
+                enabled=alert.enabled,
+                notification_channels=alert.notification_channels
+            )
+            for alert in req.alerts
+        ]
+        
+        # 更新预算
+        budget = Budget(
+            id=budget_id,
+            name=req.name,
+            amount=req.amount,
+            period=req.period,
+            type=req.type,
+            start_date=start_date,
+            end_date=end_date,
+            tag_filter=req.tag_filter,
+            service_filter=req.service_filter,
+            alerts=alerts,
+            account_id=req.account_id,
+            created_at=existing_budget.created_at,
+            updated_at=None  # 将在存储时更新
+        )
+        
+        # 保存到数据库
+        success = _budget_storage.update_budget(budget)
+        if not success:
+            raise HTTPException(status_code=500, detail="更新预算失败")
+        
+        # 返回更新的预算
+        updated_budget = _budget_storage.get_budget(budget_id)
+        return {
+            "success": True,
+            "message": "预算更新成功",
+            "data": updated_budget.to_dict()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新预算失败: {str(e)}")
+
+
+@router.delete("/budgets/{budget_id}")
+def delete_budget(budget_id: str) -> Dict[str, Any]:
+    """删除预算"""
+    try:
+        success = _budget_storage.delete_budget(budget_id)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"预算 {budget_id} 不存在")
+        return {
+            "success": True,
+            "message": "预算删除成功"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除预算失败: {str(e)}")
+
+
+@router.get("/budgets/{budget_id}/status")
+def get_budget_status(
+    budget_id: str,
+    account: Optional[str] = None
+) -> Dict[str, Any]:
+    """获取预算状态"""
+    try:
+        # 获取预算
+        budget = _budget_storage.get_budget(budget_id)
+        if not budget:
+            raise HTTPException(status_code=404, detail=f"预算 {budget_id} 不存在")
+        
+        # 获取账号ID
+        account_id = budget.account_id
+        if not account_id and account:
+            cm = ConfigManager()
+            account_config = cm.get_account(account)
+            if account_config:
+                account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        if not account_id:
+            raise HTTPException(status_code=400, detail="无法确定账号ID")
+        
+        # 计算预算状态
+        # 直接使用BudgetCalculator和BudgetStorage的方法
+        from core.budget_manager import BudgetCalculator
+        
+        now = datetime.now()
+        days_total = (budget.end_date - budget.start_date).days
+        days_elapsed = (now - budget.start_date).days
+        days_elapsed = max(0, min(days_elapsed, days_total))
+        
+        # 从账单数据库获取实际支出
+        spent = 0.0
+        try:
+            import sqlite3
+            conn = sqlite3.connect(_bill_storage.db_path)
+            cursor = conn.cursor()
+            
+            start_date_str = budget.start_date.strftime('%Y-%m-%d')
+            end_date_str = min(now, budget.end_date).strftime('%Y-%m-%d')
+            
+            cursor.execute("""
+                SELECT SUM(pretax_amount) as total
+                FROM bill_items
+                WHERE account_id = ?
+                    AND billing_date >= ?
+                    AND billing_date <= ?
+                    AND pretax_amount IS NOT NULL
+            """, (account_id, start_date_str, end_date_str))
+            
+            row = cursor.fetchone()
+            if row and row[0]:
+                spent = float(row[0])
+            
+            conn.close()
+        except Exception as e:
+            logger.error(f"Error calculating budget spend: {e}")
+        
+        # 计算剩余预算和使用率
+        remaining = max(0, budget.amount - spent)
+        usage_rate = BudgetCalculator.calculate_usage_rate(spent, budget.amount)
+        
+        # 预测支出
+        predicted_spend = None
+        predicted_overspend = None
+        if days_elapsed > 0:
+            predicted_spend = BudgetCalculator.predict_spend(
+                spent, days_elapsed, days_total
+            )
+            predicted_overspend = max(0, predicted_spend - budget.amount)
+        
+        # 创建临时状态用于告警检查
+        temp_status = BudgetStatus(
+            budget_id=budget.id,
+            spent=spent,
+            remaining=remaining,
+            usage_rate=usage_rate,
+            days_elapsed=days_elapsed,
+            days_total=days_total,
+            predicted_spend=predicted_spend,
+            predicted_overspend=predicted_overspend
+        )
+        
+        # 检查告警
+        alerts_triggered = BudgetCalculator.check_alerts(budget, temp_status)
+        
+        status = BudgetStatus(
+            budget_id=budget.id,
+            spent=spent,
+            remaining=remaining,
+            usage_rate=usage_rate,
+            days_elapsed=days_elapsed,
+            days_total=days_total,
+            predicted_spend=predicted_spend,
+            predicted_overspend=predicted_overspend,
+            alerts_triggered=alerts_triggered
+        )
+        
+        # 记录支出
+        _budget_storage.record_spend(budget.id, now, spent, predicted_spend)
+        
+        return {
+            "success": True,
+            "data": status.to_dict()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取预算状态失败: {str(e)}")
+
+
+@router.get("/budgets/{budget_id}/trend")
+def get_budget_trend(
+    budget_id: str,
+    days: int = Query(30, ge=1, le=365)
+) -> Dict[str, Any]:
+    """获取预算趋势"""
+    try:
+        history = _budget_storage.get_spend_history(budget_id, days)
+        return {
+            "success": True,
+            "data": history
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取预算趋势失败: {str(e)}")
+
+
+# ==================== 自定义仪表盘 API ====================
+
+class WidgetConfigRequest(BaseModel):
+    """Widget配置请求模型"""
+    id: str
+    type: str
+    title: str
+    position: Dict[str, int]
+    config: Dict[str, Any]
+    data_source: Optional[str] = None
+
+
+class DashboardRequest(BaseModel):
+    """仪表盘请求模型"""
+    name: str
+    description: Optional[str] = None
+    widgets: List[WidgetConfigRequest] = []
+    layout: str = "grid"
+    is_shared: bool = False
+
+
+# 初始化存储管理器
+_dashboard_storage = DashboardStorage()
+
+
+@router.get("/dashboards")
+def list_dashboards(account: Optional[str] = None) -> Dict[str, Any]:
+    """获取仪表盘列表"""
+    try:
+        # 获取账号ID
+        account_id = None
+        if account:
+            cm = ConfigManager()
+            account_config = cm.get_account(account)
+            if account_config:
+                account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        dashboards = _dashboard_storage.list_dashboards(account_id, include_shared=True)
+        return {
+            "success": True,
+            "data": [dashboard.to_dict() for dashboard in dashboards],
+            "count": len(dashboards)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取仪表盘列表失败: {str(e)}")
+
+
+@router.get("/dashboards/{dashboard_id}")
+def get_dashboard(dashboard_id: str) -> Dict[str, Any]:
+    """获取仪表盘详情"""
+    try:
+        dashboard = _dashboard_storage.get_dashboard(dashboard_id)
+        if not dashboard:
+            raise HTTPException(status_code=404, detail=f"仪表盘 {dashboard_id} 不存在")
+        return {
+            "success": True,
+            "data": dashboard.to_dict()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取仪表盘详情失败: {str(e)}")
+
+
+@router.post("/dashboards")
+def create_dashboard(req: DashboardRequest, account: Optional[str] = None) -> Dict[str, Any]:
+    """创建仪表盘"""
+    try:
+        # 获取账号ID
+        account_id = None
+        if account:
+            cm = ConfigManager()
+            account_config = cm.get_account(account)
+            if account_config:
+                account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        # 转换widget配置
+        widgets = [
+            WidgetConfig(
+                id=widget.id,
+                type=widget.type,
+                title=widget.title,
+                position=widget.position,
+                config=widget.config,
+                data_source=widget.data_source
+            )
+            for widget in req.widgets
+        ]
+        
+        # 创建仪表盘对象
+        dashboard = Dashboard(
+            id="",  # 将在存储时生成
+            name=req.name,
+            description=req.description,
+            widgets=widgets,
+            layout=req.layout,
+            account_id=account_id,
+            is_shared=req.is_shared,
+            created_by=None  # TODO: 从认证信息获取
+        )
+        
+        # 保存到数据库
+        dashboard_id = _dashboard_storage.create_dashboard(dashboard)
+        
+        # 返回创建的仪表盘
+        created_dashboard = _dashboard_storage.get_dashboard(dashboard_id)
+        return {
+            "success": True,
+            "message": "仪表盘创建成功",
+            "data": created_dashboard.to_dict()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"创建仪表盘失败: {str(e)}")
+
+
+@router.put("/dashboards/{dashboard_id}")
+def update_dashboard(dashboard_id: str, req: DashboardRequest) -> Dict[str, Any]:
+    """更新仪表盘"""
+    try:
+        # 检查仪表盘是否存在
+        existing_dashboard = _dashboard_storage.get_dashboard(dashboard_id)
+        if not existing_dashboard:
+            raise HTTPException(status_code=404, detail=f"仪表盘 {dashboard_id} 不存在")
+        
+        # 转换widget配置
+        widgets = [
+            WidgetConfig(
+                id=widget.id,
+                type=widget.type,
+                title=widget.title,
+                position=widget.position,
+                config=widget.config,
+                data_source=widget.data_source
+            )
+            for widget in req.widgets
+        ]
+        
+        # 更新仪表盘
+        dashboard = Dashboard(
+            id=dashboard_id,
+            name=req.name,
+            description=req.description,
+            widgets=widgets,
+            layout=req.layout,
+            account_id=existing_dashboard.account_id,
+            is_shared=req.is_shared,
+            created_by=existing_dashboard.created_by,
+            created_at=existing_dashboard.created_at,
+            updated_at=None  # 将在存储时更新
+        )
+        
+        # 保存到数据库
+        success = _dashboard_storage.update_dashboard(dashboard)
+        if not success:
+            raise HTTPException(status_code=500, detail="更新仪表盘失败")
+        
+        # 返回更新的仪表盘
+        updated_dashboard = _dashboard_storage.get_dashboard(dashboard_id)
+        return {
+            "success": True,
+            "message": "仪表盘更新成功",
+            "data": updated_dashboard.to_dict()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新仪表盘失败: {str(e)}")
+
+
+@router.delete("/dashboards/{dashboard_id}")
+def delete_dashboard(dashboard_id: str) -> Dict[str, Any]:
+    """删除仪表盘"""
+    try:
+        success = _dashboard_storage.delete_dashboard(dashboard_id)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"仪表盘 {dashboard_id} 不存在")
+        return {
+            "success": True,
+            "message": "仪表盘删除成功"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除仪表盘失败: {str(e)}")

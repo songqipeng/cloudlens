@@ -148,43 +148,78 @@ class SecurityComplianceAnalyzer:
         return preemptible
 
     @staticmethod
-    def suggest_security_improvements(security_summary: Dict) -> List[str]:
+    def suggest_security_improvements(security_summary: Dict, locale: str = "zh") -> List[str]:
         """
         综合安全改进建议
+
+        Args:
+            security_summary: 安全摘要数据
+            locale: 语言代码 ("zh" 或 "en")
 
         Returns:
             建议列表
         """
+        try:
+            from web.backend.i18n import get_translation
+        except ImportError:
+            # 如果无法导入，使用默认中文
+            locale = "zh"
+            get_translation = lambda lang, key, **kwargs: key
+        
         suggestions = []
 
         exposed_count = security_summary.get("exposed_count", 0)
         if exposed_count > 0:
-            suggestions.append(f"⚠️ 公网暴露: 发现 {exposed_count} 个实例暴露在公网")
-            suggestions.append("  • 评估是否真的需要公网访问")
-            suggestions.append("  • 配置安全组白名单限制访问源")
-            suggestions.append("  • 考虑使用 NAT 网关或 SLB")
+            if locale == "en":
+                suggestions.append(f"⚠️ Public Exposure: Found {exposed_count} instances exposed to the public network")
+                suggestions.append("  • Evaluate if public network access is really needed")
+                suggestions.append("  • Configure security group whitelist to limit access sources")
+                suggestions.append("  • Consider using NAT gateway or SLB")
+            else:
+                suggestions.append(f"⚠️ 公网暴露: 发现 {exposed_count} 个实例暴露在公网")
+                suggestions.append("  • 评估是否真的需要公网访问")
+                suggestions.append("  • 配置安全组白名单限制访问源")
+                suggestions.append("  • 考虑使用 NAT 网关或 SLB")
 
         unbound_eip = security_summary.get("unbound_eip", 0)
         if unbound_eip > 0:
-            suggestions.append(f"💰 未绑定EIP: {unbound_eip} 个 EIP 未使用，建议释放")
+            if locale == "en":
+                suggestions.append(f"💰 Unbound EIP: {unbound_eip} EIPs unused, recommend releasing")
+            else:
+                suggestions.append(f"💰 未绑定EIP: {unbound_eip} 个 EIP 未使用，建议释放")
 
         stopped_count = security_summary.get("stopped_count", 0)
         if stopped_count > 0:
-            suggestions.append(f"⏸️ 停止实例: {stopped_count} 个实例长期停止，仍产生磁盘费用")
+            if locale == "en":
+                suggestions.append(f"⏸️ Stopped Instances: {stopped_count} instances long-term stopped, still incurring disk costs")
+            else:
+                suggestions.append(f"⏸️ 停止实例: {stopped_count} 个实例长期停止，仍产生磁盘费用")
 
         tag_coverage = security_summary.get("tag_coverage_rate", 100)
         if tag_coverage < 80:
-            suggestions.append(f"🏷️ 标签覆盖率: 仅 {tag_coverage}%，建议完善资源标签")
+            if locale == "en":
+                suggestions.append(f"🏷️ Tag Coverage: Only {tag_coverage}%, recommend improving resource tags")
+            else:
+                suggestions.append(f"🏷️ 标签覆盖率: 仅 {tag_coverage}%，建议完善资源标签")
 
         encryption_rate = security_summary.get("encryption_rate", 100)
         if encryption_rate < 50:
-            suggestions.append(f"🔒 磁盘加密: 仅 {encryption_rate}% 实例启用加密")
+            if locale == "en":
+                suggestions.append(f"🔒 Disk Encryption: Only {encryption_rate}% instances have encryption enabled")
+            else:
+                suggestions.append(f"🔒 磁盘加密: 仅 {encryption_rate}% 实例启用加密")
 
         preemptible_count = security_summary.get("preemptible_count", 0)
         if preemptible_count > 0:
-            suggestions.append(f"⚡ 抢占式实例: {preemptible_count} 个，生产环境不建议使用")
+            if locale == "en":
+                suggestions.append(f"⚡ Preemptible Instances: {preemptible_count} instances, not recommended for production")
+            else:
+                suggestions.append(f"⚡ 抢占式实例: {preemptible_count} 个，生产环境不建议使用")
 
         if not suggestions:
-            suggestions.append("✅ 未发现明显的安全和合规风险")
+            if locale == "en":
+                suggestions.append("✅ No obvious security and compliance risks found")
+            else:
+                suggestions.append("✅ 未发现明显的安全和合规风险")
 
         return suggestions

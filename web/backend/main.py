@@ -1,33 +1,98 @@
+"""
+FastAPI 主应用入口
+"""
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import os
-import sys
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.openapi.utils import get_openapi
+import logging
 
-# Add parent directory to path to import core modules
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-app = FastAPI(title="CloudLens API", version="1.0.0")
+# 创建 FastAPI 应用
+app = FastAPI(
+    title="CloudLens API",
+    description="云资源成本优化与分析平台 API",
+    version="2.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
+)
 
-# Enable CORS
+# CORS 配置
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For dev only
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok", "version": "1.0.0"}
-
-# Import routers
+# 导入并注册路由
 try:
-    from .api import router as api_router
-except ImportError:
-    # 兼容直接运行和模块导入
-    from api import router as api_router
+    from web.backend.api import router as api_router
+    app.include_router(api_router)
+    logger.info("API router registered")
+except Exception as e:
+    logger.error(f"Failed to register API router: {e}")
 
-app.include_router(api_router)
+try:
+    from web.backend.api_alerts import router as alerts_router
+    app.include_router(alerts_router)
+    logger.info("Alerts router registered")
+except Exception as e:
+    logger.warning(f"Failed to register alerts router: {e}")
 
+try:
+    from web.backend.api_cost_allocation import router as cost_allocation_router
+    app.include_router(cost_allocation_router)
+    logger.info("Cost allocation router registered")
+except Exception as e:
+    logger.warning(f"Failed to register cost allocation router: {e}")
+
+try:
+    from web.backend.api_ai_optimizer import router as ai_optimizer_router
+    app.include_router(ai_optimizer_router)
+    logger.info("AI optimizer router registered")
+except Exception as e:
+    logger.warning(f"Failed to register AI optimizer router: {e}")
+
+# OpenAPI 自定义配置
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title="CloudLens API",
+        version="2.0.0",
+        description="云资源成本优化与分析平台 API 文档",
+        routes=app.routes,
+    )
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
+
+@app.get("/")
+async def root():
+    """API 根路径"""
+    return {
+        "name": "CloudLens API",
+        "version": "2.0.0",
+        "docs": "/docs",
+        "redoc": "/redoc"
+    }
+
+@app.get("/health")
+async def health_check():
+    """健康检查端点"""
+    return {"status": "healthy"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

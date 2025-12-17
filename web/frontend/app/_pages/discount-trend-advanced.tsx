@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DateRangeSelector, DateRange } from "@/components/discount/DateRangeSelector"
 import { useAccount } from "@/contexts/account-context"
+import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
 import { RefreshCw, TrendingUp, TrendingDown, AlertTriangle, DollarSign } from "lucide-react"
 import {
@@ -35,6 +36,7 @@ import type {
 
 export default function AdvancedDiscountTrendPage() {
   const { currentAccount } = useAccount()
+  const { t } = useLocale()
   const [activeTab, setActiveTab] = useState("overview")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -93,8 +95,8 @@ export default function AdvancedDiscountTrendPage() {
       setAnomaliesData(anom)
       setInsights(insightsData)
     } catch (err: any) {
-      console.error("加载折扣分析数据失败:", err)
-      setError(err.message || "加载失败")
+      console.error("Failed to load discount analysis data:", err)
+      setError(err.message || t.discountAdvanced.loadFailed)
     } finally {
       setLoading(false)
     }
@@ -124,7 +126,7 @@ export default function AdvancedDiscountTrendPage() {
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-            <p className="text-muted-foreground">正在加载高级折扣分析...</p>
+            <p className="text-muted-foreground">{t.discountAdvanced.loading}</p>
           </div>
         </div>
       </DashboardLayout>
@@ -138,7 +140,7 @@ export default function AdvancedDiscountTrendPage() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-destructive mb-2">
               <AlertTriangle className="h-5 w-5" />
-              <p className="font-semibold">加载失败</p>
+              <p className="font-semibold">{t.discountAdvanced.loadFailed}</p>
             </div>
             <p className="text-sm text-muted-foreground">{error}</p>
           </CardContent>
@@ -153,9 +155,9 @@ export default function AdvancedDiscountTrendPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">高级折扣分析</h2>
+            <h2 className="text-3xl font-bold tracking-tight">{t.discountAdvanced.title}</h2>
             <p className="text-muted-foreground mt-1">
-              多维度深度分析 • 8大分析维度 • 自定义时间范围
+              {t.discountAdvanced.description}
             </p>
           </div>
           <div className="flex gap-2">
@@ -165,7 +167,7 @@ export default function AdvancedDiscountTrendPage() {
               size="sm"
             >
               <DollarSign className="mr-2 h-4 w-4" />
-              导出Excel
+              {t.discountAdvanced.exportExcel}
             </Button>
             <Button
               onClick={() => fetchAllData(true)}
@@ -174,7 +176,7 @@ export default function AdvancedDiscountTrendPage() {
               size="sm"
             >
               <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              刷新
+              {t.discountAdvanced.refresh}
             </Button>
           </div>
         </div>
@@ -192,12 +194,12 @@ export default function AdvancedDiscountTrendPage() {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="overview">总览</TabsTrigger>
-            <TabsTrigger value="time">时间分析</TabsTrigger>
-            <TabsTrigger value="products">产品分析</TabsTrigger>
-            <TabsTrigger value="regions">区域分析</TabsTrigger>
-            <TabsTrigger value="billing">计费分析</TabsTrigger>
-            <TabsTrigger value="advanced">高级分析</TabsTrigger>
+            <TabsTrigger value="overview">{t.discountAdvanced.tabs.overview}</TabsTrigger>
+            <TabsTrigger value="time">{t.discountAdvanced.tabs.timeAnalysis}</TabsTrigger>
+            <TabsTrigger value="products">{t.discountAdvanced.tabs.productAnalysis}</TabsTrigger>
+            <TabsTrigger value="regions">{t.discountAdvanced.tabs.regionAnalysis}</TabsTrigger>
+            <TabsTrigger value="billing">{t.discountAdvanced.tabs.billingAnalysis}</TabsTrigger>
+            <TabsTrigger value="advanced">{t.discountAdvanced.tabs.advancedAnalysis}</TabsTrigger>
           </TabsList>
 
           {/* Tab 1: Overview */}
@@ -213,6 +215,7 @@ export default function AdvancedDiscountTrendPage() {
               insights={insights}
               formatCurrency={formatCurrency}
               formatPercent={formatPercent}
+              t={t}
             />
           </TabsContent>
 
@@ -224,6 +227,7 @@ export default function AdvancedDiscountTrendPage() {
               anomalies={anomalies}
               formatCurrency={formatCurrency}
               formatPercent={formatPercent}
+              t={t}
             />
           </TabsContent>
 
@@ -233,6 +237,7 @@ export default function AdvancedDiscountTrendPage() {
               products={productTrends}
               formatCurrency={formatCurrency}
               formatPercent={formatPercent}
+              t={t}
             />
           </TabsContent>
 
@@ -242,6 +247,7 @@ export default function AdvancedDiscountTrendPage() {
               regions={regionsData}
               formatCurrency={formatCurrency}
               formatPercent={formatPercent}
+              t={t}
             />
           </TabsContent>
 
@@ -252,6 +258,7 @@ export default function AdvancedDiscountTrendPage() {
               suggestions={suggestions}
               formatCurrency={formatCurrency}
               formatPercent={formatPercent}
+              t={t}
             />
           </TabsContent>
 
@@ -261,6 +268,7 @@ export default function AdvancedDiscountTrendPage() {
               currentAccount={currentAccount}
               formatCurrency={formatCurrency}
               formatPercent={formatPercent}
+              t={t}
             />
           </TabsContent>
         </Tabs>
@@ -271,7 +279,7 @@ export default function AdvancedDiscountTrendPage() {
 
 // ==================== Tab Components ====================
 
-function OverviewTab({ quarterly, yearly, products, regions, subscription, suggestions, anomalies, insights, formatCurrency, formatPercent }: any) {
+function OverviewTab({ quarterly, yearly, products, regions, subscription, suggestions, anomalies, insights, formatCurrency, formatPercent, t }: any) {
   // 计算关键指标
   const latestQuarter = quarterly?.data?.quarters?.[quarterly.data.quarters.length - 1]
   const latestYear = yearly?.data?.years?.[yearly.data.years.length - 1]
@@ -284,52 +292,52 @@ function OverviewTab({ quarterly, yearly, products, regions, subscription, sugge
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">最新季度折扣率</CardTitle>
+            <CardTitle className="text-sm font-medium">{t.discountAdvanced.overview.latestQuarterDiscount}</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatPercent(latestQuarter?.avg_discount_rate || 0)}</div>
             <p className="text-xs text-muted-foreground">
-              {latestQuarter?.period} • {latestQuarter?.month_count}个月
+              {latestQuarter?.period} • {latestQuarter?.month_count}{t.discountAdvanced.overview.months}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">季度总节省</CardTitle>
+            <CardTitle className="text-sm font-medium">{t.discountAdvanced.overview.quarterTotalSavings}</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(latestQuarter?.total_discount || 0)}</div>
             <p className="text-xs text-muted-foreground">
-              环比 {latestQuarter?.rate_change > 0 ? '+' : ''}{latestQuarter?.rate_change?.toFixed(1)}%
+              {t.discountAdvanced.overview.momChange} {latestQuarter?.rate_change > 0 ? '+' : ''}{latestQuarter?.rate_change?.toFixed(1)}%
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">优化机会</CardTitle>
+            <CardTitle className="text-sm font-medium">{t.discountAdvanced.overview.optimizationOpportunities}</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{suggestions?.data?.total_suggestions || 0}个实例</div>
+            <div className="text-2xl font-bold">{suggestions?.data?.total_suggestions || 0}{t.discountAdvanced.overview.instances}</div>
             <p className="text-xs text-muted-foreground">
-              年节省 {formatCurrency(suggestions?.data?.total_potential_savings || 0)}
+              {t.discountAdvanced.overview.yearSavings} {formatCurrency(suggestions?.data?.total_potential_savings || 0)}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">异常检测</CardTitle>
+            <CardTitle className="text-sm font-medium">{t.discountAdvanced.overview.anomalyDetection}</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{anomalies?.data?.total_anomalies || 0}个月份</div>
+            <div className="text-2xl font-bold">{anomalies?.data?.total_anomalies || 0}{t.discountAdvanced.overview.monthsUnit}</div>
             <p className="text-xs text-muted-foreground">
-              波动 {'>'}10%
+              {t.discountAdvanced.overview.fluctuation} {'>'}10%
             </p>
           </CardContent>
         </Card>
@@ -340,7 +348,7 @@ function OverviewTab({ quarterly, yearly, products, regions, subscription, sugge
         {/* 季度趋势 */}
         <Card>
           <CardHeader>
-            <CardTitle>季度折扣趋势</CardTitle>
+            <CardTitle>{t.discountAdvanced.overview.quarterlyTrend}</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -351,8 +359,8 @@ function OverviewTab({ quarterly, yearly, products, regions, subscription, sugge
                 <YAxis yAxisId="right" orientation="right" />
                 <Tooltip formatter={(value: any) => typeof value === 'number' && value < 1 ? formatPercent(value) : formatCurrency(value)} />
                 <Legend />
-                <Bar yAxisId="left" dataKey="total_discount" fill="#8884d8" name="折扣金额" />
-                <Line yAxisId="right" type="monotone" dataKey="avg_discount_rate" stroke="#82ca9d" name="折扣率" />
+                <Bar yAxisId="left" dataKey="total_discount" fill="#8884d8" name={t.discountAdvanced.overview.discountAmount} />
+                <Line yAxisId="right" type="monotone" dataKey="avg_discount_rate" stroke="#82ca9d" name={t.discountAdvanced.overview.discountRate} />
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
@@ -361,7 +369,7 @@ function OverviewTab({ quarterly, yearly, products, regions, subscription, sugge
         {/* TOP产品 */}
         <Card>
           <CardHeader>
-            <CardTitle>TOP 5产品折扣率</CardTitle>
+            <CardTitle>{t.discountAdvanced.overview.top5ProductDiscount}</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -370,7 +378,7 @@ function OverviewTab({ quarterly, yearly, products, regions, subscription, sugge
                 <XAxis type="number" tickFormatter={formatPercent} />
                 <YAxis dataKey="product_name" type="category" width={120} />
                 <Tooltip formatter={(value: any) => formatPercent(value as number)} />
-                <Bar dataKey="avg_discount_rate" fill="#8884d8" name="平均折扣率" />
+                <Bar dataKey="avg_discount_rate" fill="#8884d8" name={t.discountAdvanced.overview.avgDiscountRate} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -380,7 +388,7 @@ function OverviewTab({ quarterly, yearly, products, regions, subscription, sugge
       {/* 智能洞察 (Phase 3) */}
       <Card>
         <CardHeader>
-          <CardTitle>🤖 AI智能洞察</CardTitle>
+          <CardTitle>{t.discountAdvanced.overview.aiInsights}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -406,7 +414,7 @@ function OverviewTab({ quarterly, yearly, products, regions, subscription, sugge
               </div>
             ))}
             {(!insights || !insights.data?.insights?.length) && (
-              <p className="text-sm text-muted-foreground">正在生成智能洞察...</p>
+              <p className="text-sm text-muted-foreground">{t.discountAdvanced.overview.generatingInsights}</p>
             )}
           </div>
         </CardContent>
@@ -415,13 +423,13 @@ function OverviewTab({ quarterly, yearly, products, regions, subscription, sugge
   )
 }
 
-function TimeAnalysisTab({ quarterly, yearly, anomalies, formatCurrency, formatPercent }: any) {
+function TimeAnalysisTab({ quarterly, yearly, anomalies, formatCurrency, formatPercent, t }: any) {
   return (
     <>
       {/* 季度对比 */}
       <Card>
         <CardHeader>
-          <CardTitle>季度对比</CardTitle>
+          <CardTitle>{t.discountAdvanced.timeAnalysis.quarterComparison}</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={400}>
@@ -432,9 +440,9 @@ function TimeAnalysisTab({ quarterly, yearly, anomalies, formatCurrency, formatP
               <YAxis yAxisId="right" orientation="right" tickFormatter={formatPercent} />
               <Tooltip />
               <Legend />
-              <Bar yAxisId="left" dataKey="total_paid" fill="#8884d8" name="实付金额" />
-              <Bar yAxisId="left" dataKey="total_discount" fill="#82ca9d" name="折扣金额" />
-              <Line yAxisId="right" type="monotone" dataKey="avg_discount_rate" stroke="#ff7300" name="折扣率" strokeWidth={2} />
+              <Bar yAxisId="left" dataKey="total_paid" fill="#8884d8" name={t.discountAdvanced.timeAnalysis.paidAmount} />
+              <Bar yAxisId="left" dataKey="total_discount" fill="#82ca9d" name={t.discountAdvanced.overview.discountAmount} />
+              <Line yAxisId="right" type="monotone" dataKey="avg_discount_rate" stroke="#ff7300" name={t.discountAdvanced.overview.discountRate} strokeWidth={2} />
             </ComposedChart>
           </ResponsiveContainer>
         </CardContent>
@@ -443,7 +451,7 @@ function TimeAnalysisTab({ quarterly, yearly, anomalies, formatCurrency, formatP
       {/* 年度对比 */}
       <Card>
         <CardHeader>
-          <CardTitle>年度对比</CardTitle>
+          <CardTitle>{t.discountAdvanced.timeAnalysis.yearlyComparison}</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={400}>
@@ -454,9 +462,9 @@ function TimeAnalysisTab({ quarterly, yearly, anomalies, formatCurrency, formatP
               <YAxis yAxisId="right" orientation="right" tickFormatter={formatPercent} />
               <Tooltip />
               <Legend />
-              <Bar yAxisId="left" dataKey="total_paid" fill="#8884d8" name="实付金额" />
-              <Bar yAxisId="left" dataKey="total_discount" fill="#82ca9d" name="折扣金额" />
-              <Line yAxisId="right" type="monotone" dataKey="avg_discount_rate" stroke="#ff7300" name="折扣率" strokeWidth={2} />
+              <Bar yAxisId="left" dataKey="total_paid" fill="#8884d8" name={t.discountAdvanced.timeAnalysis.paidAmount} />
+              <Bar yAxisId="left" dataKey="total_discount" fill="#82ca9d" name={t.discountAdvanced.overview.discountAmount} />
+              <Line yAxisId="right" type="monotone" dataKey="avg_discount_rate" stroke="#ff7300" name={t.discountAdvanced.overview.discountRate} strokeWidth={2} />
             </ComposedChart>
           </ResponsiveContainer>
         </CardContent>
@@ -466,7 +474,7 @@ function TimeAnalysisTab({ quarterly, yearly, anomalies, formatCurrency, formatP
       {anomalies?.data?.anomalies && anomalies.data.anomalies.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>折扣异常检测</CardTitle>
+            <CardTitle>{t.discountAdvanced.timeAnalysis.discountAnomaly}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -489,7 +497,7 @@ function TimeAnalysisTab({ quarterly, yearly, anomalies, formatCurrency, formatP
   )
 }
 
-function ProductAnalysisTab({ products, formatCurrency, formatPercent }: any) {
+function ProductAnalysisTab({ products, formatCurrency, formatPercent, t }: any) {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([])
   const topProducts = products?.data?.products || []
   
@@ -529,7 +537,7 @@ function ProductAnalysisTab({ products, formatCurrency, formatPercent }: any) {
       {/* 产品选择器 */}
       <Card>
         <CardHeader>
-          <CardTitle>选择产品（多选对比）</CardTitle>
+          <CardTitle>{t.discountAdvanced.productAnalysis.selectProducts}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
@@ -556,7 +564,7 @@ function ProductAnalysisTab({ products, formatCurrency, formatPercent }: any) {
       {/* 多产品折扣趋势对比图 */}
       <Card>
         <CardHeader>
-          <CardTitle>产品折扣趋势对比</CardTitle>
+          <CardTitle>{t.discountAdvanced.productAnalysis.productTrendComparison}</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={400}>
@@ -584,19 +592,19 @@ function ProductAnalysisTab({ products, formatCurrency, formatPercent }: any) {
       {/* 产品排行表 */}
       <Card>
         <CardHeader>
-          <CardTitle>产品详细排行</CardTitle>
+          <CardTitle>{t.discountAdvanced.productAnalysis.productRanking}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left p-2">产品名称</th>
-                  <th className="text-right p-2">总消费</th>
-                  <th className="text-right p-2">总折扣</th>
-                  <th className="text-right p-2">平均折扣率</th>
-                  <th className="text-right p-2">波动率</th>
-                  <th className="text-right p-2">趋势</th>
+                  <th className="text-left p-2">{t.discountAdvanced.productAnalysis.productName}</th>
+                  <th className="text-right p-2">{t.discountAdvanced.productAnalysis.totalConsumption}</th>
+                  <th className="text-right p-2">{t.discountAdvanced.productAnalysis.totalDiscount}</th>
+                  <th className="text-right p-2">{t.discountAdvanced.overview.avgDiscountRate}</th>
+                  <th className="text-right p-2">{t.discountAdvanced.productAnalysis.volatility}</th>
+                  <th className="text-right p-2">{t.discountAdvanced.productAnalysis.trend}</th>
                 </tr>
               </thead>
               <tbody>
@@ -623,7 +631,7 @@ function ProductAnalysisTab({ products, formatCurrency, formatPercent }: any) {
   )
 }
 
-function RegionAnalysisTab({ regions, formatCurrency, formatPercent }: any) {
+function RegionAnalysisTab({ regions, formatCurrency, formatPercent, t }: any) {
   const regionsData = regions?.data?.regions || []
 
   return (
@@ -631,7 +639,7 @@ function RegionAnalysisTab({ regions, formatCurrency, formatPercent }: any) {
       {/* 区域折扣排行 */}
       <Card>
         <CardHeader>
-          <CardTitle>区域折扣排行</CardTitle>
+          <CardTitle>{t.discountAdvanced.regionAnalysis.regionRanking}</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={400}>
@@ -640,7 +648,7 @@ function RegionAnalysisTab({ regions, formatCurrency, formatPercent }: any) {
               <XAxis type="number" tickFormatter={formatPercent} />
               <YAxis dataKey="region_name" type="category" width={150} />
               <Tooltip formatter={(value: any) => formatPercent(value as number)} />
-              <Bar dataKey="avg_discount_rate" fill="#8884d8" name="平均折扣率" />
+              <Bar dataKey="avg_discount_rate" fill="#8884d8" name={t.discountAdvanced.overview.avgDiscountRate} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
@@ -649,20 +657,20 @@ function RegionAnalysisTab({ regions, formatCurrency, formatPercent }: any) {
       {/* 区域详细表 */}
       <Card>
         <CardHeader>
-          <CardTitle>区域详细数据</CardTitle>
+          <CardTitle>{t.discountAdvanced.regionAnalysis.regionDetails}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left p-2">区域</th>
-                  <th className="text-right p-2">消费金额</th>
-                  <th className="text-right p-2">折扣金额</th>
-                  <th className="text-right p-2">折扣率</th>
-                  <th className="text-right p-2">实例数</th>
-                  <th className="text-right p-2">产品数</th>
-                  <th className="text-right p-2">占比</th>
+                  <th className="text-left p-2">{t.discountAdvanced.regionAnalysis.region}</th>
+                  <th className="text-right p-2">{t.discountAdvanced.regionAnalysis.consumptionAmount}</th>
+                  <th className="text-right p-2">{t.discountAdvanced.overview.discountAmount}</th>
+                  <th className="text-right p-2">{t.discountAdvanced.overview.discountRate}</th>
+                  <th className="text-right p-2">{t.discountAdvanced.regionAnalysis.instanceCount}</th>
+                  <th className="text-right p-2">{t.discountAdvanced.regionAnalysis.productCount}</th>
+                  <th className="text-right p-2">{t.discountAdvanced.regionAnalysis.percentage}</th>
                 </tr>
               </thead>
               <tbody>
@@ -686,7 +694,7 @@ function RegionAnalysisTab({ regions, formatCurrency, formatPercent }: any) {
   )
 }
 
-function BillingAnalysisTab({ subscription, suggestions, formatCurrency, formatPercent }: any) {
+function BillingAnalysisTab({ subscription, suggestions, formatCurrency, formatPercent, t }: any) {
   const subscriptionTypes = subscription?.data?.subscription_types || {}
   const subscriptionData = subscriptionTypes['Subscription']
   const payAsYouGoData = subscriptionTypes['PayAsYouGo']
@@ -699,23 +707,23 @@ function BillingAnalysisTab({ subscription, suggestions, formatCurrency, formatP
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>包年包月</CardTitle>
+            <CardTitle>{t.discounts.subscription}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">消费金额:</span>
+              <span className="text-sm text-muted-foreground">{t.discountAdvanced.billingAnalysis.consumptionAmount}:</span>
               <span className="font-medium">{formatCurrency(subscriptionData?.total_paid || 0)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">折扣率:</span>
+              <span className="text-sm text-muted-foreground">{t.discountAdvanced.overview.discountRate}:</span>
               <span className="font-medium">{formatPercent(subscriptionData?.avg_discount_rate || 0)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">实例数:</span>
+              <span className="text-sm text-muted-foreground">{t.discountAdvanced.regionAnalysis.instanceCount}:</span>
               <span className="font-medium">{subscriptionData?.instance_count || 0}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">消费占比:</span>
+              <span className="text-sm text-muted-foreground">{t.discountAdvanced.billingAnalysis.consumptionPercentage}:</span>
               <span className="font-medium">{subscriptionData?.consumption_percentage?.toFixed(1) || 0}%</span>
             </div>
           </CardContent>
@@ -723,23 +731,23 @@ function BillingAnalysisTab({ subscription, suggestions, formatCurrency, formatP
 
         <Card>
           <CardHeader>
-            <CardTitle>按量付费</CardTitle>
+            <CardTitle>{t.discounts.payAsYouGo}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">消费金额:</span>
+              <span className="text-sm text-muted-foreground">{t.discountAdvanced.billingAnalysis.consumptionAmount}:</span>
               <span className="font-medium">{formatCurrency(payAsYouGoData?.total_paid || 0)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">折扣率:</span>
+              <span className="text-sm text-muted-foreground">{t.discountAdvanced.overview.discountRate}:</span>
               <span className="font-medium">{formatPercent(payAsYouGoData?.avg_discount_rate || 0)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">实例数:</span>
+              <span className="text-sm text-muted-foreground">{t.discountAdvanced.regionAnalysis.instanceCount}:</span>
               <span className="font-medium">{payAsYouGoData?.instance_count || 0}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">消费占比:</span>
+              <span className="text-sm text-muted-foreground">{t.discountAdvanced.billingAnalysis.consumptionPercentage}:</span>
               <span className="font-medium">{payAsYouGoData?.consumption_percentage?.toFixed(1) || 0}%</span>
             </div>
           </CardContent>
@@ -749,14 +757,14 @@ function BillingAnalysisTab({ subscription, suggestions, formatCurrency, formatP
       {/* 折扣率差异 */}
       <Card>
         <CardHeader>
-          <CardTitle>折扣率对比</CardTitle>
+          <CardTitle>{t.discountAdvanced.billingAnalysis.discountRateComparison}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-4">
-            <p className="text-sm text-muted-foreground mb-2">包年包月折扣率优势</p>
+            <p className="text-sm text-muted-foreground mb-2">{t.discountAdvanced.billingAnalysis.subscriptionAdvantage}</p>
             <p className="text-4xl font-bold text-primary">{formatPercent(rateDiff)}</p>
             <p className="text-sm text-muted-foreground mt-2">
-              包年包月折扣率高出 {formatPercent(Math.abs(rateDiff))}
+              {t.discountAdvanced.billingAnalysis.subscriptionHigher} {formatPercent(Math.abs(rateDiff))}
             </p>
           </div>
         </CardContent>
@@ -766,7 +774,7 @@ function BillingAnalysisTab({ subscription, suggestions, formatCurrency, formatP
       <Card>
         <CardHeader>
           <CardTitle>
-            优化建议 ({suggestionsData.length}个实例 • 年节省 {formatCurrency(suggestions?.data?.total_potential_savings || 0)})
+            {t.discountAdvanced.billingAnalysis.optimizationSuggestions} ({suggestionsData.length}{t.discountAdvanced.overview.instances} • {t.discountAdvanced.overview.yearSavings} {formatCurrency(suggestions?.data?.total_potential_savings || 0)})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -774,14 +782,14 @@ function BillingAnalysisTab({ subscription, suggestions, formatCurrency, formatP
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left p-2">实例ID</th>
-                  <th className="text-left p-2">产品</th>
-                  <th className="text-left p-2">区域</th>
-                  <th className="text-right p-2">运行月数</th>
-                  <th className="text-right p-2">总成本</th>
-                  <th className="text-right p-2">当前折扣</th>
-                  <th className="text-right p-2">预计折扣</th>
-                  <th className="text-right p-2">年节省</th>
+                  <th className="text-left p-2">{t.discountAdvanced.billingAnalysis.instanceId}</th>
+                  <th className="text-left p-2">{t.discounts.product}</th>
+                  <th className="text-left p-2">{t.discountAdvanced.regionAnalysis.region}</th>
+                  <th className="text-right p-2">{t.discountAdvanced.billingAnalysis.runningMonths}</th>
+                  <th className="text-right p-2">{t.locale === 'zh' ? '总成本' : 'Total Cost'}</th>
+                  <th className="text-right p-2">{t.discountAdvanced.billingAnalysis.currentDiscount}</th>
+                  <th className="text-right p-2">{t.discountAdvanced.billingAnalysis.estimatedDiscount}</th>
+                  <th className="text-right p-2">{t.discountAdvanced.billingAnalysis.annualSavings}</th>
                 </tr>
               </thead>
               <tbody>
@@ -808,7 +816,7 @@ function BillingAnalysisTab({ subscription, suggestions, formatCurrency, formatP
 
 // ==================== Phase 2: Advanced Analysis Tab ====================
 
-function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent }: any) {
+function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent, t }: any) {
   const [movingAvgData, setMovingAvgData] = useState<any>(null)
   const [cumulativeData, setCumulativeData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -826,7 +834,7 @@ function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent }: 
         setMovingAvgData(movingAvg)
         setCumulativeData(cumulative)
       } catch (err) {
-        console.error("加载Phase 2数据失败:", err)
+        console.error("Failed to load Phase 2 data:", err)
       } finally {
         setLoading(false)
       }
@@ -866,7 +874,7 @@ function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent }: 
       {/* 移动平均分析 */}
       <Card>
         <CardHeader>
-          <CardTitle>折扣率移动平均（平滑趋势）</CardTitle>
+          <CardTitle>{t.discountAdvanced.advanced.movingAverage}</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={400}>
@@ -876,18 +884,18 @@ function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent }: 
               <YAxis tickFormatter={formatPercent} />
               <Tooltip formatter={(value: any) => formatPercent(value as number)} />
               <Legend />
-              <Line type="monotone" dataKey="original" stroke="#ccc" strokeWidth={1} dot={false} name="原始数据" />
-              <Line type="monotone" dataKey="ma_3" stroke="#8884d8" strokeWidth={2} dot={false} name="3月移动平均" />
-              <Line type="monotone" dataKey="ma_6" stroke="#82ca9d" strokeWidth={2} dot={false} name="6月移动平均" />
-              <Line type="monotone" dataKey="ma_12" stroke="#ffc658" strokeWidth={2} dot={false} name="12月移动平均" />
+              <Line type="monotone" dataKey="original" stroke="#ccc" strokeWidth={1} dot={false} name={t.discountAdvanced.advanced.originalData} />
+              <Line type="monotone" dataKey="ma_3" stroke="#8884d8" strokeWidth={2} dot={false} name={`3${t.discountAdvanced.advanced.monthMovingAverage}`} />
+              <Line type="monotone" dataKey="ma_6" stroke="#82ca9d" strokeWidth={2} dot={false} name={`6${t.discountAdvanced.advanced.monthMovingAverage}`} />
+              <Line type="monotone" dataKey="ma_12" stroke="#ffc658" strokeWidth={2} dot={false} name={`12${t.discountAdvanced.advanced.monthMovingAverage}`} />
             </LineChart>
           </ResponsiveContainer>
           <div className="mt-4 text-sm text-muted-foreground">
-            <p>💡 移动平均可以平滑短期波动，显示长期趋势：</p>
+            <p>💡 {t.locale === 'zh' ? '移动平均可以平滑短期波动，显示长期趋势：' : 'Moving average can smooth short-term fluctuations and show long-term trends:'}</p>
             <ul className="list-disc list-inside mt-2 space-y-1">
-              <li>3月移动平均：反映短期趋势</li>
-              <li>6月移动平均：反映中期趋势</li>
-              <li>12月移动平均：反映长期趋势</li>
+              <li>{t.locale === 'zh' ? '3月移动平均：反映短期趋势' : '3-month moving average: reflects short-term trends'}</li>
+              <li>{t.locale === 'zh' ? '6月移动平均：反映中期趋势' : '6-month moving average: reflects medium-term trends'}</li>
+              <li>{t.locale === 'zh' ? '12月移动平均：反映长期趋势' : '12-month moving average: reflects long-term trends'}</li>
             </ul>
           </div>
         </CardContent>
@@ -896,7 +904,7 @@ function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent }: 
       {/* 累计折扣曲线 */}
       <Card>
         <CardHeader>
-          <CardTitle>累计折扣金额（爬升曲线）</CardTitle>
+          <CardTitle>{t.discountAdvanced.advanced.cumulativeDiscount}</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={400}>
@@ -907,17 +915,17 @@ function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent }: 
               <YAxis yAxisId="right" orientation="right" tickFormatter={formatCurrency} />
               <Tooltip />
               <Legend />
-              <Area yAxisId="right" type="monotone" dataKey="cumulative_discount" fill="#8884d8" stroke="#8884d8" name="累计折扣" fillOpacity={0.6} />
-              <Bar yAxisId="left" dataKey="monthly_discount" fill="#82ca9d" name="月度折扣" />
+              <Area yAxisId="right" type="monotone" dataKey="cumulative_discount" fill="#8884d8" stroke="#8884d8" name={t.discountAdvanced.advanced.cumulativeDiscountAmount} fillOpacity={0.6} />
+              <Bar yAxisId="left" dataKey="monthly_discount" fill="#82ca9d" name={t.discountAdvanced.advanced.monthlyDiscount} />
             </ComposedChart>
           </ResponsiveContainer>
           <div className="mt-4 grid grid-cols-2 gap-4">
             <div className="text-center p-4 bg-muted/50 rounded-lg">
-              <p className="text-sm text-muted-foreground mb-1">累计总折扣</p>
+              <p className="text-sm text-muted-foreground mb-1">{t.discountAdvanced.advanced.cumulativeTotal}</p>
               <p className="text-2xl font-bold text-primary">{formatCurrency(cumulativeData?.data?.total_discount || 0)}</p>
             </div>
             <div className="text-center p-4 bg-muted/50 rounded-lg">
-              <p className="text-sm text-muted-foreground mb-1">月均折扣</p>
+              <p className="text-sm text-muted-foreground mb-1">{t.discountAdvanced.advanced.monthlyAverage}</p>
               <p className="text-2xl font-bold text-primary">
                 {formatCurrency((cumulativeData?.data?.total_discount || 0) / (cumulativeChartData.length || 1))}
               </p>
@@ -929,16 +937,17 @@ function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent }: 
       {/* Phase 2 洞察 */}
       <Card>
         <CardHeader>
-          <CardTitle>Phase 2 高级洞察</CardTitle>
+          <CardTitle>{t.discountAdvanced.advanced.phase2Insights}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-2 text-sm">
-            <p>• <strong>趋势平滑:</strong> 12月移动平均显示折扣率整体{ma12Data[ma12Data.length-1]?.ma > ma12Data[0]?.ma ? '上升' : '下降'}趋势</p>
-            <p>• <strong>累计节省:</strong> 19个月累计节省{formatCurrency(cumulativeData?.data?.total_discount || 0)}，月均{formatCurrency((cumulativeData?.data?.total_discount || 0) / 19)}</p>
-            <p>• <strong>数据洞察:</strong> Phase 2提供更深入的趋势分析和数据可视化</p>
+            <p>• <strong>{t.discountAdvanced.advanced.trendSmoothing}:</strong> 12{t.discountAdvanced.advanced.monthMovingAverage} {t.locale === 'zh' ? '显示折扣率整体' : 'shows discount rate'} {ma12Data[ma12Data.length-1]?.ma > ma12Data[0]?.ma ? t.discountAdvanced.advanced.rising : t.discountAdvanced.advanced.falling} {t.locale === 'zh' ? '趋势' : 'trend'}</p>
+            <p>• <strong>{t.discountAdvanced.advanced.cumulativeSavings}:</strong> 19{t.discountAdvanced.overview.months} {t.locale === 'zh' ? '累计节省' : 'cumulative savings'} {formatCurrency(cumulativeData?.data?.total_discount || 0)}，{t.locale === 'zh' ? '月均' : 'monthly average'} {formatCurrency((cumulativeData?.data?.total_discount || 0) / 19)}</p>
+            <p>• <strong>{t.discountAdvanced.advanced.dataInsights}:</strong> {t.locale === 'zh' ? 'Phase 2提供更深入的趋势分析和数据可视化' : 'Phase 2 provides deeper trend analysis and data visualization'}</p>
           </div>
         </CardContent>
       </Card>
     </>
   )
 }
+
