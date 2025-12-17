@@ -1,8 +1,9 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from click.testing import CliRunner
-from main_cli import cli, get_provider
-from core.config import AccountConfig
+from cli.main import cli
+from cli.utils import get_provider
+from core.config import CloudAccount
 from models.resource import UnifiedResource, ResourceType, ResourceStatus
 from datetime import datetime, timedelta
 
@@ -23,12 +24,12 @@ def create_mock_resource(id, name, type, status, region="cn-hangzhou"):
 
 @pytest.fixture
 def mock_config_manager():
-    with patch("main_cli.ConfigManager") as MockCM:
+    with patch("core.config.ConfigManager") as MockCM:
         cm = MockCM.return_value
         
         # Mock accounts
-        acc1 = AccountConfig(name="prod", provider="aliyun", region="cn-hangzhou", access_key_id="ak1")
-        acc2 = AccountConfig(name="test", provider="tencent", region="ap-guangzhou", access_key_id="ak2")
+        acc1 = CloudAccount(name="prod", provider="aliyun", region="cn-hangzhou", access_key_id="ak1")
+        acc2 = CloudAccount(name="test", provider="tencent", region="ap-guangzhou", access_key_id="ak2")
         
         cm.list_accounts.return_value = [acc1, acc2]
         cm.get_account.side_effect = lambda name, p=None: acc1 if name == "prod" else (acc2 if name == "test" else None)
@@ -37,7 +38,7 @@ def mock_config_manager():
 
 @pytest.fixture
 def mock_provider():
-    with patch("main_cli.get_provider") as mock_get_prov:
+    with patch("cli.utils.get_provider") as mock_get_prov:
         provider = MagicMock()
         provider.provider_name = "aliyun"
         mock_get_prov.return_value = provider
@@ -247,7 +248,7 @@ def test_analyze_cost(mock_config_manager, mock_provider):
 
 def test_query_tencent_cvm(mock_config_manager):
     # Need to mock get_provider to return a provider with provider_name='tencent'
-    with patch("main_cli.get_provider") as mock_get_prov:
+    with patch("cli.utils.get_provider") as mock_get_prov:
         provider = MagicMock()
         provider.provider_name = "tencent"
         provider.list_instances.return_value = [

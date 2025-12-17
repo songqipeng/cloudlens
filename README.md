@@ -258,7 +258,8 @@ cl audit permissions --account prod
 
 ```
 aliyunidle/
-├── main_cli.py                 # CLI主入口
+├── cli/                        # CLI命令模块
+│   └── main.py                # CLI主入口
 ├── core/                       # 核心模块
 │   ├── config.py              # 配置管理
 │   ├── provider.py            # 云厂商抽象层

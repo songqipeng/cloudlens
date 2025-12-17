@@ -4,6 +4,7 @@ import React from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Resource } from "@/types/resource"
+import { useLocale } from "@/contexts/locale-context"
 
 interface ResourceCardProps {
     resource: Resource
@@ -14,6 +15,8 @@ interface ResourceCardProps {
  * 资源卡片组件（使用React.memo优化性能）
  */
 export const ResourceCard = React.memo(({ resource, onClick }: ResourceCardProps) => {
+    const { t } = useLocale()
+    
     const getStatusColor = (status: string) => {
         const statusLower = status?.toLowerCase() || ""
         if (statusLower.includes("running") || statusLower.includes("active")) {
@@ -43,10 +46,10 @@ export const ResourceCard = React.memo(({ resource, onClick }: ResourceCardProps
                             </Badge>
                         </div>
                         <div className="text-xs text-muted-foreground space-y-1">
-                            <div>ID: {resource.id}</div>
-                            {resource.region && <div>区域: {resource.region}</div>}
-                            {resource.instanceType && <div>规格: {resource.instanceType}</div>}
-                            {resource.cost && <div>成本: ¥{resource.cost.toFixed(2)}</div>}
+                            <div>{t.resources.id || 'ID'}: {resource.id}</div>
+                            {resource.region && <div>{t.resources.region || 'Region'}: {resource.region}</div>}
+                            {resource.instanceType && <div>{t.resources.spec || 'Spec'}: {resource.instanceType}</div>}
+                            {resource.cost && <div>{t.resources.monthlyCost || 'Cost'}: ¥{resource.cost.toFixed(2)}</div>}
                         </div>
                     </div>
                 </div>

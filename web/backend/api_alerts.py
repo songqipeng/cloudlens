@@ -83,7 +83,7 @@ def list_alert_rules(
     try:
         account_id = None
         if account:
-            from core.config_manager import ConfigManager
+            from core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
@@ -161,7 +161,7 @@ def create_alert_rule(req: AlertRuleRequest, account: Optional[str] = None) -> D
     try:
         account_id = req.account_id
         if not account_id and account:
-            from core.config_manager import ConfigManager
+            from core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
@@ -283,7 +283,7 @@ def list_alerts(
     try:
         account_id = None
         if account:
-            from core.config_manager import ConfigManager
+            from core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
@@ -327,7 +327,7 @@ def check_alert_rule(rule_id: str, account: Optional[str] = None) -> Dict[str, A
     try:
         account_id = None
         if account:
-            from core.config_manager import ConfigManager
+            from core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
@@ -367,7 +367,7 @@ def check_all_rules(account: Optional[str] = None) -> Dict[str, Any]:
     try:
         account_id = None
         if account:
-            from core.config_manager import ConfigManager
+            from core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:

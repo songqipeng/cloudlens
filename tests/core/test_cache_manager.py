@@ -4,7 +4,7 @@ import tempfile
 import os
 import shutil
 from pathlib import Path
-from core.cache_manager import FileFileCacheManager
+from core.cache_manager import FileCacheManager
 
 
 class TestFileCacheManager:

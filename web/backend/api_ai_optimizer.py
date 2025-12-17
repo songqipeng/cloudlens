@@ -27,7 +27,7 @@ def get_optimization_suggestions(
     try:
         account_id = None
         if account:
-            from core.config_manager import ConfigManager
+            from core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
@@ -72,7 +72,7 @@ def predict_cost(
     try:
         account_id = None
         if account:
-            from core.config_manager import ConfigManager
+            from core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
@@ -105,7 +105,7 @@ def analyze_resource(
     try:
         account_id = None
         if account:
-            from core.config_manager import ConfigManager
+            from core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:

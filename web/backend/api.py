@@ -1095,7 +1095,7 @@ def list_resources(
             resources = provider.list_nat_gateways() if hasattr(provider, "list_nat_gateways") else []
         elif type == "eip":
             # EIP provider 返回 dict 列表
-            resources = provider.list_eip() if hasattr(provider, "list_eip") else []
+            resources = provider.list_eip() if hasattr(provider, "list_eip") else (provider.list_eips() if hasattr(provider, "list_eips") else [])
         elif type == "oss":
             # OSS bucket 列表（如果安装了 oss2）
             resources = provider.list_oss() if hasattr(provider, "list_oss") else []
@@ -1336,7 +1336,8 @@ def get_resource(resource_id: str, account: Optional[str] = None):
     if resource is None:
         try:
             if hasattr(provider, "list_eip"):
-                for e in provider.list_eip():
+                eips_list = provider.list_eip() if hasattr(provider, "list_eip") else (provider.list_eips() if hasattr(provider, "list_eips") else [])
+                for e in eips_list:
                     if e.get("id") == resource_id:
                         dict_resource = ("eip", e)
                         break
@@ -1798,7 +1799,7 @@ def get_security_overview(
         # EIP使用情况（如果有EIP数据）
         eip_info = {"total": 0, "bound": 0, "unbound": 0, "unbound_rate": 0}
         try:
-            eips = provider.list_eips() if hasattr(provider, 'list_eips') else []
+            eips = provider.list_eip() if hasattr(provider, 'list_eip') else (provider.list_eips() if hasattr(provider, 'list_eips') else [])
             if eips:
                 eip_info = analyzer.analyze_eip_usage(eips)
         except:
@@ -1972,7 +1973,7 @@ def get_security_checks(
         # EIP使用情况
         eip_info = {"total": 0, "bound": 0, "unbound": 0, "unbound_eips": []}
         try:
-            eips = provider.list_eips() if hasattr(provider, 'list_eips') else []
+            eips = provider.list_eip() if hasattr(provider, 'list_eip') else (provider.list_eips() if hasattr(provider, 'list_eips') else [])
             if eips:
                 eip_info = analyzer.analyze_eip_usage(eips)
         except:
@@ -2264,7 +2265,7 @@ def get_optimization_suggestions(
         
         # 4. 未绑定EIP建议
         try:
-            eips = provider.list_eips() if hasattr(provider, 'list_eips') else []
+            eips = provider.list_eip() if hasattr(provider, 'list_eip') else (provider.list_eips() if hasattr(provider, 'list_eips') else [])
             if eips:
                 eip_info = analyzer.analyze_eip_usage(eips)
                 unbound_eips = eip_info.get("unbound_eips", [])

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 测试费用中心API按天查询功能
-检查ydzn账号是否有权限调用QueryInstanceBill API的按天查询
+检查账号是否有权限调用QueryInstanceBill API的按天查询
 """
 
 import json
@@ -142,6 +142,15 @@ def test_daily_bill_api(account_name: str):
 
 
 if __name__ == "__main__":
-    account_name = sys.argv[1] if len(sys.argv) > 1 else "ydzn"
+    # 从命令行参数获取账号名，如果没有则使用第一个可用账号
+    account_name = sys.argv[1] if len(sys.argv) > 1 else None
+    if not account_name:
+        cm = ConfigManager()
+        accounts = cm.list_accounts()
+        if accounts:
+            account_name = accounts[0].name
+        else:
+            print("❌ 未找到可用账号，请先配置账号")
+            sys.exit(1)
     success = test_daily_bill_api(account_name)
     sys.exit(0 if success else 1)

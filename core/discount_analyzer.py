@@ -117,12 +117,12 @@ class DiscountTrendAnalyzer:
         Returns:
             {
                 '2025-07': {
-                    'total_official_price': xxx,
-                    'total_discount_amount': xxx,
-                    'total_payable_amount': xxx,
-                    'average_discount_rate': xxx,
-                    'by_product': {...},
-                    'by_contract': {...},
+                    'total_official_price': float,  # 原价总额
+                    'total_discount_amount': float,  # 折扣总额
+                    'total_payable_amount': float,  # 应付总额
+                    'average_discount_rate': float,  # 平均折扣率
+                    'by_product': {...},  # 按产品聚合
+                    'by_contract': {...},  # 按合同聚合
                 }
             }
         """

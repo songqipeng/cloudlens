@@ -186,9 +186,10 @@ class CloudLensREPL:
     def _execute_command(self, command_str: str):
         """执行命令"""
         try:
-            # 使用 subprocess 调用自身 main_cli.py
+            # 使用 subprocess 调用CLI
             args = shlex.split(command_str)
-            cmd = [sys.executable, "main_cli.py"] + args
+            # 使用 cli.main 模块
+            cmd = [sys.executable, "-m", "cli.main"] + args
 
             # 记录开始时间
             start_time = time.time()

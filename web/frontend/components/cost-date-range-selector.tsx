@@ -69,15 +69,6 @@ export function CostDateRangeSelector({ onChange, className = "" }: CostDateRang
 
   // 初始化：默认选择30天
   useEffect(() => {
-    if (selectedPreset === "30") {
-      const range = getPresetRange("30")
-      onChange(range)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])  // 只在组件挂载时执行一次
-
-  // 初始化：默认选择30天
-  useEffect(() => {
     const range = getPresetRange("30")
     onChange(range)
     // eslint-disable-next-line react-hooks/exhaustive-deps

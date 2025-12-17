@@ -33,7 +33,7 @@ echo "Creating alias 'cl'..."
 # Remove existing alias if present
 if [ -f "$RC_FILE" ]; then
     sed -i '' '/alias cl=/d' "$RC_FILE"
-    echo "alias cl='python3 $SCRIPT_DIR/main_cli.py'" >> "$RC_FILE"
+    echo "alias cl='python3 $SCRIPT_DIR/cli/main.py'" >> "$RC_FILE"
 fi
 
 # Setup Autocompletion
@@ -43,7 +43,7 @@ mkdir -p "$COMPLETION_DIR"
 
 if [ "$SHELL_NAME" = "zsh" ]; then
     # Zsh completion
-    _CL_COMPLETE=zsh_source python3 "$SCRIPT_DIR/main_cli.py" > "$COMPLETION_DIR/cl-complete.zsh" 2>/dev/null
+    _CL_COMPLETE=zsh_source python3 "$SCRIPT_DIR/cli/main.py" > "$COMPLETION_DIR/cl-complete.zsh" 2>/dev/null
     
     # Remove existing source line if present to avoid duplicates
     if [ -f "$RC_FILE" ]; then
@@ -54,7 +54,7 @@ if [ "$SHELL_NAME" = "zsh" ]; then
     echo "Zsh completion installed to $COMPLETION_DIR/cl-complete.zsh"
 elif [ "$SHELL_NAME" = "bash" ]; then
     # Bash completion
-    _CL_COMPLETE=bash_source python3 "$SCRIPT_DIR/main_cli.py" > "$COMPLETION_DIR/cl-complete.bash" 2>/dev/null
+    _CL_COMPLETE=bash_source python3 "$SCRIPT_DIR/cli/main.py" > "$COMPLETION_DIR/cl-complete.bash" 2>/dev/null
     
     # Remove existing source line if present
     if [ -f "$RC_FILE" ]; then

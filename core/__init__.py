@@ -2,7 +2,7 @@
 
 from .base_analyzer import BaseResourceAnalyzer
 from .cache import CacheManager
-from .config_manager import ConfigManager
+from .config import ConfigManager
 from .db_manager import DatabaseManager
 from .threshold_manager import ThresholdManager
 
