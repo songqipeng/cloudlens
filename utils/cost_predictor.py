@@ -6,87 +6,160 @@
 """
 
 import json
-import sqlite3
+import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple
 import numpy as np
+
+from core.database import DatabaseFactory
 from utils.logger import get_logger
 
 
 class CostPredictor:
     """成本预测器"""
 
-    def __init__(self, db_name="cost_data.db"):
+    def __init__(self, db_name="cost_data.db", db_type: str = None):
         self.db_name = db_name
+        self.db_type = db_type or os.getenv("DB_TYPE", "mysql").lower()
         self.logger = get_logger("cost_predictor")
+        
+        if self.db_type == "mysql":
+            self.db = DatabaseFactory.create_adapter("mysql")
+        else:
+            self.db = DatabaseFactory.create_adapter("sqlite", db_path=db_name)
+        
         self.init_database()
+
+    def _get_placeholder(self):
+        """获取SQL占位符"""
+        return "%s" if self.db_type == "mysql" else "?"
 
     def init_database(self):
         """初始化数据库"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
+        placeholder = self._get_placeholder()
+        
+        if self.db_type == "mysql":
+            # MySQL表结构
+            self.db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS cost_history (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    tenant_name VARCHAR(100) NOT NULL,
+                    date VARCHAR(20) NOT NULL,
+                    total_cost DECIMAL(10,2) DEFAULT 0,
+                    compute_cost DECIMAL(10,2) DEFAULT 0,
+                    storage_cost DECIMAL(10,2) DEFAULT 0,
+                    network_cost DECIMAL(10,2) DEFAULT 0,
+                    database_cost DECIMAL(10,2) DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uk_tenant_date (tenant_name, date)
+                )
+                """
+            )
 
-        # 成本历史表
-        cursor.execute(
-            """
-        CREATE TABLE IF NOT EXISTS cost_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tenant_name TEXT NOT NULL,
-            date TEXT NOT NULL,
-            total_cost REAL DEFAULT 0,
-            compute_cost REAL DEFAULT 0,
-            storage_cost REAL DEFAULT 0,
-            network_cost REAL DEFAULT 0,
-            database_cost REAL DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(tenant_name, date)
-        )
-        """
-        )
+            self.db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS cost_predictions (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    tenant_name VARCHAR(100) NOT NULL,
+                    prediction_date VARCHAR(20) NOT NULL,
+                    predicted_cost DECIMAL(10,2) DEFAULT 0,
+                    confidence_level DECIMAL(5,2) DEFAULT 0,
+                    prediction_method VARCHAR(50),
+                    prediction_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uk_tenant_date_method (tenant_name, prediction_date, prediction_method)
+                )
+                """
+            )
 
-        # 成本预测表
-        cursor.execute(
-            """
-        CREATE TABLE IF NOT EXISTS cost_predictions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tenant_name TEXT NOT NULL,
-            prediction_date TEXT NOT NULL,
-            predicted_cost REAL DEFAULT 0,
-            confidence_level REAL DEFAULT 0,
-            prediction_method TEXT,
-            prediction_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(tenant_name, prediction_date, prediction_method)
-        )
-        """
-        )
+            self.db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS budgets (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    tenant_name VARCHAR(100) NOT NULL,
+                    budget_type VARCHAR(50) NOT NULL,
+                    budget_amount DECIMAL(10,2) NOT NULL,
+                    start_date VARCHAR(20) NOT NULL,
+                    end_date VARCHAR(20) NOT NULL,
+                    alert_threshold DECIMAL(5,2) DEFAULT 0.8,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uk_tenant_type_start (tenant_name, budget_type, start_date)
+                )
+                """
+            )
 
-        # 预算表
-        cursor.execute(
-            """
-        CREATE TABLE IF NOT EXISTS budgets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tenant_name TEXT NOT NULL,
-            budget_type TEXT NOT NULL,
-            budget_amount REAL NOT NULL,
-            start_date TEXT NOT NULL,
-            end_date TEXT NOT NULL,
-            alert_threshold REAL DEFAULT 0.8,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(tenant_name, budget_type, start_date)
-        )
-        """
-        )
+            # 创建索引
+            try:
+                self.db.execute(
+                    "CREATE INDEX idx_cost_history_tenant_date ON cost_history(tenant_name, date)"
+                )
+            except:
+                pass  # 索引可能已存在
+            
+            try:
+                self.db.execute(
+                    "CREATE INDEX idx_predictions_tenant_date ON cost_predictions(tenant_name, prediction_date)"
+                )
+            except:
+                pass
+        else:
+            # SQLite表结构
+            self.db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS cost_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tenant_name TEXT NOT NULL,
+                    date TEXT NOT NULL,
+                    total_cost REAL DEFAULT 0,
+                    compute_cost REAL DEFAULT 0,
+                    storage_cost REAL DEFAULT 0,
+                    network_cost REAL DEFAULT 0,
+                    database_cost REAL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(tenant_name, date)
+                )
+                """
+            )
 
-        # 创建索引
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_cost_history_tenant_date ON cost_history(tenant_name, date)"
-        )
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_predictions_tenant_date ON cost_predictions(tenant_name, prediction_date)"
-        )
+            self.db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS cost_predictions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tenant_name TEXT NOT NULL,
+                    prediction_date TEXT NOT NULL,
+                    predicted_cost REAL DEFAULT 0,
+                    confidence_level REAL DEFAULT 0,
+                    prediction_method TEXT,
+                    prediction_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(tenant_name, prediction_date, prediction_method)
+                )
+                """
+            )
 
-        conn.commit()
-        conn.close()
+            self.db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS budgets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tenant_name TEXT NOT NULL,
+                    budget_type TEXT NOT NULL,
+                    budget_amount REAL NOT NULL,
+                    start_date TEXT NOT NULL,
+                    end_date TEXT NOT NULL,
+                    alert_threshold REAL DEFAULT 0.8,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(tenant_name, budget_type, start_date)
+                )
+                """
+            )
+
+            # 创建索引
+            self.db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cost_history_tenant_date ON cost_history(tenant_name, date)"
+            )
+            self.db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_predictions_tenant_date ON cost_predictions(tenant_name, prediction_date)"
+            )
+
         self.logger.info("成本预测数据库初始化完成")
 
     def collect_historical_cost(
@@ -190,16 +263,24 @@ class CostPredictor:
 
     def save_cost_history(self, tenant_name: str, cost_records: List[Dict]):
         """保存成本历史数据"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-
-        for record in cost_records:
-            cursor.execute(
-                """
+        placeholder = self._get_placeholder()
+        
+        if self.db_type == "mysql":
+            sql = f"""
+                REPLACE INTO cost_history 
+                (tenant_name, date, total_cost, compute_cost, storage_cost, network_cost, database_cost)
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
+            """
+        else:
+            sql = f"""
                 INSERT OR REPLACE INTO cost_history 
                 (tenant_name, date, total_cost, compute_cost, storage_cost, network_cost, database_cost)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
+            """
+        
+        for record in cost_records:
+            self.db.execute(
+                sql,
                 (
                     tenant_name,
                     record["date"],
@@ -211,38 +292,30 @@ class CostPredictor:
                 ),
             )
 
-        conn.commit()
-        conn.close()
-
     def get_historical_cost(self, tenant_name: str, days: int = 90) -> List[Dict]:
         """获取历史成本数据"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-
+        placeholder = self._get_placeholder()
         end_date = datetime.now().strftime("%Y-%m-%d")
         start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
-        cursor.execute(
-            """
+        rows = self.db.query(
+            f"""
             SELECT date, total_cost, compute_cost, storage_cost, network_cost, database_cost
             FROM cost_history
-            WHERE tenant_name = ? AND date >= ? AND date <= ?
+            WHERE tenant_name = {placeholder} AND date >= {placeholder} AND date <= {placeholder}
             ORDER BY date
         """,
             (tenant_name, start_date, end_date),
         )
 
-        rows = cursor.fetchall()
-        conn.close()
-
         return [
             {
-                "date": row[0],
-                "total_cost": row[1],
-                "compute_cost": row[2],
-                "storage_cost": row[3],
-                "network_cost": row[4],
-                "database_cost": row[5],
+                "date": row.get("date") if isinstance(row, dict) else row[0],
+                "total_cost": row.get("total_cost") if isinstance(row, dict) else row[1],
+                "compute_cost": row.get("compute_cost") if isinstance(row, dict) else row[2],
+                "storage_cost": row.get("storage_cost") if isinstance(row, dict) else row[3],
+                "network_cost": row.get("network_cost") if isinstance(row, dict) else row[4],
+                "database_cost": row.get("database_cost") if isinstance(row, dict) else row[5],
             }
             for row in rows
         ]
@@ -337,16 +410,24 @@ class CostPredictor:
 
     def save_predictions(self, tenant_name: str, predictions: List[Dict]):
         """保存预测结果"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-
-        for pred in predictions:
-            cursor.execute(
-                """
+        placeholder = self._get_placeholder()
+        
+        if self.db_type == "mysql":
+            sql = f"""
+                REPLACE INTO cost_predictions
+                (tenant_name, prediction_date, predicted_cost, confidence_level, prediction_method)
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
+            """
+        else:
+            sql = f"""
                 INSERT OR REPLACE INTO cost_predictions
                 (tenant_name, prediction_date, predicted_cost, confidence_level, prediction_method)
-                VALUES (?, ?, ?, ?, ?)
-            """,
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
+            """
+        
+        for pred in predictions:
+            self.db.execute(
+                sql,
                 (
                     tenant_name,
                     pred["date"],
@@ -355,9 +436,6 @@ class CostPredictor:
                     pred["method"],
                 ),
             )
-
-        conn.commit()
-        conn.close()
 
     def set_budget(
         self,
@@ -369,54 +447,60 @@ class CostPredictor:
         alert_threshold: float = 0.8,
     ):
         """设置预算"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-
-        cursor.execute(
+        placeholder = self._get_placeholder()
+        
+        if self.db_type == "mysql":
+            sql = f"""
+                REPLACE INTO budgets
+                (tenant_name, budget_type, budget_amount, start_date, end_date, alert_threshold)
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
             """
-            INSERT OR REPLACE INTO budgets
-            (tenant_name, budget_type, budget_amount, start_date, end_date, alert_threshold)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """,
+        else:
+            sql = f"""
+                INSERT OR REPLACE INTO budgets
+                (tenant_name, budget_type, budget_amount, start_date, end_date, alert_threshold)
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
+            """
+        
+        self.db.execute(
+            sql,
             (tenant_name, budget_type, amount, start_date, end_date, alert_threshold),
         )
-
-        conn.commit()
-        conn.close()
         self.logger.info(f"预算设置成功: {tenant_name} {budget_type} ¥{amount}")
 
     def check_budget_usage(self, tenant_name: str) -> List[Dict]:
         """检查预算使用情况"""
-        conn = sqlite3.connect(self.db_name)
-        cursor = conn.cursor()
-
+        placeholder = self._get_placeholder()
         current_date = datetime.now().strftime("%Y-%m-%d")
 
-        cursor.execute(
-            """
+        budgets = self.db.query(
+            f"""
             SELECT budget_type, budget_amount, start_date, end_date, alert_threshold
             FROM budgets
-            WHERE tenant_name = ? AND start_date <= ? AND end_date >= ?
+            WHERE tenant_name = {placeholder} AND start_date <= {placeholder} AND end_date >= {placeholder}
         """,
             (tenant_name, current_date, current_date),
         )
 
-        budgets = cursor.fetchall()
         results = []
 
         for budget in budgets:
-            budget_type, amount, start_date, end_date, threshold = budget
+            budget_type = budget.get("budget_type") if isinstance(budget, dict) else budget[0]
+            amount = budget.get("budget_amount") if isinstance(budget, dict) else budget[1]
+            start_date = budget.get("start_date") if isinstance(budget, dict) else budget[2]
+            end_date = budget.get("end_date") if isinstance(budget, dict) else budget[3]
+            threshold = budget.get("alert_threshold") if isinstance(budget, dict) else budget[4]
 
             # 计算实际花费
-            cursor.execute(
-                """
-                SELECT SUM(total_cost) FROM cost_history
-                WHERE tenant_name = ? AND date >= ? AND date <= ?
+            cost_result = self.db.query_one(
+                f"""
+                SELECT SUM(total_cost) as total FROM cost_history
+                WHERE tenant_name = {placeholder} AND date >= {placeholder} AND date <= {placeholder}
             """,
                 (tenant_name, start_date, end_date),
             )
 
-            actual_cost = cursor.fetchone()[0] or 0
+            actual_cost = cost_result.get("total", 0) if cost_result else 0
             usage_rate = (actual_cost / amount) * 100 if amount > 0 else 0
 
             results.append(
@@ -430,7 +514,6 @@ class CostPredictor:
                 }
             )
 
-        conn.close()
         return results
 
     def generate_prediction_report(self, tenant_name: str, output_file: str):
@@ -442,18 +525,17 @@ class CostPredictor:
             historical = self.get_historical_cost(tenant_name, days=90)
 
             # 获取预测数据
-            conn = sqlite3.connect(self.db_name)
-            predictions = pd.read_sql_query(
-                """
+            placeholder = self._get_placeholder()
+            predictions_data = self.db.query(
+                f"""
                 SELECT prediction_date, predicted_cost, confidence_level, prediction_method
                 FROM cost_predictions
-                WHERE tenant_name = ?
+                WHERE tenant_name = {placeholder}
                 ORDER BY prediction_date
             """,
-                conn,
-                params=(tenant_name,),
+                (tenant_name,),
             )
-            conn.close()
+            predictions = pd.DataFrame(predictions_data)
 
             # 生成Excel报告
             with pd.ExcelWriter(output_file, engine="openpyxl") as writer:

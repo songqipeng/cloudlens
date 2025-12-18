@@ -6,10 +6,11 @@
 """
 
 import json
-import sqlite3
+import os
 from datetime import datetime
 from typing import Dict, List
 
+from core.database import DatabaseFactory
 from utils.logger import get_logger
 
 
@@ -47,11 +48,11 @@ class OptimizationEngine:
         opportunities = []
 
         try:
-            conn = sqlite3.connect("ecs_monitoring_data_fixed.db")
-            cursor = conn.cursor()
+            # 使用数据库抽象层读取监控数据
+            db = DatabaseFactory.create_adapter("sqlite", db_path="ecs_monitoring_data_fixed.db")
 
             # 查找闲置ECS (CPU和内存都很低)
-            cursor.execute(
+            instances = db.query(
                 """
                 SELECT DISTINCT e.instance_id, e.instance_name, e.instance_type,
                        e.region, e.monthly_cost
@@ -61,13 +62,15 @@ class OptimizationEngine:
                 (tenant_name,),
             )
 
-            instances = cursor.fetchall()
-
             for inst in instances:
-                instance_id, name, instance_type, region, cost = inst
+                instance_id = inst.get("instance_id") if isinstance(inst, dict) else inst[0]
+                name = inst.get("instance_name") if isinstance(inst, dict) else inst[1]
+                instance_type = inst.get("instance_type") if isinstance(inst, dict) else inst[2]
+                region = inst.get("region") if isinstance(inst, dict) else inst[3]
+                cost = inst.get("monthly_cost") if isinstance(inst, dict) else inst[4]
 
                 # 获取监控数据
-                cursor.execute(
+                metrics_rows = db.query(
                     """
                     SELECT AVG(metric_value) as avg_val, metric_name
                     FROM ecs_monitoring_data
@@ -77,7 +80,11 @@ class OptimizationEngine:
                     (instance_id,),
                 )
 
-                metrics = {row[1]: row[0] for row in cursor.fetchall()}
+                metrics = {}
+                for row in metrics_rows:
+                    metric_name = row.get("metric_name") if isinstance(row, dict) else row[1]
+                    avg_val = row.get("avg_val") if isinstance(row, dict) else row[0]
+                    metrics[metric_name] = avg_val
 
                 cpu_util = metrics.get("cpu_utilization", 0)
                 mem_util = metrics.get("memory_utilization", 0)
@@ -116,7 +123,7 @@ class OptimizationEngine:
                             }
                         )
 
-            conn.close()
+            db.close()
 
         except Exception as e:
             self.logger.error(f"分析ECS失败: {e}")
@@ -137,10 +144,9 @@ class OptimizationEngine:
         opportunities = []
 
         try:
-            conn = sqlite3.connect("rds_monitoring_data.db")
-            cursor = conn.cursor()
+            db = DatabaseFactory.create_adapter("sqlite", db_path="rds_monitoring_data.db")
 
-            cursor.execute(
+            instances = db.query(
                 """
                 SELECT DISTINCT db_instance_id, description, db_instance_class,
                        region_id
@@ -148,23 +154,23 @@ class OptimizationEngine:
             """
             )
 
-            instances = cursor.fetchall()
-
             for inst in instances:
-                db_id, description, instance_class, region = inst
+                db_id = inst.get("db_instance_id") if isinstance(inst, dict) else inst[0]
+                description = inst.get("description") if isinstance(inst, dict) else inst[1]
+                instance_class = inst.get("db_instance_class") if isinstance(inst, dict) else inst[2]
+                region = inst.get("region_id") if isinstance(inst, dict) else inst[3]
 
                 # 获取连接数
-                cursor.execute(
+                result = db.query_one(
                     """
-                    SELECT AVG(metric_value)
+                    SELECT AVG(metric_value) as avg_conn
                     FROM rds_monitoring_data
                     WHERE db_instance_id = ? AND metric_name = 'active_connections'
                 """,
                     (db_id,),
                 )
 
-                result = cursor.fetchone()
-                avg_conn = result[0] if result and result[0] else 0
+                avg_conn = result.get("avg_conn", 0) if result else 0
 
                 if avg_conn < 1:
                     opportunities.append(
@@ -181,7 +187,7 @@ class OptimizationEngine:
                         }
                     )
 
-            conn.close()
+            db.close()
 
         except Exception as e:
             self.logger.error(f"分析RDS失败: {e}")
@@ -193,10 +199,9 @@ class OptimizationEngine:
         opportunities = []
 
         try:
-            conn = sqlite3.connect("eip_monitoring_data.db")
-            cursor = conn.cursor()
+            db = DatabaseFactory.create_adapter("sqlite", db_path="eip_monitoring_data.db")
 
-            cursor.execute(
+            eips = db.query(
                 """
                 SELECT allocation_id, eip_address, region, monthly_cost
                 FROM eip_instances
@@ -204,10 +209,11 @@ class OptimizationEngine:
             """
             )
 
-            eips = cursor.fetchall()
-
             for eip in eips:
-                allocation_id, ip, region, cost = eip
+                allocation_id = eip.get("allocation_id") if isinstance(eip, dict) else eip[0]
+                ip = eip.get("eip_address") if isinstance(eip, dict) else eip[1]
+                region = eip.get("region") if isinstance(eip, dict) else eip[2]
+                cost = eip.get("monthly_cost") if isinstance(eip, dict) else eip[3]
 
                 opportunities.append(
                     {
@@ -222,7 +228,7 @@ class OptimizationEngine:
                     }
                 )
 
-            conn.close()
+            db.close()
 
         except Exception as e:
             self.logger.error(f"分析EIP失败: {e}")
@@ -234,10 +240,9 @@ class OptimizationEngine:
         opportunities = []
 
         try:
-            conn = sqlite3.connect("nat_monitoring_data.db")
-            cursor = conn.cursor()
+            db = DatabaseFactory.create_adapter("sqlite", db_path="nat_monitoring_data.db")
 
-            cursor.execute(
+            nats = db.query(
                 """
                 SELECT nat_gateway_id, name, region
                 FROM nat_gateways
@@ -245,10 +250,10 @@ class OptimizationEngine:
             """
             )
 
-            nats = cursor.fetchall()
-
             for nat in nats:
-                nat_id, name, region = nat
+                nat_id = nat.get("nat_gateway_id") if isinstance(nat, dict) else nat[0]
+                name = nat.get("name") if isinstance(nat, dict) else nat[1]
+                region = nat.get("region") if isinstance(nat, dict) else nat[2]
 
                 opportunities.append(
                     {
@@ -263,7 +268,7 @@ class OptimizationEngine:
                     }
                 )
 
-            conn.close()
+            db.close()
 
         except Exception as e:
             self.logger.error(f"分析NAT失败: {e}")
@@ -275,10 +280,9 @@ class OptimizationEngine:
         opportunities = []
 
         try:
-            conn = sqlite3.connect("nas_monitoring_data.db")
-            cursor = conn.cursor()
+            db = DatabaseFactory.create_adapter("sqlite", db_path="nas_monitoring_data.db")
 
-            cursor.execute(
+            nas_list = db.query(
                 """
                 SELECT file_system_id, description, region, monthly_cost
                 FROM nas_file_systems
@@ -286,10 +290,11 @@ class OptimizationEngine:
             """
             )
 
-            nas_list = cursor.fetchall()
-
             for nas in nas_list:
-                fs_id, description, region, cost = nas
+                fs_id = nas.get("file_system_id") if isinstance(nas, dict) else nas[0]
+                description = nas.get("description") if isinstance(nas, dict) else nas[1]
+                region = nas.get("region") if isinstance(nas, dict) else nas[2]
+                cost = nas.get("monthly_cost") if isinstance(nas, dict) else nas[3]
 
                 opportunities.append(
                     {
@@ -304,7 +309,7 @@ class OptimizationEngine:
                     }
                 )
 
-            conn.close()
+            db.close()
 
         except Exception as e:
             self.logger.error(f"分析NAS失败: {e}")
@@ -316,21 +321,21 @@ class OptimizationEngine:
         opportunities = []
 
         try:
-            conn = sqlite3.connect("disk_monitoring_data.db")
-            cursor = conn.cursor()
+            db = DatabaseFactory.create_adapter("sqlite", db_path="disk_monitoring_data.db")
 
-            cursor.execute(
+            disks = db.query(
                 """
                 SELECT disk_id, disk_name, region, monthly_cost
                 FROM disk_instances
-                WHERE status = 'Available'  -- 未挂载状态
+                WHERE status = 'Available'
             """
             )
 
-            disks = cursor.fetchall()
-
             for disk in disks:
-                disk_id, name, region, cost = disk
+                disk_id = disk.get("disk_id") if isinstance(disk, dict) else disk[0]
+                name = disk.get("disk_name") if isinstance(disk, dict) else disk[1]
+                region = disk.get("region") if isinstance(disk, dict) else disk[2]
+                cost = disk.get("monthly_cost") if isinstance(disk, dict) else disk[3]
 
                 opportunities.append(
                     {
@@ -345,7 +350,7 @@ class OptimizationEngine:
                     }
                 )
 
-            conn.close()
+            db.close()
 
         except Exception as e:
             self.logger.error(f"分析Disk失败: {e}")

@@ -117,14 +117,12 @@ class AIOptimizer:
         try:
             # 获取闲置资源（从闲置检测模块）
             # 这里简化处理，假设有闲置资源数据
-            import sqlite3
-            conn = sqlite3.connect(self.bill_storage_path)
-            cursor = conn.cursor()
+            # 使用BillStorageManager的数据库抽象层
+            from core.bill_storage import BillStorageManager
+            storage = BillStorageManager(self.bill_storage_path)
             
             # 查找长期未使用的资源（简化版）
             # 实际应该从idle_detector获取数据
-            
-            conn.close()
         except Exception as e:
             logger.error(f"Failed to generate cleanup suggestions: {e}")
         
@@ -146,14 +144,12 @@ class AIOptimizer:
         try:
             # 分析折扣使用情况
             # 建议续费策略、合同谈判等
-            import sqlite3
-            conn = sqlite3.connect(self.bill_storage_path)
-            cursor = conn.cursor()
+            # 使用BillStorageManager的数据库抽象层
+            from core.bill_storage import BillStorageManager
+            storage = BillStorageManager(self.bill_storage_path)
             
             # 查找可以优化的折扣场景
             # 例如：按量付费转包年包月、续费折扣等
-            
-            conn.close()
         except Exception as e:
             logger.error(f"Failed to generate discount optimization suggestions: {e}")
         
@@ -164,36 +160,36 @@ class AIOptimizer:
         suggestions = []
         
         try:
-            import sqlite3
             from datetime import datetime, timedelta
+            from core.bill_storage import BillStorageManager
             
-            conn = sqlite3.connect(self.bill_storage_path)
-            cursor = conn.cursor()
+            # 使用BillStorageManager的数据库抽象层
+            storage = BillStorageManager(self.bill_storage_path)
             
             # 计算最近7天的平均成本
             end_date = datetime.now()
             start_date = end_date - timedelta(days=7)
             
-            cursor.execute("""
+            rows1 = storage.db.query("""
                 SELECT AVG(pretax_amount) as avg_cost
                 FROM bill_items
                 WHERE billing_date >= ? AND billing_date <= ?
                 AND account_id = ?
             """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), account_id or ""))
             
-            row = cursor.fetchone()
-            avg_cost = row[0] if row and row[0] else 0
+            row = rows1[0] if rows1 else None
+            avg_cost = float(row['avg_cost'] or 0) if row and isinstance(row, dict) else (float(row[0] or 0) if row else 0)
             
             # 计算今天的成本
             today = datetime.now().strftime('%Y-%m-%d')
-            cursor.execute("""
+            rows2 = storage.db.query("""
                 SELECT SUM(pretax_amount) as today_cost
                 FROM bill_items
                 WHERE billing_date = ? AND account_id = ?
             """, (today, account_id or ""))
             
-            row = cursor.fetchone()
-            today_cost = row[0] if row and row[0] else 0
+            row = rows2[0] if rows2 else None
+            today_cost = float(row['today_cost'] or 0) if row and isinstance(row, dict) else (float(row[0] or 0) if row else 0)
             
             # 如果今天的成本超过平均成本的150%，则标记为异常
             if avg_cost > 0 and today_cost > avg_cost * 1.5:
@@ -211,7 +207,6 @@ class AIOptimizer:
                 )
                 suggestions.append(suggestion)
             
-            conn.close()
         except Exception as e:
             logger.error(f"Failed to detect cost anomalies: {e}")
         
@@ -237,17 +232,17 @@ class AIOptimizer:
         try:
             # 使用Prophet模型进行成本预测
             # 这里简化处理，返回基于历史趋势的预测
-            import sqlite3
             from datetime import datetime, timedelta
+            from core.bill_storage import BillStorageManager
             
-            conn = sqlite3.connect(self.bill_storage_path)
-            cursor = conn.cursor()
+            # 使用BillStorageManager的数据库抽象层
+            storage = BillStorageManager(self.bill_storage_path)
             
             # 获取最近30天的成本数据
             end_date = datetime.now()
             start_date = end_date - timedelta(days=30)
             
-            cursor.execute("""
+            rows = storage.db.query("""
                 SELECT billing_date, SUM(pretax_amount) as daily_cost
                 FROM bill_items
                 WHERE billing_date >= ? AND billing_date <= ?
@@ -255,9 +250,6 @@ class AIOptimizer:
                 GROUP BY billing_date
                 ORDER BY billing_date
             """, (start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'), account_id or ""))
-            
-            rows = cursor.fetchall()
-            conn.close()
             
             if not rows:
                 return None

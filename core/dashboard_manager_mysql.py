@@ -11,44 +11,10 @@ import json
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict
-from dataclasses import dataclass, asdict
+from typing import List, Optional
 
 from core.database import DatabaseFactory, DatabaseAdapter
-
-logger = logging.getLogger(__name__)
-
-
-@dataclass
-class WidgetConfig:
-    """组件配置"""
-    id: str
-    type: str
-    title: str
-    config: Dict
-    position: Optional[Dict] = None
-    
-    def to_dict(self):
-        return asdict(self)
-
-
-@dataclass
-class Dashboard:
-    """仪表盘数据类"""
-    id: str
-    name: str
-    description: Optional[str] = None
-    layout: str = "grid"
-    widgets: List[WidgetConfig] = None
-    account_id: Optional[str] = None
-    is_shared: bool = False
-    created_by: Optional[str] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    
-    def __post_init__(self):
-        if self.widgets is None:
-            self.widgets = []
+from core.dashboard_manager import Dashboard, WidgetConfig
 
 logger = logging.getLogger(__name__)
 

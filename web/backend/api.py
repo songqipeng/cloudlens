@@ -529,46 +529,57 @@ def _get_billing_overview_from_db(
     Returns:
         成本概览数据，如果数据库不存在或读取失败则返回 None
     """
-    import sqlite3
     import os
     from datetime import datetime
+    from core.database import DatabaseFactory
     
-    db_path = os.path.expanduser("~/.cloudlens/bills.db")
-    if not os.path.exists(db_path):
-        return None
+    # 使用数据库抽象层（默认MySQL）
+    db_type = os.getenv("DB_TYPE", "mysql").lower()
     
     try:
         if billing_cycle is None:
             billing_cycle = datetime.now().strftime("%Y-%m")
         
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
+        if db_type == "mysql":
+            db = DatabaseFactory.create_adapter("mysql")
+        else:
+            db_path = os.path.expanduser("~/.cloudlens/bills.db")
+            if not os.path.exists(db_path):
+                return None
+            db = DatabaseFactory.create_adapter("sqlite", db_path=db_path)
+        
+        placeholder = "%s" if db_type == "mysql" else "?"
         
         # 查找匹配的 account_id
-        cursor.execute("""
+        account_result = db.query_one(f"""
             SELECT DISTINCT account_id 
             FROM bill_items 
-            WHERE account_id LIKE ?
+            WHERE account_id LIKE {placeholder}
             LIMIT 1
         """, (f"%{account_name}%",))
         
-        result = cursor.fetchone()
-        if not result:
-            conn.close()
+        if not account_result:
             return None
         
-        account_id = result[0]
+        # 处理字典格式的结果（MySQL）或元组格式（SQLite）
+        if isinstance(account_result, dict):
+            account_id = account_result.get('account_id')
+        else:
+            account_id = account_result[0] if account_result else None
+        
+        if not account_id:
+            return None
         
         # 按产品聚合当月成本
-        cursor.execute("""
+        product_results = db.query(f"""
             SELECT 
                 product_name,
                 product_code,
                 subscription_type,
                 SUM(pretax_amount) as total_pretax
             FROM bill_items
-            WHERE account_id = ?
-                AND billing_cycle = ?
+            WHERE account_id = {placeholder}
+                AND billing_cycle = {placeholder}
                 AND pretax_amount IS NOT NULL
             GROUP BY product_name, product_code, subscription_type
         """, (account_id, billing_cycle))
@@ -578,11 +589,18 @@ def _get_billing_overview_from_db(
         by_product_subscription: Dict[str, Dict[str, float]] = {}
         total = 0.0
         
-        for row in cursor.fetchall():
-            product_name = row[0] or "unknown"
-            product_code = row[1] or "unknown"
-            subscription_type = row[2] or "Unknown"
-            pretax = row[3] or 0.0
+        for row in product_results:
+            # 处理字典格式的结果（MySQL）或元组格式（SQLite）
+            if isinstance(row, dict):
+                product_name = row.get('product_name') or "unknown"
+                product_code = row.get('product_code') or "unknown"
+                subscription_type = row.get('subscription_type') or "Unknown"
+                pretax = float(row.get('total_pretax') or 0)
+            else:
+                product_name = row[0] or "unknown"
+                product_code = row[1] or "unknown"
+                subscription_type = row[2] or "Unknown"
+                pretax = float(row[3] or 0)
             
             if pretax <= 0:
                 continue
@@ -597,8 +615,6 @@ def _get_billing_overview_from_db(
             )
             
             total += pretax
-        
-        conn.close()
         
         # 检查是否有任何记录（即使总成本为0，也可能有记录）
         # 如果没有记录，返回None让API查询；如果有记录但总成本为0，也返回数据（可能是真实情况）
@@ -1072,7 +1088,11 @@ def list_resources(
     # 尝试从缓存获取数据
     cached_result = None
     if not force_refresh:
-        cached_result = cache_manager.get(resource_type=type, account_name=account_name)
+        try:
+            cached_result = cache_manager.get(resource_type=type, account_name=account_name)
+        except Exception as e:
+            logger.warning(f"获取缓存失败，将重新查询: {e}")
+            cached_result = None
     
     # 如果缓存有效，直接使用缓存数据
     if cached_result is not None:
@@ -1114,8 +1134,8 @@ def list_resources(
                 vpc_id = vpc.get("id") or vpc.get("VpcId") or ""
                 vpc_name = vpc.get("name") or vpc.get("VpcName") or ""
                 
-                # Log for debugging
-                logger.info(f"Processing VPC: id={vpc_id}, name={vpc_name}, raw_vpc={vpc}")
+                # Log for debugging - 详细记录VPC数据
+                logger.info(f"Processing VPC: id={vpc_id}, name={vpc_name}, raw_vpc={vpc}, keys={list(vpc.keys())}")
                 
                 # If name is empty or just whitespace, use ID as name
                 if not vpc_name or not vpc_name.strip():
@@ -1242,7 +1262,12 @@ def list_resources(
                 # For VPC resources, vpc_id should be the VPC's own ID
                 # For other resources, vpc_id is the associated VPC ID
                 if type == "vpc":
-                    vpc_id_value = r.id or None
+                    # VPC资源本身，vpc_id应该显示为VPC的ID（VPC资源本身没有关联的VPC，所以显示自己的ID）
+                    # 确保即使r.id是空字符串也能正确处理
+                    vpc_id_value = r.id if (hasattr(r, "id") and r.id and str(r.id).strip()) else None
+                    # 调试日志
+                    if not vpc_id_value:
+                        logger.warning(f"VPC resource has empty ID: id={r.id}, name={r.name}, type={type}")
                 else:
                     vpc_id_value = r.vpc_id if hasattr(r, "vpc_id") and r.vpc_id else None
                 
@@ -2620,9 +2645,8 @@ def get_discount_trend(
         # 生成账号ID（与bill_fetcher保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
         
-        # 使用数据库版折扣分析器
-        db_path = os.path.expanduser("~/.cloudlens/bills.db")
-        analyzer = DiscountAnalyzerDB(db_path=db_path)
+        # 使用数据库版折扣分析器（默认使用MySQL）
+        analyzer = DiscountAnalyzerDB()
         
         # 分析折扣趋势
         result = analyzer.analyze_discount_trend(
@@ -2766,9 +2790,8 @@ def get_product_discounts(
         # 生成账号ID
         account_id = f"{account_config.access_key_id[:10]}-{account}"
         
-        # 使用数据库版折扣分析器
-        db_path = os.path.expanduser("~/.cloudlens/bills.db")
-        analyzer = DiscountAnalyzerDB(db_path=db_path)
+        # 使用数据库版折扣分析器（默认使用MySQL）
+        analyzer = DiscountAnalyzerDB()
         
         result = analyzer.analyze_discount_trend(account_id=account_id, months=months)
         
@@ -3064,8 +3087,8 @@ def get_quarterly_discount_comparison(
         raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
     
     try:
-        db_path = os.path.expanduser("~/.cloudlens/bills.db")
-        analyzer = AdvancedDiscountAnalyzer(db_path)
+        # 使用默认配置（MySQL），不再需要db_path
+        analyzer = AdvancedDiscountAnalyzer()
         
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
@@ -3114,8 +3137,8 @@ def get_yearly_discount_comparison(
         raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
     
     try:
-        db_path = os.path.expanduser("~/.cloudlens/bills.db")
-        analyzer = AdvancedDiscountAnalyzer(db_path)
+        # 使用默认配置（MySQL），不再需要db_path
+        analyzer = AdvancedDiscountAnalyzer()
         
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
@@ -3166,8 +3189,8 @@ def get_product_discount_trends(
         raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
     
     try:
-        db_path = os.path.expanduser("~/.cloudlens/bills.db")
-        analyzer = AdvancedDiscountAnalyzer(db_path)
+        # 使用默认配置（MySQL），不再需要db_path
+        analyzer = AdvancedDiscountAnalyzer()
         
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
@@ -3217,8 +3240,8 @@ def get_region_discount_ranking(
         raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
     
     try:
-        db_path = os.path.expanduser("~/.cloudlens/bills.db")
-        analyzer = AdvancedDiscountAnalyzer(db_path)
+        # 使用默认配置（MySQL），不再需要db_path
+        analyzer = AdvancedDiscountAnalyzer()
         
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
@@ -3268,8 +3291,8 @@ def get_subscription_type_comparison(
         raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
     
     try:
-        db_path = os.path.expanduser("~/.cloudlens/bills.db")
-        analyzer = AdvancedDiscountAnalyzer(db_path)
+        # 使用默认配置（MySQL），不再需要db_path
+        analyzer = AdvancedDiscountAnalyzer()
         
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
@@ -3319,8 +3342,8 @@ def get_optimization_suggestions(
         raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
     
     try:
-        db_path = os.path.expanduser("~/.cloudlens/bills.db")
-        analyzer = AdvancedDiscountAnalyzer(db_path)
+        # 使用默认配置（MySQL），不再需要db_path
+        analyzer = AdvancedDiscountAnalyzer()
         
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
@@ -3371,8 +3394,8 @@ def detect_discount_anomalies(
         raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
     
     try:
-        db_path = os.path.expanduser("~/.cloudlens/bills.db")
-        analyzer = AdvancedDiscountAnalyzer(db_path)
+        # 使用默认配置（MySQL），不再需要db_path
+        analyzer = AdvancedDiscountAnalyzer()
         
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
@@ -3425,8 +3448,8 @@ def get_product_region_matrix(
         raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
     
     try:
-        db_path = os.path.expanduser("~/.cloudlens/bills.db")
-        analyzer = AdvancedDiscountAnalyzer(db_path)
+        # 使用默认配置（MySQL），不再需要db_path
+        analyzer = AdvancedDiscountAnalyzer()
         
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
@@ -3479,8 +3502,8 @@ def get_discount_moving_average(
         # 解析窗口大小
         window_sizes = [int(w.strip()) for w in windows.split(',')]
         
-        db_path = os.path.expanduser("~/.cloudlens/bills.db")
-        analyzer = AdvancedDiscountAnalyzer(db_path)
+        # 使用默认配置（MySQL），不再需要db_path
+        analyzer = AdvancedDiscountAnalyzer()
         
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
@@ -3529,8 +3552,8 @@ def get_cumulative_discount(
         raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
     
     try:
-        db_path = os.path.expanduser("~/.cloudlens/bills.db")
-        analyzer = AdvancedDiscountAnalyzer(db_path)
+        # 使用默认配置（MySQL），不再需要db_path
+        analyzer = AdvancedDiscountAnalyzer()
         
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
@@ -3580,8 +3603,8 @@ def get_instance_lifecycle(
         raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
     
     try:
-        db_path = os.path.expanduser("~/.cloudlens/bills.db")
-        analyzer = AdvancedDiscountAnalyzer(db_path)
+        # 使用默认配置（MySQL），不再需要db_path
+        analyzer = AdvancedDiscountAnalyzer()
         
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
@@ -3630,8 +3653,8 @@ def get_discount_insights(
         raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
     
     try:
-        db_path = os.path.expanduser("~/.cloudlens/bills.db")
-        analyzer = AdvancedDiscountAnalyzer(db_path)
+        # 使用默认配置（MySQL），不再需要db_path
+        analyzer = AdvancedDiscountAnalyzer()
         
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
@@ -3680,8 +3703,8 @@ def export_discount_data(
         raise HTTPException(status_code=404, detail=f"账号 '{account}' 未找到")
     
     try:
-        db_path = os.path.expanduser("~/.cloudlens/bills.db")
-        analyzer = AdvancedDiscountAnalyzer(db_path)
+        # 使用默认配置（MySQL），不再需要db_path
+        analyzer = AdvancedDiscountAnalyzer()
         
         # 构造账号ID（与bill_cmd.py保持一致）
         account_id = f"{account_config.access_key_id[:10]}-{account}"
@@ -4268,27 +4291,33 @@ def get_budget_status(
         # 从账单数据库获取实际支出
         spent = 0.0
         try:
-            import sqlite3
-            conn = sqlite3.connect(_bill_storage.db_path)
-            cursor = conn.cursor()
+            from core.database import DatabaseFactory
+            import os
+            
+            db_type = os.getenv("DB_TYPE", "mysql").lower()
+            if db_type == "mysql":
+                db = DatabaseFactory.create_adapter("mysql")
+                placeholder = "%s"
+            else:
+                if not _bill_storage.db_path or not os.path.exists(_bill_storage.db_path):
+                    return spent
+                db = DatabaseFactory.create_adapter("sqlite", db_path=_bill_storage.db_path)
+                placeholder = "?"
             
             start_date_str = budget.start_date.strftime('%Y-%m-%d')
             end_date_str = min(now, budget.end_date).strftime('%Y-%m-%d')
             
-            cursor.execute("""
+            result = db.query_one(f"""
                 SELECT SUM(pretax_amount) as total
                 FROM bill_items
-                WHERE account_id = ?
-                    AND billing_date >= ?
-                    AND billing_date <= ?
+                WHERE account_id = {placeholder}
+                    AND billing_date >= {placeholder}
+                    AND billing_date <= {placeholder}
                     AND pretax_amount IS NOT NULL
             """, (account_id, start_date_str, end_date_str))
             
-            row = cursor.fetchone()
-            if row and row[0]:
-                spent = float(row[0])
-            
-            conn.close()
+            if result and result.get('total'):
+                spent = float(result['total'])
         except Exception as e:
             logger.error(f"Error calculating budget spend: {e}")
         

@@ -5,12 +5,15 @@
 """
 
 import json
-import sqlite3
+import os
 from datetime import datetime
 from dataclasses import dataclass, asdict
 from typing import List, Optional, Dict, Any
 from enum import Enum
 import logging
+from pathlib import Path
+
+from core.database import DatabaseFactory, DatabaseAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -117,19 +120,63 @@ class Alert:
 
 
 class AlertStorage:
-    """告警存储管理"""
+    """告警存储管理（支持SQLite和MySQL）"""
     
-    def __init__(self, db_path: str = "data/alerts.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: Optional[str] = None, db_type: Optional[str] = None):
+        """
+        初始化存储管理器
+        
+        Args:
+            db_path: 数据库文件路径（仅SQLite使用）
+            db_type: 数据库类型（'sqlite' 或 'mysql'），None则从环境变量读取
+        """
+        self.db_type = db_type or os.getenv("DB_TYPE", "mysql").lower()
+        
+        if self.db_type == "mysql":
+            self.db = DatabaseFactory.create_adapter("mysql")
+            self.db_path = None
+        else:
+            if db_path is None:
+                db_dir = Path("data")
+                db_dir.mkdir(parents=True, exist_ok=True)
+                db_path = str(db_dir / "alerts.db")
+            self.db_path = db_path
+            self.db = DatabaseFactory.create_adapter("sqlite", db_path=db_path)
+        
         self._init_database()
+    
+    def _get_placeholder(self) -> str:
+        """获取SQL占位符"""
+        return "%s" if self.db_type == "mysql" else "?"
     
     def _init_database(self):
         """初始化数据库"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        placeholder = self._get_placeholder()
         
         # 告警规则表
-        cursor.execute("""
+        self.db.execute(f"""
+            CREATE TABLE IF NOT EXISTS alert_rules (
+                id VARCHAR(255) PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                type VARCHAR(50) NOT NULL,
+                severity VARCHAR(20) NOT NULL,
+                enabled TINYINT NOT NULL DEFAULT 1,
+                \`condition\` VARCHAR(50) NOT NULL,
+                threshold DECIMAL(20, 2),
+                metric VARCHAR(100),
+                account_id VARCHAR(255),
+                tag_filter TEXT,
+                service_filter TEXT,
+                notify_email VARCHAR(255),
+                notify_webhook TEXT,
+                notify_sms VARCHAR(50),
+                check_interval INT DEFAULT 60,
+                cooldown_period INT DEFAULT 300,
+                created_at DATETIME,
+                updated_at DATETIME
+            )
+        """ if self.db_type == "mysql" else """
             CREATE TABLE IF NOT EXISTS alert_rules (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -154,7 +201,28 @@ class AlertStorage:
         """)
         
         # 告警记录表
-        cursor.execute("""
+        self.db.execute(f"""
+            CREATE TABLE IF NOT EXISTS alerts (
+                id VARCHAR(255) PRIMARY KEY,
+                rule_id VARCHAR(255) NOT NULL,
+                rule_name VARCHAR(255) NOT NULL,
+                severity VARCHAR(20) NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'triggered',
+                title VARCHAR(255) NOT NULL,
+                message TEXT,
+                metric_value DECIMAL(20, 2),
+                threshold DECIMAL(20, 2),
+                account_id VARCHAR(255),
+                resource_id VARCHAR(255),
+                resource_type VARCHAR(50),
+                triggered_at DATETIME,
+                acknowledged_at DATETIME,
+                resolved_at DATETIME,
+                closed_at DATETIME,
+                metadata TEXT,
+                FOREIGN KEY (rule_id) REFERENCES alert_rules(id)
+            )
+        """ if self.db_type == "mysql" else """
             CREATE TABLE IF NOT EXISTS alerts (
                 id TEXT PRIMARY KEY,
                 rule_id TEXT NOT NULL,
@@ -178,7 +246,20 @@ class AlertStorage:
         """)
         
         # 告警历史表（用于统计）
-        cursor.execute("""
+        self.db.execute(f"""
+            CREATE TABLE IF NOT EXISTS alert_history (
+                id VARCHAR(255) PRIMARY KEY,
+                alert_id VARCHAR(255) NOT NULL,
+                rule_id VARCHAR(255) NOT NULL,
+                action VARCHAR(50) NOT NULL,
+                status_before VARCHAR(20),
+                status_after VARCHAR(20),
+                performed_by VARCHAR(255),
+                performed_at DATETIME,
+                notes TEXT,
+                FOREIGN KEY (alert_id) REFERENCES alerts(id)
+            )
+        """ if self.db_type == "mysql" else """
             CREATE TABLE IF NOT EXISTS alert_history (
                 id TEXT PRIMARY KEY,
                 alert_id TEXT NOT NULL,
@@ -192,9 +273,6 @@ class AlertStorage:
                 FOREIGN KEY (alert_id) REFERENCES alerts(id)
             )
         """)
-        
-        conn.commit()
-        conn.close()
     
     def create_rule(self, rule: AlertRule) -> str:
         """创建告警规则"""
@@ -205,10 +283,8 @@ class AlertStorage:
             rule.created_at = datetime.now()
         rule.updated_at = datetime.now()
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
+        placeholder = self._get_placeholder()
+        self.db.execute(f"""
             INSERT INTO alert_rules (
                 id, name, description, type, severity, enabled,
                 condition, threshold, metric, account_id,
@@ -216,45 +292,37 @@ class AlertStorage:
                 notify_email, notify_webhook, notify_sms,
                 check_interval, cooldown_period,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES ({', '.join([placeholder] * 19)})
         """, (
             rule.id, rule.name, rule.description, rule.type, rule.severity,
             int(rule.enabled), rule.condition, rule.threshold, rule.metric,
             rule.account_id, rule.tag_filter, rule.service_filter,
             rule.notify_email, rule.notify_webhook, rule.notify_sms,
             rule.check_interval, rule.cooldown_period,
-            rule.created_at.isoformat(), rule.updated_at.isoformat()
+            rule.created_at.isoformat() if rule.created_at else None,
+            rule.updated_at.isoformat() if rule.updated_at else None
         ))
-        
-        conn.commit()
-        conn.close()
         
         return rule.id
     
     def get_rule(self, rule_id: str) -> Optional[AlertRule]:
         """获取告警规则"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        placeholder = self._get_placeholder()
+        rows = self.db.query(f"SELECT * FROM alert_rules WHERE id = {placeholder}", (rule_id,))
         
-        cursor.execute("SELECT * FROM alert_rules WHERE id = ?", (rule_id,))
-        row = cursor.fetchone()
-        conn.close()
-        
-        if not row:
+        if not rows:
             return None
         
-        return self._row_to_rule(row)
+        return self._row_to_rule(rows[0])
     
     def list_rules(self, account_id: Optional[str] = None, enabled_only: bool = False) -> List[AlertRule]:
         """列出告警规则"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
+        placeholder = self._get_placeholder()
         query = "SELECT * FROM alert_rules WHERE 1=1"
         params = []
         
         if account_id:
-            query += " AND account_id = ?"
+            query += f" AND account_id = {placeholder}"
             params.append(account_id)
         
         if enabled_only:
@@ -262,9 +330,7 @@ class AlertStorage:
         
         query += " ORDER BY created_at DESC"
         
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        conn.close()
+        rows = self.db.query(query, tuple(params) if params else None)
         
         return [self._row_to_rule(row) for row in rows]
     
@@ -272,44 +338,32 @@ class AlertStorage:
         """更新告警规则"""
         rule.updated_at = datetime.now()
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
+        placeholder = self._get_placeholder()
+        cursor = self.db.execute(f"""
             UPDATE alert_rules SET
-                name = ?, description = ?, type = ?, severity = ?, enabled = ?,
-                condition = ?, threshold = ?, metric = ?, account_id = ?,
-                tag_filter = ?, service_filter = ?,
-                notify_email = ?, notify_webhook = ?, notify_sms = ?,
-                check_interval = ?, cooldown_period = ?,
-                updated_at = ?
-            WHERE id = ?
+                name = {placeholder}, description = {placeholder}, type = {placeholder}, severity = {placeholder}, enabled = {placeholder},
+                condition = {placeholder}, threshold = {placeholder}, metric = {placeholder}, account_id = {placeholder},
+                tag_filter = {placeholder}, service_filter = {placeholder},
+                notify_email = {placeholder}, notify_webhook = {placeholder}, notify_sms = {placeholder},
+                check_interval = {placeholder}, cooldown_period = {placeholder},
+                updated_at = {placeholder}
+            WHERE id = {placeholder}
         """, (
             rule.name, rule.description, rule.type, rule.severity, int(rule.enabled),
             rule.condition, rule.threshold, rule.metric, rule.account_id,
             rule.tag_filter, rule.service_filter,
             rule.notify_email, rule.notify_webhook, rule.notify_sms,
             rule.check_interval, rule.cooldown_period,
-            rule.updated_at.isoformat(), rule.id
+            rule.updated_at.isoformat() if rule.updated_at else None, rule.id
         ))
         
-        success = cursor.rowcount > 0
-        conn.commit()
-        conn.close()
-        
-        return success
+        return cursor.rowcount > 0
     
     def delete_rule(self, rule_id: str) -> bool:
         """删除告警规则"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("DELETE FROM alert_rules WHERE id = ?", (rule_id,))
-        success = cursor.rowcount > 0
-        conn.commit()
-        conn.close()
-        
-        return success
+        placeholder = self._get_placeholder()
+        cursor = self.db.execute(f"DELETE FROM alert_rules WHERE id = {placeholder}", (rule_id,))
+        return cursor.rowcount > 0
     
     def create_alert(self, alert: Alert) -> str:
         """创建告警记录"""
@@ -319,17 +373,15 @@ class AlertStorage:
         if not alert.triggered_at:
             alert.triggered_at = datetime.now()
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
+        placeholder = self._get_placeholder()
+        self.db.execute(f"""
             INSERT INTO alerts (
                 id, rule_id, rule_name, severity, status,
                 title, message, metric_value, threshold,
                 account_id, resource_id, resource_type,
                 triggered_at, acknowledged_at, resolved_at, closed_at,
                 metadata
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES ({', '.join([placeholder] * 17)})
         """, (
             alert.id, alert.rule_id, alert.rule_name, alert.severity, alert.status,
             alert.title, alert.message, alert.metric_value, alert.threshold,
@@ -340,9 +392,6 @@ class AlertStorage:
             alert.closed_at.isoformat() if alert.closed_at else None,
             alert.metadata
         ))
-        
-        conn.commit()
-        conn.close()
         
         return alert.id
     
@@ -355,34 +404,30 @@ class AlertStorage:
         limit: int = 100
     ) -> List[Alert]:
         """列出告警记录"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
+        placeholder = self._get_placeholder()
         query = "SELECT * FROM alerts WHERE 1=1"
         params = []
         
         if account_id:
-            query += " AND account_id = ?"
+            query += f" AND account_id = {placeholder}"
             params.append(account_id)
         
         if rule_id:
-            query += " AND rule_id = ?"
+            query += f" AND rule_id = {placeholder}"
             params.append(rule_id)
         
         if status:
-            query += " AND status = ?"
+            query += f" AND status = {placeholder}"
             params.append(status)
         
         if severity:
-            query += " AND severity = ?"
+            query += f" AND severity = {placeholder}"
             params.append(severity)
         
-        query += " ORDER BY triggered_at DESC LIMIT ?"
+        query += f" ORDER BY triggered_at DESC LIMIT {placeholder}"
         params.append(limit)
         
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        conn.close()
+        rows = self.db.query(query, tuple(params))
         
         return [self._row_to_alert(row) for row in rows]
     
@@ -394,101 +439,140 @@ class AlertStorage:
         notes: Optional[str] = None
     ) -> bool:
         """更新告警状态"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        placeholder = self._get_placeholder()
         
         # 获取当前状态
-        cursor.execute("SELECT status FROM alerts WHERE id = ?", (alert_id,))
-        row = cursor.fetchone()
-        if not row:
-            conn.close()
+        rows = self.db.query(f"SELECT status, rule_id FROM alerts WHERE id = {placeholder}", (alert_id,))
+        if not rows:
             return False
         
-        status_before = row[0]
+        row = rows[0]
+        status_before = row['status'] if isinstance(row, dict) else row[0]
+        rule_id = row.get('rule_id', '') if isinstance(row, dict) else (row[1] if len(row) > 1 else '')
         now = datetime.now()
         
         # 更新告警状态
-        update_fields = ["status = ?"]
+        update_fields = [f"status = {placeholder}"]
         params = [status]
         
         if status == AlertStatus.ACKNOWLEDGED.value:
-            update_fields.append("acknowledged_at = ?")
+            update_fields.append(f"acknowledged_at = {placeholder}")
             params.append(now.isoformat())
         elif status == AlertStatus.RESOLVED.value:
-            update_fields.append("resolved_at = ?")
+            update_fields.append(f"resolved_at = {placeholder}")
             params.append(now.isoformat())
         elif status == AlertStatus.CLOSED.value:
-            update_fields.append("closed_at = ?")
+            update_fields.append(f"closed_at = {placeholder}")
             params.append(now.isoformat())
         
         params.append(alert_id)
         
-        cursor.execute(
-            f"UPDATE alerts SET {', '.join(update_fields)} WHERE id = ?",
-            params
+        cursor = self.db.execute(
+            f"UPDATE alerts SET {', '.join(update_fields)} WHERE id = {placeholder}",
+            tuple(params)
         )
         
         # 记录历史
         history_id = f"history-{datetime.now().timestamp()}"
-        cursor.execute("""
+        self.db.execute(f"""
             INSERT INTO alert_history (
                 id, alert_id, rule_id, action, status_before, status_after,
                 performed_by, performed_at, notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES ({', '.join([placeholder] * 9)})
         """, (
-            history_id, alert_id, "", "status_change", status_before, status,
+            history_id, alert_id, rule_id, "status_change", status_before, status,
             performed_by, now.isoformat(), notes
         ))
         
-        success = cursor.rowcount > 0
-        conn.commit()
-        conn.close()
-        
-        return success
+        return cursor.rowcount > 0
     
     def _row_to_rule(self, row) -> AlertRule:
         """将数据库行转换为AlertRule对象"""
-        return AlertRule(
-            id=row[0],
-            name=row[1],
-            description=row[2],
-            type=row[3],
-            severity=row[4],
-            enabled=bool(row[5]),
-            condition=row[6],
-            threshold=row[7],
-            metric=row[8],
-            account_id=row[9],
-            tag_filter=row[10],
-            service_filter=row[11],
-            notify_email=row[12],
-            notify_webhook=row[13],
-            notify_sms=row[14],
-            check_interval=row[15],
-            cooldown_period=row[16],
-            created_at=datetime.fromisoformat(row[17]) if row[17] else None,
-            updated_at=datetime.fromisoformat(row[18]) if row[18] else None
-        )
+        if isinstance(row, dict):
+            return AlertRule(
+                id=row.get('id', ''),
+                name=row.get('name', ''),
+                description=row.get('description'),
+                type=row.get('type', ''),
+                severity=row.get('severity', ''),
+                enabled=bool(row.get('enabled', 0)),
+                condition=row.get('condition', ''),
+                threshold=row.get('threshold'),
+                metric=row.get('metric'),
+                account_id=row.get('account_id'),
+                tag_filter=row.get('tag_filter'),
+                service_filter=row.get('service_filter'),
+                notify_email=row.get('notify_email'),
+                notify_webhook=row.get('notify_webhook'),
+                notify_sms=row.get('notify_sms'),
+                check_interval=int(row.get('check_interval', 60)),
+                cooldown_period=int(row.get('cooldown_period', 300)),
+                created_at=datetime.fromisoformat(row['created_at']) if row.get('created_at') else None,
+                updated_at=datetime.fromisoformat(row['updated_at']) if row.get('updated_at') else None
+            )
+        else:
+            return AlertRule(
+                id=row[0],
+                name=row[1],
+                description=row[2],
+                type=row[3],
+                severity=row[4],
+                enabled=bool(row[5]),
+                condition=row[6],
+                threshold=row[7],
+                metric=row[8],
+                account_id=row[9],
+                tag_filter=row[10],
+                service_filter=row[11],
+                notify_email=row[12],
+                notify_webhook=row[13],
+                notify_sms=row[14],
+                check_interval=row[15],
+                cooldown_period=row[16],
+                created_at=datetime.fromisoformat(row[17]) if row[17] else None,
+                updated_at=datetime.fromisoformat(row[18]) if row[18] else None
+            )
     
     def _row_to_alert(self, row) -> Alert:
         """将数据库行转换为Alert对象"""
-        return Alert(
-            id=row[0],
-            rule_id=row[1],
-            rule_name=row[2],
-            severity=row[3],
-            status=row[4],
-            title=row[5],
-            message=row[6],
-            metric_value=row[7],
-            threshold=row[8],
-            account_id=row[9],
-            resource_id=row[10],
-            resource_type=row[11],
-            triggered_at=datetime.fromisoformat(row[12]) if row[12] else None,
-            acknowledged_at=datetime.fromisoformat(row[13]) if row[13] else None,
-            resolved_at=datetime.fromisoformat(row[14]) if row[14] else None,
-            closed_at=datetime.fromisoformat(row[15]) if row[15] else None,
-            metadata=row[16]
-        )
+        if isinstance(row, dict):
+            return Alert(
+                id=row.get('id', ''),
+                rule_id=row.get('rule_id', ''),
+                rule_name=row.get('rule_name', ''),
+                severity=row.get('severity', ''),
+                status=row.get('status', ''),
+                title=row.get('title', ''),
+                message=row.get('message'),
+                metric_value=row.get('metric_value'),
+                threshold=row.get('threshold'),
+                account_id=row.get('account_id'),
+                resource_id=row.get('resource_id'),
+                resource_type=row.get('resource_type'),
+                triggered_at=datetime.fromisoformat(row['triggered_at']) if row.get('triggered_at') else None,
+                acknowledged_at=datetime.fromisoformat(row['acknowledged_at']) if row.get('acknowledged_at') else None,
+                resolved_at=datetime.fromisoformat(row['resolved_at']) if row.get('resolved_at') else None,
+                closed_at=datetime.fromisoformat(row['closed_at']) if row.get('closed_at') else None,
+                metadata=row.get('metadata')
+            )
+        else:
+            return Alert(
+                id=row[0],
+                rule_id=row[1],
+                rule_name=row[2],
+                severity=row[3],
+                status=row[4],
+                title=row[5],
+                message=row[6],
+                metric_value=row[7],
+                threshold=row[8],
+                account_id=row[9],
+                resource_id=row[10],
+                resource_type=row[11],
+                triggered_at=datetime.fromisoformat(row[12]) if row[12] else None,
+                acknowledged_at=datetime.fromisoformat(row[13]) if row[13] else None,
+                resolved_at=datetime.fromisoformat(row[14]) if row[14] else None,
+                closed_at=datetime.fromisoformat(row[15]) if row[15] else None,
+                metadata=row[16]
+            )
 

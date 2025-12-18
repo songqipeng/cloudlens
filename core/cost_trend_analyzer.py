@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 import json
 from pathlib import Path
-import sqlite3
+# 移除sqlite3导入，改用数据库抽象层
 import os
 
 logger = logging.getLogger(__name__)
@@ -319,14 +319,11 @@ class CostTrendAnalyzer:
         Returns:
             成本趋势数据
         """
-        # 检查数据库是否存在
-        if not os.path.exists(self.bills_db_path):
-            logger.warning(f"账单数据库不存在: {self.bills_db_path}")
-            return {"error": "No cost history available"}
-        
+        # 使用BillStorageManager的数据库抽象层
         try:
-            conn = sqlite3.connect(self.bills_db_path)
-            cursor = conn.cursor()
+            from core.bill_storage import BillStorageManager
+            storage = BillStorageManager(self.bills_db_path)
+            db = storage.db
             
             # 计算起始和结束日期
             if start_date and end_date:
@@ -339,20 +336,23 @@ class CostTrendAnalyzer:
                 end_date_obj = datetime.now()
                 if days == 0:
                     # 获取所有历史数据：查询最早的账期
-                    cursor.execute("""
+                    rows = db.query("""
                         SELECT MIN(billing_cycle) as earliest_cycle
                         FROM bill_items
                         WHERE account_id LIKE ?
                             AND billing_cycle IS NOT NULL
                     """, (f"%{account_name}%",))
-                    result = cursor.fetchone()
-                    if result and result[0]:
-                        earliest_cycle = result[0]
-                        year, month = map(int, earliest_cycle.split('-'))
-                        start_date_obj = datetime(year, month, 1)
-                        logger.info(f"获取所有历史数据，从最早账期开始: {earliest_cycle}")
+                    result = rows[0] if rows else None
+                    if result:
+                        earliest_cycle = result['earliest_cycle'] if isinstance(result, dict) else result[0]
+                        if earliest_cycle:
+                            year, month = map(int, earliest_cycle.split('-'))
+                            start_date_obj = datetime(year, month, 1)
+                            logger.info(f"获取所有历史数据，从最早账期开始: {earliest_cycle}")
+                        else:
+                            start_date_obj = end_date_obj - timedelta(days=90)
+                            logger.warning(f"未找到历史数据，使用默认90天")
                     else:
-                        # 如果没有找到数据，使用默认的90天
                         start_date_obj = end_date_obj - timedelta(days=90)
                         logger.warning(f"未找到历史数据，使用默认90天")
                 else:
@@ -363,20 +363,19 @@ class CostTrendAnalyzer:
             
             # 查询账号ID（可能是 access_key_id 前10位 + 账号名）
             # 先尝试直接匹配
-            cursor.execute("""
+            rows = db.query("""
                 SELECT DISTINCT account_id 
                 FROM bill_items 
                 WHERE account_id LIKE ?
                 LIMIT 1
             """, (f"%{account_name}%",))
             
-            result = cursor.fetchone()
-            if not result:
+            if not rows:
                 logger.warning(f"未找到账号 {account_name} 的账单数据")
-                conn.close()
                 return {"error": "No cost history available"}
             
-            account_id = result[0]
+            result = rows[0]
+            account_id = result['account_id'] if isinstance(result, dict) else result[0]
             logger.info(f"找到账号ID: {account_id}, 查询时间范围: {start_billing_date} 至今")
             
             # 计算起始账期（YYYY-MM格式）
@@ -432,7 +431,7 @@ class CostTrendAnalyzer:
             # 如果API获取失败，尝试从数据库按日期聚合
             if not daily_data or len(daily_data) < 2:
                 logger.info(f"从数据库按日期查询: {start_billing_date} 至 {end_billing_date}")
-                cursor.execute("""
+                rows = db.query("""
                     SELECT 
                         billing_date,
                         SUM(pretax_amount) as daily_cost,
@@ -449,7 +448,14 @@ class CostTrendAnalyzer:
                     ORDER BY billing_date
                 """, (account_id, start_billing_date, end_billing_date))
                 
-                daily_data = cursor.fetchall()
+                # 转换为元组格式以保持兼容性
+                daily_data = [
+                    (row['billing_date'] if isinstance(row, dict) else row[0],
+                     float(row['daily_cost'] or 0) if isinstance(row, dict) else float(row[1] or 0),
+                     int(row['instance_count'] or 0) if isinstance(row, dict) else int(row[2] or 0),
+                     int(row['record_count'] or 0) if isinstance(row, dict) else int(row[3] or 0))
+                    for row in rows
+                ]
                 if daily_data:
                     logger.info(f"从数据库获取到 {len(daily_data)} 天的按天数据")
             
@@ -458,8 +464,8 @@ class CostTrendAnalyzer:
                 logger.info(f"按日期查询数据不足（{len(daily_data) if daily_data else 0}天），改用按账期查询")
                 
                 # 按账期聚合成本数据
-                cursor.execute("""
-                    SELECT 
+                rows = db.query("""
+                    SELECT
                         billing_cycle,
                         SUM(pretax_amount) as cycle_cost,
                         COUNT(DISTINCT instance_id) as instance_count,
@@ -474,11 +480,10 @@ class CostTrendAnalyzer:
                     ORDER BY billing_cycle
                 """, (account_id, start_billing_cycle, end_billing_cycle))
                 
-                cycle_data = cursor.fetchall()
-                
+                cycle_data = rows
+
                 if not cycle_data or len(cycle_data) < 1:
                     logger.warning(f"账单数据不足，没有找到账期数据")
-                    conn.close()
                     return {"error": "Insufficient data for trend analysis"}
                 
                 # 改进的按天分配逻辑：尝试从账单明细中获取更细粒度的数据
@@ -492,9 +497,10 @@ class CostTrendAnalyzer:
                 
                 # 为每个账期生成按天的成本数据
                 for row in cycle_data:
-                    billing_cycle = row[0]  # YYYY-MM
-                    cycle_cost = round(row[1], 2)
-                    instance_count = row[2]
+                    # 处理字典格式的结果（MySQL）或元组格式（SQLite）
+                    billing_cycle = row['billing_cycle'] if isinstance(row, dict) else row[0]
+                    cycle_cost = round(float(row['cycle_cost'] or 0) if isinstance(row, dict) else float(row[1] or 0), 2)
+                    instance_count = int(row['instance_count'] or 0) if isinstance(row, dict) else int(row[2] or 0)
                     
                     # 解析账期
                     year, month = map(int, billing_cycle.split('-'))
@@ -516,7 +522,7 @@ class CostTrendAnalyzer:
                     actual_days = (actual_end - actual_start).days + 1
                     
                     # 尝试从数据库获取该账期的详细数据，按计费类型和实例分组
-                    cursor.execute("""
+                    rows2 = db.query("""
                         SELECT 
                             subscription_type,
                             COUNT(DISTINCT instance_id) as instance_count,
@@ -528,15 +534,15 @@ class CostTrendAnalyzer:
                         GROUP BY subscription_type
                     """, (account_id, billing_cycle))
                     
-                    type_data = cursor.fetchall()
+                    type_data = rows2
                     
                     # 如果有按量付费的资源，尝试更智能的分配
                     pay_as_you_go_cost = 0.0
                     subscription_cost = 0.0
                     
                     for type_row in type_data:
-                        sub_type = type_row[0] or "Unknown"
-                        type_cost = round(type_row[2], 2)
+                        sub_type = (type_row['subscription_type'] if isinstance(type_row, dict) else type_row[0]) or "Unknown"
+                        type_cost = round(float(type_row['type_cost'] or 0) if isinstance(type_row, dict) else float(type_row[2] or 0), 2)
                         
                         if sub_type == "PayAsYouGo":
                             pay_as_you_go_cost += type_cost
@@ -618,7 +624,6 @@ class CostTrendAnalyzer:
                 
                 if len(dates) < 2:
                     logger.warning(f"生成的每日数据不足，只有 {len(dates)} 天")
-                    conn.close()
                     return {"error": "Insufficient data for trend analysis"}
             else:
                 # 使用按日期查询的结果（来自数据库或API）
@@ -634,7 +639,7 @@ class CostTrendAnalyzer:
                 logger.info(f"✅ 使用按天数据: {len(dates)} 天，成本范围: ¥{min(costs):.2f} - ¥{max(costs):.2f}")
             
             # 按产品类型汇总（使用账期范围）
-            cursor.execute("""
+            rows5 = db.query("""
                 SELECT 
                     product_name,
                     SUM(pretax_amount) as total_cost
@@ -649,12 +654,14 @@ class CostTrendAnalyzer:
             """, (account_id, start_billing_cycle, end_billing_cycle))
             
             cost_by_type = {}
-            for row in cursor.fetchall():
-                if row[0]:  # 确保产品名称不为空
-                    cost_by_type[row[0]] = round(row[1], 2)
+            for row in rows5:
+                product = row['product_name'] if isinstance(row, dict) else row[0]
+                cost = float(row['total_cost'] or 0) if isinstance(row, dict) else float(row[1] or 0)
+                if product:  # 确保产品名称不为空
+                    cost_by_type[product] = round(cost, 2)
             
             # 按区域汇总（使用账期范围）
-            cursor.execute("""
+            rows6 = db.query("""
                 SELECT 
                     region,
                     SUM(pretax_amount) as total_cost
@@ -669,11 +676,11 @@ class CostTrendAnalyzer:
             """, (account_id, start_billing_cycle, end_billing_cycle))
             
             cost_by_region = {}
-            for row in cursor.fetchall():
-                if row[0]:  # 确保区域不为空
-                    cost_by_region[row[0]] = round(row[1], 2)
-            
-            conn.close()
+            for row in rows6:
+                region = row['region'] if isinstance(row, dict) else row[0]
+                cost = float(row['total_cost'] or 0) if isinstance(row, dict) else float(row[1] or 0)
+                if region:  # 确保区域不为空
+                    cost_by_region[region] = round(cost, 2)
             
             # 计算分析指标
             latest_cost = costs[-1] if costs else 0

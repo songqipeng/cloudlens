@@ -11,7 +11,7 @@ import logging
 from core.alert_manager import AlertStorage, AlertRule, Alert, AlertType, AlertSeverity, AlertCondition
 from core.alert_engine import AlertEngine
 from core.notification_service import NotificationService
-from core.bill_storage import BillStorage
+from core.bill_storage import BillStorageManager
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 # 初始化存储和服务
 _alert_storage = AlertStorage()
-_bill_storage = BillStorage()
+_bill_storage = BillStorageManager()
 _alert_engine = AlertEngine(_alert_storage, _bill_storage)
 _notification_service = NotificationService()
 

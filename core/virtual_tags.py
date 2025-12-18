@@ -6,7 +6,6 @@
 """
 
 import logging
-import sqlite3
 import re
 import json
 from datetime import datetime
@@ -172,31 +171,51 @@ class TagEngine:
 
 
 class VirtualTagStorage:
-    """虚拟标签存储管理器"""
+    """虚拟标签存储管理器（支持SQLite和MySQL）"""
     
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: Optional[str] = None, db_type: Optional[str] = None):
         """
         初始化存储管理器
         
         Args:
-            db_path: 数据库文件路径，默认使用~/.cloudlens/virtual_tags.db
+            db_path: 数据库文件路径（仅SQLite使用），默认使用~/.cloudlens/virtual_tags.db
+            db_type: 数据库类型（'sqlite' 或 'mysql'），None则从环境变量读取
         """
-        if db_path is None:
-            db_dir = Path.home() / ".cloudlens"
-            db_dir.mkdir(parents=True, exist_ok=True)
-            db_path = str(db_dir / "virtual_tags.db")
+        self.db_type = db_type or os.getenv("DB_TYPE", "mysql").lower()
         
-        self.db_path = db_path
+        if self.db_type == "mysql":
+            self.db = DatabaseFactory.create_adapter("mysql")
+            self.db_path = None
+        else:
+            if db_path is None:
+                db_dir = Path.home() / ".cloudlens"
+                db_dir.mkdir(parents=True, exist_ok=True)
+                db_path = str(db_dir / "virtual_tags.db")
+            self.db_path = db_path
+            self.db = DatabaseFactory.create_adapter("sqlite", db_path=db_path)
+        
         self._init_database()
+    
+    def _get_placeholder(self) -> str:
+        """获取SQL占位符"""
+        return "%s" if self.db_type == "mysql" else "?"
     
     def _init_database(self):
         """初始化数据库表结构"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
         
         try:
             # 创建虚拟标签表
-            cursor.execute("""
+            self.db.execute("""
+                CREATE TABLE IF NOT EXISTS virtual_tags (
+                    id VARCHAR(255) PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    tag_key VARCHAR(100) NOT NULL,
+                    tag_value VARCHAR(255) NOT NULL,
+                    priority INT DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+            """ if self.db_type == "mysql" else """
                 CREATE TABLE IF NOT EXISTS virtual_tags (
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -209,7 +228,17 @@ class VirtualTagStorage:
             """)
             
             # 创建标签规则表
-            cursor.execute("""
+            self.db.execute("""
+                CREATE TABLE IF NOT EXISTS tag_rules (
+                    id VARCHAR(255) PRIMARY KEY,
+                    tag_id VARCHAR(255) NOT NULL,
+                    field VARCHAR(100) NOT NULL,
+                    operator VARCHAR(50) NOT NULL,
+                    pattern TEXT NOT NULL,
+                    priority INT DEFAULT 0,
+                    FOREIGN KEY (tag_id) REFERENCES virtual_tags(id) ON DELETE CASCADE
+                )
+            """ if self.db_type == "mysql" else """
                 CREATE TABLE IF NOT EXISTS tag_rules (
                     id TEXT PRIMARY KEY,
                     tag_id TEXT NOT NULL,
@@ -222,7 +251,17 @@ class VirtualTagStorage:
             """)
             
             # 创建标签匹配缓存表（性能优化）
-            cursor.execute("""
+            self.db.execute("""
+                CREATE TABLE IF NOT EXISTS tag_matches (
+                    resource_id VARCHAR(255) NOT NULL,
+                    resource_type VARCHAR(50) NOT NULL,
+                    account_name VARCHAR(255) NOT NULL,
+                    tag_id VARCHAR(255) NOT NULL,
+                    matched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (resource_id, resource_type, account_name, tag_id),
+                    FOREIGN KEY (tag_id) REFERENCES virtual_tags(id) ON DELETE CASCADE
+                )
+            """ if self.db_type == "mysql" else """
                 CREATE TABLE IF NOT EXISTS tag_matches (
                     resource_id TEXT NOT NULL,
                     resource_type TEXT NOT NULL,
@@ -235,17 +274,16 @@ class VirtualTagStorage:
             """)
             
             # 创建索引
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_tag_key_value ON virtual_tags(tag_key, tag_value)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_tag_rules_tag_id ON tag_rules(tag_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_tag_matches_resource ON tag_matches(resource_id, resource_type, account_name)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_tag_matches_tag ON tag_matches(tag_id)")
-            
-            conn.commit()
+            try:
+                self.db.execute("CREATE INDEX IF NOT EXISTS idx_tag_key_value ON virtual_tags(tag_key, tag_value)")
+                self.db.execute("CREATE INDEX IF NOT EXISTS idx_tag_rules_tag_id ON tag_rules(tag_id)")
+                self.db.execute("CREATE INDEX IF NOT EXISTS idx_tag_matches_resource ON tag_matches(resource_id, resource_type, account_name)")
+                self.db.execute("CREATE INDEX IF NOT EXISTS idx_tag_matches_tag ON tag_matches(tag_id)")
+            except Exception as e:
+                logger.debug(f"Index creation skipped (may already exist): {e}")
         except Exception as e:
             logger.error(f"Error initializing database: {e}")
-            conn.rollback()
-        finally:
-            conn.close()
+            raise
     
     def create_tag(self, tag: VirtualTag) -> str:
         """创建虚拟标签"""
@@ -256,22 +294,20 @@ class VirtualTagStorage:
         tag.created_at = now
         tag.updated_at = now
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
+        placeholder = self._get_placeholder()
         try:
             # 插入标签
-            cursor.execute("""
+            self.db.execute(f"""
                 INSERT INTO virtual_tags (id, name, tag_key, tag_value, priority, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES ({', '.join([placeholder] * 7)})
             """, (
                 tag.id,
                 tag.name,
                 tag.tag_key,
                 tag.tag_value,
                 tag.priority,
-                tag.created_at.isoformat(),
-                tag.updated_at.isoformat()
+                tag.created_at.isoformat() if tag.created_at else None,
+                tag.updated_at.isoformat() if tag.updated_at else None
             ))
             
             # 插入规则
@@ -279,9 +315,9 @@ class VirtualTagStorage:
                 if not rule.id:
                     rule.id = str(uuid.uuid4())
                 rule.tag_id = tag.id
-                cursor.execute("""
+                self.db.execute(f"""
                     INSERT INTO tag_rules (id, tag_id, field, operator, pattern, priority)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    VALUES ({', '.join([placeholder] * 6)})
                 """, (
                     rule.id,
                     rule.tag_id,
@@ -291,113 +327,113 @@ class VirtualTagStorage:
                     rule.priority
                 ))
             
-            conn.commit()
             logger.info(f"Created virtual tag: {tag.name} ({tag.id})")
             return tag.id
         except Exception as e:
             logger.error(f"Error creating tag: {e}")
-            conn.rollback()
             raise
-        finally:
-            conn.close()
     
     def get_tag(self, tag_id: str) -> Optional[VirtualTag]:
         """获取虚拟标签"""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        placeholder = self._get_placeholder()
+        # 获取标签
+        rows = self.db.query(f"SELECT * FROM virtual_tags WHERE id = {placeholder}", (tag_id,))
+        if not rows:
+            return None
         
-        try:
-            # 获取标签
-            cursor.execute("SELECT * FROM virtual_tags WHERE id = ?", (tag_id,))
-            row = cursor.fetchone()
-            if not row:
-                return None
-            
-            # 获取规则
-            cursor.execute("SELECT * FROM tag_rules WHERE tag_id = ? ORDER BY priority DESC", (tag_id,))
-            rule_rows = cursor.fetchall()
-            
-            rules = [
-                TagRule(
-                    id=r['id'],
-                    tag_id=r['tag_id'],
-                    field=r['field'],
-                    operator=r['operator'],
-                    pattern=r['pattern'],
-                    priority=r['priority']
-                )
-                for r in rule_rows
-            ]
-            
-            tag = VirtualTag(
-                id=row['id'],
-                name=row['name'],
-                tag_key=row['tag_key'],
-                tag_value=row['tag_value'],
+        row = rows[0]
+        
+        # 获取规则
+        rule_rows = self.db.query(f"SELECT * FROM tag_rules WHERE tag_id = {placeholder} ORDER BY priority DESC", (tag_id,))
+        
+        rules = []
+        for r in rule_rows:
+            if isinstance(r, dict):
+                rules.append(TagRule(
+                    id=r.get('id', ''),
+                    tag_id=r.get('tag_id', ''),
+                    field=r.get('field', ''),
+                    operator=r.get('operator', ''),
+                    pattern=r.get('pattern', ''),
+                    priority=int(r.get('priority', 0))
+                ))
+            else:
+                rules.append(TagRule(
+                    id=r[0],
+                    tag_id=r[1],
+                    field=r[2],
+                    operator=r[3],
+                    pattern=r[4],
+                    priority=int(r[5] or 0)
+                ))
+        
+        if isinstance(row, dict):
+            return VirtualTag(
+                id=row.get('id', ''),
+                name=row.get('name', ''),
+                tag_key=row.get('tag_key', ''),
+                tag_value=row.get('tag_value', ''),
                 rules=rules,
-                priority=row['priority'],
-                created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
-                updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None
+                priority=int(row.get('priority', 0)),
+                created_at=datetime.fromisoformat(row['created_at']) if row.get('created_at') else None,
+                updated_at=datetime.fromisoformat(row['updated_at']) if row.get('updated_at') else None
             )
-            
-            return tag
-        finally:
-            conn.close()
+        else:
+            return VirtualTag(
+                id=row[0],
+                name=row[1],
+                tag_key=row[2],
+                tag_value=row[3],
+                rules=rules,
+                priority=int(row[4] or 0),
+                created_at=datetime.fromisoformat(row[5]) if row[5] else None,
+                updated_at=datetime.fromisoformat(row[6]) if len(row) > 6 and row[6] else None
+            )
     
     def list_tags(self) -> List[VirtualTag]:
         """列出所有虚拟标签"""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        rows = self.db.query("SELECT id FROM virtual_tags ORDER BY priority DESC, created_at DESC")
+        tag_ids = [row.get('id') if isinstance(row, dict) else row[0] for row in rows]
         
-        try:
-            cursor.execute("SELECT id FROM virtual_tags ORDER BY priority DESC, created_at DESC")
-            tag_ids = [row['id'] for row in cursor.fetchall()]
-            
-            tags = []
-            for tag_id in tag_ids:
-                tag = self.get_tag(tag_id)
-                if tag:
-                    tags.append(tag)
-            
-            return tags
-        finally:
-            conn.close()
+        tags = []
+        for tag_id in tag_ids:
+            tag = self.get_tag(tag_id)
+            if tag:
+                tags.append(tag)
+        
+        return tags
     
     def update_tag(self, tag: VirtualTag) -> bool:
         """更新虚拟标签"""
         tag.updated_at = datetime.now()
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
+        placeholder = self._get_placeholder()
         try:
             # 更新标签
-            cursor.execute("""
+            self.db.execute(f"""
                 UPDATE virtual_tags
-                SET name = ?, tag_key = ?, tag_value = ?, priority = ?, updated_at = ?
-                WHERE id = ?
+                SET name = {placeholder}, tag_key = {placeholder}, tag_value = {placeholder}, priority = {placeholder}, updated_at = {placeholder}
+                WHERE id = {placeholder}
             """, (
                 tag.name,
                 tag.tag_key,
                 tag.tag_value,
                 tag.priority,
-                tag.updated_at.isoformat(),
+                tag.updated_at.isoformat() if tag.updated_at else None,
                 tag.id
             ))
             
             # 删除旧规则
-            cursor.execute("DELETE FROM tag_rules WHERE tag_id = ?", (tag.id,))
+            self.db.execute(f"DELETE FROM tag_rules WHERE tag_id = {placeholder}", (tag.id,))
             
             # 插入新规则
             for rule in tag.rules:
                 if not rule.id:
                     rule.id = str(uuid.uuid4())
                 rule.tag_id = tag.id
-                cursor.execute("""
+                self.db.execute(f"""
                     INSERT INTO tag_rules (id, tag_id, field, operator, pattern, priority)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    VALUES ({', '.join([placeholder] * 6)})
                 """, (
                     rule.id,
                     rule.tag_id,
@@ -408,34 +444,24 @@ class VirtualTagStorage:
                 ))
             
             # 清除匹配缓存（规则已改变）
-            cursor.execute("DELETE FROM tag_matches WHERE tag_id = ?", (tag.id,))
+            self.db.execute(f"DELETE FROM tag_matches WHERE tag_id = {placeholder}", (tag.id,))
             
-            conn.commit()
             logger.info(f"Updated virtual tag: {tag.name} ({tag.id})")
             return True
         except Exception as e:
             logger.error(f"Error updating tag: {e}")
-            conn.rollback()
             return False
-        finally:
-            conn.close()
     
     def delete_tag(self, tag_id: str) -> bool:
         """删除虚拟标签"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
+        placeholder = self._get_placeholder()
         try:
-            cursor.execute("DELETE FROM virtual_tags WHERE id = ?", (tag_id,))
-            conn.commit()
+            cursor = self.db.execute(f"DELETE FROM virtual_tags WHERE id = {placeholder}", (tag_id,))
             logger.info(f"Deleted virtual tag: {tag_id}")
             return cursor.rowcount > 0
         except Exception as e:
             logger.error(f"Error deleting tag: {e}")
-            conn.rollback()
             return False
-        finally:
-            conn.close()
     
     def get_resource_tags(self, resource_id: str, resource_type: str, account_name: str) -> List[VirtualTag]:
         """获取资源的所有匹配标签"""
@@ -445,15 +471,12 @@ class VirtualTagStorage:
     
     def clear_cache(self, tag_id: Optional[str] = None):
         """清除匹配缓存"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
+        placeholder = self._get_placeholder()
         try:
             if tag_id:
-                cursor.execute("DELETE FROM tag_matches WHERE tag_id = ?", (tag_id,))
+                self.db.execute(f"DELETE FROM tag_matches WHERE tag_id = {placeholder}", (tag_id,))
             else:
-                cursor.execute("DELETE FROM tag_matches")
-            conn.commit()
-        finally:
-            conn.close()
+                self.db.execute("DELETE FROM tag_matches")
+        except Exception as e:
+            logger.error(f"Error clearing cache: {e}")
 

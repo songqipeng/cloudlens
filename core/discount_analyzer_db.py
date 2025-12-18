@@ -134,15 +134,12 @@ class DiscountAnalyzerDB:
         end_cycle: str
     ) -> List[Dict]:
         """分析合同折扣（从raw_data提取）"""
-        import sqlite3
         import json
         
-        conn = sqlite3.connect(self.storage.db_path)
-        cursor = conn.cursor()
-        
+        # 使用BillStorageManager的数据库抽象层
         try:
             # 从raw_data中提取合同信息
-            cursor.execute("""
+            rows = self.storage.db.query("""
                 SELECT raw_data
                 FROM bill_items
                 WHERE account_id = ?
@@ -153,9 +150,11 @@ class DiscountAnalyzerDB:
             
             contract_stats = {}
             
-            for row in cursor.fetchall():
+            for row in rows:
                 try:
-                    data = json.loads(row[0])
+                    # 处理字典格式的结果（MySQL）或元组格式（SQLite）
+                    raw_data = row['raw_data'] if isinstance(row, dict) else row[0]
+                    data = json.loads(raw_data)
                     contract_no = data.get('ContractNo', '')
                     
                     if contract_no and contract_no != '':
@@ -190,8 +189,11 @@ class DiscountAnalyzerDB:
             
             return contracts[:10]  # TOP 10
         
-        finally:
-            conn.close()
+        except Exception as e:
+            logger.error(f"分析合同折扣失败: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return []
 
 
 def main():

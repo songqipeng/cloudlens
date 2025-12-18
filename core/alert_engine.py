@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any, List
 from core.alert_manager import (
     AlertStorage, AlertRule, Alert, AlertCondition, AlertType, AlertSeverity, AlertStatus
 )
-from core.bill_storage import BillStorage
+from core.bill_storage import BillStorageManager
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class AlertEvaluator:
     """告警评估器"""
     
-    def __init__(self, alert_storage: AlertStorage, bill_storage: BillStorage):
+    def __init__(self, alert_storage: AlertStorage, bill_storage: BillStorageManager):
         self.alert_storage = alert_storage
         self.bill_storage = bill_storage
     
@@ -118,10 +118,7 @@ class AlertEvaluator:
         service_filter: Optional[str]
     ) -> float:
         """获取总成本"""
-        import sqlite3
-        conn = sqlite3.connect(self.bill_storage.db_path)
-        cursor = conn.cursor()
-        
+        # 使用BillStorageManager的数据库抽象层
         query = "SELECT SUM(pretax_amount) FROM bill_items WHERE 1=1"
         params = []
         
@@ -131,11 +128,12 @@ class AlertEvaluator:
         
         # TODO: 应用tag_filter和service_filter
         
-        cursor.execute(query, params)
-        row = cursor.fetchone()
-        conn.close()
-        
-        return float(row[0]) if row and row[0] else 0.0
+        rows = self.bill_storage.db.query(query, tuple(params) if params else None)
+        if rows and len(rows) > 0:
+            row = rows[0]
+            value = row[0] if isinstance(row, (list, tuple)) else list(row.values())[0]
+            return float(value) if value else 0.0
+        return 0.0
     
     def _get_daily_cost(
         self,
@@ -144,10 +142,7 @@ class AlertEvaluator:
         service_filter: Optional[str]
     ) -> float:
         """获取今日成本"""
-        import sqlite3
-        conn = sqlite3.connect(self.bill_storage.db_path)
-        cursor = conn.cursor()
-        
+        # 使用BillStorageManager的数据库抽象层
         today = datetime.now().strftime('%Y-%m-%d')
         query = "SELECT SUM(pretax_amount) FROM bill_items WHERE billing_date = ?"
         params = [today]
@@ -156,11 +151,12 @@ class AlertEvaluator:
             query += " AND account_id = ?"
             params.append(account_id)
         
-        cursor.execute(query, params)
-        row = cursor.fetchone()
-        conn.close()
-        
-        return float(row[0]) if row and row[0] else 0.0
+        rows = self.bill_storage.db.query(query, tuple(params))
+        if rows and len(rows) > 0:
+            row = rows[0]
+            value = row[0] if isinstance(row, (list, tuple)) else list(row.values())[0]
+            return float(value) if value else 0.0
+        return 0.0
     
     def _get_monthly_cost(
         self,
@@ -169,10 +165,7 @@ class AlertEvaluator:
         service_filter: Optional[str]
     ) -> float:
         """获取本月成本"""
-        import sqlite3
-        conn = sqlite3.connect(self.bill_storage.db_path)
-        cursor = conn.cursor()
-        
+        # 使用BillStorageManager的数据库抽象层
         now = datetime.now()
         month_start = now.replace(day=1).strftime('%Y-%m-%d')
         month_end = now.strftime('%Y-%m-%d')
@@ -187,11 +180,12 @@ class AlertEvaluator:
             query += " AND account_id = ?"
             params.append(account_id)
         
-        cursor.execute(query, params)
-        row = cursor.fetchone()
-        conn.close()
-        
-        return float(row[0]) if row and row[0] else 0.0
+        rows = self.bill_storage.db.query(query, tuple(params))
+        if rows and len(rows) > 0:
+            row = rows[0]
+            value = row[0] if isinstance(row, (list, tuple)) else list(row.values())[0]
+            return float(value) if value else 0.0
+        return 0.0
     
     def _get_service_cost(
         self,
@@ -200,10 +194,7 @@ class AlertEvaluator:
         tag_filter: Optional[str]
     ) -> float:
         """获取服务成本"""
-        import sqlite3
-        conn = sqlite3.connect(self.bill_storage.db_path)
-        cursor = conn.cursor()
-        
+        # 使用BillStorageManager的数据库抽象层
         query = "SELECT SUM(pretax_amount) FROM bill_items WHERE product_code = ?"
         params = [service]
         
@@ -211,11 +202,12 @@ class AlertEvaluator:
             query += " AND account_id = ?"
             params.append(account_id)
         
-        cursor.execute(query, params)
-        row = cursor.fetchone()
-        conn.close()
-        
-        return float(row[0]) if row and row[0] else 0.0
+        rows = self.bill_storage.db.query(query, tuple(params))
+        if rows and len(rows) > 0:
+            row = rows[0]
+            value = row[0] if isinstance(row, (list, tuple)) else list(row.values())[0]
+            return float(value) if value else 0.0
+        return 0.0
     
     def _check_condition(self, value: float, condition: str, threshold: float) -> bool:
         """检查条件是否满足"""
@@ -293,7 +285,7 @@ class AlertEvaluator:
 class AlertEngine:
     """告警引擎"""
     
-    def __init__(self, alert_storage: AlertStorage, bill_storage: BillStorage):
+    def __init__(self, alert_storage: AlertStorage, bill_storage: BillStorageManager):
         self.alert_storage = alert_storage
         self.evaluator = AlertEvaluator(alert_storage, bill_storage)
     

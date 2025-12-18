@@ -5,56 +5,65 @@
 提供统一的数据库操作接口，支持资源实例和监控数据的存储
 """
 
-import sqlite3
+import os
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from core.database import DatabaseFactory
 
 
 class DatabaseManager:
     """统一数据库管理器"""
 
-    def __init__(self, db_name: str, db_dir: str = "./data/db"):
+    def __init__(self, db_name: str, db_dir: str = "./data/db", db_type: str = None):
         """
         初始化数据库管理器
 
         Args:
             db_name: 数据库文件名
             db_dir: 数据库目录
+            db_type: 数据库类型（'sqlite' 或 'mysql'），None则从环境变量读取
         """
-        self.db_path = Path(db_dir) / db_name
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = None
+        self.db_type = db_type or os.getenv("DB_TYPE", "sqlite").lower()
+        self.db_path = Path(db_dir) / db_name if self.db_type == "sqlite" else None
+        
+        if self.db_type == "sqlite":
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            self.db = DatabaseFactory.create_adapter("sqlite", db_path=str(self.db_path))
+        else:
+            self.db = DatabaseFactory.create_adapter("mysql")
+        
+        self._init_database()
 
-    def connect(self):
-        """建立连接"""
-        if not self.conn:
-            self.conn = sqlite3.connect(str(self.db_path))
-            self.conn.row_factory = sqlite3.Row
-        return self.conn
+    def _get_placeholder(self):
+        """获取SQL占位符"""
+        return "%s" if self.db_type == "mysql" else "?"
 
-    def close(self):
-        """关闭连接"""
-        if self.conn:
-            self.conn.close()
-            self.conn = None
+    def _init_database(self):
+        """初始化数据库（延迟到首次使用时）"""
+        pass
 
     def execute(self, sql: str, params: tuple = None):
         """执行SQL"""
-        conn = self.connect()
-        cursor = conn.cursor()
-        if params:
-            cursor.execute(sql, params)
-        else:
-            cursor.execute(sql)
-        conn.commit()
-        return cursor
+        # 转换占位符
+        if self.db_type == "mysql" and "?" in sql:
+            sql = sql.replace("?", "%s")
+        elif self.db_type == "sqlite" and "%s" in sql:
+            sql = sql.replace("%s", "?")
+        
+        return self.db.execute(sql, params)
 
     def query(self, sql: str, params: tuple = None) -> List[Dict]:
         """查询并返回字典列表"""
-        cursor = self.execute(sql, params)
-        columns = [col[0] for col in cursor.description] if cursor.description else []
-        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        # 转换占位符
+        if self.db_type == "mysql" and "?" in sql:
+            sql = sql.replace("?", "%s")
+        elif self.db_type == "sqlite" and "%s" in sql:
+            sql = sql.replace("%s", "?")
+        
+        # 直接使用数据库适配器的query方法，它已经返回字典列表
+        return self.db.query(sql, params)
 
     def query_one(self, sql: str, params: tuple = None) -> Optional[Dict]:
         """查询单条记录"""
@@ -64,6 +73,14 @@ class DatabaseManager:
     def init_schema(self, schema_sql: str):
         """初始化数据库schema"""
         self.execute(schema_sql)
+
+    def connect(self):
+        """建立连接（兼容性方法）"""
+        return self.db.connect()
+
+    def close(self):
+        """关闭连接（兼容性方法）"""
+        return self.db.close()
 
     def __enter__(self):
         self.connect()
@@ -84,19 +101,25 @@ class DatabaseManager:
 
         # 标准列
         base_columns = {
-            "instance_id": "TEXT PRIMARY KEY",
-            "instance_name": "TEXT",
-            "instance_type": "TEXT",
-            "region": "TEXT",
-            "status": "TEXT",
-            "creation_time": "TEXT",
-            "expire_time": "TEXT",
-            "monthly_cost": "REAL DEFAULT 0",
+            "instance_id": "VARCHAR(255) PRIMARY KEY" if self.db_type == "mysql" else "TEXT PRIMARY KEY",
+            "instance_name": "VARCHAR(255)" if self.db_type == "mysql" else "TEXT",
+            "instance_type": "VARCHAR(100)" if self.db_type == "mysql" else "TEXT",
+            "region": "VARCHAR(50)" if self.db_type == "mysql" else "TEXT",
+            "status": "VARCHAR(50)" if self.db_type == "mysql" else "TEXT",
+            "creation_time": "VARCHAR(50)" if self.db_type == "mysql" else "TEXT",
+            "expire_time": "VARCHAR(50)" if self.db_type == "mysql" else "TEXT",
+            "monthly_cost": "DECIMAL(10,2) DEFAULT 0" if self.db_type == "mysql" else "REAL DEFAULT 0",
         }
 
         # 合并额外列
         if instance_columns:
-            base_columns.update(instance_columns)
+            for col_name, col_type in instance_columns.items():
+                if self.db_type == "mysql":
+                    # 转换SQLite类型到MySQL类型
+                    mysql_type = col_type.replace("TEXT", "VARCHAR(255)").replace("REAL", "DECIMAL(10,2)").replace("INTEGER", "INT")
+                    base_columns[col_name] = mysql_type
+                else:
+                    base_columns[col_name] = col_type
 
         # 构建SQL
         columns_sql = ", ".join([f"{k} {v}" for k, v in base_columns.items()])
@@ -172,13 +195,21 @@ class DatabaseManager:
             instance.get("monthly_cost", 0) or instance.get("MonthlyCost", 0),
         ]
 
-        # 使用INSERT OR REPLACE
-        placeholders = ", ".join(["?" for _ in columns])
+        # 使用INSERT OR REPLACE (SQLite) 或 REPLACE INTO (MySQL)
+        placeholder = self._get_placeholder()
+        placeholders = ", ".join([placeholder for _ in columns])
         columns_sql = ", ".join(columns)
-        sql = f"""
-        INSERT OR REPLACE INTO {table_name} ({columns_sql})
-        VALUES ({placeholders})
-        """
+        
+        if self.db_type == "mysql":
+            sql = f"""
+            REPLACE INTO {table_name} ({columns_sql})
+            VALUES ({placeholders})
+            """
+        else:
+            sql = f"""
+            INSERT OR REPLACE INTO {table_name} ({columns_sql})
+            VALUES ({placeholders})
+            """
         self.execute(sql, tuple(values))
 
     def save_instances_batch(
@@ -213,9 +244,10 @@ class DatabaseManager:
         table_name = f"{resource_type}_monitoring_data"
         id_col = "instance_id" if resource_type != "eip" else "allocation_id"
 
+        placeholder = self._get_placeholder()
         sql = f"""
         INSERT INTO {table_name} ({id_col}, metric_name, metric_value, timestamp)
-        VALUES (?, ?, ?, ?)
+        VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder})
         """
         self.execute(sql, (instance_id, metric_name, metric_value, int(time.time())))
 
@@ -243,7 +275,8 @@ class DatabaseManager:
             实例数据字典
         """
         table_name = f"{resource_type}_instances"
-        sql = f"SELECT * FROM {table_name} WHERE instance_id = ?"
+        placeholder = self._get_placeholder()
+        sql = f"SELECT * FROM {table_name} WHERE instance_id = {placeholder}"
         return self.query_one(sql, (instance_id,))
 
     def get_all_instances(self, resource_type: str, region: Optional[str] = None) -> List[Dict]:
@@ -258,8 +291,9 @@ class DatabaseManager:
             实例列表
         """
         table_name = f"{resource_type}_instances"
+        placeholder = self._get_placeholder()
         if region:
-            sql = f"SELECT * FROM {table_name} WHERE region = ?"
+            sql = f"SELECT * FROM {table_name} WHERE region = {placeholder}"
             return self.query(sql, (region,))
         else:
             sql = f"SELECT * FROM {table_name}"
@@ -282,12 +316,13 @@ class DatabaseManager:
         table_name = f"{resource_type}_monitoring_data"
         id_col = "instance_id" if resource_type != "eip" else "allocation_id"
 
+        placeholder = self._get_placeholder()
         if metric_names:
-            placeholders = ", ".join(["?" for _ in metric_names])
+            placeholders = ", ".join([placeholder for _ in metric_names])
             sql = f"""
             SELECT metric_name, metric_value 
             FROM {table_name} 
-            WHERE {id_col} = ? AND metric_name IN ({placeholders})
+            WHERE {id_col} = {placeholder} AND metric_name IN ({placeholders})
             ORDER BY timestamp DESC
             """
             params = (instance_id,) + tuple(metric_names)
@@ -295,7 +330,7 @@ class DatabaseManager:
             sql = f"""
             SELECT metric_name, metric_value 
             FROM {table_name} 
-            WHERE {id_col} = ?
+            WHERE {id_col} = {placeholder}
             ORDER BY timestamp DESC
             """
             params = (instance_id,)

@@ -366,11 +366,8 @@ def show_stats(db_path):
         ))
         
         # 显示各账号的账期列表
-        conn = __import__('sqlite3').connect(stats['db_path'])
-        cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT account_id FROM bill_items")
-        accounts = [row[0] for row in cursor.fetchall()]
-        conn.close()
+        accounts_result = storage.db.query("SELECT DISTINCT account_id FROM bill_items")
+        accounts = [row.get("account_id") if isinstance(row, dict) else row[0] for row in accounts_result]
         
         if accounts:
             console.print("\n[cyan]📅 各账号账期统计:[/cyan]\n")

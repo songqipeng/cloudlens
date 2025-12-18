@@ -20,59 +20,70 @@ def cache():
 @cache.command("status")
 def cache_status():
     """查看缓存状态"""
-    import sqlite3
-    from pathlib import Path
+    from core.cache import CacheManager
 
-    cache_db = Path.home() / ".cloudlens" / "cache.db"
+    cache_mgr = CacheManager()
+    
+    # 使用CacheManager的查询方法
+    try:
+        # 统计信息
+        total_result = cache_mgr.db.query_one("SELECT COUNT(*) as count FROM resource_cache")
+        total_count = total_result.get("count", 0) if total_result else 0
 
-    if not cache_db.exists():
-        console.print("[yellow]缓存数据库不存在[/yellow]")
-        return
+        valid_result = cache_mgr.db.query_one(
+            "SELECT COUNT(*) as count FROM resource_cache WHERE expires_at > NOW()" if cache_mgr.db_type == "mysql" 
+            else "SELECT COUNT(*) as count FROM resource_cache WHERE expires_at > datetime('now')"
+        )
+        valid_count = valid_result.get("count", 0) if valid_result else 0
 
-    conn = sqlite3.connect(cache_db)
-    cursor = conn.cursor()
+        expired_result = cache_mgr.db.query_one(
+            "SELECT COUNT(*) as count FROM resource_cache WHERE expires_at <= NOW()" if cache_mgr.db_type == "mysql"
+            else "SELECT COUNT(*) as count FROM resource_cache WHERE expires_at <= datetime('now')"
+        )
+        expired_count = expired_result.get("count", 0) if expired_result else 0
 
-    # 统计信息
-    cursor.execute("SELECT COUNT(*) FROM resource_cache")
-    total_count = cursor.fetchone()[0]
+        # 按资源类型统计
+        type_stats_query = (
+            """
+            SELECT resource_type, COUNT(*) as count, account_name
+            FROM resource_cache 
+            WHERE expires_at > NOW()
+            GROUP BY resource_type, account_name
+            """
+            if cache_mgr.db_type == "mysql"
+            else
+            """
+            SELECT resource_type, COUNT(*) as count, account_name
+            FROM resource_cache 
+            WHERE expires_at > datetime('now')
+            GROUP BY resource_type, account_name
+            """
+        )
+        type_stats = cache_mgr.db.query(type_stats_query)
 
-    cursor.execute("SELECT COUNT(*) FROM resource_cache WHERE expires_at > datetime('now')")
-    valid_count = cursor.fetchone()[0]
+        # 显示统计信息
+        console.print("\n[bold cyan]📊 缓存统计[/bold cyan]")
+        console.print(f"总条目数: [bold]{total_count}[/bold]")
+        console.print(f"有效条目: [green]{valid_count}[/green]")
+        console.print(f"已过期: [yellow]{expired_count}[/yellow]")
+        console.print(f"数据库类型: {cache_mgr.db_type}")
 
-    cursor.execute("SELECT COUNT(*) FROM resource_cache WHERE expires_at <= datetime('now')")
-    expired_count = cursor.fetchone()[0]
+        if type_stats:
+            console.print("\n[bold]按类型统计（有效缓存）:[/bold]")
+            table = Table()
+            table.add_column("资源类型", style="cyan")
+            table.add_column("账号", style="green")
+            table.add_column("条目数", style="yellow")
 
-    # 按资源类型统计
-    cursor.execute(
-        """
-        SELECT resource_type, COUNT(*), account_name
-        FROM resource_cache 
-        WHERE expires_at > datetime('now')
-        GROUP BY resource_type, account_name
-    """
-    )
-    type_stats = cursor.fetchall()
+            for row in type_stats:
+                res_type = row.get("resource_type") if isinstance(row, dict) else row[0]
+                count = row.get("count") if isinstance(row, dict) else row[1]
+                account = row.get("account_name") if isinstance(row, dict) else row[2]
+                table.add_row(res_type, account, str(count))
 
-    conn.close()
-
-    # 显示统计信息
-    console.print("\n[bold cyan]📊 缓存统计[/bold cyan]")
-    console.print(f"总条目数: [bold]{total_count}[/bold]")
-    console.print(f"有效条目: [green]{valid_count}[/green]")
-    console.print(f"已过期: [yellow]{expired_count}[/yellow]")
-    console.print(f"缓存文件: {cache_db}")
-
-    if type_stats:
-        console.print("\n[bold]按类型统计（有效缓存）:[/bold]")
-        table = Table()
-        table.add_column("资源类型", style="cyan")
-        table.add_column("账号", style="green")
-        table.add_column("条目数", style="yellow")
-
-        for res_type, count, account in type_stats:
-            table.add_row(res_type, account, str(count))
-
-        console.print(table)
+            console.print(table)
+    except Exception as e:
+        console.print(f"[red]获取缓存状态失败: {e}[/red]")
 
 
 @cache.command("clear")

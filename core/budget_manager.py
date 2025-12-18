@@ -6,7 +6,7 @@
 """
 
 import logging
-import sqlite3
+import os
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -14,6 +14,8 @@ from typing import List, Dict, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
 from enum import Enum
 import uuid
+
+from core.database import DatabaseFactory, DatabaseAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -235,31 +237,57 @@ class BudgetCalculator:
 
 
 class BudgetStorage:
-    """预算存储管理器"""
+    """预算存储管理器（支持SQLite和MySQL）"""
     
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: Optional[str] = None, db_type: Optional[str] = None):
         """
         初始化存储管理器
         
         Args:
-            db_path: 数据库文件路径，默认使用~/.cloudlens/budgets.db
+            db_path: 数据库文件路径（仅SQLite使用），默认使用~/.cloudlens/budgets.db
+            db_type: 数据库类型（'sqlite' 或 'mysql'），None则从环境变量读取
         """
-        if db_path is None:
-            db_dir = Path.home() / ".cloudlens"
-            db_dir.mkdir(parents=True, exist_ok=True)
-            db_path = str(db_dir / "budgets.db")
+        self.db_type = db_type or os.getenv("DB_TYPE", "mysql").lower()
         
-        self.db_path = db_path
+        if self.db_type == "mysql":
+            self.db = DatabaseFactory.create_adapter("mysql")
+            self.db_path = None
+        else:
+            if db_path is None:
+                db_dir = Path.home() / ".cloudlens"
+                db_dir.mkdir(parents=True, exist_ok=True)
+                db_path = str(db_dir / "budgets.db")
+            self.db_path = db_path
+            self.db = DatabaseFactory.create_adapter("sqlite", db_path=db_path)
+        
         self._init_database()
+    
+    def _get_placeholder(self) -> str:
+        """获取SQL占位符"""
+        return "%s" if self.db_type == "mysql" else "?"
     
     def _init_database(self):
         """初始化数据库表结构"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
         
         try:
             # 创建预算表
-            cursor.execute("""
+            self.db.execute("""
+                CREATE TABLE IF NOT EXISTS budgets (
+                    id VARCHAR(255) PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    amount DECIMAL(20, 2) NOT NULL,
+                    period VARCHAR(20) NOT NULL,
+                    type VARCHAR(20) NOT NULL,
+                    start_date DATETIME NOT NULL,
+                    end_date DATETIME NOT NULL,
+                    tag_filter TEXT,
+                    service_filter TEXT,
+                    alerts TEXT,
+                    account_id VARCHAR(255),
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+            """ if self.db_type == "mysql" else """
                 CREATE TABLE IF NOT EXISTS budgets (
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -278,7 +306,17 @@ class BudgetStorage:
             """)
             
             # 创建预算执行记录表
-            cursor.execute("""
+            self.db.execute("""
+                CREATE TABLE IF NOT EXISTS budget_records (
+                    id VARCHAR(255) PRIMARY KEY,
+                    budget_id VARCHAR(255) NOT NULL,
+                    date DATE NOT NULL,
+                    spent DECIMAL(20, 2) NOT NULL,
+                    predicted DECIMAL(20, 2),
+                    FOREIGN KEY (budget_id) REFERENCES budgets(id) ON DELETE CASCADE,
+                    UNIQUE KEY unique_budget_date (budget_id, date)
+                )
+            """ if self.db_type == "mysql" else """
                 CREATE TABLE IF NOT EXISTS budget_records (
                     id TEXT PRIMARY KEY,
                     budget_id TEXT NOT NULL,
@@ -291,7 +329,16 @@ class BudgetStorage:
             """)
             
             # 创建预算告警记录表
-            cursor.execute("""
+            self.db.execute("""
+                CREATE TABLE IF NOT EXISTS budget_alerts (
+                    id VARCHAR(255) PRIMARY KEY,
+                    budget_id VARCHAR(255) NOT NULL,
+                    threshold DECIMAL(20, 2) NOT NULL,
+                    triggered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    status VARCHAR(20) DEFAULT 'pending',
+                    FOREIGN KEY (budget_id) REFERENCES budgets(id) ON DELETE CASCADE
+                )
+            """ if self.db_type == "mysql" else """
                 CREATE TABLE IF NOT EXISTS budget_alerts (
                     id TEXT PRIMARY KEY,
                     budget_id TEXT NOT NULL,
@@ -303,17 +350,17 @@ class BudgetStorage:
             """)
             
             # 创建索引
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_budgets_account ON budgets(account_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_budgets_period ON budgets(period)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_budget_records_budget ON budget_records(budget_id, date)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_budget_alerts_budget ON budget_alerts(budget_id)")
-            
-            conn.commit()
+            try:
+                self.db.execute("CREATE INDEX IF NOT EXISTS idx_budgets_account ON budgets(account_id)")
+                self.db.execute("CREATE INDEX IF NOT EXISTS idx_budgets_period ON budgets(period)")
+                self.db.execute("CREATE INDEX IF NOT EXISTS idx_budget_records_budget ON budget_records(budget_id, date)")
+                self.db.execute("CREATE INDEX IF NOT EXISTS idx_budget_alerts_budget ON budget_alerts(budget_id)")
+            except Exception as e:
+                # 索引可能已存在，忽略错误
+                logger.debug(f"Index creation skipped (may already exist): {e}")
         except Exception as e:
             logger.error(f"Error initializing database: {e}")
-            conn.rollback()
-        finally:
-            conn.close()
+            raise
     
     def create_budget(self, budget: Budget) -> str:
         """创建预算"""
@@ -324,209 +371,181 @@ class BudgetStorage:
         budget.created_at = now
         budget.updated_at = now
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
+        placeholder = self._get_placeholder()
         try:
-            cursor.execute("""
+            self.db.execute(f"""
                 INSERT INTO budgets (
                     id, name, amount, period, type,
                     start_date, end_date,
                     tag_filter, service_filter, alerts,
                     account_id, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES ({', '.join([placeholder] * 13)})
             """, (
                 budget.id,
                 budget.name,
                 budget.amount,
                 budget.period,
                 budget.type,
-                budget.start_date.isoformat(),
-                budget.end_date.isoformat(),
+                budget.start_date.isoformat() if budget.start_date else None,
+                budget.end_date.isoformat() if budget.end_date else None,
                 budget.tag_filter,
                 budget.service_filter,
-                json.dumps([alert.to_dict() for alert in budget.alerts]),
+                json.dumps([alert.to_dict() for alert in budget.alerts], ensure_ascii=False),
                 budget.account_id,
-                budget.created_at.isoformat(),
-                budget.updated_at.isoformat()
+                budget.created_at.isoformat() if budget.created_at else None,
+                budget.updated_at.isoformat() if budget.updated_at else None
             ))
-            
-            conn.commit()
             logger.info(f"Created budget: {budget.name} ({budget.id})")
             return budget.id
         except Exception as e:
             logger.error(f"Error creating budget: {e}")
-            conn.rollback()
             raise
-        finally:
-            conn.close()
     
     def get_budget(self, budget_id: str) -> Optional[Budget]:
         """获取预算"""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        placeholder = self._get_placeholder()
+        rows = self.db.query(f"SELECT * FROM budgets WHERE id = {placeholder}", (budget_id,))
+        if not rows:
+            return None
         
-        try:
-            cursor.execute("SELECT * FROM budgets WHERE id = ?", (budget_id,))
-            row = cursor.fetchone()
-            if not row:
-                return None
-            
-            alerts_data = json.loads(row['alerts'] or '[]')
-            alerts = [AlertThreshold.from_dict(a) for a in alerts_data]
-            
-            budget = Budget(
-                id=row['id'],
-                name=row['name'],
-                amount=row['amount'],
-                period=row['period'],
-                type=row['type'],
-                start_date=datetime.fromisoformat(row['start_date']),
-                end_date=datetime.fromisoformat(row['end_date']),
-                tag_filter=row['tag_filter'],
-                service_filter=row['service_filter'],
+        row = rows[0]
+        alerts_str = row.get('alerts') if isinstance(row, dict) else (row[10] if len(row) > 10 else '[]')
+        alerts_data = json.loads(alerts_str or '[]')
+        alerts = [AlertThreshold.from_dict(a) for a in alerts_data]
+        
+        if isinstance(row, dict):
+            return Budget(
+                id=row.get('id', ''),
+                name=row.get('name', ''),
+                amount=float(row.get('amount', 0)),
+                period=row.get('period', ''),
+                type=row.get('type', ''),
+                start_date=datetime.fromisoformat(row['start_date']) if row.get('start_date') else None,
+                end_date=datetime.fromisoformat(row['end_date']) if row.get('end_date') else None,
+                tag_filter=row.get('tag_filter'),
+                service_filter=row.get('service_filter'),
                 alerts=alerts,
-                account_id=row['account_id'],
-                created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None,
-                updated_at=datetime.fromisoformat(row['updated_at']) if row['updated_at'] else None
+                account_id=row.get('account_id'),
+                created_at=datetime.fromisoformat(row['created_at']) if row.get('created_at') else None,
+                updated_at=datetime.fromisoformat(row['updated_at']) if row.get('updated_at') else None
             )
-            
-            return budget
-        finally:
-            conn.close()
+        else:
+            return Budget(
+                id=row[0],
+                name=row[1],
+                amount=float(row[2]),
+                period=row[3],
+                type=row[4],
+                start_date=datetime.fromisoformat(row[5]) if row[5] else None,
+                end_date=datetime.fromisoformat(row[6]) if row[6] else None,
+                tag_filter=row[7],
+                service_filter=row[8],
+                alerts=alerts,
+                account_id=row[9],
+                created_at=datetime.fromisoformat(row[11]) if len(row) > 11 and row[11] else None,
+                updated_at=datetime.fromisoformat(row[12]) if len(row) > 12 and row[12] else None
+            )
     
     def list_budgets(self, account_id: Optional[str] = None) -> List[Budget]:
         """列出预算"""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        placeholder = self._get_placeholder()
+        if account_id:
+            rows = self.db.query(f"SELECT id FROM budgets WHERE account_id = {placeholder} ORDER BY created_at DESC", (account_id,))
+        else:
+            rows = self.db.query("SELECT id FROM budgets ORDER BY created_at DESC")
         
-        try:
-            if account_id:
-                cursor.execute("SELECT id FROM budgets WHERE account_id = ? ORDER BY created_at DESC", (account_id,))
-            else:
-                cursor.execute("SELECT id FROM budgets ORDER BY created_at DESC")
-            
-            budget_ids = [row['id'] for row in cursor.fetchall()]
-            
-            budgets = []
-            for budget_id in budget_ids:
-                budget = self.get_budget(budget_id)
-                if budget:
-                    budgets.append(budget)
-            
-            return budgets
-        finally:
-            conn.close()
+        budget_ids = [row.get('id') if isinstance(row, dict) else row[0] for row in rows]
+        
+        budgets = []
+        for budget_id in budget_ids:
+            budget = self.get_budget(budget_id)
+            if budget:
+                budgets.append(budget)
+        
+        return budgets
     
     def update_budget(self, budget: Budget) -> bool:
         """更新预算"""
         budget.updated_at = datetime.now()
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
+        placeholder = self._get_placeholder()
         try:
-            cursor.execute("""
+            cursor = self.db.execute(f"""
                 UPDATE budgets
-                SET name = ?, amount = ?, period = ?, type = ?,
-                    start_date = ?, end_date = ?,
-                    tag_filter = ?, service_filter = ?, alerts = ?,
-                    account_id = ?, updated_at = ?
-                WHERE id = ?
+                SET name = {placeholder}, amount = {placeholder}, period = {placeholder}, type = {placeholder},
+                    start_date = {placeholder}, end_date = {placeholder},
+                    tag_filter = {placeholder}, service_filter = {placeholder}, alerts = {placeholder},
+                    account_id = {placeholder}, updated_at = {placeholder}
+                WHERE id = {placeholder}
             """, (
                 budget.name,
                 budget.amount,
                 budget.period,
                 budget.type,
-                budget.start_date.isoformat(),
-                budget.end_date.isoformat(),
+                budget.start_date.isoformat() if budget.start_date else None,
+                budget.end_date.isoformat() if budget.end_date else None,
                 budget.tag_filter,
                 budget.service_filter,
-                json.dumps([alert.to_dict() for alert in budget.alerts]),
+                json.dumps([alert.to_dict() for alert in budget.alerts], ensure_ascii=False),
                 budget.account_id,
-                budget.updated_at.isoformat(),
+                budget.updated_at.isoformat() if budget.updated_at else None,
                 budget.id
             ))
-            
-            conn.commit()
             logger.info(f"Updated budget: {budget.name} ({budget.id})")
             return cursor.rowcount > 0
         except Exception as e:
             logger.error(f"Error updating budget: {e}")
-            conn.rollback()
             return False
-        finally:
-            conn.close()
     
     def delete_budget(self, budget_id: str) -> bool:
         """删除预算"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
+        placeholder = self._get_placeholder()
         try:
-            cursor.execute("DELETE FROM budgets WHERE id = ?", (budget_id,))
-            conn.commit()
+            cursor = self.db.execute(f"DELETE FROM budgets WHERE id = {placeholder}", (budget_id,))
             logger.info(f"Deleted budget: {budget_id}")
             return cursor.rowcount > 0
         except Exception as e:
             logger.error(f"Error deleting budget: {e}")
-            conn.rollback()
             return False
-        finally:
-            conn.close()
     
     def record_spend(self, budget_id: str, date: datetime, spent: float, predicted: Optional[float] = None):
         """记录预算支出"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
+        placeholder = self._get_placeholder()
         try:
             record_id = str(uuid.uuid4())
-            cursor.execute("""
-                INSERT OR REPLACE INTO budget_records (id, budget_id, date, spent, predicted)
-                VALUES (?, ?, ?, ?, ?)
-            """, (
-                record_id,
-                budget_id,
-                date.date().isoformat(),
-                spent,
-                predicted
-            ))
-            conn.commit()
+            # MySQL使用REPLACE，SQLite使用INSERT OR REPLACE
+            if self.db_type == "mysql":
+                self.db.execute(f"""
+                    REPLACE INTO budget_records (id, budget_id, date, spent, predicted)
+                    VALUES ({', '.join([placeholder] * 5)})
+                """, (record_id, budget_id, date.date().isoformat(), spent, predicted))
+            else:
+                self.db.execute(f"""
+                    INSERT OR REPLACE INTO budget_records (id, budget_id, date, spent, predicted)
+                    VALUES ({', '.join([placeholder] * 5)})
+                """, (record_id, budget_id, date.date().isoformat(), spent, predicted))
         except Exception as e:
             logger.error(f"Error recording spend: {e}")
-            conn.rollback()
-        finally:
-            conn.close()
     
     def get_spend_history(self, budget_id: str, days: int = 30) -> List[Dict]:
         """获取支出历史"""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+        placeholder = self._get_placeholder()
+        rows = self.db.query(f"""
+            SELECT date, spent, predicted
+            FROM budget_records
+            WHERE budget_id = {placeholder}
+            ORDER BY date DESC
+            LIMIT {placeholder}
+        """, (budget_id, days))
         
-        try:
-            cursor.execute("""
-                SELECT date, spent, predicted
-                FROM budget_records
-                WHERE budget_id = ?
-                ORDER BY date DESC
-                LIMIT ?
-            """, (budget_id, days))
-            
-            records = []
-            for row in cursor.fetchall():
-                records.append({
-                    "date": row['date'],
-                    "spent": row['spent'],
-                    "predicted": row['predicted']
-                })
-            
-            return records
-        finally:
-            conn.close()
+        return [
+            {
+                'date': row.get('date') if isinstance(row, dict) else row[0],
+                'spent': float(row.get('spent') or 0) if isinstance(row, dict) else float(row[1] or 0),
+                'predicted': float(row.get('predicted') or 0) if isinstance(row, dict) else (float(row[2] or 0) if len(row) > 2 else None)
+            }
+            for row in rows
+        ]
     
     def calculate_budget_status(
         self,
@@ -558,9 +577,9 @@ class BudgetStorage:
         if bill_storage_manager:
             try:
                 # 从账单数据库获取实际支出
-                import sqlite3
-                conn = sqlite3.connect(bill_storage_manager.db_path)
-                cursor = conn.cursor()
+                # 使用BillStorageManager的数据库抽象层
+                db = bill_storage_manager.db
+                placeholder = "%s" if bill_storage_manager.db_type == "mysql" else "?"
                 
                 # 计算预算周期内的支出
                 start_date_str = budget.start_date.strftime('%Y-%m-%d')
@@ -568,53 +587,53 @@ class BudgetStorage:
                 
                 if budget.type == BudgetType.TOTAL:
                     # 总预算：查询所有支出
-                    cursor.execute("""
+                    rows = db.query(f"""
                         SELECT SUM(pretax_amount) as total
                         FROM bill_items
-                        WHERE account_id = ?
-                            AND billing_date >= ?
-                            AND billing_date <= ?
+                        WHERE account_id = {placeholder}
+                            AND billing_date >= {placeholder}
+                            AND billing_date <= {placeholder}
                             AND pretax_amount IS NOT NULL
                     """, (account_id, start_date_str, end_date_str))
                 elif budget.type == BudgetType.SERVICE:
                     # 按服务预算：需要解析service_filter
                     service_filter = json.loads(budget.service_filter) if budget.service_filter else {}
                     if service_filter.get('services'):
-                        placeholders = ','.join(['?' for _ in service_filter['services']])
-                        cursor.execute(f"""
+                        placeholders = ','.join([placeholder for _ in service_filter['services']])
+                        rows = db.query(f"""
                             SELECT SUM(pretax_amount) as total
                             FROM bill_items
-                            WHERE account_id = ?
-                                AND billing_date >= ?
-                                AND billing_date <= ?
+                            WHERE account_id = {placeholder}
+                                AND billing_date >= {placeholder}
+                                AND billing_date <= {placeholder}
                                 AND product_name IN ({placeholders})
                                 AND pretax_amount IS NOT NULL
                         """, (account_id, start_date_str, end_date_str, *service_filter['services']))
                     else:
-                        cursor.execute("""
+                        rows = db.query(f"""
                             SELECT SUM(pretax_amount) as total
                             FROM bill_items
-                            WHERE account_id = ?
-                                AND billing_date >= ?
-                                AND billing_date <= ?
+                            WHERE account_id = {placeholder}
+                                AND billing_date >= {placeholder}
+                                AND billing_date <= {placeholder}
                                 AND pretax_amount IS NOT NULL
                         """, (account_id, start_date_str, end_date_str))
                 else:
                     # 按标签预算：需要匹配虚拟标签（TODO: 实现标签匹配）
-                    cursor.execute("""
+                    rows = db.query(f"""
                         SELECT SUM(pretax_amount) as total
                         FROM bill_items
-                        WHERE account_id = ?
-                            AND billing_date >= ?
-                            AND billing_date <= ?
+                        WHERE account_id = {placeholder}
+                            AND billing_date >= {placeholder}
+                            AND billing_date <= {placeholder}
                             AND pretax_amount IS NOT NULL
                     """, (account_id, start_date_str, end_date_str))
                 
-                row = cursor.fetchone()
-                if row and row[0]:
-                    spent = float(row[0])
-                
-                conn.close()
+                if rows and len(rows) > 0:
+                    row = rows[0]
+                    total = row.get('total') if isinstance(row, dict) else row[0]
+                    if total:
+                        spent = float(total)
             except Exception as e:
                 logger.error(f"Error calculating budget spend from bills: {e}")
         

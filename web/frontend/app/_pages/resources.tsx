@@ -49,16 +49,23 @@ export default function ResourcesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resourceType, page, pageSize, currentAccount])
 
-  const fetchResources = async () => {
+  const fetchResources = async (forceRefresh = false) => {
     if (!currentAccount) return
 
     setLoading(true)
     try {
-      const data = await apiGet("/resources", {
+      const params: Record<string, string> = {
         type: resourceType,
         page: page.toString(),
         pageSize: pageSize.toString(),
-      })
+      }
+      
+      // 对于VPC资源类型，或者强制刷新时，传递force_refresh参数
+      if (forceRefresh || resourceType === "vpc") {
+        params.force_refresh = "true"
+      }
+      
+      const data = await apiGet("/resources", params)
 
       if (data.success) {
         setResources(data.data)

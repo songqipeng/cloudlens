@@ -5,12 +5,15 @@
 """
 
 import json
-import sqlite3
+import os
 from datetime import datetime
 from dataclasses import dataclass, asdict
 from typing import List, Optional, Dict, Any
 from enum import Enum
 import logging
+from pathlib import Path
+
+from core.database import DatabaseFactory, DatabaseAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -65,19 +68,55 @@ class AllocationResult:
 
 
 class CostAllocationStorage:
-    """成本分配存储管理"""
+    """成本分配存储管理（支持SQLite和MySQL）"""
     
-    def __init__(self, db_path: str = "data/cost_allocation.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: Optional[str] = None, db_type: Optional[str] = None):
+        """
+        初始化存储管理器
+        
+        Args:
+            db_path: 数据库文件路径（仅SQLite使用），默认使用data/cost_allocation.db
+            db_type: 数据库类型（'sqlite' 或 'mysql'），None则从环境变量读取
+        """
+        self.db_type = db_type or os.getenv("DB_TYPE", "mysql").lower()
+        
+        if self.db_type == "mysql":
+            self.db = DatabaseFactory.create_adapter("mysql")
+            self.db_path = None
+        else:
+            if db_path is None:
+                db_path = "data/cost_allocation.db"
+                Path("data").mkdir(parents=True, exist_ok=True)
+            self.db_path = db_path
+            self.db = DatabaseFactory.create_adapter("sqlite", db_path=db_path)
+        
         self._init_database()
+    
+    def _get_placeholder(self) -> str:
+        """获取SQL占位符"""
+        return "%s" if self.db_type == "mysql" else "?"
     
     def _init_database(self):
         """初始化数据库"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
         
         # 分配规则表
-        cursor.execute("""
+        self.db.execute("""
+            CREATE TABLE IF NOT EXISTS allocation_rules (
+                id VARCHAR(255) PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                method VARCHAR(50) NOT NULL,
+                account_id VARCHAR(255),
+                service_filter TEXT,
+                tag_filter TEXT,
+                date_range VARCHAR(100),
+                allocation_targets TEXT,
+                allocation_weights TEXT,
+                enabled TINYINT NOT NULL DEFAULT 1,
+                created_at DATETIME,
+                updated_at DATETIME
+            )
+        """ if self.db_type == "mysql" else """
             CREATE TABLE IF NOT EXISTS allocation_rules (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -96,7 +135,20 @@ class CostAllocationStorage:
         """)
         
         # 分配结果表
-        cursor.execute("""
+        self.db.execute("""
+            CREATE TABLE IF NOT EXISTS allocation_results (
+                id VARCHAR(255) PRIMARY KEY,
+                rule_id VARCHAR(255) NOT NULL,
+                rule_name VARCHAR(255) NOT NULL,
+                period VARCHAR(20) NOT NULL,
+                total_cost DECIMAL(20, 2) NOT NULL,
+                allocated_cost DECIMAL(20, 2) NOT NULL,
+                unallocated_cost DECIMAL(20, 2) NOT NULL,
+                allocations TEXT,
+                created_at DATETIME,
+                FOREIGN KEY (rule_id) REFERENCES allocation_rules(id)
+            )
+        """ if self.db_type == "mysql" else """
             CREATE TABLE IF NOT EXISTS allocation_results (
                 id TEXT PRIMARY KEY,
                 rule_id TEXT NOT NULL,
@@ -110,9 +162,6 @@ class CostAllocationStorage:
                 FOREIGN KEY (rule_id) REFERENCES allocation_rules(id)
             )
         """)
-        
-        conn.commit()
-        conn.close()
     
     def create_rule(self, rule: AllocationRule) -> str:
         """创建分配规则"""
@@ -123,52 +172,43 @@ class CostAllocationStorage:
             rule.created_at = datetime.now()
         rule.updated_at = datetime.now()
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
+        placeholder = self._get_placeholder()
+        self.db.execute(f"""
             INSERT INTO allocation_rules (
                 id, name, description, method, account_id,
                 service_filter, tag_filter, date_range,
                 allocation_targets, allocation_weights,
                 enabled, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES ({', '.join([placeholder] * 13)})
         """, (
             rule.id, rule.name, rule.description, rule.method, rule.account_id,
             rule.service_filter, rule.tag_filter, rule.date_range,
             rule.allocation_targets, rule.allocation_weights,
-            int(rule.enabled), rule.created_at.isoformat(), rule.updated_at.isoformat()
+            int(rule.enabled),
+            rule.created_at.isoformat() if rule.created_at else None,
+            rule.updated_at.isoformat() if rule.updated_at else None
         ))
-        
-        conn.commit()
-        conn.close()
         
         return rule.id
     
     def get_rule(self, rule_id: str) -> Optional[AllocationRule]:
         """获取分配规则"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        placeholder = self._get_placeholder()
+        rows = self.db.query(f"SELECT * FROM allocation_rules WHERE id = {placeholder}", (rule_id,))
         
-        cursor.execute("SELECT * FROM allocation_rules WHERE id = ?", (rule_id,))
-        row = cursor.fetchone()
-        conn.close()
-        
-        if not row:
+        if not rows:
             return None
         
-        return self._row_to_rule(row)
+        return self._row_to_rule(rows[0])
     
     def list_rules(self, account_id: Optional[str] = None, enabled_only: bool = False) -> List[AllocationRule]:
         """列出分配规则"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
+        placeholder = self._get_placeholder()
         query = "SELECT * FROM allocation_rules WHERE 1=1"
         params = []
         
         if account_id:
-            query += " AND account_id = ?"
+            query += f" AND account_id = {placeholder}"
             params.append(account_id)
         
         if enabled_only:
@@ -176,9 +216,7 @@ class CostAllocationStorage:
         
         query += " ORDER BY created_at DESC"
         
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        conn.close()
+        rows = self.db.query(query, tuple(params) if params else None)
         
         return [self._row_to_rule(row) for row in rows]
     
@@ -186,40 +224,30 @@ class CostAllocationStorage:
         """更新分配规则"""
         rule.updated_at = datetime.now()
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
+        placeholder = self._get_placeholder()
+        cursor = self.db.execute(f"""
             UPDATE allocation_rules SET
-                name = ?, description = ?, method = ?, account_id = ?,
-                service_filter = ?, tag_filter = ?, date_range = ?,
-                allocation_targets = ?, allocation_weights = ?,
-                enabled = ?, updated_at = ?
-            WHERE id = ?
+                name = {placeholder}, description = {placeholder}, method = {placeholder}, account_id = {placeholder},
+                service_filter = {placeholder}, tag_filter = {placeholder}, date_range = {placeholder},
+                allocation_targets = {placeholder}, allocation_weights = {placeholder},
+                enabled = {placeholder}, updated_at = {placeholder}
+            WHERE id = {placeholder}
         """, (
             rule.name, rule.description, rule.method, rule.account_id,
             rule.service_filter, rule.tag_filter, rule.date_range,
             rule.allocation_targets, rule.allocation_weights,
-            int(rule.enabled), rule.updated_at.isoformat(), rule.id
+            int(rule.enabled),
+            rule.updated_at.isoformat() if rule.updated_at else None,
+            rule.id
         ))
         
-        success = cursor.rowcount > 0
-        conn.commit()
-        conn.close()
-        
-        return success
+        return cursor.rowcount > 0
     
     def delete_rule(self, rule_id: str) -> bool:
         """删除分配规则"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("DELETE FROM allocation_rules WHERE id = ?", (rule_id,))
-        success = cursor.rowcount > 0
-        conn.commit()
-        conn.close()
-        
-        return success
+        placeholder = self._get_placeholder()
+        cursor = self.db.execute(f"DELETE FROM allocation_rules WHERE id = {placeholder}", (rule_id,))
+        return cursor.rowcount > 0
     
     def save_result(self, result: AllocationResult) -> str:
         """保存分配结果"""
@@ -229,22 +257,18 @@ class CostAllocationStorage:
         if not result.created_at:
             result.created_at = datetime.now()
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
+        placeholder = self._get_placeholder()
+        self.db.execute(f"""
             INSERT INTO allocation_results (
                 id, rule_id, rule_name, period, total_cost,
                 allocated_cost, unallocated_cost, allocations, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES ({', '.join([placeholder] * 9)})
         """, (
             result.id, result.rule_id, result.rule_name, result.period,
             result.total_cost, result.allocated_cost, result.unallocated_cost,
-            result.allocations, result.created_at.isoformat()
+            result.allocations,
+            result.created_at.isoformat() if result.created_at else None
         ))
-        
-        conn.commit()
-        conn.close()
         
         return result.id
     
@@ -255,60 +279,86 @@ class CostAllocationStorage:
         limit: int = 100
     ) -> List[AllocationResult]:
         """列出分配结果"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
+        placeholder = self._get_placeholder()
         query = "SELECT * FROM allocation_results WHERE 1=1"
         params = []
         
         if rule_id:
-            query += " AND rule_id = ?"
+            query += f" AND rule_id = {placeholder}"
             params.append(rule_id)
         
         if period:
-            query += " AND period = ?"
+            query += f" AND period = {placeholder}"
             params.append(period)
         
-        query += " ORDER BY created_at DESC LIMIT ?"
+        query += f" ORDER BY created_at DESC LIMIT {placeholder}"
         params.append(limit)
         
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        conn.close()
+        rows = self.db.query(query, tuple(params))
         
         return [self._row_to_result(row) for row in rows]
     
     def _row_to_rule(self, row) -> AllocationRule:
         """将数据库行转换为AllocationRule对象"""
-        return AllocationRule(
-            id=row[0],
-            name=row[1],
-            description=row[2],
-            method=row[3],
-            account_id=row[4],
-            service_filter=row[5],
-            tag_filter=row[6],
-            date_range=row[7],
-            allocation_targets=row[8],
-            allocation_weights=row[9],
-            enabled=bool(row[10]),
-            created_at=datetime.fromisoformat(row[11]) if row[11] else None,
-            updated_at=datetime.fromisoformat(row[12]) if row[12] else None
-        )
+        if isinstance(row, dict):
+            return AllocationRule(
+                id=row.get('id', ''),
+                name=row.get('name', ''),
+                description=row.get('description'),
+                method=row.get('method', ''),
+                account_id=row.get('account_id'),
+                service_filter=row.get('service_filter'),
+                tag_filter=row.get('tag_filter'),
+                date_range=row.get('date_range'),
+                allocation_targets=row.get('allocation_targets'),
+                allocation_weights=row.get('allocation_weights'),
+                enabled=bool(row.get('enabled', 0)),
+                created_at=datetime.fromisoformat(row['created_at']) if row.get('created_at') else None,
+                updated_at=datetime.fromisoformat(row['updated_at']) if row.get('updated_at') else None
+            )
+        else:
+            return AllocationRule(
+                id=row[0],
+                name=row[1],
+                description=row[2],
+                method=row[3],
+                account_id=row[4],
+                service_filter=row[5],
+                tag_filter=row[6],
+                date_range=row[7],
+                allocation_targets=row[8],
+                allocation_weights=row[9],
+                enabled=bool(row[10]),
+                created_at=datetime.fromisoformat(row[11]) if row[11] else None,
+                updated_at=datetime.fromisoformat(row[12]) if row[12] else None
+            )
     
     def _row_to_result(self, row) -> AllocationResult:
         """将数据库行转换为AllocationResult对象"""
-        return AllocationResult(
-            id=row[0],
-            rule_id=row[1],
-            rule_name=row[2],
-            period=row[3],
-            total_cost=row[4],
-            allocated_cost=row[5],
-            unallocated_cost=row[6],
-            allocations=row[7],
-            created_at=datetime.fromisoformat(row[8]) if row[8] else None
-        )
+        if isinstance(row, dict):
+            return AllocationResult(
+                id=row.get('id', ''),
+                rule_id=row.get('rule_id', ''),
+                rule_name=row.get('rule_name', ''),
+                period=row.get('period', ''),
+                total_cost=float(row.get('total_cost', 0)),
+                allocated_cost=float(row.get('allocated_cost', 0)),
+                unallocated_cost=float(row.get('unallocated_cost', 0)),
+                allocations=row.get('allocations'),
+                created_at=datetime.fromisoformat(row['created_at']) if row.get('created_at') else None
+            )
+        else:
+            return AllocationResult(
+                id=row[0],
+                rule_id=row[1],
+                rule_name=row[2],
+                period=row[3],
+                total_cost=float(row[4] or 0),
+                allocated_cost=float(row[5] or 0),
+                unallocated_cost=float(row[6] or 0),
+                allocations=row[7],
+                created_at=datetime.fromisoformat(row[8]) if row[8] else None
+            )
 
 
 class CostAllocator:
@@ -355,40 +405,43 @@ class CostAllocator:
     
     def _get_source_costs(self, rule: AllocationRule) -> List[Dict[str, Any]]:
         """获取源成本数据"""
-        import sqlite3
-        conn = sqlite3.connect(self.bill_storage_path)
-        cursor = conn.cursor()
+        # 使用BillStorageManager的数据库抽象层
+        from core.bill_storage import BillStorageManager
+        storage = BillStorageManager(self.bill_storage_path)
+        db = storage.db
+        placeholder = "%s" if storage.db_type == "mysql" else "?"
         
-        query = "SELECT product_code, SUM(pretax_amount) as total FROM bill_items WHERE 1=1"
+        query = f"SELECT product_code, SUM(pretax_amount) as total FROM bill_items WHERE 1=1"
         params = []
         
         if rule.account_id:
-            query += " AND account_id = ?"
+            query += f" AND account_id = {placeholder}"
             params.append(rule.account_id)
         
         # 服务过滤
         if rule.service_filter:
             services = json.loads(rule.service_filter)
             if services:
-                placeholders = ",".join(["?"] * len(services))
+                placeholders = ','.join([placeholder for _ in services])
                 query += f" AND product_code IN ({placeholders})"
                 params.extend(services)
         
         # 日期范围过滤
         if rule.date_range:
-            dates = rule.date_range.split(",")
+            dates = rule.date_range.split(',')
             if len(dates) == 2:
-                query += " AND billing_date >= ? AND billing_date <= ?"
-                params.extend(dates)
+                query += f" AND billing_date >= {placeholder} AND billing_date <= {placeholder}"
+                params.extend([dates[0], dates[1]])
         
         query += " GROUP BY product_code"
         
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        conn.close()
+        rows = db.query(query, tuple(params) if params else None)
         
         return [
-            {"service": row[0], "amount": float(row[1])}
+            {
+                "service": row.get('product_code') if isinstance(row, dict) else row[0],
+                "amount": float(row.get('total') or 0) if isinstance(row, dict) else float(row[1] or 0)
+            }
             for row in rows
         ]
     
