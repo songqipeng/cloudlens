@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { apiGet } from "@/lib/api"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -24,6 +25,9 @@ interface AlertRule {
   threshold?: number
   metric?: string
   account_id?: string
+  notify_email?: string
+  notify_webhook?: string
+  notify_sms?: string
   created_at?: string
   updated_at?: string
 }
@@ -280,6 +284,32 @@ export default function AlertsPage() {
                           {rule.metric && <span>{t.alerts.metric}: {rule.metric}</span>}
                           {rule.threshold && <span>{t.alerts.threshold}: {rule.threshold}</span>}
                         </div>
+                        {/* 显示通知渠道 */}
+                        {(rule.notify_email || rule.notify_webhook || rule.notify_sms) && (
+                          <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                            <span className="font-medium">{t.locale === 'zh' ? '通知渠道:' : 'Notification Channels:'}</span>
+                            {rule.notify_email && (
+                              <Badge variant="outline" className="text-xs">
+                                📧 {rule.notify_email}
+                              </Badge>
+                            )}
+                            {rule.notify_webhook && (
+                              <Badge variant="outline" className="text-xs">
+                                🔗 Webhook
+                              </Badge>
+                            )}
+                            {rule.notify_sms && (
+                              <Badge variant="outline" className="text-xs">
+                                📱 {rule.notify_sms}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                        {!rule.notify_email && !rule.notify_webhook && !rule.notify_sms && (
+                          <div className="mt-2 text-xs text-yellow-600 dark:text-yellow-400">
+                            ⚠️ {t.locale === 'zh' ? '未配置通知渠道，告警将不会发送' : 'No notification channels configured, alerts will not be sent'}
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
@@ -441,8 +471,23 @@ function AlertRuleEditor({
   const [condition, setCondition] = useState(rule?.condition || "gt")
   const [threshold, setThreshold] = useState(rule?.threshold || 0)
   const [metric, setMetric] = useState(rule?.metric || "total_cost")
-  const [notifyEmail, setNotifyEmail] = useState("")
-  const [notifyWebhook, setNotifyWebhook] = useState("")
+  const [notifyEmail, setNotifyEmail] = useState(rule?.notify_email || "")
+  const [notifyWebhook, setNotifyWebhook] = useState(rule?.notify_webhook || "")
+  const [defaultReceiverEmail, setDefaultReceiverEmail] = useState<string>("")
+
+  // 加载默认接收邮箱
+  useEffect(() => {
+    apiGet("/config/notifications")
+      .then((data: any) => {
+        const defaultEmail = data?.default_receiver_email || ""
+        setDefaultReceiverEmail(defaultEmail)
+        // 如果当前规则没有设置邮箱，使用默认邮箱
+        if (!rule?.notify_email && defaultEmail) {
+          setNotifyEmail(defaultEmail)
+        }
+      })
+      .catch(() => {})
+  }, [rule?.notify_email])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -457,7 +502,7 @@ function AlertRuleEditor({
         condition,
         threshold: type === "cost_threshold" ? threshold : undefined,
         metric: type === "cost_threshold" ? metric : undefined,
-        notify_email: notifyEmail || undefined,
+        notify_email: notifyEmail || defaultReceiverEmail || undefined,
         notify_webhook: notifyWebhook || undefined
       }
 
@@ -579,26 +624,55 @@ function AlertRuleEditor({
               </>
             )}
 
+            <div className="border-t pt-4">
+              <h3 className="text-lg font-semibold mb-3">{t.locale === 'zh' ? '通知渠道配置' : 'Notification Channels'}</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                {t.locale === 'zh' 
+                  ? '配置告警触发时的通知方式。至少需要配置一个通知渠道，否则告警将不会发送。'
+                  : 'Configure notification methods when alerts are triggered. At least one channel must be configured, otherwise alerts will not be sent.'}
+              </p>
+              
+              <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">{t.locale === 'zh' ? '邮件通知（可选）' : 'Email Notification (Optional)'}</label>
+              <label className="text-sm font-medium mb-2 block">
+                {t.locale === 'zh' ? '📧 接收邮箱' : '📧 Receiver Email'}
+              </label>
               <input
                 type="email"
                 value={notifyEmail}
                 onChange={(e) => setNotifyEmail(e.target.value)}
-                placeholder="example@example.com"
+                placeholder={defaultReceiverEmail || "example@example.com"}
                 className="w-full px-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                {t.locale === 'zh' 
+                  ? defaultReceiverEmail 
+                    ? `留空将使用默认接收邮箱：${defaultReceiverEmail}`
+                    : '告警通知的接收邮箱。可在系统设置中配置默认接收邮箱。'
+                  : defaultReceiverEmail
+                    ? `Leave empty to use default: ${defaultReceiverEmail}`
+                    : 'Email address to receive alert notifications. Configure default receiver email in system settings.'}
+              </p>
             </div>
 
-            <div>
-              <label className="text-sm font-medium mb-2 block">{t.locale === 'zh' ? 'Webhook通知（可选）' : 'Webhook Notification (Optional)'}</label>
-              <input
-                type="url"
-                value={notifyWebhook}
-                onChange={(e) => setNotifyWebhook(e.target.value)}
-                placeholder="https://example.com/webhook"
-                className="w-full px-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-              />
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    {t.locale === 'zh' ? '🔗 Webhook通知' : '🔗 Webhook Notification'}
+                  </label>
+                  <input
+                    type="url"
+                    value={notifyWebhook}
+                    onChange={(e) => setNotifyWebhook(e.target.value)}
+                    placeholder="https://example.com/webhook"
+                    className="w-full px-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t.locale === 'zh' 
+                      ? '告警触发时会向此URL发送POST请求，包含告警详情JSON数据'
+                      : 'A POST request with alert details in JSON format will be sent to this URL when alert is triggered'}
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="flex items-center gap-2">

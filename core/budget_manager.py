@@ -8,7 +8,7 @@
 import logging
 import os
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pathlib import Path
 from typing import List, Dict, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
@@ -77,14 +77,23 @@ class Budget:
     def to_dict(self) -> Dict:
         data = asdict(self)
         data['alerts'] = [alert.to_dict() for alert in self.alerts]
+        # 安全地转换日期字段
         if self.start_date:
-            data['start_date'] = self.start_date.isoformat()
+            data['start_date'] = self.start_date.isoformat() if isinstance(self.start_date, datetime) else str(self.start_date)
+        else:
+            data['start_date'] = None
         if self.end_date:
-            data['end_date'] = self.end_date.isoformat()
+            data['end_date'] = self.end_date.isoformat() if isinstance(self.end_date, datetime) else str(self.end_date)
+        else:
+            data['end_date'] = None
         if self.created_at:
-            data['created_at'] = self.created_at.isoformat()
+            data['created_at'] = self.created_at.isoformat() if isinstance(self.created_at, datetime) else str(self.created_at)
+        else:
+            data['created_at'] = None
         if self.updated_at:
-            data['updated_at'] = self.updated_at.isoformat()
+            data['updated_at'] = self.updated_at.isoformat() if isinstance(self.updated_at, datetime) else str(self.updated_at)
+        else:
+            data['updated_at'] = None
         return data
     
     @classmethod
@@ -419,8 +428,14 @@ class BudgetStorage:
                 if date_value is None:
                     logger.warning(f"预算 {budget_id} 的 {field_name} 字段为 None")
                     return None
+                # 处理 datetime 对象
                 if isinstance(date_value, datetime):
                     return date_value
+                # 处理 date 对象（MySQL DATE 类型）
+                if isinstance(date_value, date) and not isinstance(date_value, datetime):
+                    # 将 date 转换为 datetime（时间设为 00:00:00）
+                    return datetime.combine(date_value, datetime.min.time())
+                # 处理字符串
                 if isinstance(date_value, str):
                     # 移除时区信息
                     date_str = date_value.replace('Z', '').replace('+00:00', '').strip()
@@ -433,7 +448,8 @@ class BudgetStorage:
                             return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
                         # 尝试日期格式 (YYYY-MM-DD)
                         else:
-                            return datetime.strptime(date_str, '%Y-%m-%d')
+                            parsed_date = datetime.strptime(date_str, '%Y-%m-%d')
+                            return parsed_date
                     except (ValueError, AttributeError) as e:
                         logger.error(f"预算 {budget_id} 的 {field_name} 字段解析失败: 值={date_value}, 类型={type(date_value)}, 错误={e}")
                         return None
@@ -465,20 +481,40 @@ class BudgetStorage:
                 updated_at=parse_date(row.get('updated_at'), 'updated_at')
             )
         else:
+            # 辅助函数：安全地解析日期（元组格式）
+            def parse_date_tuple(date_value, field_name: str = "date"):
+                if date_value is None:
+                    return None
+                if isinstance(date_value, datetime):
+                    return date_value
+                if isinstance(date_value, date) and not isinstance(date_value, datetime):
+                    return datetime.combine(date_value, datetime.min.time())
+                if isinstance(date_value, str):
+                    try:
+                        if 'T' in date_value:
+                            return datetime.fromisoformat(date_value.replace('Z', ''))
+                        elif ' ' in date_value:
+                            return datetime.strptime(date_value, '%Y-%m-%d %H:%M:%S')
+                        else:
+                            return datetime.strptime(date_value, '%Y-%m-%d')
+                    except (ValueError, AttributeError):
+                        return None
+                return None
+            
             return Budget(
                 id=row[0],
                 name=row[1],
                 amount=float(row[2]),
                 period=row[3],
                 type=row[4],
-                start_date=datetime.fromisoformat(row[5]) if row[5] else None,
-                end_date=datetime.fromisoformat(row[6]) if row[6] else None,
+                start_date=parse_date_tuple(row[5], 'start_date'),
+                end_date=parse_date_tuple(row[6], 'end_date'),
                 tag_filter=row[7],
                 service_filter=row[8],
                 alerts=alerts,
                 account_id=row[9],
-                created_at=datetime.fromisoformat(row[11]) if len(row) > 11 and row[11] else None,
-                updated_at=datetime.fromisoformat(row[12]) if len(row) > 12 and row[12] else None
+                created_at=parse_date_tuple(row[11] if len(row) > 11 else None, 'created_at'),
+                updated_at=parse_date_tuple(row[12] if len(row) > 12 else None, 'updated_at')
             )
     
     def list_budgets(self, account_id: Optional[str] = None) -> List[Budget]:
@@ -493,9 +529,18 @@ class BudgetStorage:
         
         budgets = []
         for budget_id in budget_ids:
-            budget = self.get_budget(budget_id)
-            if budget:
-                budgets.append(budget)
+            try:
+                budget = self.get_budget(budget_id)
+                if budget:
+                    budgets.append(budget)
+            except (ValueError, TypeError, AttributeError) as e:
+                # 如果预算数据有问题（如日期解析失败），记录警告但继续处理其他预算
+                logger.warning(f"跳过有问题的预算 {budget_id}: {str(e)}")
+                continue
+            except Exception as e:
+                # 其他错误也记录但继续
+                logger.error(f"获取预算 {budget_id} 时出错: {str(e)}")
+                continue
         
         return budgets
     

@@ -29,10 +29,13 @@ class AnalysisService:
 
         # 1. Check Cache
         cache = CacheManager(ttl_seconds=86400)
-        cache_key = "idle_result"
         
         if not force_refresh:
-            cached_data = cache.get(cache_key, account_name)
+            # 尝试从新缓存键获取
+            cached_data = cache.get(resource_type="idle_result", account_name=account_name)
+            # 兼容旧缓存键
+            if not cached_data:
+                cached_data = cache.get(resource_type="dashboard_idle", account_name=account_name)
             if cached_data:
                 return cached_data, True
 
@@ -86,7 +89,9 @@ class AnalysisService:
 
         # 6. Save to Cache (即使为空也保存，避免重复分析)
         try:
-            cache.set(cache_key, account_name, idle_instances)
+            cache.set(resource_type="idle_result", account_name=account_name, data=idle_instances)
+            # 同时保存到 dashboard_idle 缓存（兼容旧代码）
+            cache.set(resource_type="dashboard_idle", account_name=account_name, data=idle_instances)
         except Exception as e:
             logger.warning(f"保存缓存失败: {str(e)}")
             # 缓存失败不影响返回结果

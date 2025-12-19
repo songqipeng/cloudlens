@@ -79,10 +79,20 @@ class NotificationService:
             msg.attach(MIMEText(html_body, 'html'))
             
             # 发送邮件
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.smtp_user, self.smtp_password)
-                server.send_message(msg)
+            # 根据端口判断使用SSL还是TLS
+            if self.smtp_port == 465:
+                # 使用SSL
+                import ssl
+                context = ssl.create_default_context()
+                with smtplib.SMTP_SSL(self.smtp_host, self.smtp_port, context=context) as server:
+                    server.login(self.smtp_user, self.smtp_password)
+                    server.send_message(msg)
+            else:
+                # 使用TLS（默认）
+                with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+                    server.starttls()
+                    server.login(self.smtp_user, self.smtp_password)
+                    server.send_message(msg)
             
             logger.info(f"Email notification sent to {to_email}")
             return True

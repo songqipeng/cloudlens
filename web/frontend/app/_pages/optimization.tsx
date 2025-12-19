@@ -40,6 +40,7 @@ export default function OptimizationPage() {
   const { t } = useLocale()
   const [data, setData] = useState<OptimizationData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadingProgress, setLoadingProgress] = useState<string>("")
   const [expandedSuggestions, setExpandedSuggestions] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState<string>("all")
 
@@ -60,10 +61,44 @@ export default function OptimizationPage() {
     if (!currentAccount) return
 
     try {
-      const result = await apiGet("/optimization/suggestions")
+      setLoading(true)
+      setLoadingProgress("正在加载优化建议...")
+      
+      // 先尝试使用缓存（快速返回）
+      try {
+        const cachedResult = await apiGet("/optimization/suggestions", { account: currentAccount, force_refresh: false }, { timeout: 10000 } as any)
+        if (cachedResult?.cached && cachedResult?.data) {
+          setData(cachedResult.data)
+          setLoadingProgress("")
+          setLoading(false)
+          return
+        }
+      } catch (e) {
+        // 缓存失败，继续强制刷新
+      }
+      
+      // 如果没有缓存，显示进度提示
+      setLoadingProgress("正在分析资源使用情况，这可能需要30-60秒...")
+      
+      // optimization API 可能需要较长时间，增加超时时间到120秒
+      const result = await apiGet("/optimization/suggestions", { account: currentAccount, force_refresh: true }, { timeout: 120000 } as any)
+      
+      if (result?.error) {
+        console.warn("优化建议生成时出现警告:", result.error)
+        // 即使有错误，也尝试显示部分数据
+      }
+      
       setData(result.data || { suggestions: [], summary: {} })
-    } catch (e) {
+      setLoadingProgress("")
+    } catch (e: any) {
       console.error("Failed to fetch suggestions:", e)
+      // 如果是超时错误，显示友好提示
+      if (e?.status === 408 || e?.message?.includes('超时')) {
+        setLoadingProgress("计算时间较长，建议使用缓存数据或稍后重试")
+      } else {
+        setLoadingProgress("加载失败，请重试")
+      }
+      setData({ suggestions: [], summary: {} })
     } finally {
       setLoading(false)
     }
@@ -151,15 +186,39 @@ export default function OptimizationPage() {
   return (
     <DashboardLayout>
       <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">{t.optimization.title}</h2>
-          <p className="text-muted-foreground mt-1">{t.optimization.description}</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">{t.optimization.title}</h2>
+            <p className="text-muted-foreground mt-1">{t.optimization.description}</p>
+          </div>
+          {!loading && (
+            <button
+              onClick={fetchSuggestions}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition shadow-lg shadow-primary/20"
+            >
+              {t.locale === 'zh' ? '刷新' : 'Refresh'}
+            </button>
+          )}
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center h-40">
-            <div className="animate-pulse">{t.common.loading}</div>
-          </div>
+          <Card className="glass border border-border/50">
+            <CardContent className="py-12">
+              <div className="flex flex-col items-center justify-center space-y-4">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                <div className="text-center">
+                  <p className="text-lg font-medium text-foreground mb-2">
+                    {loadingProgress || t.common.loading}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {t.locale === 'zh' 
+                      ? '首次加载可能需要较长时间，请耐心等待...'
+                      : 'First load may take longer, please wait...'}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         ) : !data || data.suggestions.length === 0 ? (
           <Card className="glass border border-border/50">
             <CardContent className="py-12 text-center">

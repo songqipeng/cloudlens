@@ -21,7 +21,31 @@ router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 _alert_storage = AlertStorage()
 _bill_storage = BillStorageManager()
 _alert_engine = AlertEngine(_alert_storage, _bill_storage)
-_notification_service = NotificationService()
+
+# 从配置文件加载通知配置
+def _load_notification_config():
+    """加载通知配置"""
+    import json
+    import os
+    from pathlib import Path
+    
+    config_dir = Path(os.path.expanduser("~/.cloudlens"))
+    config_file = config_dir / "notifications.json"
+    
+    if config_file.exists():
+        try:
+            with open(config_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def _get_notification_service():
+    """获取通知服务实例（每次调用时重新加载配置）"""
+    config = _load_notification_config()
+    return NotificationService(config=config)
+
+_notification_service = _get_notification_service()
 
 
 # Pydantic模型
@@ -167,6 +191,14 @@ def create_alert_rule(req: AlertRuleRequest, account: Optional[str] = None) -> D
             if account_config:
                 account_id = f"{account_config.access_key_id[:10]}-{account}"
         
+        # 如果没有指定接收邮箱，使用默认接收邮箱
+        notify_email = req.notify_email
+        if not notify_email:
+            notification_config = _load_notification_config()
+            default_receiver_email = notification_config.get("default_receiver_email", "")
+            if default_receiver_email:
+                notify_email = default_receiver_email
+        
         rule = AlertRule(
             id="",  # 将在存储时生成
             name=req.name,
@@ -180,7 +212,7 @@ def create_alert_rule(req: AlertRuleRequest, account: Optional[str] = None) -> D
             account_id=account_id,
             tag_filter=req.tag_filter,
             service_filter=req.service_filter,
-            notify_email=req.notify_email,
+            notify_email=notify_email,
             notify_webhook=req.notify_webhook,
             notify_sms=req.notify_sms,
             check_interval=req.check_interval,
@@ -213,6 +245,14 @@ def update_alert_rule(rule_id: str, req: AlertRuleRequest) -> Dict[str, Any]:
         if not existing_rule:
             raise HTTPException(status_code=404, detail=f"告警规则 {rule_id} 不存在")
         
+        # 如果没有指定接收邮箱，使用默认接收邮箱
+        notify_email = req.notify_email
+        if not notify_email:
+            notification_config = _load_notification_config()
+            default_receiver_email = notification_config.get("default_receiver_email", "")
+            if default_receiver_email:
+                notify_email = default_receiver_email
+        
         rule = AlertRule(
             id=rule_id,
             name=req.name,
@@ -226,7 +266,7 @@ def update_alert_rule(rule_id: str, req: AlertRuleRequest) -> Dict[str, Any]:
             account_id=req.account_id or existing_rule.account_id,
             tag_filter=req.tag_filter,
             service_filter=req.service_filter,
-            notify_email=req.notify_email,
+            notify_email=notify_email,
             notify_webhook=req.notify_webhook,
             notify_sms=req.notify_sms,
             check_interval=req.check_interval,
@@ -339,7 +379,8 @@ def check_alert_rule(rule_id: str, account: Optional[str] = None) -> Dict[str, A
             # 发送通知
             rule = _alert_storage.get_rule(rule_id)
             if rule:
-                _notification_service.send_alert_notification(alert, rule)
+                notification_service = _get_notification_service()
+                notification_service.send_alert_notification(alert, rule)
             
             return {
                 "success": True,
@@ -376,10 +417,11 @@ def check_all_rules(account: Optional[str] = None) -> Dict[str, Any]:
         triggered_alerts = _alert_engine.check_all_rules(account_id)
         
         # 发送通知
+        notification_service = _get_notification_service()
         for alert in triggered_alerts:
             rule = _alert_storage.get_rule(alert.rule_id)
             if rule:
-                _notification_service.send_alert_notification(alert, rule)
+                notification_service.send_alert_notification(alert, rule)
         
         return {
             "success": True,

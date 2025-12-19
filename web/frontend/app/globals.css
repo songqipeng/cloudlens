@@ -143,6 +143,17 @@ body {
 }
 
 /* 现代化动画 */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) translateX(0);
+  }
+}
+
 @keyframes fadeIn {
     from {
         opacity: 0;

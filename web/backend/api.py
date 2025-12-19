@@ -69,6 +69,130 @@ def set_rules(rules: Dict[str, Any]):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/config/notifications")
+def get_notification_config() -> Dict[str, Any]:
+    """获取通知配置（SMTP等）"""
+    import json
+    import os
+    from pathlib import Path
+    
+    config_dir = Path(os.path.expanduser("~/.cloudlens"))
+    config_file = config_dir / "notifications.json"
+    
+    default_config = {
+        "email": "",  # 发件邮箱（简化配置）
+        "auth_code": "",  # 授权码/密码
+        "default_receiver_email": "",  # 默认接收邮箱（告警通知的目标邮箱）
+        "smtp_host": "",
+        "smtp_port": 587,
+        "smtp_user": "",
+        "smtp_password": "",
+        "smtp_from": ""
+    }
+    
+    if not config_file.exists():
+        return default_config
+    
+    try:
+        with open(config_file, "r", encoding="utf-8") as f:
+            config = json.load(f)
+            # 合并默认值，确保所有字段都存在
+            result = {**default_config, **config}
+            # 如果已有旧格式配置，转换为新格式
+            if result.get("smtp_user") and not result.get("email"):
+                result["email"] = result.get("smtp_user", "")
+            if result.get("smtp_password") and not result.get("auth_code"):
+                result["auth_code"] = result.get("smtp_password", "")
+            return result
+    except Exception as e:
+        logger.error(f"读取通知配置失败: {e}")
+        return default_config
+
+def _get_smtp_config_by_email(email: str) -> Dict[str, Any]:
+    """根据邮箱地址自动获取SMTP配置"""
+    email_lower = email.lower().strip()
+    
+    # QQ邮箱
+    if email_lower.endswith("@qq.com"):
+        return {
+            "smtp_host": "smtp.qq.com",
+            "smtp_port": 587,
+            "smtp_use_tls": True
+        }
+    # Gmail
+    elif email_lower.endswith("@gmail.com"):
+        return {
+            "smtp_host": "smtp.gmail.com",
+            "smtp_port": 587,
+            "smtp_use_tls": True
+        }
+    # 163邮箱
+    elif email_lower.endswith("@163.com"):
+        return {
+            "smtp_host": "smtp.163.com",
+            "smtp_port": 465,
+            "smtp_use_tls": False,
+            "smtp_use_ssl": True
+        }
+    # 126邮箱
+    elif email_lower.endswith("@126.com"):
+        return {
+            "smtp_host": "smtp.126.com",
+            "smtp_port": 465,
+            "smtp_use_tls": False,
+            "smtp_use_ssl": True
+        }
+    # 默认配置（通用SMTP）
+    else:
+        return {
+            "smtp_host": "smtp.gmail.com",
+            "smtp_port": 587,
+            "smtp_use_tls": True
+        }
+
+@router.post("/config/notifications")
+def set_notification_config(config: Dict[str, Any]):
+    """保存通知配置（SMTP等）"""
+    import json
+    import os
+    from pathlib import Path
+    
+    config_dir = Path(os.path.expanduser("~/.cloudlens"))
+    config_file = config_dir / "notifications.json"
+    
+    try:
+        if not config_dir.exists():
+            config_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 获取用户输入的邮箱和授权码
+        email = config.get("email", "").strip()
+        auth_code = config.get("auth_code", "").strip()
+        default_receiver_email = config.get("default_receiver_email", "").strip()
+        
+        # 根据邮箱自动配置SMTP
+        smtp_config = {}
+        if email:
+            smtp_config = _get_smtp_config_by_email(email)
+            smtp_config["smtp_user"] = email
+            smtp_config["smtp_from"] = email
+            smtp_config["smtp_password"] = auth_code
+        
+        # 保存完整配置（包含自动生成的SMTP配置）
+        full_config = {
+            "email": email,
+            "auth_code": auth_code,  # 保存授权码用于显示（但实际使用smtp_password）
+            "default_receiver_email": default_receiver_email,
+            **smtp_config
+        }
+        
+        with open(config_file, "w", encoding="utf-8") as f:
+            json.dump(full_config, f, indent=2, ensure_ascii=False)
+        
+        return {"status": "success", "message": "通知配置已更新"}
+    except Exception as e:
+        logger.error(f"保存通知配置失败: {e}")
+        raise HTTPException(status_code=500, detail=f"保存通知配置失败: {str(e)}")
+
 @router.post("/analyze/trigger")
 def trigger_analysis(req: TriggerAnalysisRequest, background_tasks: BackgroundTasks):
     """Trigger idle resource analysis"""
@@ -225,8 +349,11 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
             trend_pct = 0.0
 
     # Get Idle Data
-    cache = CacheManager(ttl_seconds=86400)
-    idle_data = cache.get("idle_result", account)
+    cache_manager = CacheManager(ttl_seconds=86400)
+    idle_data = cache_manager.get(resource_type="idle_result", account_name=account)
+    # 兼容旧缓存键
+    if not idle_data:
+        idle_data = cache_manager.get(resource_type="dashboard_idle", account_name=account)
     idle_count = len(idle_data) if idle_data else 0
 
     # Get Resource Statistics (Task 1.1)
@@ -2216,13 +2343,12 @@ def get_optimization_suggestions(
     # 初始化缓存管理器，TTL设置为24小时（86400秒）
     cache_manager = CacheManager(ttl_seconds=86400)
     
-    # 尝试从缓存获取数据
-    # 注意：为了支持多语言，如果语言不是中文，我们跳过缓存重新生成
+    # 尝试从缓存获取数据（优先使用缓存，避免长时间等待）
     cached_result = None
-    if not force_refresh and lang == "zh":
+    if not force_refresh:
         cached_result = cache_manager.get(resource_type="optimization_suggestions", account_name=account_name)
     
-    # 如果缓存有效，直接使用缓存数据（中文）
+    # 如果缓存有效，直接使用缓存数据
     if cached_result is not None:
         return {
             "success": True,
@@ -2240,17 +2366,20 @@ def get_optimization_suggestions(
         suggestions = []
         all_opportunities = []
         
-        # 1. 使用 OptimizationEngine 分析优化机会
-        try:
-            engine = OptimizationEngine()
-            opportunities = engine.analyze_optimization_opportunities(account_name)
-            all_opportunities.extend(opportunities)
-        except Exception as e:
-            pass  # 如果失败，继续其他分析
+        # 1. 使用 OptimizationEngine 分析优化机会（跳过，因为已经有其他分析覆盖）
+        # 这个操作很慢，而且其他分析已经覆盖了主要场景
+        # try:
+        #     engine = OptimizationEngine()
+        #     opportunities = engine.analyze_optimization_opportunities(account_name)
+        #     all_opportunities.extend(opportunities)
+        # except Exception as e:
+        #     pass  # 如果失败，继续其他分析
         
-        # 2. 闲置资源建议（基于真实成本）
-        cache = CacheManager(ttl_seconds=86400)
-        idle_data = cache.get("idle_result", account_name)
+        # 2. 闲置资源建议（基于真实成本，使用统一的缓存键）
+        idle_data = cache_manager.get(resource_type="idle_result", account_name=account_name)
+        # 如果没有，尝试从 dashboard_idle 缓存获取（兼容旧缓存）
+        if not idle_data:
+            idle_data = cache_manager.get(resource_type="dashboard_idle", account_name=account_name)
         if idle_data:
             # 计算真实节省潜力
             total_savings = 0.0
@@ -2277,10 +2406,24 @@ def get_optimization_suggestions(
                 "recommendation": get_translation("optimization.idle_resources.recommendation", lang),
             })
         
-        # 3. 停止实例建议
-        instances = provider.list_instances()
+        # 3. 停止实例建议（优先使用缓存，避免重复调用API）
+        instances = None
+        try:
+            # 尝试从缓存获取实例列表
+            instances_cache = cache_manager.get(resource_type="ecs_instances", account_name=account_name)
+            if instances_cache:
+                instances = instances_cache
+            else:
+                instances = provider.list_instances()
+                # 缓存实例列表（5分钟有效）
+                if instances:
+                    cache_manager.set(resource_type="ecs_instances", account_name=account_name, data=instances, ttl_seconds=300)
+        except Exception as e:
+            logger.warning(f"获取实例列表失败，使用空列表: {e}")
+            instances = []
+        
         analyzer = SecurityComplianceAnalyzer()
-        stopped = analyzer.check_stopped_instances(instances)
+        stopped = analyzer.check_stopped_instances(instances or [])
         if stopped:
             # 计算停止实例的成本
             stopped_savings = 0.0
@@ -2308,9 +2451,18 @@ def get_optimization_suggestions(
                 "recommendation": get_translation("optimization.stopped_instances.recommendation", lang),
             })
         
-        # 4. 未绑定EIP建议
+        # 4. 未绑定EIP建议（使用缓存，避免重复API调用）
         try:
-            eips = provider.list_eip() if hasattr(provider, 'list_eip') else (provider.list_eips() if hasattr(provider, 'list_eips') else [])
+            # 尝试从缓存获取EIP列表
+            eips_cache = cache_manager.get(resource_type="eip_list", account_name=account_name)
+            if eips_cache:
+                eips = eips_cache
+            else:
+                eips = provider.list_eip() if hasattr(provider, 'list_eip') else (provider.list_eips() if hasattr(provider, 'list_eips') else [])
+                # 缓存EIP列表（5分钟有效）
+                if eips:
+                    cache_manager.set(resource_type="eip_list", account_name=account_name, data=eips, ttl_seconds=300)
+            
             if eips:
                 eip_info = analyzer.analyze_eip_usage(eips)
                 unbound_eips = eip_info.get("unbound_eips", [])
@@ -2329,11 +2481,12 @@ def get_optimization_suggestions(
                         "action": "release",
                         "recommendation": get_translation("optimization.unbound_eips.recommendation", lang),
                     })
-        except:
+        except Exception as e:
+            logger.warning(f"EIP分析失败: {e}")
             pass
         
-        # 5. 标签完善建议
-        tag_coverage, no_tags = analyzer.check_missing_tags(instances)
+        # 5. 标签完善建议（需要实例列表）
+        tag_coverage, no_tags = analyzer.check_missing_tags(instances or [])
         if len(no_tags) > 0:
             suggestions.append({
                 "type": "missing_tags",
@@ -2348,25 +2501,25 @@ def get_optimization_suggestions(
                 "recommendation": get_translation("optimization.missing_tags.recommendation", lang),
             })
         
-        # 6. 规格降配建议（从 OptimizationEngine 获取）
-        downgrade_opportunities = [opp for opp in all_opportunities if opp.get("action") == "downgrade"]
-        if downgrade_opportunities:
-            total_downgrade_savings = sum(opp.get("estimated_savings", 0) for opp in downgrade_opportunities)
-            suggestions.append({
-                "type": "spec_downgrade",
-                "category": get_translation("optimization.spec_downgrade.category", lang),
-                "priority": "medium",
-                "title": get_translation("optimization.spec_downgrade.title", lang),
-                "description": get_translation("optimization.spec_downgrade.description", lang, count=len(downgrade_opportunities)),
-                "savings_potential": round(total_downgrade_savings, 2),
-                "resource_count": len(downgrade_opportunities),
-                "resources": downgrade_opportunities[:10],
-                "action": "downgrade",
-                "recommendation": get_translation("optimization.spec_downgrade.recommendation", lang),
-            })
+        # 6. 规格降配建议（跳过，因为 OptimizationEngine 已被禁用）
+        # downgrade_opportunities = [opp for opp in all_opportunities if opp.get("action") == "downgrade"]
+        # if downgrade_opportunities:
+        #     total_downgrade_savings = sum(opp.get("estimated_savings", 0) for opp in downgrade_opportunities)
+        #     suggestions.append({
+        #         "type": "spec_downgrade",
+        #         "category": get_translation("optimization.spec_downgrade.category", lang),
+        #         "priority": "medium",
+        #         "title": get_translation("optimization.spec_downgrade.title", lang),
+        #         "description": get_translation("optimization.spec_downgrade.description", lang, count=len(downgrade_opportunities)),
+        #         "savings_potential": round(total_downgrade_savings, 2),
+        #         "resource_count": len(downgrade_opportunities),
+        #         "resources": downgrade_opportunities[:10],
+        #         "action": "downgrade",
+        #         "recommendation": get_translation("optimization.spec_downgrade.recommendation", lang),
+        #     })
         
-        # 7. 公网暴露优化建议
-        exposed = analyzer.detect_public_exposure(instances)
+        # 7. 公网暴露优化建议（需要实例列表）
+        exposed = analyzer.detect_public_exposure(instances or [])
         if exposed:
             suggestions.append({
                 "type": "public_exposure",
@@ -2381,8 +2534,8 @@ def get_optimization_suggestions(
                 "recommendation": get_translation("optimization.public_exposure.recommendation", lang),
             })
         
-        # 8. 磁盘加密建议
-        encryption_info = analyzer.check_disk_encryption(instances)
+        # 8. 磁盘加密建议（需要实例列表）
+        encryption_info = analyzer.check_disk_encryption(instances or [])
         if encryption_info.get("encryption_rate", 100) < 50:
             suggestions.append({
                 "type": "disk_encryption",
@@ -2426,6 +2579,10 @@ def get_optimization_suggestions(
             "cached": False,
         }
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"获取优化建议失败: {str(e)}\n{error_trace}")
+        # 即使出错也返回空结果，而不是抛出异常，避免前端崩溃
         return {
             "success": True,
             "data": {
@@ -2439,6 +2596,7 @@ def get_optimization_suggestions(
                 }
             },
             "cached": False,
+            "error": str(e)  # 可选：返回错误信息用于调试
         }
 
 
@@ -4099,6 +4257,7 @@ _bill_storage = BillStorageManager()
 
 
 @router.get("/budgets")
+@api_error_handler
 def list_budgets(account: Optional[str] = None) -> Dict[str, Any]:
     """获取预算列表"""
     try:
@@ -4111,12 +4270,27 @@ def list_budgets(account: Optional[str] = None) -> Dict[str, Any]:
                 account_id = f"{account_config.access_key_id[:10]}-{account}"
         
         budgets = _budget_storage.list_budgets(account_id)
+        
+        # 安全地转换为字典，跳过有问题的预算
+        budget_list = []
+        for budget in budgets:
+            try:
+                budget_list.append(budget.to_dict())
+            except (ValueError, AttributeError, TypeError) as e:
+                logger.warning(f"跳过有问题的预算 {budget.id if hasattr(budget, 'id') else 'unknown'}: {str(e)}")
+                continue
+        
         return {
             "success": True,
-            "data": [budget.to_dict() for budget in budgets],
-            "count": len(budgets)
+            "data": budget_list,
+            "count": len(budget_list)
         }
+    except HTTPException:
+        raise
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"获取预算列表失败: {str(e)}\n{error_trace}")
         raise HTTPException(status_code=500, detail=f"获取预算列表失败: {str(e)}")
 
 

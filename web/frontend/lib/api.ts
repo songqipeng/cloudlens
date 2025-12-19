@@ -131,7 +131,14 @@ export async function apiGet<T = any>(
                 pendingRequests.delete(requestKey)
                 return data
             } catch (error) {
-                if (i === retries - 1) {
+                // 如果是 AbortError（超时），在最后一次重试前不重试
+                if (error instanceof Error && error.name === 'AbortError') {
+                    if (i === retries - 1) {
+                        pendingRequests.delete(requestKey)
+                        throw new ApiError(408, { error: '请求超时，请稍后重试' }, '请求超时')
+                    }
+                    // 超时错误也进行重试
+                } else if (i === retries - 1) {
                     pendingRequests.delete(requestKey)
                     if (error instanceof ApiError) {
                         throw error
