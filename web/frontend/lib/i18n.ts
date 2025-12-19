@@ -166,6 +166,19 @@ export interface Translations {
     matchingRules: string
     addRule: string
     rule: string
+    exampleProduction: string
+    exampleEnvironment: string
+    exampleProd: string
+    resourceName: string
+    region: string
+    resourceType: string
+    instanceId: string
+    contains: string
+    equals: string
+    startsWith: string
+    endsWith: string
+    regex: string
+    saving: string
   }
   
   // Cost Allocation
@@ -1953,6 +1966,19 @@ const zh: Translations = {
     matchingRules: '匹配规则',
     addRule: '添加规则',
     rule: '规则',
+    exampleProduction: '例如：生产环境',
+    exampleEnvironment: '例如：environment',
+    exampleProd: '例如：prod',
+    resourceName: '资源名称',
+    region: '区域',
+    resourceType: '资源类型',
+    instanceId: '实例ID',
+    contains: '包含',
+    equals: '等于',
+    startsWith: '开头',
+    endsWith: '结尾',
+    regex: '正则表达式',
+    saving: '保存中...',
   },
   costAllocation: {
     title: '成本分配',

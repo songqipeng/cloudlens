@@ -321,7 +321,7 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="w-full px-4 py-2 rounded-lg border border-input/50 bg-background focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                placeholder="例如：生产环境"
+                placeholder={t.virtualTags.exampleProduction}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -342,7 +342,7 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
                   value={formData.tag_value}
                   onChange={(e) => setFormData({ ...formData, tag_value: e.target.value })}
                   className="w-full px-4 py-2 rounded-lg border border-input/50 bg-background focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                  placeholder="例如：production"
+                  placeholder={t.virtualTags.exampleProduction.replace('生产环境', 'production')}
                 />
               </div>
             </div>
@@ -386,10 +386,10 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
                       onChange={(e) => updateRule(index, "field", e.target.value)}
                       className="w-full px-3 py-1.5 text-sm rounded-lg border border-input/50 bg-background"
                     >
-                      <option value="name">资源名称</option>
-                      <option value="region">区域</option>
-                      <option value="type">资源类型</option>
-                      <option value="instance_id">实例ID</option>
+                      <option value="name">{t.virtualTags.resourceName}</option>
+                      <option value="region">{t.virtualTags.region}</option>
+                      <option value="type">{t.virtualTags.resourceType}</option>
+                      <option value="instance_id">{t.virtualTags.instanceId}</option>
                     </select>
                   </div>
                   <div>
@@ -399,11 +399,11 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
                       onChange={(e) => updateRule(index, "operator", e.target.value)}
                       className="w-full px-3 py-1.5 text-sm rounded-lg border border-input/50 bg-background"
                     >
-                      <option value="contains">包含</option>
-                      <option value="equals">等于</option>
-                      <option value="starts_with">开头</option>
-                      <option value="ends_with">结尾</option>
-                      <option value="regex">正则表达式</option>
+                      <option value="contains">{t.virtualTags.contains}</option>
+                      <option value="equals">{t.virtualTags.equals}</option>
+                      <option value="starts_with">{t.virtualTags.startsWith}</option>
+                      <option value="ends_with">{t.virtualTags.endsWith}</option>
+                      <option value="regex">{t.virtualTags.regex}</option>
                     </select>
                   </div>
                   <div>
@@ -413,7 +413,7 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
                       value={rule.pattern}
                       onChange={(e) => updateRule(index, "pattern", e.target.value)}
                       className="w-full px-3 py-1.5 text-sm rounded-lg border border-input/50 bg-background"
-                      placeholder="例如：prod"
+                      placeholder={t.virtualTags.exampleProd}
                     />
                   </div>
                 </div>
