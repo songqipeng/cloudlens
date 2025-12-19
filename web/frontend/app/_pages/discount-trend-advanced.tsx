@@ -814,7 +814,7 @@ function BillingAnalysisTab({ subscription, suggestions, formatCurrency, formatP
                   <th className="text-left p-2">{t.discounts.product}</th>
                   <th className="text-left p-2">{t.discountAdvanced.regionAnalysis.region}</th>
                   <th className="text-right p-2">{t.discountAdvanced.billingAnalysis.runningMonths}</th>
-                  <th className="text-right p-2">{t.locale === 'zh' ? '总成本' : 'Total Cost'}</th>
+                  <th className="text-right p-2">{t.discountAdvanced.billingAnalysis.totalCost}</th>
                   <th className="text-right p-2">{t.discountAdvanced.billingAnalysis.currentDiscount}</th>
                   <th className="text-right p-2">{t.discountAdvanced.billingAnalysis.estimatedDiscount}</th>
                   <th className="text-right p-2">{t.discountAdvanced.billingAnalysis.annualSavings}</th>
@@ -919,11 +919,11 @@ function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent, t 
             </LineChart>
           </ResponsiveContainer>
           <div className="mt-4 text-sm text-muted-foreground">
-            <p>💡 {t.locale === 'zh' ? '移动平均可以平滑短期波动，显示长期趋势：' : 'Moving average can smooth short-term fluctuations and show long-term trends:'}</p>
+            <p>💡 {t.discountAdvanced.advanced.movingAverageDesc}</p>
             <ul className="list-disc list-inside mt-2 space-y-1">
-              <li>{t.locale === 'zh' ? '3月移动平均：反映短期趋势' : '3-month moving average: reflects short-term trends'}</li>
-              <li>{t.locale === 'zh' ? '6月移动平均：反映中期趋势' : '6-month moving average: reflects medium-term trends'}</li>
-              <li>{t.locale === 'zh' ? '12月移动平均：反映长期趋势' : '12-month moving average: reflects long-term trends'}</li>
+              <li>{t.discountAdvanced.advanced.threeMonthDesc}</li>
+              <li>{t.discountAdvanced.advanced.sixMonthDesc}</li>
+              <li>{t.discountAdvanced.advanced.twelveMonthDesc}</li>
             </ul>
           </div>
         </CardContent>
@@ -969,9 +969,9 @@ function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent, t 
         </CardHeader>
         <CardContent>
           <div className="space-y-2 text-sm">
-            <p>• <strong>{t.discountAdvanced.advanced.trendSmoothing}:</strong> 12{t.discountAdvanced.advanced.monthMovingAverage} {t.locale === 'zh' ? '显示折扣率整体' : 'shows discount rate'} {ma12Data[ma12Data.length-1]?.ma > ma12Data[0]?.ma ? t.discountAdvanced.advanced.rising : t.discountAdvanced.advanced.falling} {t.locale === 'zh' ? '趋势' : 'trend'}</p>
-            <p>• <strong>{t.discountAdvanced.advanced.cumulativeSavings}:</strong> 19{t.discountAdvanced.overview.months} {t.locale === 'zh' ? '累计节省' : 'cumulative savings'} {formatCurrency(cumulativeData?.data?.total_discount || 0)}，{t.locale === 'zh' ? '月均' : 'monthly average'} {formatCurrency((cumulativeData?.data?.total_discount || 0) / 19)}</p>
-            <p>• <strong>{t.discountAdvanced.advanced.dataInsights}:</strong> {t.locale === 'zh' ? 'Phase 2提供更深入的趋势分析和数据可视化' : 'Phase 2 provides deeper trend analysis and data visualization'}</p>
+            <p>• <strong>{t.discountAdvanced.advanced.trendSmoothing}:</strong> 12{t.discountAdvanced.advanced.monthMovingAverage} {t.discountAdvanced.advanced.trendDesc} {ma12Data[ma12Data.length-1]?.ma > ma12Data[0]?.ma ? t.discountAdvanced.advanced.rising : t.discountAdvanced.advanced.falling} {t.discountAdvanced.advanced.trend}</p>
+            <p>• <strong>{t.discountAdvanced.advanced.cumulativeSavings}:</strong> 19{t.discountAdvanced.overview.months} {t.discountAdvanced.advanced.cumulativeSavingsDesc} {formatCurrency(cumulativeData?.data?.total_discount || 0)}，{t.discountAdvanced.advanced.monthlyAverage} {formatCurrency((cumulativeData?.data?.total_discount || 0) / 19)}</p>
+            <p>• <strong>{t.discountAdvanced.advanced.dataInsights}:</strong> {t.discountAdvanced.advanced.dataInsightsDesc}</p>
           </div>
         </CardContent>
       </Card>

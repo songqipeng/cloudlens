@@ -68,18 +68,18 @@ export default function SettingsPage() {
     <DashboardLayout>
       <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-8">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground">设置</h2>
-          <p className="text-muted-foreground mt-1">配置优化规则和阈值</p>
+          <h2 className="text-3xl font-bold tracking-tight text-foreground">{t.settings.title}</h2>
+          <p className="text-muted-foreground mt-1">{t.settings.idleRules.description}</p>
         </div>
 
         <Card className="glass">
           <CardHeader>
-            <CardTitle>闲置检测规则 (ECS)</CardTitle>
-            <CardDescription>定义什么情况下判定为闲置实例</CardDescription>
+            <CardTitle>{t.settings.idleRules.title}</CardTitle>
+            <CardDescription>{t.settings.idleRules.description}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-2">
-              <label className="text-sm font-medium leading-none">CPU阈值 (%)</label>
+              <label className="text-sm font-medium leading-none">{t.settings.idleRules.cpuThreshold}</label>
               <input
                 type="number"
                 className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-ring focus:outline-none"
@@ -92,11 +92,11 @@ export default function SettingsPage() {
                   setRules(newRules)
                 }}
               />
-              <p className="text-xs text-muted-foreground">平均CPU使用率低于此值的实例将被标记为闲置</p>
+              <p className="text-xs text-muted-foreground">{t.settings.idleRules.cpuThresholdDesc}</p>
             </div>
 
             <div className="grid gap-2">
-              <label className="text-sm font-medium leading-none">排除标签 (逗号分隔)</label>
+              <label className="text-sm font-medium leading-none">{t.settings.idleRules.excludeTags}</label>
               <input
                 type="text"
                 className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-ring focus:outline-none"
@@ -109,7 +109,7 @@ export default function SettingsPage() {
                   setRules(newRules)
                 }}
               />
-              <p className="text-xs text-muted-foreground">带有这些标签的资源将被忽略</p>
+              <p className="text-xs text-muted-foreground">{t.settings.idleRules.excludeTagsDesc}</p>
             </div>
           </CardContent>
         </Card>
@@ -120,24 +120,22 @@ export default function SettingsPage() {
             disabled={saving}
             className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition shadow-lg shadow-primary/20 disabled:opacity-50"
           >
-            {saving ? (t.locale === 'zh' ? '保存中...' : 'Saving...') : t.common.save}
+            {saving ? t.settings.saving : t.common.save}
           </button>
         </div>
 
         {/* 通知配置 */}
         <Card className="glass">
           <CardHeader>
-            <CardTitle>{t.locale === 'zh' ? '通知配置' : 'Notification Settings'}</CardTitle>
+            <CardTitle>{t.settings.notifications.title}</CardTitle>
             <CardDescription>
-              {t.locale === 'zh' 
-                ? '配置邮件通知，用于发送告警通知。系统会根据邮箱类型自动配置SMTP服务器。'
-                : 'Configure email notifications for alerts. SMTP server will be auto-configured based on email type.'}
+              {t.settings.notifications.description}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-2">
               <label className="text-sm font-medium leading-none">
-                {t.locale === 'zh' ? '发件邮箱' : 'Sender Email Address'}
+                {t.settings.notifications.senderEmail}
                 <span className="text-red-500 ml-1">*</span>
               </label>
               <input
@@ -153,15 +151,13 @@ export default function SettingsPage() {
                 placeholder="your-email@qq.com 或 your-email@gmail.com"
               />
               <p className="text-xs text-muted-foreground">
-                {t.locale === 'zh' 
-                  ? '支持QQ邮箱、Gmail、163邮箱等。系统会自动配置对应的SMTP服务器。'
-                  : 'Supports QQ Mail, Gmail, 163 Mail, etc. SMTP server will be auto-configured.'}
+                {t.settings.notifications.senderEmailDesc}
               </p>
             </div>
 
             <div className="grid gap-2">
               <label className="text-sm font-medium leading-none">
-                {t.locale === 'zh' ? '授权码/密码' : 'Authorization Code / Password'}
+                {t.settings.notifications.authCode}
                 <span className="text-red-500 ml-1">*</span>
               </label>
               <input
@@ -178,10 +174,10 @@ export default function SettingsPage() {
               />
               <div className="text-xs text-muted-foreground space-y-1">
                 <p>
-                  {t.locale === 'zh' ? '• QQ邮箱：需要在QQ邮箱设置中开启SMTP服务并获取授权码' : '• QQ Mail: Enable SMTP service in QQ Mail settings and get authorization code'}
+                  {t.settings.notifications.qqMailNote}
                 </p>
                 <p>
-                  {t.locale === 'zh' ? '• Gmail：需要使用应用专用密码（App Password）' : '• Gmail: Use app-specific password (App Password)'}
+                  {t.settings.notifications.gmailNote}
                 </p>
                 <p className="mt-2">
                   <a 
@@ -190,7 +186,7 @@ export default function SettingsPage() {
                     rel="noopener noreferrer"
                     className="text-primary hover:underline"
                   >
-                    {t.locale === 'zh' ? 'QQ邮箱如何获取授权码？' : 'How to get QQ Mail authorization code?'}
+                    {t.settings.notifications.qqMailLink}
                   </a>
                 </p>
               </div>
@@ -198,7 +194,7 @@ export default function SettingsPage() {
 
             <div className="grid gap-2">
               <label className="text-sm font-medium leading-none">
-                {t.locale === 'zh' ? '默认接收邮箱' : 'Default Receiver Email'}
+                {t.settings.notifications.defaultReceiverEmail}
                 <span className="text-red-500 ml-1">*</span>
               </label>
               <input
@@ -214,9 +210,7 @@ export default function SettingsPage() {
                 placeholder="receiver@example.com"
               />
               <p className="text-xs text-muted-foreground">
-                {t.locale === 'zh' 
-                  ? '告警通知的默认接收邮箱。在创建告警规则时，如果没有指定接收邮箱，将使用此默认邮箱。'
-                  : 'Default email address to receive alert notifications. If a rule doesn\'t specify a receiver email, this default will be used.'}
+                {t.settings.notifications.defaultReceiverEmailDesc}
               </p>
             </div>
 
@@ -243,15 +237,15 @@ export default function SettingsPage() {
               return (
                 <div className="p-3 bg-muted/30 rounded-md border border-border/50">
                   <p className="text-xs font-medium mb-2 text-muted-foreground">
-                    {t.locale === 'zh' ? '自动配置的SMTP信息：' : 'Auto-configured SMTP settings:'}
+                    {t.settings.notifications.smtpInfo}
                   </p>
                   <div className="text-xs space-y-1 text-muted-foreground">
                     <p>
-                      {t.locale === 'zh' ? '服务器：' : 'Server: '}
+                      {t.settings.notifications.server}
                       <span className="text-foreground font-mono">{smtpHost}</span>
                     </p>
                     <p>
-                      {t.locale === 'zh' ? '端口：' : 'Port: '}
+                      {t.settings.notifications.port}
                       <span className="text-foreground font-mono">{smtpPort}</span>
                     </p>
                   </div>
@@ -265,7 +259,7 @@ export default function SettingsPage() {
                 disabled={savingNotifications || !notificationConfig?.email || !notificationConfig?.auth_code}
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition shadow-lg shadow-primary/20 disabled:opacity-50"
               >
-                {savingNotifications ? (t.locale === 'zh' ? '保存中...' : 'Saving...') : t.common.save}
+                {savingNotifications ? t.settings.saving : t.common.save}
               </button>
             </div>
           </CardContent>
@@ -274,14 +268,14 @@ export default function SettingsPage() {
         {/* 语言设置 */}
         <Card className="glass">
           <CardHeader>
-            <CardTitle>{t.locale === 'zh' ? '语言设置' : 'Language Settings'}</CardTitle>
-            <CardDescription>{t.locale === 'zh' ? '选择界面显示语言' : 'Select interface display language'}</CardDescription>
+            <CardTitle>{t.settings.language.title}</CardTitle>
+            <CardDescription>{t.settings.language.description}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground mb-2">{t.locale === 'zh' ? '当前语言' : 'Current Language'}</p>
-                <p className="text-base font-semibold">{t.locale === 'zh' ? '中文' : 'English'}</p>
+                <p className="text-sm text-muted-foreground mb-2">{t.settings.language.currentLanguage}</p>
+                <p className="text-base font-semibold">{t.locale === 'zh' ? t.settings.language.chinese : t.settings.language.english}</p>
               </div>
               <LanguageSwitcher />
             </div>
@@ -291,23 +285,21 @@ export default function SettingsPage() {
         {/* 关于信息 */}
         <Card className="glass">
           <CardHeader>
-            <CardTitle>{t.locale === 'zh' ? '关于' : 'About'}</CardTitle>
-            <CardDescription>{t.locale === 'zh' ? 'CloudLens 版本信息' : 'CloudLens Version Information'}</CardDescription>
+            <CardTitle>{t.settings.about.title}</CardTitle>
+            <CardDescription>{t.settings.about.description}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between py-2 border-b border-border/50">
-              <span className="text-sm text-muted-foreground">{t.locale === 'zh' ? '版本' : 'Version'}</span>
+              <span className="text-sm text-muted-foreground">{t.settings.about.version}</span>
               <span className="text-sm font-semibold text-foreground">CloudLens v2.1</span>
             </div>
             <div className="flex items-center justify-between py-2 border-b border-border/50">
-              <span className="text-sm text-muted-foreground">{t.locale === 'zh' ? '描述' : 'Description'}</span>
-              <span className="text-sm text-foreground">{t.locale === 'zh' ? '多云资源治理平台' : 'Multi-Cloud Resource Governance Platform'}</span>
+              <span className="text-sm text-muted-foreground">{t.settings.about.desc}</span>
+              <span className="text-sm text-foreground">{t.settings.about.platformName}</span>
             </div>
             <div className="pt-2">
               <p className="text-xs text-muted-foreground">
-                {t.locale === 'zh' 
-                  ? 'CloudLens 是一个企业级多云资源治理与分析工具，帮助您优化云资源使用，降低成本。'
-                  : 'CloudLens is an enterprise-grade multi-cloud resource governance and analysis tool that helps you optimize cloud resource usage and reduce costs.'}
+                {t.settings.about.descriptionText}
               </p>
             </div>
           </CardContent>

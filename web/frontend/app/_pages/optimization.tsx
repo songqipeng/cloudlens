@@ -62,7 +62,7 @@ export default function OptimizationPage() {
 
     try {
       setLoading(true)
-      setLoadingProgress("正在加载优化建议...")
+      setLoadingProgress(t.optimization.loadingProgress)
       
       // 先尝试使用缓存（快速返回）
       try {
@@ -78,7 +78,7 @@ export default function OptimizationPage() {
       }
       
       // 如果没有缓存，显示进度提示
-      setLoadingProgress("正在分析资源使用情况，这可能需要30-60秒...")
+      setLoadingProgress(t.optimization.analyzingProgress)
       
       // optimization API 可能需要较长时间，增加超时时间到120秒
       const result = await apiGet("/optimization/suggestions", { account: currentAccount, force_refresh: true }, { timeout: 120000 } as any)
@@ -93,10 +93,10 @@ export default function OptimizationPage() {
     } catch (e: any) {
       console.error("Failed to fetch suggestions:", e)
       // 如果是超时错误，显示友好提示
-      if (e?.status === 408 || e?.message?.includes('超时')) {
-        setLoadingProgress("计算时间较长，建议使用缓存数据或稍后重试")
+      if (e?.status === 408 || e?.message?.includes('超时') || e?.message?.includes('timeout')) {
+        setLoadingProgress(t.optimization.timeoutMessage)
       } else {
-        setLoadingProgress("加载失败，请重试")
+        setLoadingProgress(t.common.error)
       }
       setData({ suggestions: [], summary: {} })
     } finally {
@@ -196,7 +196,7 @@ export default function OptimizationPage() {
               onClick={fetchSuggestions}
               className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition shadow-lg shadow-primary/20"
             >
-              {t.locale === 'zh' ? '刷新' : 'Refresh'}
+              {t.optimization.refresh}
             </button>
           )}
         </div>
@@ -211,9 +211,7 @@ export default function OptimizationPage() {
                     {loadingProgress || t.common.loading}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {t.locale === 'zh' 
-                      ? '首次加载可能需要较长时间，请耐心等待...'
-                      : 'First load may take longer, please wait...'}
+                    {t.optimization.loadingProgressDesc}
                   </p>
                 </div>
               </div>

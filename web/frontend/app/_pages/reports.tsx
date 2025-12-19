@@ -7,6 +7,7 @@ import { FileText, Download, FileSpreadsheet, FileCode, FileType, Sparkles, Chec
 import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
 import { apiPost } from "@/lib/api"
+import { toastError, toastSuccess } from "@/components/ui/toast"
 
 interface ReportType {
   id: string
@@ -89,7 +90,7 @@ export default function ReportsPage() {
 
   const handleGenerate = async () => {
     if (!currentAccount) {
-      alert(t.reports.selectAccountFirst)
+      toastError(t.reports.selectAccountFirst)
       return
     }
 
@@ -115,14 +116,14 @@ export default function ReportsPage() {
 
         setTimeout(() => {
           setGenerating(false)
-          alert(t.reports.generateSuccess)
+          toastSuccess(t.reports.generateSuccess)
         }, 500)
         return
       }
       throw new Error(t.reports.generateFailed)
     } catch (e) {
       console.error("Failed to generate report:", e)
-      alert(t.reports.generateFailed + ": " + String(e))
+      toastError(t.reports.generateFailed + ": " + String(e))
     } finally {
       setGenerating(false)
     }

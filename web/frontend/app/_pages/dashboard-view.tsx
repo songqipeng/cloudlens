@@ -6,10 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useAccount } from "@/contexts/account-context"
+import { useLocale } from "@/contexts/locale-context"
 import { apiGet, apiPut } from "@/lib/api"
 import { ArrowLeft, Edit, Save, X } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MetricWidget, ChartWidget, TableWidget } from "@/components/widgets"
+import { toastError, toastSuccess } from "@/components/ui/toast"
 
 // 动态导入react-grid-layout（客户端组件）
 let GridLayout: any = null
@@ -48,6 +50,7 @@ export default function DashboardViewPage() {
   const params = useParams()
   const router = useRouter()
   const { currentAccount } = useAccount()
+  const { t } = useLocale()
   const dashboardId = params?.id as string
   
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
@@ -196,7 +199,7 @@ export default function DashboardViewPage() {
         await fetchDashboard()
       }
     } catch (e) {
-      alert("保存失败")
+      toastError(t.dashboardView.saveFailed)
       console.error("Failed to save dashboard:", e)
     }
   }

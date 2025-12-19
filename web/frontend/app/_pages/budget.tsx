@@ -6,6 +6,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
 import { apiGet, apiPost } from "@/lib/api"
+import { toastError, toastSuccess } from "@/components/ui/toast"
 
 export default function BudgetPage() {
   const { currentAccount } = useAccount()
@@ -44,7 +45,7 @@ export default function BudgetPage() {
 
   const handleSave = async () => {
     if (!currentAccount) {
-      alert(t.budget.selectAccountFirst)
+      toastError(t.budget.selectAccountFirst)
       return
     }
 

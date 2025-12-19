@@ -78,6 +78,7 @@ export interface Translations {
     selectAccount: string
     selectAccountDesc: string
     goToAccountManagement: string
+    scanFailed: string
   }
   
   // Cost
@@ -115,6 +116,108 @@ export interface Translations {
     nextPage: string
   }
   
+  // Custom Dashboards
+  customDashboards: {
+    title: string
+    description: string
+    noDashboards: string
+    noDashboardsDesc: string
+    noMatchDashboards: string
+    tryOtherKeywords: string
+    createDashboard: string
+    editDashboard: string
+    searchPlaceholder: string
+    noWidgets: string
+    deleteFailed: string
+    saveFailed: string
+  }
+  
+  // Virtual Tags
+  virtualTags: {
+    title: string
+    description: string
+    noTags: string
+    noTagsDesc: string
+    noMatchTags: string
+    tryOtherKeywords: string
+    createTag: string
+    editTag: string
+    searchPlaceholder: string
+    deleteConfirm: string
+    deleteFailed: string
+    selectAccountFirst: string
+    fillRequiredFields: string
+    atLeastOneRule: string
+    saveFailed: string
+    previewFailed: string
+    previewMatchingResources: string
+    ruleCount: string
+    priority: string
+    moreRules: string
+    configureTagRules: string
+    tagName: string
+    tagKey: string
+    tagValue: string
+    priority: string
+    priorityDesc: string
+    field: string
+    operator: string
+    pattern: string
+    matchingRules: string
+    addRule: string
+    rule: string
+  }
+  
+  // Cost Allocation
+  costAllocation: {
+    title: string
+    description: string
+    rules: string
+    results: string
+    rulesTitle: string
+    rulesDescription: string
+    noRules: string
+    noRulesDesc: string
+    noResults: string
+    noResultsDesc: string
+    createRule: string
+    editRule: string
+    deleteConfirm: string
+    deleteFailed: string
+    executeSuccess: string
+    executeFailed: string
+    saveFailed: string
+    configureRule: string
+    ruleName: string
+    ruleDescription: string
+    allocationMethod: string
+    allocationTarget: string
+    add: string
+    weight: string
+    enableRule: string
+    enabled: string
+    disabled: string
+    execute: string
+    period: string
+    totalCost: string
+    allocated: string
+    unallocated: string
+    allocationRate: string
+    allocationDetails: string
+    methods: {
+      equal: string
+      proportional: string
+      usage_based: string
+      tag_based: string
+      custom: string
+    }
+  }
+  
+  // Dashboard View
+  dashboardView: {
+    saveFailed: string
+  }
+  
   // Settings
   settings: {
     title: string
@@ -122,6 +225,45 @@ export interface Translations {
     rules: string
     saveSuccess: string
     saveFailed: string
+    saving: string
+    idleRules: {
+      title: string
+      description: string
+      cpuThreshold: string
+      cpuThresholdDesc: string
+      excludeTags: string
+      excludeTagsDesc: string
+    }
+    notifications: {
+      title: string
+      description: string
+      senderEmail: string
+      senderEmailDesc: string
+      authCode: string
+      qqMailNote: string
+      gmailNote: string
+      qqMailLink: string
+      defaultReceiverEmail: string
+      defaultReceiverEmailDesc: string
+      smtpInfo: string
+      server: string
+      port: string
+    }
+    language: {
+      title: string
+      description: string
+      currentLanguage: string
+      chinese: string
+      english: string
+    }
+    about: {
+      title: string
+      description: string
+      version: string
+      desc: string
+      descriptionText: string
+      platformName: string
+    }
   }
   
   // Date Range
@@ -175,6 +317,9 @@ export interface Translations {
     note: string
     all: string
     waited: string
+    discountUnit: string
+    discountOff: string
+    selectAccountFirst: string
   }
   
   // Advanced Discount Analysis
@@ -250,6 +395,7 @@ export interface Translations {
       annualSavings: string
       consumptionAmount: string
       consumptionPercentage: string
+      totalCost: string
     }
     advanced: {
       movingAverage: string
@@ -266,6 +412,13 @@ export interface Translations {
       monthlyDiscount: string
       rising: string
       falling: string
+      movingAverageDesc: string
+      threeMonthDesc: string
+      sixMonthDesc: string
+      twelveMonthDesc: string
+      trendDesc: string
+      cumulativeSavingsDesc: string
+      dataInsightsDesc: string
     }
   }
   
@@ -280,6 +433,7 @@ export interface Translations {
     costBreakdown: string
     other: string
     viewAndAnalyze: string
+    totalCost: string
   }
   
   // Accounts
@@ -336,6 +490,11 @@ export interface Translations {
     relatedResources: string
     savingsPotential: string
     optimizationSuggestion: string
+    loadingProgress: string
+    analyzingProgress: string
+    loadingProgressDesc: string
+    timeoutMessage: string
+    refresh: string
     unit: string
     perMonth: string
   }
@@ -508,6 +667,36 @@ export interface Translations {
     configureRule: string
     alertType: string
     costThreshold: string
+    ruleName: string
+    description: string
+    severity: string
+    condition: string
+    notificationChannels: string
+    notificationChannelsDesc: string
+    receiverEmail: string
+    receiverEmailDesc: string
+    receiverEmailDescNoDefault: string
+    webhookNotification: string
+    webhookNotificationDesc: string
+    enableRule: string
+    budgetOverspend: string
+    resourceAnomaly: string
+    securityCompliance: string
+    info: string
+    warning: string
+    error: string
+    critical: string
+    totalCost: string
+    dailyCost: string
+    monthlyCost: string
+    greaterThan: string
+    greaterThanOrEqual: string
+    lessThan: string
+    lessThanOrEqual: string
+    notificationChannelsLabel: string
+    noChannelsWarning: string
+    enable: string
+    disable: string
   }
 }
 
@@ -578,6 +767,7 @@ const en: Translations = {
     selectAccount: 'Please Select Account',
     selectAccountDesc: 'Please select a cloud account from the left sidebar',
     goToAccountManagement: 'Go to Account Management',
+    scanFailed: 'Scan failed',
   },
   cost: {
     title: 'Cost Analysis',
@@ -616,6 +806,45 @@ const en: Translations = {
     rules: 'Rules',
     saveSuccess: 'Settings saved successfully!',
     saveFailed: 'Save failed',
+    saving: 'Saving...',
+    idleRules: {
+      title: 'Idle Detection Rules (ECS)',
+      description: 'Define when an instance is considered idle',
+      cpuThreshold: 'CPU Threshold (%)',
+      cpuThresholdDesc: 'Instances with average CPU usage below this value will be marked as idle',
+      excludeTags: 'Exclude Tags (comma-separated)',
+      excludeTagsDesc: 'Resources with these tags will be ignored',
+    },
+    notifications: {
+      title: 'Notification Settings',
+      description: 'Configure email notifications for alerts. SMTP server will be auto-configured based on email type.',
+      senderEmail: 'Sender Email Address',
+      senderEmailDesc: 'Supports QQ Mail, Gmail, 163 Mail, etc. SMTP server will be auto-configured.',
+      authCode: 'Authorization Code / Password',
+      qqMailNote: '• QQ Mail: Enable SMTP service in QQ Mail settings and get authorization code',
+      gmailNote: '• Gmail: Use app-specific password (App Password)',
+      qqMailLink: 'How to get QQ Mail authorization code?',
+      defaultReceiverEmail: 'Default Receiver Email',
+      defaultReceiverEmailDesc: 'Default email address to receive alert notifications. If a rule doesn\'t specify a receiver email, this default will be used.',
+      smtpInfo: 'Auto-configured SMTP settings:',
+      server: 'Server: ',
+      port: 'Port: ',
+    },
+    language: {
+      title: 'Language Settings',
+      description: 'Select interface display language',
+      currentLanguage: 'Current Language',
+      chinese: 'English',
+      english: 'English',
+    },
+    about: {
+      title: 'About',
+      description: 'CloudLens Version Information',
+      version: 'Version',
+      desc: 'Description',
+      descriptionText: 'CloudLens is an enterprise-grade multi-cloud resource governance and analysis tool that helps you optimize cloud resource usage and reduce costs.',
+      platformName: 'Multi-Cloud Resource Governance Platform',
+    },
   },
   dateRange: {
     all: 'All',
@@ -736,6 +965,7 @@ const en: Translations = {
       annualSavings: 'Annual Savings',
       consumptionAmount: 'Consumption Amount',
       consumptionPercentage: 'Consumption Percentage',
+      totalCost: 'Total Cost',
     },
     advanced: {
       movingAverage: 'Discount Rate Moving Average (Smooth Trend)',
@@ -752,6 +982,14 @@ const en: Translations = {
       monthlyDiscount: 'Monthly Discount',
       rising: 'rising',
       falling: 'falling',
+      movingAverageDesc: 'Moving average can smooth short-term fluctuations and show long-term trends:',
+      threeMonthDesc: '3-month moving average: reflects short-term trends',
+      sixMonthDesc: '6-month moving average: reflects medium-term trends',
+      twelveMonthDesc: '12-month moving average: reflects long-term trends',
+      trendDesc: 'shows discount rate',
+      trend: 'trend',
+      cumulativeSavingsDesc: 'cumulative savings',
+      dataInsightsDesc: 'Phase 2 provides deeper trend analysis and data visualization',
     },
   },
   costAnalysis: {
@@ -764,6 +1002,7 @@ const en: Translations = {
     costBreakdown: 'Cost Breakdown',
     other: 'Other',
     viewAndAnalyze: 'View and analyze cloud resource costs',
+    totalCost: 'Total Cost',
   },
   accounts: {
     title: 'Account Management',
@@ -818,6 +1057,11 @@ const en: Translations = {
     optimizationSuggestion: 'Optimization Suggestion',
     unit: '',
     perMonth: '/month',
+    loadingProgress: 'Loading optimization suggestions...',
+    analyzingProgress: 'Analyzing resource usage, this may take 30-60 seconds...',
+    loadingProgressDesc: 'First load may take longer, please wait...',
+    timeoutMessage: 'Calculation takes longer, suggest using cached data or retry later',
+    refresh: 'Refresh',
   },
   budget: {
     title: 'Budget Management',
@@ -980,6 +1224,127 @@ const en: Translations = {
     configureRule: 'Configure alert rules and notification methods',
     alertType: 'Alert Type',
     costThreshold: 'Cost Threshold',
+    ruleName: 'Rule Name',
+    description: 'Description',
+    severity: 'Severity',
+    condition: 'Condition',
+    notificationChannels: 'Notification Channels',
+    notificationChannelsDesc: 'Configure notification methods when alerts are triggered. At least one channel must be configured, otherwise alerts will not be sent.',
+    receiverEmail: '📧 Receiver Email',
+    receiverEmailDesc: 'Leave empty to use default: {email}',
+    receiverEmailDescNoDefault: 'Email address to receive alert notifications. Configure default receiver email in system settings.',
+    webhookNotification: '🔗 Webhook Notification',
+    webhookNotificationDesc: 'A POST request with alert details in JSON format will be sent to this URL when alert is triggered',
+    enableRule: 'Enable this rule',
+    budgetOverspend: 'Budget Overspend',
+    resourceAnomaly: 'Resource Anomaly',
+    securityCompliance: 'Security Compliance',
+    info: 'Info',
+    warning: 'Warning',
+    error: 'Error',
+    critical: 'Critical',
+    totalCost: 'Total Cost',
+    dailyCost: 'Daily Cost',
+    monthlyCost: 'Monthly Cost',
+    greaterThan: 'Greater Than',
+    greaterThanOrEqual: 'Greater Than or Equal',
+    lessThan: 'Less Than',
+    lessThanOrEqual: 'Less Than or Equal',
+    notificationChannelsLabel: 'Notification Channels:',
+    noChannelsWarning: 'No notification channels configured, alerts will not be sent',
+    enable: 'Enable',
+    disable: 'Disable',
+  },
+  customDashboards: {
+    title: 'Custom Dashboards',
+    description: 'Create and manage custom dashboards',
+    noDashboards: 'No custom dashboards yet',
+    noDashboardsDesc: 'Click "Create Dashboard" above to create your first dashboard',
+    noMatchDashboards: 'No matching dashboards found',
+    tryOtherKeywords: 'Try using other keywords to search',
+    createDashboard: 'Create Dashboard',
+    editDashboard: 'Edit Dashboard',
+    searchPlaceholder: 'Search dashboards...',
+    noWidgets: 'No widgets yet, click the button above to add',
+    deleteFailed: 'Delete failed',
+    saveFailed: 'Save failed',
+  },
+  virtualTags: {
+    title: 'Virtual Tags',
+    description: 'Create virtual tags through rule engine for cost allocation and grouping without modifying actual cloud resource tags',
+    noTags: 'No virtual tags yet',
+    noTagsDesc: 'Click "Create Tag" above to create your first virtual tag',
+    noMatchTags: 'No matching tags found',
+    tryOtherKeywords: 'Try other search terms',
+    createTag: 'Create Tag',
+    editTag: 'Edit Tag',
+    searchPlaceholder: 'Search tag name, key or value...',
+    deleteConfirm: 'Are you sure you want to delete this tag?',
+    deleteFailed: 'Delete failed',
+    selectAccountFirst: 'Please select account first',
+    fillRequiredFields: 'Please fill in all required fields',
+    atLeastOneRule: 'At least one valid rule is required',
+    saveFailed: 'Save failed',
+    previewFailed: 'Preview failed',
+    previewMatchingResources: 'Preview Matching Resources',
+    ruleCount: 'Rule Count',
+    priority: 'Priority',
+    moreRules: 'more rules...',
+    configureTagRules: 'Configure tag rules for matching cloud resources',
+    tagName: 'Tag Name',
+    tagKey: 'Tag Key',
+    tagValue: 'Tag Value',
+    priority: 'Priority',
+    priorityDesc: 'Higher numbers have higher priority',
+    field: 'Field',
+    operator: 'Operator',
+    pattern: 'Pattern',
+  },
+  costAllocation: {
+    title: 'Cost Allocation',
+    description: 'Manage cost allocation rules and view allocation results',
+    rules: 'Allocation Rules',
+    results: 'Allocation Results',
+    rulesTitle: 'Cost Allocation Rules',
+    rulesDescription: 'Configure and manage cost allocation rules',
+    noRules: 'No cost allocation rules yet',
+    noRulesDesc: 'Create your first cost allocation rule to allocate shared costs',
+    noResults: 'No allocation results yet',
+    noResultsDesc: 'After executing cost allocation rules, results will be displayed here',
+    createRule: 'Create Rule',
+    editRule: 'Edit Rule',
+    deleteConfirm: 'Are you sure you want to delete this cost allocation rule?',
+    deleteFailed: 'Delete failed',
+    executeSuccess: 'Cost allocation executed successfully',
+    executeFailed: 'Execution failed',
+    saveFailed: 'Save failed',
+    configureRule: 'Configure Cost Allocation Rule',
+    ruleName: 'Rule Name',
+    ruleDescription: 'Description',
+    allocationMethod: 'Allocation Method',
+    allocationTarget: 'Allocation Target',
+    add: 'Add',
+    weight: 'Weight',
+    enableRule: 'Enable this rule',
+    enabled: 'Enabled',
+    disabled: 'Disabled',
+    execute: 'Execute',
+    period: 'Period',
+    totalCost: 'Total Cost',
+    allocated: 'Allocated',
+    unallocated: 'Unallocated',
+    allocationRate: 'Allocation Rate',
+    allocationDetails: 'Allocation Details',
+    methods: {
+      equal: 'Equal Allocation',
+      proportional: 'Proportional Allocation',
+      usage_based: 'Usage-based Allocation',
+      tag_based: 'Tag-based Allocation',
+      custom: 'Custom Rule',
+    },
+  },
+  dashboardView: {
+    saveFailed: 'Save failed',
   },
 }
 
@@ -1050,6 +1415,7 @@ const zh: Translations = {
     selectAccount: '请选择账号',
     selectAccountDesc: '请在左侧侧边栏选择要查看的云账号',
     goToAccountManagement: '前往账号管理',
+    scanFailed: '扫描失败',
   },
   cost: {
     title: '成本分析',
@@ -1088,6 +1454,45 @@ const zh: Translations = {
     rules: '规则',
     saveSuccess: '设置保存成功！',
     saveFailed: '保存失败',
+    saving: '保存中...',
+    idleRules: {
+      title: '闲置检测规则 (ECS)',
+      description: '定义什么情况下判定为闲置实例',
+      cpuThreshold: 'CPU阈值 (%)',
+      cpuThresholdDesc: '平均CPU使用率低于此值的实例将被标记为闲置',
+      excludeTags: '排除标签 (逗号分隔)',
+      excludeTagsDesc: '带有这些标签的资源将被忽略',
+    },
+    notifications: {
+      title: '通知配置',
+      description: '配置邮件通知，用于发送告警通知。系统会根据邮箱类型自动配置SMTP服务器。',
+      senderEmail: '发件邮箱',
+      senderEmailDesc: '支持QQ邮箱、Gmail、163邮箱等。系统会自动配置对应的SMTP服务器。',
+      authCode: '授权码/密码',
+      qqMailNote: '• QQ邮箱：需要在QQ邮箱设置中开启SMTP服务并获取授权码',
+      gmailNote: '• Gmail：需要使用应用专用密码（App Password）',
+      qqMailLink: 'QQ邮箱如何获取授权码？',
+      defaultReceiverEmail: '默认接收邮箱',
+      defaultReceiverEmailDesc: '告警通知的默认接收邮箱。在创建告警规则时，如果没有指定接收邮箱，将使用此默认邮箱。',
+      smtpInfo: '自动配置的SMTP信息：',
+      server: '服务器：',
+      port: '端口：',
+    },
+    language: {
+      title: '语言设置',
+      description: '选择界面显示语言',
+      currentLanguage: '当前语言',
+      chinese: '中文',
+      english: 'English',
+    },
+    about: {
+      title: '关于',
+      description: 'CloudLens 版本信息',
+      version: '版本',
+      desc: '描述',
+      descriptionText: 'CloudLens 是一个企业级多云资源治理与分析工具，帮助您优化云资源使用，降低成本。',
+      platformName: '多云资源治理平台',
+    },
   },
   dateRange: {
     all: '全部',
@@ -1135,6 +1540,9 @@ const zh: Translations = {
     note: '说明：按量付费可能存在未结算金额（PaymentAmount=0），请结合"未结算"与"折后(税前)"理解。',
     all: '全部',
     waited: '已等待 {seconds}s',
+    discountUnit: '折',
+    discountOff: '折',
+    selectAccountFirst: '请先选择账号',
   },
   discountAdvanced: {
     title: '高级折扣分析',
@@ -1208,6 +1616,7 @@ const zh: Translations = {
       annualSavings: '年节省',
       consumptionAmount: '消费金额',
       consumptionPercentage: '消费占比',
+      totalCost: '总成本',
     },
     advanced: {
       movingAverage: '折扣率移动平均（平滑趋势）',
@@ -1224,6 +1633,14 @@ const zh: Translations = {
       monthlyDiscount: '月度折扣',
       rising: '上升',
       falling: '下降',
+      movingAverageDesc: '移动平均可以平滑短期波动，显示长期趋势：',
+      threeMonthDesc: '3月移动平均：反映短期趋势',
+      sixMonthDesc: '6月移动平均：反映中期趋势',
+      twelveMonthDesc: '12月移动平均：反映长期趋势',
+      trendDesc: '显示折扣率整体',
+      trend: '趋势',
+      cumulativeSavingsDesc: '累计节省',
+      dataInsightsDesc: 'Phase 2提供更深入的趋势分析和数据可视化',
     },
   },
   costAnalysis: {
@@ -1236,6 +1653,7 @@ const zh: Translations = {
     costBreakdown: '成本构成',
     other: '其他',
     viewAndAnalyze: '查看和分析云资源成本',
+    totalCost: '总成本',
   },
   accounts: {
     title: '账号管理',
@@ -1290,6 +1708,11 @@ const zh: Translations = {
     optimizationSuggestion: '优化建议',
     unit: '个',
     perMonth: '/月',
+    loadingProgress: '正在加载优化建议...',
+    analyzingProgress: '正在分析资源使用情况，这可能需要30-60秒...',
+    loadingProgressDesc: '首次加载可能需要较长时间，请耐心等待...',
+    timeoutMessage: '计算时间较长，建议使用缓存数据或稍后重试',
+    refresh: '刷新',
   },
   budget: {
     title: '预算管理',
@@ -1452,6 +1875,130 @@ const zh: Translations = {
     configureRule: '配置告警规则和通知方式',
     alertType: '告警类型',
     costThreshold: '成本阈值',
+    ruleName: '规则名称',
+    description: '描述',
+    severity: '严重程度',
+    condition: '条件',
+    notificationChannels: '通知渠道配置',
+    notificationChannelsDesc: '配置告警触发时的通知方式。至少需要配置一个通知渠道，否则告警将不会发送。',
+    receiverEmail: '📧 接收邮箱',
+    receiverEmailDesc: '留空将使用默认接收邮箱：{email}',
+    receiverEmailDescNoDefault: '告警通知的接收邮箱。可在系统设置中配置默认接收邮箱。',
+    webhookNotification: '🔗 Webhook通知',
+    webhookNotificationDesc: '告警触发时会向此URL发送POST请求，包含告警详情JSON数据',
+    enableRule: '启用此规则',
+    budgetOverspend: '预算超支',
+    resourceAnomaly: '资源异常',
+    securityCompliance: '安全合规',
+    info: '信息',
+    warning: '警告',
+    error: '错误',
+    critical: '严重',
+    totalCost: '总成本',
+    dailyCost: '日成本',
+    monthlyCost: '月成本',
+    greaterThan: '大于',
+    greaterThanOrEqual: '大于等于',
+    lessThan: '小于',
+    lessThanOrEqual: '小于等于',
+    notificationChannelsLabel: '通知渠道:',
+    noChannelsWarning: '未配置通知渠道，告警将不会发送',
+    enable: '启用',
+    disable: '禁用',
+  },
+  customDashboards: {
+    title: '自定义仪表盘',
+    description: '创建和管理自定义仪表盘，灵活配置数据展示',
+    noDashboards: '还没有自定义仪表盘',
+    noDashboardsDesc: '点击上方"新建仪表盘"按钮创建第一个仪表盘',
+    noMatchDashboards: '未找到匹配的仪表盘',
+    tryOtherKeywords: '尝试使用其他关键词搜索',
+    createDashboard: '新建仪表盘',
+    editDashboard: '编辑仪表盘',
+    searchPlaceholder: '搜索仪表盘...',
+    noWidgets: '暂无组件，点击上方按钮添加',
+    deleteFailed: '删除失败',
+    saveFailed: '保存失败',
+  },
+  virtualTags: {
+    title: '虚拟标签管理',
+    description: '通过规则引擎创建虚拟标签，用于成本分配和分组，无需修改云资源实际标签',
+    noTags: '暂无虚拟标签',
+    noTagsDesc: '点击上方"新建标签"按钮创建第一个标签',
+    noMatchTags: '未找到匹配的标签',
+    tryOtherKeywords: '尝试其他搜索词',
+    createTag: '新建标签',
+    editTag: '编辑标签',
+    searchPlaceholder: '搜索标签名称、key或value...',
+    deleteConfirm: '确定要删除这个标签吗？',
+    deleteFailed: '删除失败',
+    selectAccountFirst: '请先选择账号',
+    fillRequiredFields: '请填写所有必填字段',
+    atLeastOneRule: '至少需要一个有效的规则',
+    saveFailed: '保存失败',
+    previewFailed: '预览失败',
+    previewMatchingResources: '预览匹配资源',
+    ruleCount: '规则数量',
+    priority: '优先级',
+    moreRules: '更多规则...',
+    configureTagRules: '配置标签规则，用于匹配云资源',
+    tagName: '标签名称',
+    tagKey: '标签Key',
+    tagValue: '标签Value',
+    priority: '优先级',
+    priorityDesc: '数字越大优先级越高',
+    field: '字段',
+    operator: '操作符',
+    pattern: '模式',
+    matchingRules: '匹配规则',
+    addRule: '添加规则',
+    rule: '规则',
+  },
+  costAllocation: {
+    title: '成本分配',
+    description: '管理成本分配规则和查看分配结果',
+    rules: '分配规则',
+    results: '分配结果',
+    rulesTitle: '成本分配规则',
+    rulesDescription: '配置和管理成本分配规则',
+    noRules: '暂无成本分配规则',
+    noRulesDesc: '创建第一个成本分配规则来分配共享成本',
+    noResults: '暂无分配结果',
+    noResultsDesc: '执行成本分配规则后，结果将显示在这里',
+    createRule: '新建分配规则',
+    editRule: '编辑分配规则',
+    deleteConfirm: '确定要删除此成本分配规则吗？',
+    deleteFailed: '删除失败',
+    executeSuccess: '成本分配执行成功',
+    executeFailed: '执行失败',
+    saveFailed: '保存失败',
+    configureRule: '配置成本分配规则',
+    ruleName: '规则名称',
+    ruleDescription: '描述',
+    allocationMethod: '分配方法',
+    allocationTarget: '分配目标',
+    add: '添加',
+    weight: '权重',
+    enableRule: '启用此规则',
+    enabled: '已启用',
+    disabled: '已禁用',
+    execute: '执行',
+    period: '周期',
+    totalCost: '总成本',
+    allocated: '已分配',
+    unallocated: '未分配',
+    allocationRate: '分配率',
+    allocationDetails: '分配明细',
+    methods: {
+      equal: '平均分配',
+      proportional: '按比例分配',
+      usage_based: '按使用量分配',
+      tag_based: '按标签分配',
+      custom: '自定义规则',
+    },
+  },
+  dashboardView: {
+    saveFailed: '保存失败',
   },
 }
 

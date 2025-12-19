@@ -13,6 +13,7 @@ import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api"
 import { Plus, Edit, Trash2, Bell, CheckCircle, XCircle, AlertTriangle, Info } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
+import { toastError, toastSuccess, toastInfo } from "@/components/ui/toast"
 
 interface AlertRule {
   id: string
@@ -107,7 +108,7 @@ export default function AlertsPage() {
         await fetchData()
       }
     } catch (e) {
-      alert(t.alerts.updateFailed)
+      toastError(t.alerts.updateFailed)
       console.error("Failed to toggle rule:", e)
     }
   }
@@ -117,14 +118,14 @@ export default function AlertsPage() {
       const response = await apiPost(`/alerts/rules/${ruleId}/check`, {}, { account: currentAccount })
       if (response.success) {
         if (response.triggered) {
-          alert(`${t.alerts.alertTriggered}: ${response.data.title}`)
+          toastInfo(`${t.alerts.alertTriggered}: ${response.data.title}`)
         } else {
-          alert(t.alerts.alertNotTriggered)
+          toastInfo(t.alerts.alertNotTriggered)
         }
         await fetchData()
       }
     } catch (e) {
-      alert(t.alerts.checkFailed)
+      toastError(t.alerts.checkFailed)
       console.error("Failed to check rule:", e)
     }
   }
@@ -136,7 +137,7 @@ export default function AlertsPage() {
         await fetchData()
       }
     } catch (e) {
-      alert(t.alerts.updateFailed)
+      toastError(t.alerts.updateFailed)
       console.error("Failed to update alert status:", e)
     }
   }
@@ -287,7 +288,7 @@ export default function AlertsPage() {
                         {/* 显示通知渠道 */}
                         {(rule.notify_email || rule.notify_webhook || rule.notify_sms) && (
                           <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                            <span className="font-medium">{t.locale === 'zh' ? '通知渠道:' : 'Notification Channels:'}</span>
+                            <span className="font-medium">{t.alerts.notificationChannelsLabel}</span>
                             {rule.notify_email && (
                               <Badge variant="outline" className="text-xs">
                                 📧 {rule.notify_email}
@@ -307,7 +308,7 @@ export default function AlertsPage() {
                         )}
                         {!rule.notify_email && !rule.notify_webhook && !rule.notify_sms && (
                           <div className="mt-2 text-xs text-yellow-600 dark:text-yellow-400">
-                            ⚠️ {t.locale === 'zh' ? '未配置通知渠道，告警将不会发送' : 'No notification channels configured, alerts will not be sent'}
+                            ⚠️ {t.alerts.noChannelsWarning}
                           </div>
                         )}
                       </div>
@@ -324,7 +325,7 @@ export default function AlertsPage() {
                           size="sm"
                           onClick={() => handleToggleRule(rule)}
                         >
-                          {rule.enabled ? (t.locale === 'zh' ? '禁用' : 'Disable') : (t.locale === 'zh' ? '启用' : 'Enable')}
+                          {rule.enabled ? t.alerts.disable : t.alerts.enable}
                         </Button>
                         <Button
                           variant="outline"
@@ -514,7 +515,7 @@ function AlertRuleEditor({
 
       onSave()
     } catch (e) {
-      alert(t.settings.saveFailed)
+      toastError(t.settings.saveFailed)
       console.error("Failed to save rule:", e)
     }
   }
@@ -529,7 +530,7 @@ function AlertRuleEditor({
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="text-sm font-medium mb-2 block">{t.locale === 'zh' ? '规则名称' : 'Rule Name'}</label>
+              <label className="text-sm font-medium mb-2 block">{t.alerts.ruleName}</label>
               <input
                 type="text"
                 value={name}
@@ -540,7 +541,7 @@ function AlertRuleEditor({
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">{t.locale === 'zh' ? '描述' : 'Description'}</label>
+              <label className="text-sm font-medium mb-2 block">{t.alerts.description}</label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -558,23 +559,23 @@ function AlertRuleEditor({
                   className="w-full px-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                 >
                   <option value="cost_threshold">{t.alerts.costThreshold}</option>
-                  <option value="budget_overspend">{t.locale === 'zh' ? '预算超支' : 'Budget Overspend'}</option>
-                  <option value="resource_anomaly">{t.locale === 'zh' ? '资源异常' : 'Resource Anomaly'}</option>
-                  <option value="security_compliance">{t.locale === 'zh' ? '安全合规' : 'Security Compliance'}</option>
+                  <option value="budget_overspend">{t.alerts.budgetOverspend}</option>
+                  <option value="resource_anomaly">{t.alerts.resourceAnomaly}</option>
+                  <option value="security_compliance">{t.alerts.securityCompliance}</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 block">{t.locale === 'zh' ? '严重程度' : 'Severity'}</label>
+                <label className="text-sm font-medium mb-2 block">{t.alerts.severity}</label>
                 <select
                   value={severity}
                   onChange={(e) => setSeverity(e.target.value)}
                   className="w-full px-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                 >
-                  <option value="info">{t.locale === 'zh' ? '信息' : 'Info'}</option>
-                  <option value="warning">{t.locale === 'zh' ? '警告' : 'Warning'}</option>
-                  <option value="error">{t.locale === 'zh' ? '错误' : 'Error'}</option>
-                  <option value="critical">{t.locale === 'zh' ? '严重' : 'Critical'}</option>
+                  <option value="info">{t.alerts.info}</option>
+                  <option value="warning">{t.alerts.warning}</option>
+                  <option value="error">{t.alerts.error}</option>
+                  <option value="critical">{t.alerts.critical}</option>
                 </select>
               </div>
             </div>
@@ -589,23 +590,23 @@ function AlertRuleEditor({
                       onChange={(e) => setMetric(e.target.value)}
                       className="w-full px-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                     >
-                      <option value="total_cost">{t.locale === 'zh' ? '总成本' : 'Total Cost'}</option>
-                      <option value="daily_cost">{t.locale === 'zh' ? '日成本' : 'Daily Cost'}</option>
-                      <option value="monthly_cost">{t.locale === 'zh' ? '月成本' : 'Monthly Cost'}</option>
+                      <option value="total_cost">{t.alerts.totalCost}</option>
+                      <option value="daily_cost">{t.alerts.dailyCost}</option>
+                      <option value="monthly_cost">{t.alerts.monthlyCost}</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium mb-2 block">{t.locale === 'zh' ? '条件' : 'Condition'}</label>
+                    <label className="text-sm font-medium mb-2 block">{t.alerts.condition}</label>
                     <select
                       value={condition}
                       onChange={(e) => setCondition(e.target.value)}
                       className="w-full px-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                     >
-                      <option value="gt">{t.locale === 'zh' ? '大于' : 'Greater Than'}</option>
-                      <option value="gte">{t.locale === 'zh' ? '大于等于' : 'Greater Than or Equal'}</option>
-                      <option value="lt">{t.locale === 'zh' ? '小于' : 'Less Than'}</option>
-                      <option value="lte">{t.locale === 'zh' ? '小于等于' : 'Less Than or Equal'}</option>
+                      <option value="gt">{t.alerts.greaterThan}</option>
+                      <option value="gte">{t.alerts.greaterThanOrEqual}</option>
+                      <option value="lt">{t.alerts.lessThan}</option>
+                      <option value="lte">{t.alerts.lessThanOrEqual}</option>
                     </select>
                   </div>
                 </div>
@@ -625,39 +626,33 @@ function AlertRuleEditor({
             )}
 
             <div className="border-t pt-4">
-              <h3 className="text-lg font-semibold mb-3">{t.locale === 'zh' ? '通知渠道配置' : 'Notification Channels'}</h3>
+              <h3 className="text-lg font-semibold mb-3">{t.alerts.notificationChannels}</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                {t.locale === 'zh' 
-                  ? '配置告警触发时的通知方式。至少需要配置一个通知渠道，否则告警将不会发送。'
-                  : 'Configure notification methods when alerts are triggered. At least one channel must be configured, otherwise alerts will not be sent.'}
+                {t.alerts.notificationChannelsDesc}
               </p>
               
               <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">
-                {t.locale === 'zh' ? '📧 接收邮箱' : '📧 Receiver Email'}
-              </label>
-              <input
-                type="email"
-                value={notifyEmail}
-                onChange={(e) => setNotifyEmail(e.target.value)}
-                placeholder={defaultReceiverEmail || "example@example.com"}
-                className="w-full px-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                {t.locale === 'zh' 
-                  ? defaultReceiverEmail 
-                    ? `留空将使用默认接收邮箱：${defaultReceiverEmail}`
-                    : '告警通知的接收邮箱。可在系统设置中配置默认接收邮箱。'
-                  : defaultReceiverEmail
-                    ? `Leave empty to use default: ${defaultReceiverEmail}`
-                    : 'Email address to receive alert notifications. Configure default receiver email in system settings.'}
-              </p>
-            </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    {t.alerts.receiverEmail}
+                  </label>
+                  <input
+                    type="email"
+                    value={notifyEmail}
+                    onChange={(e) => setNotifyEmail(e.target.value)}
+                    placeholder={defaultReceiverEmail || "example@example.com"}
+                    className="w-full px-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {defaultReceiverEmail 
+                      ? t.alerts.receiverEmailDesc.replace('{email}', defaultReceiverEmail)
+                      : t.alerts.receiverEmailDescNoDefault}
+                  </p>
+                </div>
 
                 <div>
                   <label className="text-sm font-medium mb-2 block">
-                    {t.locale === 'zh' ? '🔗 Webhook通知' : '🔗 Webhook Notification'}
+                    {t.alerts.webhookNotification}
                   </label>
                   <input
                     type="url"
@@ -667,9 +662,7 @@ function AlertRuleEditor({
                     className="w-full px-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    {t.locale === 'zh' 
-                      ? '告警触发时会向此URL发送POST请求，包含告警详情JSON数据'
-                      : 'A POST request with alert details in JSON format will be sent to this URL when alert is triggered'}
+                    {t.alerts.webhookNotificationDesc}
                   </p>
                 </div>
               </div>
@@ -683,7 +676,7 @@ function AlertRuleEditor({
                 onChange={(e) => setEnabled(e.target.checked)}
               />
               <label htmlFor="enabled" className="text-sm font-medium">
-                {t.locale === 'zh' ? '启用此规则' : 'Enable this rule'}
+                {t.alerts.enableRule}
               </label>
             </div>
 

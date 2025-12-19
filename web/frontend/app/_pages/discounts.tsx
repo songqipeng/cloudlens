@@ -54,7 +54,7 @@ export default function DiscountsPage() {
   const fmtZhe = (z: number | null | undefined, free?: boolean) => {
     if (free) return t.discounts.free
     if (z === null || z === undefined || !Number.isFinite(z)) return "-"
-    return `${Number(z).toFixed(1)}${t.locale === 'zh' ? '折' : ' off'}`
+    return `${Number(z).toFixed(1)}${t.discounts.discountUnit}`
   }
 
   const typeLabel = (tType: string) => {

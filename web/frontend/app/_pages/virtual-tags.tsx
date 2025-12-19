@@ -29,6 +29,7 @@ interface VirtualTag {
 
 export default function VirtualTagsPage() {
   const { currentAccount } = useAccount()
+  const { t } = useLocale()
   const [tags, setTags] = useState<VirtualTag[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -54,7 +55,7 @@ export default function VirtualTagsPage() {
   }
 
   const handleDelete = async (tagId: string) => {
-    if (!confirm("确定要删除这个标签吗？")) return
+    if (!confirm(t.virtualTags.deleteConfirm)) return
     
     try {
       const response = await apiDelete(`/virtual-tags/${tagId}`)
@@ -62,13 +63,13 @@ export default function VirtualTagsPage() {
         await fetchTags()
       }
     } catch (e) {
-      alert("删除失败")
+      toastError(t.virtualTags.deleteFailed)
     }
   }
 
   const handlePreview = async (tagId: string) => {
     if (!currentAccount) {
-      alert("请先选择账号")
+      toastError(t.virtualTags.selectAccountFirst)
       return
     }
     
@@ -86,7 +87,7 @@ export default function VirtualTagsPage() {
       <DashboardLayout>
         <div className="p-6 md:p-8 max-w-[1600px] mx-auto">
           <div className="flex items-center justify-center min-h-[400px]">
-            <div className="animate-pulse text-muted-foreground">加载中...</div>
+            <div className="animate-pulse text-muted-foreground">{t.common.loading}</div>
           </div>
         </div>
       </DashboardLayout>
@@ -99,9 +100,9 @@ export default function VirtualTagsPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">虚拟标签管理</h1>
+            <h1 className="text-3xl font-bold tracking-tight">{t.virtualTags.title}</h1>
             <p className="text-muted-foreground mt-1">
-              通过规则引擎创建虚拟标签，用于成本分配和分组，无需修改云资源实际标签
+              {t.virtualTags.description}
             </p>
           </div>
           <Button
@@ -109,7 +110,7 @@ export default function VirtualTagsPage() {
             className="flex items-center gap-2"
           >
             <Plus className="h-4 w-4" />
-            新建标签
+            {t.virtualTags.createTag}
           </Button>
         </div>
 
@@ -118,7 +119,7 @@ export default function VirtualTagsPage() {
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
-            placeholder="搜索标签名称、key或value..."
+            placeholder={t.virtualTags.searchPlaceholder}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-200"
@@ -131,10 +132,10 @@ export default function VirtualTagsPage() {
             <CardContent className="py-12">
               <div className="text-center text-muted-foreground">
                 <p className="text-lg font-medium mb-2">
-                  {searchTerm ? "未找到匹配的标签" : "暂无虚拟标签"}
+                  {searchTerm ? t.virtualTags.noMatchTags : t.virtualTags.noTags}
                 </p>
                 <p className="text-sm">
-                  {searchTerm ? "尝试其他搜索词" : '点击上方"新建标签"按钮创建第一个标签'}
+                  {searchTerm ? t.virtualTags.tryOtherKeywords : t.virtualTags.noTagsDesc}
                 </p>
               </div>
             </CardContent>
@@ -159,7 +160,7 @@ export default function VirtualTagsPage() {
                         size="icon"
                         className="h-8 w-8"
                         onClick={() => handlePreview(tag.id)}
-                        title="预览匹配资源"
+                        title={t.virtualTags.previewMatchingResources}
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
@@ -168,7 +169,7 @@ export default function VirtualTagsPage() {
                         size="icon"
                         className="h-8 w-8"
                         onClick={() => setEditingTag(tag)}
-                        title="编辑标签"
+                        title={t.virtualTags.editTag}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -177,7 +178,7 @@ export default function VirtualTagsPage() {
                         size="icon"
                         className="h-8 w-8 text-destructive hover:text-destructive"
                         onClick={() => handleDelete(tag.id)}
-                        title="删除标签"
+                        title={t.common.delete}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -187,7 +188,7 @@ export default function VirtualTagsPage() {
                 <CardContent>
                   <div className="space-y-2">
                     <div className="text-xs text-muted-foreground">
-                      规则数量: <span className="font-semibold text-foreground">{tag.rules.length}</span>
+                      {t.virtualTags.ruleCount}: <span className="font-semibold text-foreground">{tag.rules.length}</span>
                     </div>
                     {tag.rules.length > 0 && (
                       <div className="text-xs space-y-1">
@@ -197,13 +198,13 @@ export default function VirtualTagsPage() {
                           </div>
                         ))}
                         {tag.rules.length > 2 && (
-                          <div className="text-muted-foreground">+{tag.rules.length - 2} 更多规则...</div>
+                          <div className="text-muted-foreground">+{tag.rules.length - 2} {t.virtualTags.moreRules}</div>
                         )}
                       </div>
                     )}
                     {tag.priority > 0 && (
                       <div className="text-xs text-muted-foreground">
-                        优先级: <span className="font-semibold text-foreground">{tag.priority}</span>
+                        {t.virtualTags.priority}: <span className="font-semibold text-foreground">{tag.priority}</span>
                       </div>
                     )}
                   </div>
@@ -251,12 +252,12 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
 
   const handleSave = async () => {
     if (!formData.name || !formData.tag_key || !formData.tag_value) {
-      alert("请填写所有必填字段")
+      toastError(t.virtualTags.fillRequiredFields)
       return
     }
 
     if (rules.length === 0 || rules.some(r => !r.pattern)) {
-      alert("至少需要一个有效的规则")
+      toastError(t.virtualTags.atLeastOneRule)
       return
     }
 
@@ -307,14 +308,14 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <CardHeader>
-          <CardTitle>{tag.id ? "编辑标签" : "新建标签"}</CardTitle>
-          <CardDescription>配置标签规则，用于匹配云资源</CardDescription>
+          <CardTitle>{tag.id ? t.virtualTags.editTag : t.virtualTags.createTag}</CardTitle>
+          <CardDescription>{t.virtualTags.configureTagRules}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* 基本信息 */}
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">标签名称 *</label>
+              <label className="text-sm font-medium mb-2 block">{t.virtualTags.tagName} *</label>
               <input
                 type="text"
                 value={formData.name}
@@ -325,7 +326,7 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium mb-2 block">标签Key *</label>
+                <label className="text-sm font-medium mb-2 block">{t.virtualTags.tagKey} *</label>
                 <input
                   type="text"
                   value={formData.tag_key}
@@ -335,7 +336,7 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
                 />
               </div>
               <div>
-                <label className="text-sm font-medium mb-2 block">标签Value *</label>
+                <label className="text-sm font-medium mb-2 block">{t.virtualTags.tagValue} *</label>
                 <input
                   type="text"
                   value={formData.tag_value}
@@ -346,7 +347,7 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium mb-2 block">优先级</label>
+              <label className="text-sm font-medium mb-2 block">{t.virtualTags.priority}</label>
               <input
                 type="number"
                 value={formData.priority}
@@ -354,23 +355,23 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
                 className="w-full px-4 py-2 rounded-lg border border-input/50 bg-background focus:ring-2 focus:ring-primary/50 focus:border-primary"
                 placeholder="0"
               />
-              <p className="text-xs text-muted-foreground mt-1">数字越大优先级越高</p>
+              <p className="text-xs text-muted-foreground mt-1">{t.virtualTags.priorityDesc}</p>
             </div>
           </div>
 
           {/* 规则列表 */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">匹配规则 *</label>
+              <label className="text-sm font-medium">{t.virtualTags.matchingRules} *</label>
               <Button variant="outline" size="sm" onClick={addRule}>
                 <Plus className="h-3 w-3 mr-1" />
-                添加规则
+                {t.virtualTags.addRule}
               </Button>
             </div>
             {rules.map((rule, index) => (
               <div key={index} className="p-4 border border-border/50 rounded-lg space-y-3 bg-muted/20">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">规则 {index + 1}</span>
+                  <span className="text-sm font-medium">{t.virtualTags.rule} {index + 1}</span>
                   {rules.length > 1 && (
                     <Button variant="ghost" size="sm" onClick={() => removeRule(index)}>
                       <Trash2 className="h-3 w-3" />
@@ -379,7 +380,7 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">字段</label>
+                    <label className="text-xs text-muted-foreground mb-1 block">{t.virtualTags.field}</label>
                     <select
                       value={rule.field}
                       onChange={(e) => updateRule(index, "field", e.target.value)}
@@ -392,7 +393,7 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">操作符</label>
+                    <label className="text-xs text-muted-foreground mb-1 block">{t.virtualTags.operator}</label>
                     <select
                       value={rule.operator}
                       onChange={(e) => updateRule(index, "operator", e.target.value)}
@@ -406,7 +407,7 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">匹配模式</label>
+                    <label className="text-xs text-muted-foreground mb-1 block">{t.virtualTags.pattern}</label>
                     <input
                       type="text"
                       value={rule.pattern}
@@ -462,7 +463,7 @@ function TagPreview({ tagId, account, onClose }: { tagId: string; account: strin
       }
     } catch (e) {
       console.error("Failed to fetch preview:", e)
-      alert("预览失败")
+      toastError(t.virtualTags.previewFailed)
     } finally {
       setLoading(false)
     }
@@ -496,7 +497,7 @@ function TagPreview({ tagId, account, onClose }: { tagId: string; account: strin
         <CardContent className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-pulse text-muted-foreground">加载中...</div>
+              <div className="animate-pulse text-muted-foreground">{t.common.loading}</div>
             </div>
           ) : previewData ? (
             <div className="space-y-4">

@@ -9,6 +9,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
+import { toastError } from "@/components/ui/toast"
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
@@ -19,9 +20,11 @@ export default function DashboardPage() {
   const [scanning, setScanning] = useState(false)
   const { currentAccount } = useAccount()
 
+  const { t } = useLocale()
+
   async function handleScan() {
     if (!currentAccount) {
-      alert("请先选择账号")
+      toastError(t.dashboard.selectAccount)
       return
     }
 
@@ -41,7 +44,7 @@ export default function DashboardPage() {
       window.location.reload()
     } catch (e) {
       console.error(e)
-      alert("Scan failed: " + String(e))
+      toastError(t.dashboard.scanFailed + ": " + String(e))
       setScanning(false)
     }
   }
@@ -93,8 +96,6 @@ export default function DashboardPage() {
 
     fetchData()
   }, [currentAccount])
-
-  const { t } = useLocale()
 
   if (!currentAccount) {
     return (

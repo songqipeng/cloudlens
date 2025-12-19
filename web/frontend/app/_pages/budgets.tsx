@@ -11,6 +11,7 @@ import { Plus, Edit, Trash2, TrendingUp, AlertTriangle, Calendar, DollarSign, Se
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
+import { toastError, toastSuccess } from "@/components/ui/toast"
 
 interface AlertThreshold {
   percentage: number
@@ -125,7 +126,7 @@ export default function BudgetsPage() {
         setTrendData(newTrend)
       }
     } catch (e) {
-      alert(t.budget.deleteFailed)
+      toastError(t.budget.deleteFailed)
       console.error("Failed to delete budget:", e)
     }
   }
@@ -149,20 +150,20 @@ export default function BudgetsPage() {
       // 检查响应
       if (response && response.success) {
         // 成功提示
-        const successMsg = t.budget?.saveSuccess || "预算保存成功"
-        alert(successMsg)
+        const successMsg = t.budget?.saveSuccess || t.budget.saveSuccess
+        toastSuccess(successMsg)
         await fetchBudgets()
         setShowEditor(false)
         setEditingBudget(null)
       } else {
         // 即使没有 success 字段，如果响应存在也认为成功（兼容性处理）
-        const errorMsg = response?.message || response?.detail || "保存失败：未知错误"
+        const errorMsg = response?.message || response?.detail || t.budget.saveFailed
         console.warn("预算保存响应异常:", response)
-        alert(errorMsg)
+        toastError(errorMsg)
       }
     } catch (e: any) {
-      const errorMsg = e?.message || e?.toString() || t.budget?.saveFailed || "保存失败"
-      alert(`${t.budget?.saveFailed || "保存失败"}: ${errorMsg}`)
+      const errorMsg = e?.message || e?.toString() || t.budget.saveFailed
+      toastError(`${t.budget.saveFailed}: ${errorMsg}`)
       console.error("Failed to save budget:", e)
     } finally {
       setSaving(false)

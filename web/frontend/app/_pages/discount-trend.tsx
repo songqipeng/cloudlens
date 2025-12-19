@@ -286,7 +286,7 @@ export default function DiscountTrendPage() {
         <div className="flex items-center justify-center h-[50vh]">
           <div className="text-center space-y-4">
             <AlertCircle className="w-12 h-12 mx-auto text-muted-foreground" />
-            <p className="text-muted-foreground">请先选择账号</p>
+            <p className="text-muted-foreground">{t.discounts.selectAccountFirst}</p>
           </div>
         </div>
       </DashboardLayout>

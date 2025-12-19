@@ -5,10 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useAccount } from "@/contexts/account-context"
+import { useLocale } from "@/contexts/locale-context"
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api"
 import { Plus, Edit, Trash2, Layout, Share2, Search, Settings } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
+import { toastError, toastSuccess } from "@/components/ui/toast"
 
 interface WidgetConfig {
   id: string
@@ -34,6 +36,7 @@ interface Dashboard {
 
 export default function CustomDashboardsPage() {
   const { currentAccount } = useAccount()
+  const { t } = useLocale()
   const [dashboards, setDashboards] = useState<Dashboard[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -67,7 +70,7 @@ export default function CustomDashboardsPage() {
         setDashboards(dashboards.filter(d => d.id !== dashboardId))
       }
     } catch (e) {
-      alert("删除失败")
+      toastError(t.customDashboards.deleteFailed)
       console.error("Failed to delete dashboard:", e)
     }
   }
@@ -89,7 +92,7 @@ export default function CustomDashboardsPage() {
         }
       }
     } catch (e) {
-      alert("保存失败")
+      toastError(t.customDashboards.saveFailed)
       console.error("Failed to save dashboard:", e)
     }
   }
@@ -114,8 +117,8 @@ export default function CustomDashboardsPage() {
       <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">自定义仪表盘</h2>
-            <p className="text-muted-foreground mt-1">创建和管理自定义仪表盘，灵活配置数据展示</p>
+            <h2 className="text-3xl font-bold tracking-tight">{t.customDashboards.title}</h2>
+            <p className="text-muted-foreground mt-1">{t.customDashboards.description}</p>
           </div>
           <Button
             onClick={() => {
@@ -125,7 +128,7 @@ export default function CustomDashboardsPage() {
             className="gap-2"
           >
             <Plus className="h-4 w-4" />
-            新建仪表盘
+            {t.customDashboards.createDashboard}
           </Button>
         </div>
 
@@ -134,7 +137,7 @@ export default function CustomDashboardsPage() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
-            placeholder="搜索仪表盘..."
+            placeholder={t.customDashboards.searchPlaceholder}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
@@ -144,8 +147,8 @@ export default function CustomDashboardsPage() {
         {filteredDashboards.length === 0 ? (
           <EmptyState
             icon={<Layout className="w-16 h-16" />}
-            title={searchTerm ? "未找到匹配的仪表盘" : "还没有自定义仪表盘"}
-            description={searchTerm ? "尝试使用其他关键词搜索" : "点击上方\"新建仪表盘\"按钮创建第一个仪表盘"}
+            title={searchTerm ? t.customDashboards.noMatchDashboards : t.customDashboards.noDashboards}
+            description={searchTerm ? t.customDashboards.tryOtherKeywords : t.customDashboards.noDashboardsDesc}
           />
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -308,7 +311,7 @@ function DashboardEditor({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         <CardHeader>
-          <CardTitle>{dashboard ? "编辑仪表盘" : "新建仪表盘"}</CardTitle>
+          <CardTitle>{dashboard ? t.customDashboards.editDashboard : t.customDashboards.createDashboard}</CardTitle>
           <CardDescription>配置仪表盘信息和组件</CardDescription>
         </CardHeader>
         <CardContent>
@@ -403,7 +406,7 @@ function DashboardEditor({
                 ))}
                 {widgets.length === 0 && (
                   <div className="text-sm text-muted-foreground text-center py-4">
-                    暂无组件，点击上方按钮添加
+                    {t.customDashboards.noWidgets}
                   </div>
                 )}
               </div>

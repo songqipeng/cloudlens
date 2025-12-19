@@ -6,11 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useAccount } from "@/contexts/account-context"
+import { useLocale } from "@/contexts/locale-context"
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api"
 import { Plus, Edit, Trash2, Play, TrendingUp, DollarSign, PieChart } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts"
+import { toastError, toastSuccess } from "@/components/ui/toast"
 
 interface AllocationRule {
   id: string
@@ -41,6 +43,7 @@ interface AllocationResult {
 
 export default function CostAllocationPage() {
   const { currentAccount } = useAccount()
+  const { t } = useLocale()
   const [rules, setRules] = useState<AllocationRule[]>([])
   const [results, setResults] = useState<AllocationResult[]>([])
   const [loading, setLoading] = useState(true)
@@ -74,7 +77,7 @@ export default function CostAllocationPage() {
   }
 
   const handleDeleteRule = async (ruleId: string) => {
-    if (!confirm("确定要删除此成本分配规则吗？")) {
+    if (!confirm(t.costAllocation.deleteConfirm)) {
       return
     }
 
@@ -84,7 +87,7 @@ export default function CostAllocationPage() {
         await fetchData()
       }
     } catch (e) {
-      alert("删除失败")
+      toastError(t.costAllocation.deleteFailed)
       console.error("Failed to delete rule:", e)
     }
   }
@@ -93,22 +96,22 @@ export default function CostAllocationPage() {
     try {
       const response = await apiPost(`/cost-allocation/rules/${ruleId}/execute`, {}, { account: currentAccount })
       if (response.success) {
-        alert("成本分配执行成功")
+        toastSuccess(t.costAllocation.executeSuccess)
         await fetchData()
       }
     } catch (e) {
-      alert("执行失败")
+      toastError(t.costAllocation.executeFailed)
       console.error("Failed to execute rule:", e)
     }
   }
 
   const getMethodLabel = (method: string) => {
     const labels: Record<string, string> = {
-      equal: "平均分配",
-      proportional: "按比例分配",
-      usage_based: "按使用量分配",
-      tag_based: "按标签分配",
-      custom: "自定义规则"
+      equal: t.costAllocation.methods.equal,
+      proportional: t.costAllocation.methods.proportional,
+      usage_based: t.costAllocation.methods.usage_based,
+      tag_based: t.costAllocation.methods.tag_based,
+      custom: t.costAllocation.methods.custom
     }
     return labels[method] || method
   }
@@ -130,12 +133,12 @@ export default function CostAllocationPage() {
         {/* 头部 */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">成本分配</h2>
-            <p className="text-muted-foreground mt-1">管理成本分配规则和查看分配结果</p>
+            <h2 className="text-3xl font-bold tracking-tight">{t.costAllocation.title}</h2>
+            <p className="text-muted-foreground mt-1">{t.costAllocation.description}</p>
           </div>
           <Button onClick={() => setEditingRule({} as AllocationRule)}>
             <Plus className="h-4 w-4 mr-2" />
-            新建分配规则
+            {t.costAllocation.createRule}
           </Button>
         </div>
 
@@ -149,7 +152,7 @@ export default function CostAllocationPage() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            分配规则 ({rules.length})
+            {t.costAllocation.rules} ({rules.length})
           </button>
           <button
             onClick={() => setActiveTab("results")}
@@ -159,7 +162,7 @@ export default function CostAllocationPage() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            分配结果 ({results.length})
+            {t.costAllocation.results} ({results.length})
           </button>
         </div>
 
@@ -167,15 +170,15 @@ export default function CostAllocationPage() {
         {activeTab === "rules" && (
           <Card>
             <CardHeader>
-              <CardTitle>成本分配规则</CardTitle>
-              <CardDescription>配置和管理成本分配规则</CardDescription>
+              <CardTitle>{t.costAllocation.rulesTitle}</CardTitle>
+              <CardDescription>{t.costAllocation.rulesDescription}</CardDescription>
             </CardHeader>
             <CardContent>
               {rules.length === 0 ? (
                 <EmptyState
                   icon={<PieChart className="w-16 h-16" />}
-                  title="暂无成本分配规则"
-                  description="创建第一个成本分配规则来分配共享成本"
+                  title={t.costAllocation.noRules}
+                  description={t.costAllocation.noRulesDesc}
                   action={
                     <Button onClick={() => setEditingRule({} as AllocationRule)}>
                       <Plus className="h-4 w-4 mr-2" />
@@ -195,9 +198,9 @@ export default function CostAllocationPage() {
                           <h3 className="font-medium">{rule.name}</h3>
                           <Badge>{getMethodLabel(rule.method)}</Badge>
                           {rule.enabled ? (
-                            <Badge className="bg-green-500">已启用</Badge>
+                            <Badge className="bg-green-500">{t.costAllocation.enabled}</Badge>
                           ) : (
-                            <Badge className="bg-gray-500">已禁用</Badge>
+                            <Badge className="bg-gray-500">{t.costAllocation.disabled}</Badge>
                           )}
                         </div>
                         {rule.description && (
@@ -212,7 +215,7 @@ export default function CostAllocationPage() {
                           disabled={!rule.enabled}
                         >
                           <Play className="h-4 w-4 mr-2" />
-                          执行
+                          {t.costAllocation.execute}
                         </Button>
                         <Button
                           variant="outline"
@@ -246,7 +249,7 @@ export default function CostAllocationPage() {
                   <EmptyState
                     icon={<TrendingUp className="w-16 h-16" />}
                     title="暂无分配结果"
-                    description="执行成本分配规则后，结果将显示在这里"
+                    description={t.costAllocation.noResultsDesc}
                   />
                 </CardContent>
               </Card>
@@ -257,30 +260,30 @@ export default function CostAllocationPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <CardTitle>{result.rule_name}</CardTitle>
-                        <CardDescription>周期: {result.period}</CardDescription>
+                        <CardDescription>{t.costAllocation.period}: {result.period}</CardDescription>
                       </div>
                       <div className="text-right">
                         <div className="text-2xl font-bold">¥{result.total_cost.toLocaleString()}</div>
-                        <div className="text-sm text-muted-foreground">总成本</div>
+                        <div className="text-sm text-muted-foreground">{t.costAllocation.totalCost}</div>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-3 gap-4 mb-6">
                       <div>
-                        <div className="text-sm text-muted-foreground">已分配</div>
+                        <div className="text-sm text-muted-foreground">{t.costAllocation.allocated}</div>
                         <div className="text-xl font-bold text-green-500">
                           ¥{result.allocated_cost.toLocaleString()}
                         </div>
                       </div>
                       <div>
-                        <div className="text-sm text-muted-foreground">未分配</div>
+                        <div className="text-sm text-muted-foreground">{t.costAllocation.unallocated}</div>
                         <div className="text-xl font-bold text-gray-500">
                           ¥{result.unallocated_cost.toLocaleString()}
                         </div>
                       </div>
                       <div>
-                        <div className="text-sm text-muted-foreground">分配率</div>
+                        <div className="text-sm text-muted-foreground">{t.costAllocation.allocationRate}</div>
                         <div className="text-xl font-bold">
                           {((result.allocated_cost / result.total_cost) * 100).toFixed(1)}%
                         </div>
@@ -289,7 +292,7 @@ export default function CostAllocationPage() {
 
                     {result.allocations && result.allocations.length > 0 && (
                       <div>
-                        <h4 className="font-medium mb-4">分配明细</h4>
+                        <h4 className="font-medium mb-4">{t.costAllocation.allocationDetails}</h4>
                         <div className="grid grid-cols-2 gap-6">
                           <div>
                             <div className="space-y-2">
@@ -398,7 +401,7 @@ function AllocationRuleEditor({
 
       onSave()
     } catch (e) {
-      alert("保存失败")
+      toastError(t.costAllocation.saveFailed)
       console.error("Failed to save rule:", e)
     }
   }
@@ -428,13 +431,13 @@ function AllocationRuleEditor({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <CardHeader>
-          <CardTitle>{rule?.id ? "编辑分配规则" : "新建分配规则"}</CardTitle>
-          <CardDescription>配置成本分配规则</CardDescription>
+          <CardTitle>{rule?.id ? t.costAllocation.editRule : t.costAllocation.createRule}</CardTitle>
+          <CardDescription>{t.costAllocation.configureRule}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="text-sm font-medium mb-2 block">规则名称</label>
+              <label className="text-sm font-medium mb-2 block">{t.costAllocation.ruleName}</label>
               <input
                 type="text"
                 value={name}
@@ -445,7 +448,7 @@ function AllocationRuleEditor({
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">描述</label>
+              <label className="text-sm font-medium mb-2 block">{t.costAllocation.ruleDescription}</label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -455,27 +458,27 @@ function AllocationRuleEditor({
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">分配方法</label>
+              <label className="text-sm font-medium mb-2 block">{t.costAllocation.allocationMethod}</label>
               <select
                 value={method}
                 onChange={(e) => setMethod(e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
               >
-                <option value="equal">平均分配</option>
-                <option value="proportional">按比例分配</option>
-                <option value="usage_based">按使用量分配</option>
-                <option value="tag_based">按标签分配</option>
+                <option value="equal">{t.costAllocation.methods.equal}</option>
+                <option value="proportional">{t.costAllocation.methods.proportional}</option>
+                <option value="usage_based">{t.costAllocation.methods.usage_based}</option>
+                <option value="tag_based">{t.costAllocation.methods.tag_based}</option>
               </select>
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">分配目标</label>
+              <label className="text-sm font-medium mb-2 block">{t.costAllocation.allocationTarget}</label>
               <div className="flex items-center gap-2 mb-2">
                 <input
                   type="text"
                   value={newTarget}
                   onChange={(e) => setNewTarget(e.target.value)}
-                  placeholder="输入目标名称（如：部门、项目等）"
+                  placeholder={t.locale === 'zh' ? "输入目标名称（如：部门、项目等）" : "Enter target name (e.g., department, project)"}
                   className="flex-1 px-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                   onKeyPress={(e) => {
                     if (e.key === "Enter") {
@@ -485,7 +488,7 @@ function AllocationRuleEditor({
                   }}
                 />
                 <Button type="button" onClick={addTarget}>
-                  添加
+                  {t.costAllocation.add}
                 </Button>
               </div>
               <div className="space-y-2">
@@ -497,7 +500,7 @@ function AllocationRuleEditor({
                         type="number"
                         value={allocationWeights[target] || 0}
                         onChange={(e) => updateWeight(target, Number(e.target.value))}
-                        placeholder="权重"
+                        placeholder={t.costAllocation.weight}
                         step="0.1"
                         min="0"
                         className="w-24 px-2 py-1 rounded border text-sm"
@@ -524,15 +527,15 @@ function AllocationRuleEditor({
                 onChange={(e) => setEnabled(e.target.checked)}
               />
               <label htmlFor="enabled" className="text-sm font-medium">
-                启用此规则
+                {t.costAllocation.enableRule}
               </label>
             </div>
 
             <div className="flex items-center justify-end gap-3">
               <Button type="button" variant="outline" onClick={onCancel}>
-                取消
+                {t.common.cancel}
               </Button>
-              <Button type="submit">保存</Button>
+              <Button type="submit">{t.common.save}</Button>
             </div>
           </form>
         </CardContent>
