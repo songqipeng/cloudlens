@@ -466,7 +466,7 @@ export default function DiscountTrendPage() {
             <div className="grid gap-4 md:grid-cols-4">
               <Card className="glass border border-border/50 hover:shadow-xl transition-all">
                 <CardHeader>
-                  <CardTitle className="text-sm text-muted-foreground">最新折扣率</CardTitle>
+                  <CardTitle className="text-sm text-muted-foreground">{t.discountTrend.latestDiscountRateTitle}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-primary">{fmtPct(trendData.latest_discount_rate)}</div>
@@ -553,10 +553,10 @@ export default function DiscountTrendPage() {
                       <LineChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis dataKey="period" stroke="#6b7280" />
-                        <YAxis stroke="#6b7280" label={{ value: '折扣率 (%)', angle: -90, position: 'insideLeft' }} />
+                        <YAxis stroke="#6b7280" label={{ value: t.discountTrend.discountRateUnit, angle: -90, position: 'insideLeft' }} />
                         <Tooltip
                           contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                          formatter={(value: any) => [`${Number(value).toFixed(2)}%`, t.discountTrend.discountRate]}
+                          formatter={(value: any) => [`${Number(value).toFixed(2)}%`, '折扣率']}
                         />
                         <Line
                           type="monotone"
@@ -581,7 +581,7 @@ export default function DiscountTrendPage() {
                       <ComposedChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis dataKey="period" stroke="#6b7280" />
-                        <YAxis stroke="#6b7280" label={{ value: '金额 (¥)', angle: -90, position: 'insideLeft' }} />
+                        <YAxis stroke="#6b7280" label={{ value: t.discountTrend.amountUnit, angle: -90, position: 'insideLeft' }} />
                         <Tooltip
                           contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
                           formatter={(value: any) => [fmtCny(Number(value)), '']}
@@ -627,21 +627,21 @@ export default function DiscountTrendPage() {
                           </div>
                           <div className="text-right">
                             <div className="text-xl font-bold text-green-600 dark:text-green-400">{fmtCny(data.total_discount)}</div>
-                            <div className="text-xs text-muted-foreground">累计节省</div>
+                            <div className="text-xs text-muted-foreground">{t.discountTrend.cumulativeSavings}</div>
                           </div>
                         </div>
                         <div className="grid grid-cols-3 gap-4 mt-3 pt-3 border-t border-border/50">
                           <div>
-                            <div className="text-xs text-muted-foreground">平均折扣率</div>
+                            <div className="text-xs text-muted-foreground">{t.discountTrend.avgDiscountRateLabel}</div>
                             <div className="font-mono text-sm font-medium">{fmtPct(data.avg_discount_rate)}</div>
                           </div>
                           <div>
-                            <div className="text-xs text-muted-foreground">最新折扣率</div>
+                            <div className="text-xs text-muted-foreground">{t.discountTrend.latestDiscountRateLabel}</div>
                             <div className="font-mono text-sm font-medium">{fmtPct(data.latest_discount_rate)}</div>
                           </div>
                           <div>
-                            <div className="text-xs text-muted-foreground">覆盖月份</div>
-                            <div className="font-mono text-sm font-medium">{data.periods.length}个月</div>
+                            <div className="text-xs text-muted-foreground">{t.discountTrend.coverageMonths}</div>
+                            <div className="font-mono text-sm font-medium">{data.periods.length}{t.discountTrend.monthsUnit}</div>
                           </div>
                         </div>
                       </div>
