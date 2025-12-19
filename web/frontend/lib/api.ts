@@ -122,7 +122,9 @@ export async function apiGet<T = any>(
                 
                 if (!res.ok) {
                     const errorData = await res.json().catch(() => ({}))
-                    throw new ApiError(res.status, errorData)
+                    const errorMessage = errorData?.detail || errorData?.error || errorData?.message || `API请求失败: ${res.status} ${res.statusText}`
+                    console.error(`[API Error] ${res.status} ${res.statusText}: ${url}`, errorData)
+                    throw new ApiError(res.status, errorData, `${errorMessage} (${url})`)
                 }
                 
                 const data = await res.json()
@@ -184,7 +186,9 @@ export async function apiPost<T = any>(
             
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}))
-                throw new ApiError(res.status, errorData)
+                const errorMessage = errorData?.detail || errorData?.error || errorData?.message || `API请求失败: ${res.status} ${res.statusText}`
+                console.error(`[API Error] ${res.status} ${res.statusText}: ${url}`, errorData)
+                throw new ApiError(res.status, errorData, `${errorMessage} (${url})`)
             }
             
             return await res.json()
@@ -236,7 +240,9 @@ export async function apiPut<T = any>(
             
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}))
-                throw new ApiError(res.status, errorData)
+                const errorMessage = errorData?.detail || errorData?.error || errorData?.message || `API请求失败: ${res.status} ${res.statusText}`
+                console.error(`[API Error] ${res.status} ${res.statusText}: ${url}`, errorData)
+                throw new ApiError(res.status, errorData, `${errorMessage} (${url})`)
             }
             
             return await res.json()
@@ -282,7 +288,9 @@ export async function apiDelete<T = any>(
             
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}))
-                throw new ApiError(res.status, errorData)
+                const errorMessage = errorData?.detail || errorData?.error || errorData?.message || `API请求失败: ${res.status} ${res.statusText}`
+                console.error(`[API Error] ${res.status} ${res.statusText}: ${url}`, errorData)
+                throw new ApiError(res.status, errorData, `${errorMessage} (${url})`)
             }
             
             return await res.json()
@@ -298,6 +306,7 @@ export async function apiDelete<T = any>(
     }
     throw new ApiError(500, { error: "Request failed after retries" })
 }
+
 
 
 

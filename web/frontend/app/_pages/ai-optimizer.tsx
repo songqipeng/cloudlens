@@ -184,7 +184,7 @@ export default function AIOptimizerPage() {
           <CardContent>
             {suggestions.length === 0 ? (
               <EmptyState
-                icon={Sparkles}
+                icon={<Sparkles className="w-16 h-16" />}
                 title="暂无优化建议"
                 description="系统正在分析您的成本数据，稍后将提供优化建议"
               />
@@ -245,4 +245,5 @@ export default function AIOptimizerPage() {
     </DashboardLayout>
   )
 }
+
 

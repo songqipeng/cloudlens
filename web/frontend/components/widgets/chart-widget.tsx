@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Zoom } from "recharts"
+import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts"
 import { TreemapChart, HeatmapChart, SankeyChart } from "@/components/charts"
 import { ChartExport } from "@/components/charts/chart-export"
 import { useState } from "react"
@@ -54,7 +54,6 @@ export function ChartWidget({
         return (
           <AreaChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
-            {zoomEnabled && <Zoom />}
             <XAxis
               dataKey={config.xKey || "date"}
               stroke="hsl(var(--muted-foreground))"
@@ -97,7 +96,6 @@ export function ChartWidget({
         return (
           <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
-            {zoomEnabled && <Zoom />}
             <XAxis
               dataKey={config.xKey || "name"}
               stroke="hsl(var(--muted-foreground))"
@@ -198,4 +196,5 @@ export function ChartWidget({
     </Card>
   )
 }
+
 

@@ -143,7 +143,7 @@ export default function CustomDashboardsPage() {
 
         {filteredDashboards.length === 0 ? (
           <EmptyState
-            icon={Layout}
+            icon={<Layout className="w-16 h-16" />}
             title={searchTerm ? "未找到匹配的仪表盘" : "还没有自定义仪表盘"}
             description={searchTerm ? "尝试使用其他关键词搜索" : "点击上方\"新建仪表盘\"按钮创建第一个仪表盘"}
           />
@@ -421,4 +421,5 @@ function DashboardEditor({
     </div>
   )
 }
+
 

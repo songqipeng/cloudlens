@@ -244,7 +244,7 @@ export default function AlertsPage() {
             <CardContent>
               {rules.length === 0 ? (
                 <EmptyState
-                  icon={Bell}
+                  icon={<Bell className="w-16 h-16" />}
                   title={t.alerts.noRules}
                   description={t.alerts.noRulesDesc}
                   action={
@@ -329,7 +329,7 @@ export default function AlertsPage() {
             <CardContent>
               {alerts.length === 0 ? (
                 <EmptyState
-                  icon={CheckCircle}
+                  icon={<CheckCircle className="w-16 h-16" />}
                   title={t.alerts.noRecords}
                   description={t.alerts.noRecordsDesc}
                 />
@@ -625,4 +625,5 @@ function AlertRuleEditor({
     </div>
   )
 }
+
 

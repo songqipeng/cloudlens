@@ -1,6 +1,21 @@
 "use client"
 
-import BudgetsPage from "@/app/_pages/budgets"
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 
-export default BudgetsPage
+export default function BudgetsRedirect() {
+  const router = useRouter()
+
+  useEffect(() => {
+    const account = localStorage.getItem("currentAccount")
+    if (account) {
+      router.replace(`/a/${encodeURIComponent(account)}/budgets`)
+    } else {
+      router.replace("/settings/accounts")
+    }
+  }, [router])
+
+  return null
+}
+
 

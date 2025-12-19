@@ -79,6 +79,13 @@ def trigger_analysis(req: TriggerAnalysisRequest, background_tasks: BackgroundTa
     # Actually, user might wait 10-20s.
     try:
         data, cached = AnalysisService.analyze_idle_resources(req.account, req.days, req.force)
+        
+        # 清除 dashboard_idle 缓存，确保 dashboard 页面能获取最新数据
+        cache_manager = CacheManager(ttl_seconds=86400)
+        cache_manager.clear(resource_type="dashboard_idle", account_name=req.account)
+        # 同时更新 dashboard_idle 缓存
+        cache_manager.set(resource_type="dashboard_idle", account_name=req.account, data=data)
+        
         return {
             "status": "success", 
             "count": len(data), 
@@ -86,6 +93,9 @@ def trigger_analysis(req: TriggerAnalysisRequest, background_tasks: BackgroundTa
             "data": data
         }
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"触发分析失败: {str(e)}\n{error_trace}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/dashboard/summary")
@@ -471,23 +481,26 @@ def get_idle_resources(account: Optional[str] = None, force_refresh: bool = Quer
     
     try:
         from core.services.analysis_service import AnalysisService
-        data, _ = AnalysisService.analyze_idle_resources(account, days=7, force_refresh=False)
+        data, is_cached = AnalysisService.analyze_idle_resources(account, days=7, force_refresh=force_refresh)
         result_data = data if data else []
         
-        # 保存到缓存（24小时有效）
-        cache_manager.set(resource_type="dashboard_idle", account_name=account, data=result_data)
+        # 保存到缓存（24小时有效），即使结果为空也保存，避免重复分析
+        if not is_cached:
+            cache_manager.set(resource_type="dashboard_idle", account_name=account, data=result_data)
         
         return {
             "success": True,
             "data": result_data,
-            "cached": False,
+            "cached": is_cached,
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        return {
-            "success": True,
-            "data": [],
-            "cached": False,
-        }
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"获取闲置资源失败: {str(e)}\n{error_trace}")
+        # 返回错误信息而不是静默失败
+        raise HTTPException(status_code=500, detail=f"获取闲置资源失败: {str(e)}")
 
 
 # ==================== Phase 1 Week 2: Resource Management APIs ====================
@@ -4125,9 +4138,18 @@ def get_budget(budget_id: str) -> Dict[str, Any]:
 
 
 @router.post("/budgets")
-def create_budget(req: BudgetRequest) -> Dict[str, Any]:
+@api_error_handler
+def create_budget(req: BudgetRequest, account: Optional[str] = None) -> Dict[str, Any]:
     """创建预算"""
     try:
+        # 获取账号ID（与 list_budgets 使用相同的逻辑）
+        account_id = req.account_id
+        if not account_id and account:
+            cm = ConfigManager()
+            account_config = cm.get_account(account)
+            if account_config:
+                account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
         # 解析开始日期
         start_date = datetime.fromisoformat(req.start_date.replace('Z', '+00:00'))
         if start_date.tzinfo:
@@ -4159,7 +4181,7 @@ def create_budget(req: BudgetRequest) -> Dict[str, Any]:
             tag_filter=req.tag_filter,
             service_filter=req.service_filter,
             alerts=alerts,
-            account_id=req.account_id
+            account_id=account_id
         )
         
         # 保存到数据库
@@ -4167,12 +4189,20 @@ def create_budget(req: BudgetRequest) -> Dict[str, Any]:
         
         # 返回创建的预算
         created_budget = _budget_storage.get_budget(budget_id)
+        if not created_budget:
+            raise HTTPException(status_code=500, detail=f"创建预算后无法获取预算数据: {budget_id}")
+        
         return {
             "success": True,
             "message": "预算创建成功",
             "data": created_budget.to_dict()
         }
+    except HTTPException:
+        raise
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"创建预算失败: {str(e)}\n{error_trace}")
         raise HTTPException(status_code=500, detail=f"创建预算失败: {str(e)}")
 
 
@@ -4257,6 +4287,7 @@ def delete_budget(budget_id: str) -> Dict[str, Any]:
 
 
 @router.get("/budgets/{budget_id}/status")
+@api_error_handler
 def get_budget_status(
     budget_id: str,
     account: Optional[str] = None
@@ -4264,7 +4295,13 @@ def get_budget_status(
     """获取预算状态"""
     try:
         # 获取预算
-        budget = _budget_storage.get_budget(budget_id)
+        try:
+            budget = _budget_storage.get_budget(budget_id)
+        except ValueError as e:
+            # 日期解析失败
+            logger.error(f"获取预算失败（日期解析错误）: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"预算数据损坏，无法解析日期信息: {str(e)}")
+        
         if not budget:
             raise HTTPException(status_code=404, detail=f"预算 {budget_id} 不存在")
         
@@ -4281,10 +4318,32 @@ def get_budget_status(
         
         # 计算预算状态
         # 直接使用BudgetCalculator和BudgetStorage的方法
-        from core.budget_manager import BudgetCalculator
+        # BudgetCalculator 已在文件顶部导入，无需重复导入
+        
+        # 检查日期字段
+        if not budget.start_date or not budget.end_date:
+            logger.error(f"预算 {budget_id} 日期信息不完整: start_date={budget.start_date}, end_date={budget.end_date}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"预算日期信息不完整: start_date={budget.start_date}, end_date={budget.end_date}"
+            )
         
         now = datetime.now()
-        days_total = (budget.end_date - budget.start_date).days
+        try:
+            days_total = (budget.end_date - budget.start_date).days
+            if days_total <= 0:
+                logger.error(f"预算 {budget_id} 日期范围无效: start_date={budget.start_date}, end_date={budget.end_date}, days_total={days_total}")
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"预算日期范围无效: 开始日期 {budget.start_date} 必须早于结束日期 {budget.end_date}"
+                )
+        except TypeError as e:
+            logger.error(f"预算 {budget_id} 日期计算错误: start_date={budget.start_date} ({type(budget.start_date)}), end_date={budget.end_date} ({type(budget.end_date)}), error={e}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"预算日期类型错误: start_date={type(budget.start_date).__name__}, end_date={type(budget.end_date).__name__}"
+            )
+        
         days_elapsed = (now - budget.start_date).days
         days_elapsed = max(0, min(days_elapsed, days_total))
         
@@ -4307,12 +4366,13 @@ def get_budget_status(
             start_date_str = budget.start_date.strftime('%Y-%m-%d')
             end_date_str = min(now, budget.end_date).strftime('%Y-%m-%d')
             
-            result = db.query_one(f"""
+            # 使用 ? 作为占位符，数据库适配器会自动转换为 %s (MySQL) 或保持 ? (SQLite)
+            result = db.query_one("""
                 SELECT SUM(pretax_amount) as total
                 FROM bill_items
-                WHERE account_id = {placeholder}
-                    AND billing_date >= {placeholder}
-                    AND billing_date <= {placeholder}
+                WHERE account_id = ?
+                    AND billing_date >= ?
+                    AND billing_date <= ?
                     AND pretax_amount IS NOT NULL
             """, (account_id, start_date_str, end_date_str))
             
@@ -4371,6 +4431,9 @@ def get_budget_status(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"获取预算状态失败: {str(e)}\n{error_trace}")
         raise HTTPException(status_code=500, detail=f"获取预算状态失败: {str(e)}")
 
 
@@ -4455,6 +4518,7 @@ def get_dashboard(dashboard_id: str) -> Dict[str, Any]:
 
 
 @router.post("/dashboards")
+@api_error_handler
 def create_dashboard(req: DashboardRequest, account: Optional[str] = None) -> Dict[str, Any]:
     """创建仪表盘"""
     try:
@@ -4502,6 +4566,9 @@ def create_dashboard(req: DashboardRequest, account: Optional[str] = None) -> Di
             "data": created_dashboard.to_dict()
         }
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"创建仪表盘失败: {str(e)}\n{error_trace}")
         raise HTTPException(status_code=500, detail=f"创建仪表盘失败: {str(e)}")
 
 

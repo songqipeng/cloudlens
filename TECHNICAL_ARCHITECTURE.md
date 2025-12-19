@@ -1,38 +1,59 @@
-# CloudLens CLI - 技术架构文档
+# CloudLens - 技术架构文档
 
 ## 架构概览
 
-CloudLens CLI 采用**插件化、模块化**的分层架构设计，确保高扩展性、高可维护性和高安全性。
+CloudLens 采用**插件化、模块化**的分层架构设计，提供 **CLI 命令行工具** 和 **Web 可视化界面** 两种使用方式，确保高扩展性、高可维护性和高安全性。
 
 ### 系统分层
 
 ```
-┌─────────────────────────────────────┐
-│         CLI Layer (Click)            │  用户交互层
-├─────────────────────────────────────┤
-│      Application Logic Layer         │  业务逻辑层
-│  ├─ Analyzer (Idle, Cost, Tag...)   │
-│  ├─ Report Generator                 │
-│  ├─ Topology Generator               │
-│  └─ Filter Engine                    │
-├─────────────────────────────────────┤
-│       Provider Abstraction           │  云厂商抽象层
-│  ├─ BaseProvider (Interface)        │
-│  ├─ AliyunProvider                   │
-│  ├─ TencentProvider                  │
-│  └─ ...Extensible                    │
-├─────────────────────────────────────┤
-│      Infrastructure Layer            │  基础设施层
-│  ├─ ConfigManager                    │
-│  ├─ PermissionGuard                  │
-│  ├─ ConcurrentHelper                 │
-│  └─ SecurityCompliance               │
-├─────────────────────────────────────┤
-│        External Dependencies         │  外部依赖层
-│  ├─ Aliyun SDK                       │
-│  ├─ Tencent SDK                      │
-│  └─ System Keyring                   │
-└─────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│             用户交互层 (User Interface Layer)            │
+│  ┌──────────────────┐         ┌──────────────────┐    │
+│  │  CLI (Click)     │         │  Web (Next.js)   │    │
+│  └────────┬─────────┘         └────────┬─────────┘    │
+└───────────┼─────────────────────────────┼──────────────┘
+            │                             │
+┌───────────▼─────────────────────────────▼──────────────┐
+│              API 层 (API Layer)                        │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │         FastAPI RESTful API                      │  │
+│  └────────────────────┬─────────────────────────────┘  │
+└───────────────────────┼────────────────────────────────┘
+                        │
+┌───────────────────────▼────────────────────────────────┐
+│        应用逻辑层 (Application Logic Layer)             │
+│  ├─ Analyzer (Idle, Cost, Tag, Discount...)           │
+│  ├─ Report Generator                                    │
+│  ├─ Dashboard Manager                                  │
+│  ├─ Budget Manager                                     │
+│  ├─ Alert Manager                                      │
+│  └─ Filter Engine                                      │
+├────────────────────────────────────────────────────────┤
+│        数据存储层 (Data Storage Layer)                  │
+│  ├─ Database Abstraction (MySQL/SQLite)                │
+│  ├─ Cache Manager                                      │
+│  ├─ Bill Storage                                       │
+│  └─ Config Manager                                     │
+├────────────────────────────────────────────────────────┤
+│        云厂商抽象层 (Provider Abstraction Layer)        │
+│  ├─ BaseProvider (Interface)                           │
+│  ├─ AliyunProvider                                     │
+│  ├─ TencentProvider                                    │
+│  └─ ...Extensible                                      │
+├────────────────────────────────────────────────────────┤
+│        基础设施层 (Infrastructure Layer)                │
+│  ├─ PermissionGuard                                    │
+│  ├─ ConcurrentHelper                                   │
+│  ├─ SecurityCompliance                                 │
+│  └─ Error Handler                                      │
+├────────────────────────────────────────────────────────┤
+│        外部依赖层 (External Dependencies)                │
+│  ├─ Aliyun SDK                                         │
+│  ├─ Tencent SDK                                        │
+│  ├─ MySQL Database                                     │
+│  └─ System Keyring                                     │
+└────────────────────────────────────────────────────────┘
 ```
 
 ---

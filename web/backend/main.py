@@ -2,10 +2,12 @@
 FastAPI 主应用入口
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 import logging
 
 # 配置日志
@@ -92,6 +94,31 @@ async def root():
 async def health_check():
     """健康检查端点"""
     return {"status": "healthy"}
+
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc):
+    """处理404错误，返回更友好的错误信息"""
+    return JSONResponse(
+        status_code=404,
+        content={
+            "detail": f"API端点不存在: {request.method} {request.url.path}",
+            "error": "Not Found",
+            "path": request.url.path,
+            "method": request.method
+        }
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """处理请求验证错误"""
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "detail": exc.errors(),
+            "error": "Validation Error",
+            "path": request.url.path
+        }
+    )
 
 if __name__ == "__main__":
     import uvicorn

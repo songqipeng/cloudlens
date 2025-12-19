@@ -4,8 +4,8 @@
 
 ### 后端技术栈
 - **框架**: FastAPI (Python 3.8+)
-- **数据库**: SQLite（多个分散的数据库文件）
-- **缓存**: SQLite (cache.db)
+- **数据库**: MySQL（主数据库，支持SQLite兼容）
+- **缓存**: MySQL缓存表
 - **云SDK**: 阿里云SDK、腾讯云SDK
 - **其他**: pandas, openpyxl, keyring
 
@@ -15,9 +15,9 @@
 - **UI组件**: 自定义组件库
 
 ### 当前数据库使用情况
-项目使用多个SQLite数据库文件，存储在 `~/.cloudlens/` 目录：
+项目使用MySQL作为主数据库，通过数据库抽象层支持SQLite兼容：
 
-1. **cache.db** - 资源查询缓存（24小时TTL）
+1. **resource_cache** - 资源查询缓存（24小时TTL）
 2. **bills.db** - 账单明细数据
 3. **dashboards.db** - 仪表盘配置
 4. **budgets.db** - 预算管理数据
@@ -606,3 +606,4 @@ class MySQLConnectionPool:
 - [mysql-connector-python文档](https://dev.mysql.com/doc/connector-python/en/)
 - [OpenTelemetry Python](https://opentelemetry.io/docs/instrumentation/python/)
 - [FastAPI最佳实践](https://fastapi.tiangolo.com/deployment/)
+

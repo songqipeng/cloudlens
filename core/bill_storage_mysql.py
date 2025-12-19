@@ -325,3 +325,4 @@ class BillStorageManager:
             'db_path': self.db_path or "MySQL",
             'db_type': self.db_type
         }
+

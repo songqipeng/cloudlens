@@ -173,7 +173,7 @@ export default function CostAllocationPage() {
             <CardContent>
               {rules.length === 0 ? (
                 <EmptyState
-                  icon={PieChart}
+                  icon={<PieChart className="w-16 h-16" />}
                   title="暂无成本分配规则"
                   description="创建第一个成本分配规则来分配共享成本"
                   action={
@@ -244,7 +244,7 @@ export default function CostAllocationPage() {
               <Card>
                 <CardContent className="p-12">
                   <EmptyState
-                    icon={TrendingUp}
+                    icon={<TrendingUp className="w-16 h-16" />}
                     title="暂无分配结果"
                     description="执行成本分配规则后，结果将显示在这里"
                   />
@@ -540,4 +540,5 @@ function AllocationRuleEditor({
     </div>
   )
 }
+
 

@@ -50,7 +50,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         { href: "/resources", label: t.nav.resources, icon: Server },
         { href: "/cost", label: t.nav.costAnalysis, icon: DollarSign },
         { href: "/budgets", label: t.nav.budget, icon: Wallet },
-        { href: "/custom-dashboards", label: t.nav.customDashboards, icon: LayoutDashboard },
+        // { href: "/custom-dashboards", label: t.nav.customDashboards, icon: LayoutDashboard }, // 暂时屏蔽
         { href: "/discounts", label: t.nav.discountAnalysis, icon: Percent },
         { href: "/virtual-tags", label: t.nav.virtualTags, icon: BarChart3 },
         { href: "/security", label: t.nav.security, icon: Shield },
@@ -117,6 +117,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
     )
 }
+
 
 
 

@@ -51,6 +51,7 @@ export default function BudgetsPage() {
   const { t } = useLocale()
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null)
   const [showEditor, setShowEditor] = useState(false)
@@ -130,27 +131,41 @@ export default function BudgetsPage() {
   }
 
   const handleSave = async (budgetData: any) => {
+    setSaving(true)
     try {
+      console.log("保存预算数据:", budgetData)
+      let response
       if (editingBudget) {
-        const response = await apiPut(`/budgets/${editingBudget.id}`, budgetData)
-        if (response.success) {
-          await fetchBudgets()
-          setShowEditor(false)
-          setEditingBudget(null)
-        }
+        console.log("更新预算:", editingBudget.id)
+        response = await apiPut(`/budgets/${editingBudget.id}`, budgetData)
       } else {
-        const response = await apiPost("/budgets", {
-          ...budgetData,
-          account_id: currentAccount ? `${currentAccount}-id` : null
-        })
-        if (response.success) {
-          await fetchBudgets()
-          setShowEditor(false)
-        }
+        // 不传 account_id，让后端从 account 参数生成
+        console.log("创建预算:", budgetData)
+        response = await apiPost("/budgets", budgetData, { account: currentAccount || undefined })
       }
-    } catch (e) {
-      alert(t.budget.saveFailed)
+      
+      console.log("API 响应:", response)
+      
+      // 检查响应
+      if (response && response.success) {
+        // 成功提示
+        const successMsg = t.budget?.saveSuccess || "预算保存成功"
+        alert(successMsg)
+        await fetchBudgets()
+        setShowEditor(false)
+        setEditingBudget(null)
+      } else {
+        // 即使没有 success 字段，如果响应存在也认为成功（兼容性处理）
+        const errorMsg = response?.message || response?.detail || "保存失败：未知错误"
+        console.warn("预算保存响应异常:", response)
+        alert(errorMsg)
+      }
+    } catch (e: any) {
+      const errorMsg = e?.message || e?.toString() || t.budget?.saveFailed || "保存失败"
+      alert(`${t.budget?.saveFailed || "保存失败"}: ${errorMsg}`)
       console.error("Failed to save budget:", e)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -236,7 +251,7 @@ export default function BudgetsPage() {
 
         {filteredBudgets.length === 0 ? (
           <EmptyState
-            icon={DollarSign}
+            icon={<DollarSign className="w-16 h-16" />}
             title={searchTerm ? t.budget.noMatchBudgets : t.budget.noBudgets}
             description={searchTerm ? t.budget.tryOtherKeywords : t.budget.noBudgetsDesc}
           />
@@ -435,6 +450,7 @@ export default function BudgetsPage() {
         {showEditor && (
           <BudgetEditor
             budget={editingBudget}
+            saving={saving}
             onSave={handleSave}
             onCancel={() => {
               setShowEditor(false)
@@ -450,10 +466,12 @@ export default function BudgetsPage() {
 // 预算编辑器组件
 function BudgetEditor({
   budget,
+  saving,
   onSave,
   onCancel
 }: {
   budget: Budget | null
+  saving?: boolean
   onSave: (data: any) => void
   onCancel: () => void
 }) {
@@ -611,10 +629,12 @@ function BudgetEditor({
             </div>
 
             <div className="flex items-center justify-end gap-3">
-              <Button type="button" variant="outline" onClick={onCancel}>
+              <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
                 取消
               </Button>
-              <Button type="submit">保存</Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? "保存中..." : "保存"}
+              </Button>
             </div>
           </form>
         </CardContent>
@@ -622,4 +642,5 @@ function BudgetEditor({
     </div>
   )
 }
+
 

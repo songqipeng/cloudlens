@@ -190,3 +190,4 @@ DELETE FROM resource_cache WHERE expires_at < NOW();
 - `sql/init_mysql_schema.sql` - 表结构创建脚本
 - `sql/verify_schema.py` - 表结构验证脚本
 - `K8S_PREPARATION_IMPROVEMENTS.md` - 数据库迁移方案文档
+

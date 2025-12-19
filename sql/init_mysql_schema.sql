@@ -319,3 +319,4 @@ CREATE TABLE IF NOT EXISTS cost_allocation (
 -- 完成
 -- ============================================================
 SELECT 'Database schema created successfully!' AS status;
+

@@ -111,8 +111,28 @@ class IdleDetector:
             try:
                 datapoints = provider.get_metric(instance_id, metric_key, start_time, end_time)
 
-                if datapoints:
-                    values = [float(dp.get("Average", 0)) for dp in datapoints if "Average" in dp]
+                if datapoints and isinstance(datapoints, list):
+                    values = []
+                    for dp in datapoints:
+                        # 确保 dp 是字典类型
+                        if isinstance(dp, dict):
+                            # 尝试获取 Average 值
+                            if "Average" in dp:
+                                try:
+                                    values.append(float(dp.get("Average", 0)))
+                                except (ValueError, TypeError):
+                                    pass
+                            # 如果没有 Average，尝试获取 value
+                            elif "value" in dp or "Value" in dp:
+                                try:
+                                    val = dp.get("value") or dp.get("Value", 0)
+                                    values.append(float(val))
+                                except (ValueError, TypeError):
+                                    pass
+                        elif isinstance(dp, (int, float)):
+                            # 如果直接是数值
+                            values.append(float(dp))
+                    
                     if values:
                         metrics_result[metric_display] = sum(values) / len(values)
                     else:

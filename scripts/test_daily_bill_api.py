@@ -154,3 +154,4 @@ if __name__ == "__main__":
             sys.exit(1)
     success = test_daily_bill_api(account_name)
     sys.exit(0 if success else 1)
+

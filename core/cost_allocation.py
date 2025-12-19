@@ -536,3 +536,4 @@ class CostAllocator:
         # 这里简化处理，使用平均分配
         return self._allocate_equal(rule, source_costs)
 
+

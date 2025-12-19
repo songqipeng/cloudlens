@@ -73,3 +73,4 @@ def check_migration_complete():
 if __name__ == "__main__":
     success = check_migration_complete()
     sys.exit(0 if success else 1)
+

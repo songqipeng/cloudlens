@@ -49,6 +49,21 @@ class Dashboard:
     def __post_init__(self):
         if self.widgets is None:
             self.widgets = []
+    
+    def to_dict(self):
+        """转换为字典"""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "layout": self.layout,
+            "widgets": [w.to_dict() for w in self.widgets],
+            "account_id": self.account_id,
+            "is_shared": self.is_shared,
+            "created_by": self.created_by,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
 
 logger = logging.getLogger(__name__)
 
@@ -278,3 +293,4 @@ class DashboardStorage:
             (dashboard_id,)
         )
         return True
+

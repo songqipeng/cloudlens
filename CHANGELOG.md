@@ -5,15 +5,21 @@ All notable changes to CloudLens will be documented in this file.
 ## [2.1.1] - 2025-01-XX
 
 ### Changed
-- 📚 **文档清理** - 删除所有过程文档和过时文档，只保留核心文档
-  - 删除所有 PHASE*、*_PLAN.md、*_REPORT.md、*_SUMMARY.md 等过程文档
-  - 删除过时的分析报告和对比文档
-  - 更新 README.md 和 PRODUCT_INTRODUCTION.md，添加 Web 界面相关内容
-  - 统一文档结构，提升可维护性
+- 📚 **项目深度梳理** - 全面清理和重构项目文档
+  - 删除所有过时的迁移文档（SQLITE_*, MYSQL_*, MIGRATION_*）
+  - 删除过程性的修复文档（*_FIX.md, CLEANUP_REPORT.md）
+  - 清理根目录的测试/调试脚本（test_*.py, check_*.py）
+  - 更新 K8S 部署文档，移除 SQLite 相关内容，更新为 MySQL
+  - 创建新的项目结构文档（PROJECT_STRUCTURE.md）
+  - 更新 README.md，添加项目结构链接和更完整的文档索引
+  - 更新技术架构文档，添加 Web 应用和数据库架构说明
+  - 统一文档结构，提升可维护性和可读性
 
 ### Fixed
 - 🐛 修复资源列表中 VPC 名称/ID 显示为空的问题
 - 🐛 修复后端国际化 API 参数顺序问题
+- 🐛 修复预算状态 API 的日期解析问题
+- 🐛 修复闲置资源获取时的数据格式处理问题
 
 ## [2.1.0] - 2025-01-XX
 

@@ -4,17 +4,20 @@
 
 ### 数据存储现状
 
-#### SQLite 数据库文件
-项目使用多个 SQLite 数据库文件，存储在 `~/.cloudlens/` 目录：
+#### MySQL 数据库
+项目使用MySQL作为主数据库，所有数据存储在统一的MySQL实例中：
 
-1. **cache.db** - 资源查询缓存
-2. **bills.db** - 账单明细数据
-3. **dashboards.db** - 仪表盘配置
-4. **budgets.db** - 预算管理数据
-5. **cost_allocation.db** - 成本分配数据
-6. **alerts.db** - 告警规则和记录
-7. **virtual_tags.db** - 虚拟标签数据
-8. **各种监控数据.db** - 资源监控数据
+1. **resource_cache** - 资源查询缓存
+2. **bill_items** - 账单明细数据
+3. **dashboards** - 仪表盘配置
+4. **budgets** - 预算管理数据
+5. **budget_records** - 预算执行记录
+6. **budget_alerts** - 预算告警
+7. **alert_rules** - 告警规则
+8. **alerts** - 告警记录
+9. **virtual_tags** - 虚拟标签数据
+10. **cost_allocation** - 成本分配数据
+11. 等13+个表
 
 #### 配置文件
 - **config.json** - 账号配置（存储在 `~/.cloudlens/config.json`）
@@ -949,3 +952,4 @@ jobs:
 ---
 
 **注意**: 这是一个详细的技术设计方案，实际实施时请根据您的具体环境和需求进行调整。
+

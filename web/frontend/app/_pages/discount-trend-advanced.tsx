@@ -392,27 +392,55 @@ function OverviewTab({ quarterly, yearly, products, regions, subscription, sugge
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {insights?.data?.insights?.map((insight: any, idx: number) => (
-              <div
-                key={idx}
-                className={`p-3 rounded-lg border ${
-                  insight.level === 'success' ? 'border-green-500 bg-green-50' :
-                  insight.level === 'warning' ? 'border-yellow-500 bg-yellow-50' :
-                  'border-blue-500 bg-blue-50'
-                }`}
-              >
-                <div className="flex items-start gap-2">
-                  <span className="text-xs px-2 py-1 rounded-full bg-white/80 font-medium">
-                    {insight.category}
-                  </span>
-                  <div className="flex-1">
-                    <p className="font-medium">{insight.title}</p>
-                    <p className="text-sm text-muted-foreground mt-1">{insight.description}</p>
-                    <p className="text-xs text-muted-foreground mt-2">💡 {insight.recommendation}</p>
+            {insights?.data?.insights?.map((insight: any, idx: number) => {
+              // 根据类型确定颜色主题
+              const getColorTheme = () => {
+                if (insight.level === 'success') {
+                  return {
+                    border: 'border-green-500/50',
+                    labelBg: 'bg-green-500/20',
+                    labelText: 'text-green-400',
+                    accent: 'text-green-400'
+                  }
+                }
+                if (insight.level === 'warning') {
+                  return {
+                    border: 'border-yellow-500/50',
+                    labelBg: 'bg-yellow-500/20',
+                    labelText: 'text-yellow-400',
+                    accent: 'text-yellow-400'
+                  }
+                }
+                return {
+                  border: 'border-blue-500/50',
+                  labelBg: 'bg-blue-500/20',
+                  labelText: 'text-blue-400',
+                  accent: 'text-blue-400'
+                }
+              }
+              const theme = getColorTheme()
+              
+              return (
+                <div
+                  key={idx}
+                  className={`p-4 rounded-lg border ${theme.border} bg-[rgba(15,15,20,0.6)] backdrop-blur-[10px] hover:bg-[rgba(15,15,20,0.8)] transition-colors`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className={`text-xs px-2.5 py-1 rounded-full ${theme.labelBg} ${theme.labelText} font-semibold border ${theme.border} shrink-0`}>
+                      {insight.category}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-white text-[15px] leading-tight mb-2">{insight.title}</p>
+                      <p className="text-sm text-gray-300 leading-relaxed mb-2">{insight.description}</p>
+                      <p className="text-sm text-gray-400 flex items-start gap-1.5">
+                        <span className={theme.accent}>💡</span>
+                        <span>{insight.recommendation}</span>
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
             {(!insights || !insights.data?.insights?.length) && (
               <p className="text-sm text-muted-foreground">{t.discountAdvanced.overview.generatingInsights}</p>
             )}
@@ -950,4 +978,5 @@ function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent, t 
     </>
   )
 }
+
 

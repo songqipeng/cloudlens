@@ -84,3 +84,4 @@ class TestApiWrapper:
         assert error.detail == {"error": "Not found"}
         assert str(error) == "Resource not found"
 
+

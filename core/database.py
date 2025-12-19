@@ -376,3 +376,4 @@ def get_database_adapter(db_type: Optional[str] = None, **kwargs) -> DatabaseAda
         DatabaseAdapter实例
     """
     return DatabaseFactory.create_adapter(db_type, **kwargs)
+

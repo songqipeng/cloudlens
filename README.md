@@ -258,34 +258,53 @@ cl audit permissions --account prod
 
 ```
 aliyunidle/
-├── cli/                        # CLI命令模块
-│   └── main.py                # CLI主入口
-├── core/                       # 核心模块
+├── cli/                        # CLI命令行工具
+│   ├── main.py                # CLI主入口
+│   └── commands/              # 命令模块
+│       ├── analyze_cmd.py     # 分析命令
+│       ├── bill_cmd.py        # 账单命令
+│       ├── query_cmd.py       # 资源查询命令
+│       └── ...
+├── core/                       # 核心业务逻辑
+│   ├── database.py            # 数据库抽象层（MySQL/SQLite）
 │   ├── config.py              # 配置管理
 │   ├── provider.py            # 云厂商抽象层
+│   ├── cache.py               # 缓存管理器
+│   ├── bill_storage.py        # 账单存储
+│   ├── dashboard_manager.py   # 仪表盘管理
+│   ├── budget_manager.py      # 预算管理
 │   ├── idle_detector.py       # 闲置检测
 │   ├── cost_analyzer.py       # 成本分析
 │   ├── security_compliance.py # 安全合规
-│   ├── tag_analyzer.py        # 标签分析
-│   ├── topology_generator.py  # 拓扑生成
-│   ├── report_generator.py    # 报告生成
-│   └── filter_engine.py       # 高级筛选
+│   └── services/              # 服务层
+│       └── analysis_service.py
 ├── providers/                  # 云厂商实现
-│   ├── aliyun/                # 阿里云
-│   └── tencent/               # 腾讯云
+│   ├── aliyun/                # 阿里云Provider
+│   └── tencent/               # 腾讯云Provider
+├── resource_modules/           # 资源分析模块
+│   ├── ecs_analyzer.py        # ECS分析器
+│   ├── rds_analyzer.py        # RDS分析器
+│   └── ...
+├── web/                        # Web应用
+│   ├── backend/               # FastAPI后端
+│   │   ├── main.py            # API入口
+│   │   └── api.py             # API路由
+│   └── frontend/              # Next.js前端
+│       ├── app/               # 页面组件
+│       └── components/        # UI组件
 ├── models/                     # 数据模型
 │   └── resource.py            # 统一资源模型
-├── scripts/                    # 独立脚本
-│   ├── analyze_all_tenants.py
-│   ├── check_current_identity.py
+├── utils/                      # 工具模块
+│   ├── logger.py              # 日志工具
 │   └── ...
+├── sql/                        # SQL脚本
+│   └── init_mysql_schema.sql  # MySQL表结构
 ├── tests/                      # 测试用例
-│   └── test_cli_flow.py       # CLI流程测试
-└── docs/                       # 文档
-    ├── PRODUCT_INTRODUCTION.md
-    ├── TECHNICAL_ARCHITECTURE.md
-    └── USER_GUIDE.md
+├── docs/                       # 文档
+└── scripts/                    # 工具脚本
 ```
+
+详细的项目结构说明请参考 [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
 
 ## 🎯 典型应用场景
 
@@ -356,14 +375,19 @@ cl topology generate --account prod
 ### 核心文档
 - [产品介绍](PRODUCT_INTRODUCTION.md) - 详细的产品定位和功能介绍
 - [技术架构](TECHNICAL_ARCHITECTURE.md) - 系统架构和设计理念
+- [项目结构](PROJECT_STRUCTURE.md) - 详细的目录结构和模块说明
 - [用户指南](USER_GUIDE.md) - 完整的使用手册
 - [快速开始](QUICKSTART.md) - 快速上手指南
-- [开发日志](CHANGELOG.md) - 版本更新记录
+- [更新日志](CHANGELOG.md) - 版本更新记录
 
 ### Web 界面文档
 - [Web 快速开始](docs/WEB_QUICKSTART.md) - Web 界面安装和使用指南
 - [折扣分析指南](docs/DISCOUNT_ANALYSIS_GUIDE.md) - 折扣分析功能详细说明
 - [账单自动获取](docs/BILL_AUTO_FETCH_GUIDE.md) - 账单自动获取功能说明
+
+### 部署文档
+- [K8s 部署方案](K8S_DEPLOYMENT_PLAN.md) - Kubernetes 部署指南
+- [K8s 实施细节](K8S_IMPLEMENTATION_DETAILS.md) - 详细的实施步骤
 
 ### 开发文档
 - [贡献指南](CONTRIBUTING.md) - 如何参与项目开发

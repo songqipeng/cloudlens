@@ -414,20 +414,55 @@ class BudgetStorage:
         alerts = [AlertThreshold.from_dict(a) for a in alerts_data]
         
         if isinstance(row, dict):
+            # 辅助函数：安全地解析日期
+            def parse_date(date_value, field_name: str = "date"):
+                if date_value is None:
+                    logger.warning(f"预算 {budget_id} 的 {field_name} 字段为 None")
+                    return None
+                if isinstance(date_value, datetime):
+                    return date_value
+                if isinstance(date_value, str):
+                    # 移除时区信息
+                    date_str = date_value.replace('Z', '').replace('+00:00', '').strip()
+                    try:
+                        # 尝试 ISO 格式 (YYYY-MM-DDTHH:MM:SS)
+                        if 'T' in date_str:
+                            return datetime.fromisoformat(date_str)
+                        # 尝试 MySQL 标准格式 (YYYY-MM-DD HH:MM:SS)
+                        elif ' ' in date_str:
+                            return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                        # 尝试日期格式 (YYYY-MM-DD)
+                        else:
+                            return datetime.strptime(date_str, '%Y-%m-%d')
+                    except (ValueError, AttributeError) as e:
+                        logger.error(f"预算 {budget_id} 的 {field_name} 字段解析失败: 值={date_value}, 类型={type(date_value)}, 错误={e}")
+                        return None
+                logger.warning(f"预算 {budget_id} 的 {field_name} 字段类型不支持: {type(date_value)}, 值: {date_value}")
+                return None
+            
+            start_date = parse_date(row.get('start_date'), 'start_date')
+            end_date = parse_date(row.get('end_date'), 'end_date')
+            
+            # 如果日期解析失败，记录详细错误并抛出异常
+            if not start_date or not end_date:
+                error_msg = f"预算 {budget_id} 日期解析失败: start_date={row.get('start_date')} ({type(row.get('start_date'))}), end_date={row.get('end_date')} ({type(row.get('end_date'))})"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+            
             return Budget(
                 id=row.get('id', ''),
                 name=row.get('name', ''),
                 amount=float(row.get('amount', 0)),
                 period=row.get('period', ''),
                 type=row.get('type', ''),
-                start_date=datetime.fromisoformat(row['start_date']) if row.get('start_date') else None,
-                end_date=datetime.fromisoformat(row['end_date']) if row.get('end_date') else None,
+                start_date=start_date,
+                end_date=end_date,
                 tag_filter=row.get('tag_filter'),
                 service_filter=row.get('service_filter'),
                 alerts=alerts,
                 account_id=row.get('account_id'),
-                created_at=datetime.fromisoformat(row['created_at']) if row.get('created_at') else None,
-                updated_at=datetime.fromisoformat(row['updated_at']) if row.get('updated_at') else None
+                created_at=parse_date(row.get('created_at'), 'created_at'),
+                updated_at=parse_date(row.get('updated_at'), 'updated_at')
             )
         else:
             return Budget(
@@ -681,4 +716,5 @@ class BudgetStorage:
         self.record_spend(budget.id, now, spent, predicted_spend)
         
         return status
+
 

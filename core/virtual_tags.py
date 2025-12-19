@@ -6,6 +6,7 @@
 """
 
 import logging
+import os
 import re
 import json
 from datetime import datetime
@@ -14,6 +15,8 @@ from typing import List, Dict, Optional, Any
 from dataclasses import dataclass, asdict
 from enum import Enum
 import uuid
+
+from core.database import DatabaseFactory
 
 logger = logging.getLogger(__name__)
 
@@ -479,4 +482,5 @@ class VirtualTagStorage:
                 self.db.execute("DELETE FROM tag_matches")
         except Exception as e:
             logger.error(f"Error clearing cache: {e}")
+
 
