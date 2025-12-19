@@ -5,8 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useAccount } from "@/contexts/account-context"
+import { useLocale } from "@/contexts/locale-context"
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api"
 import { Plus, Edit, Trash2, Eye, Search } from "lucide-react"
+import { toastError } from "@/components/ui/toast"
 
 interface TagRule {
   id?: string
@@ -284,7 +286,7 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
       
       onSave()
     } catch (e) {
-      alert("保存失败")
+      toastError(t.virtualTags.saveFailed)
     } finally {
       setSaving(false)
     }
@@ -332,7 +334,7 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
                   value={formData.tag_key}
                   onChange={(e) => setFormData({ ...formData, tag_key: e.target.value })}
                   className="w-full px-4 py-2 rounded-lg border border-input/50 bg-background focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                  placeholder="例如：environment"
+                  placeholder={t.virtualTags.exampleEnvironment}
                 />
               </div>
               <div>
@@ -386,10 +388,10 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
                       onChange={(e) => updateRule(index, "field", e.target.value)}
                       className="w-full px-3 py-1.5 text-sm rounded-lg border border-input/50 bg-background"
                     >
-                      <option value="name">{t.virtualTags.resourceName}</option>
-                      <option value="region">{t.virtualTags.region}</option>
-                      <option value="type">{t.virtualTags.resourceType}</option>
-                      <option value="instance_id">{t.virtualTags.instanceId}</option>
+                      <option value="name">资源名称</option>
+                      <option value="region">区域</option>
+                      <option value="type">资源类型</option>
+                      <option value="instance_id">实例ID</option>
                     </select>
                   </div>
                   <div>
@@ -475,8 +477,8 @@ function TagPreview({ tagId, account, onClose }: { tagId: string; account: strin
         <CardHeader className="flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>标签预览</CardTitle>
-              <CardDescription className="mt-1">查看匹配的资源列表</CardDescription>
+              <CardTitle>{t.virtualTags.previewTitle}</CardTitle>
+              <CardDescription className="mt-1">{t.virtualTags.previewDescription}</CardDescription>
             </div>
             <div className="flex items-center gap-3">
               <select
@@ -524,7 +526,7 @@ function TagPreview({ tagId, account, onClose }: { tagId: string; account: strin
               {/* 规则信息 */}
               {previewData.rules && previewData.rules.length > 0 && (
                 <div className="p-4 bg-muted/20 rounded-lg">
-                  <div className="text-sm font-medium mb-2">匹配规则</div>
+                  <div className="text-sm font-medium mb-2">{t.virtualTags.matchingRulesLabel}</div>
                   <div className="space-y-1">
                     {previewData.rules.map((rule: any, idx: number) => (
                       <div key={idx} className="text-xs font-mono bg-muted/30 px-2 py-1 rounded">
@@ -566,13 +568,13 @@ function TagPreview({ tagId, account, onClose }: { tagId: string; account: strin
                 </div>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
-                  <p>没有匹配的资源</p>
+                  <p>{t.virtualTags.noMatchedResources}</p>
                 </div>
               )}
             </div>
           ) : (
             <div className="text-center py-12 text-muted-foreground">
-              <p>预览数据为空</p>
+              <p>{t.virtualTags.previewDataEmpty}</p>
             </div>
           )}
         </CardContent>

@@ -5,6 +5,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableColumn } from "@/components/ui/table"
 import { useAccount } from "@/contexts/account-context"
+import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
 import { TrendingUp, TrendingDown, Minus, AlertCircle } from "lucide-react"
 import {
@@ -93,20 +94,21 @@ interface DiscountTrendResponse {
 const fmtCny = (n: number) => `¥${(Number.isFinite(n) ? n : 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const fmtPct = (n: number) => `${(Number.isFinite(n) ? n * 100 : 0).toFixed(2)}%`
 
-const getTrendIcon = (trend: string) => {
-  if (trend === "上升") return <TrendingUp className="w-4 h-4 text-green-500" />
-  if (trend === "下降") return <TrendingDown className="w-4 h-4 text-red-500" />
+const getTrendIcon = (trend: string, t: any) => {
+  if (trend === "上升" || trend === "Rising") return <TrendingUp className="w-4 h-4 text-green-500" />
+  if (trend === "下降" || trend === "Falling") return <TrendingDown className="w-4 h-4 text-red-500" />
   return <Minus className="w-4 h-4 text-gray-500" />
 }
 
 const getTrendColor = (trend: string) => {
-  if (trend === "上升") return "text-green-600 dark:text-green-400"
-  if (trend === "下降") return "text-red-600 dark:text-red-400"
+  if (trend === "上升" || trend === "Rising") return "text-green-600 dark:text-green-400"
+  if (trend === "下降" || trend === "Falling") return "text-red-600 dark:text-red-400"
   return "text-gray-600 dark:text-gray-400"
 }
 
 export default function DiscountTrendPage() {
   const { currentAccount } = useAccount()
+  const { t } = useLocale()
   const [months, setMonths] = useState(99) // 默认显示全部数据
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<DiscountTrendResponse | null>(null)
@@ -169,31 +171,31 @@ export default function DiscountTrendPage() {
   const productColumns: TableColumn<{ product: string; data: ProductAnalysis[string] }>[] = [
     {
       key: "product",
-      label: "产品名称",
+      label: t.discountTrend.productName,
       sortable: true,
       render: (value) => <span className="font-medium">{value}</span>,
     },
     {
       key: "total_discount",
-      label: "累计折扣",
+      label: t.discountTrend.totalDiscount,
       sortable: true,
       render: (_, row) => <span className="font-mono text-green-600 dark:text-green-400">{fmtCny(row.data.total_discount)}</span>,
     },
     {
       key: "avg_discount_rate",
-      label: "平均折扣率",
+      label: t.discountTrend.avgDiscountRate,
       sortable: true,
       render: (_, row) => <span className="font-mono">{fmtPct(row.data.avg_discount_rate)}</span>,
     },
     {
       key: "latest_discount_rate",
-      label: "最新折扣率",
+      label: t.discountTrend.latestDiscountRate,
       sortable: true,
       render: (_, row) => <span className="font-mono">{fmtPct(row.data.latest_discount_rate)}</span>,
     },
     {
       key: "rate_change",
-      label: "折扣率变化",
+      label: t.discountTrend.discountRateChange,
       sortable: true,
       render: (_, row) => (
         <span className={`font-mono ${row.data.rate_change > 0 ? 'text-green-600' : row.data.rate_change < 0 ? 'text-red-600' : ''}`}>
@@ -203,11 +205,11 @@ export default function DiscountTrendPage() {
     },
     {
       key: "trend",
-      label: "趋势",
+      label: t.discountTrend.trend,
       sortable: true,
       render: (_, row) => (
         <div className="flex items-center gap-1">
-          {getTrendIcon(row.data.trend)}
+          {getTrendIcon(row.data.trend, t)}
           <span className={getTrendColor(row.data.trend)}>{row.data.trend}</span>
         </div>
       ),
@@ -231,34 +233,34 @@ export default function DiscountTrendPage() {
   const instanceColumns: TableColumn<TopInstanceDiscount>[] = [
     {
       key: "instance_id",
-      label: "实例ID",
+      label: t.discountTrend.instanceId,
       render: (value) => <code className="text-xs">{value}</code>,
     },
     {
       key: "instance_name",
-      label: "实例名称",
+      label: t.discountTrend.instanceName,
       render: (value) => <span className="text-sm">{value || "-"}</span>,
     },
     {
       key: "product_name",
-      label: "产品",
+      label: t.discountTrend.product,
       render: (value) => <span className="text-sm">{value}</span>,
     },
     {
       key: "official_price",
-      label: "官网价",
+      label: t.discountTrend.officialPrice,
       sortable: true,
       render: (value) => <span className="font-mono text-xs">{fmtCny(Number(value))}</span>,
     },
     {
       key: "discount_amount",
-      label: "折扣金额",
+      label: t.discountTrend.discountAmount,
       sortable: true,
       render: (value) => <span className="font-mono text-xs text-green-600 dark:text-green-400">{fmtCny(Number(value))}</span>,
     },
     {
       key: "discount_pct",
-      label: "折扣率",
+      label: t.discountTrend.discountRate,
       sortable: true,
       render: (value) => {
         const pct = Number(value)
@@ -274,7 +276,7 @@ export default function DiscountTrendPage() {
     },
     {
       key: "payable_amount",
-      label: "应付金额",
+      label: t.discountTrend.payableAmount,
       sortable: true,
       render: (value) => <span className="font-mono text-xs">{fmtCny(Number(value))}</span>,
     },
@@ -300,10 +302,10 @@ export default function DiscountTrendPage() {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h2 className="text-3xl font-bold tracking-tight">折扣趋势分析</h2>
+              <h2 className="text-3xl font-bold tracking-tight">{t.discountTrend.title}</h2>
               <p className="text-muted-foreground mt-1">
-                {months >= 99 ? "显示全部历史数据" : `显示最近${months}个月数据`}
-                {trendData?.timeline && ` (${trendData.timeline.length}个月)`}
+                {months >= 99 ? t.discountTrend.showAllHistory : t.discountTrend.showRecentMonths.replace('{months}', months.toString())}
+                {trendData?.timeline && ` (${trendData.timeline.length}${t.discountTrend.months})`}
               </p>
             </div>
             <div className="flex gap-2">
@@ -312,14 +314,14 @@ export default function DiscountTrendPage() {
                 disabled={loading}
                 className="px-4 py-2 rounded-lg border border-border hover:bg-muted/40 transition-colors text-sm disabled:opacity-50"
               >
-                加载缓存
+                {t.discountTrend.loadCache}
               </button>
               <button
                 onClick={() => fetchData(true)}
                 disabled={loading}
                 className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm disabled:opacity-50"
               >
-                强制刷新
+                {t.discountTrend.forceRefresh}
               </button>
             </div>
           </div>
@@ -330,7 +332,7 @@ export default function DiscountTrendPage() {
               <div className="space-y-4">
                 {/* 预设时间范围 */}
                 <div>
-                  <label className="text-sm font-medium mb-2 block">时间范围</label>
+                  <label className="text-sm font-medium mb-2 block">{t.discountTrend.timeRange}</label>
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => { setTimeRangeMode("preset"); setMonths(3); }}
@@ -340,7 +342,7 @@ export default function DiscountTrendPage() {
                           : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                       }`}
                     >
-                      近3个月
+                      {t.discountTrend.last3Months}
                     </button>
                     <button
                       onClick={() => { setTimeRangeMode("preset"); setMonths(6); }}
@@ -350,7 +352,7 @@ export default function DiscountTrendPage() {
                           : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                       }`}
                     >
-                      近6个月
+                      {t.discountTrend.last6Months}
                     </button>
                     <button
                       onClick={() => { setTimeRangeMode("preset"); setMonths(12); }}
@@ -360,7 +362,7 @@ export default function DiscountTrendPage() {
                           : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                       }`}
                     >
-                      近1年
+                      {t.discountTrend.last1Year}
                     </button>
                     <button
                       onClick={() => { setTimeRangeMode("preset"); setMonths(99); }}
@@ -370,7 +372,7 @@ export default function DiscountTrendPage() {
                           : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                       }`}
                     >
-                      全部时间
+                      {t.discountTrend.allTime}
                     </button>
                     <button
                       onClick={() => setTimeRangeMode("custom")}
@@ -380,7 +382,7 @@ export default function DiscountTrendPage() {
                           : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                       }`}
                     >
-                      自定义范围
+                      {t.discountTrend.customRange}
                     </button>
                   </div>
                 </div>
@@ -389,7 +391,7 @@ export default function DiscountTrendPage() {
                 {timeRangeMode === "custom" && (
                   <div className="flex flex-col sm:flex-row gap-3 items-end pt-2 border-t">
                     <div className="flex-1">
-                      <label className="text-sm font-medium mb-1 block">开始月份</label>
+                      <label className="text-sm font-medium mb-1 block">{t.discountTrend.startMonth}</label>
                       <input
                         type="month"
                         value={customStartMonth}
@@ -399,7 +401,7 @@ export default function DiscountTrendPage() {
                       />
                     </div>
                     <div className="flex-1">
-                      <label className="text-sm font-medium mb-1 block">结束月份</label>
+                      <label className="text-sm font-medium mb-1 block">{t.discountTrend.endMonth}</label>
                       <input
                         type="month"
                         value={customEndMonth}
@@ -421,7 +423,7 @@ export default function DiscountTrendPage() {
                       disabled={!customStartMonth || !customEndMonth}
                       className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      应用
+                      {t.discountTrend.apply}
                     </button>
                   </div>
                 )}
@@ -434,7 +436,7 @@ export default function DiscountTrendPage() {
           <div className="flex items-center justify-center h-[40vh]">
             <div className="text-center space-y-2">
               <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto"></div>
-              <div className="text-sm text-muted-foreground">正在分析账单数据...</div>
+              <div className="text-sm text-muted-foreground">{t.discountTrend.analyzing}</div>
             </div>
           </div>
         ) : error ? (
@@ -443,15 +445,15 @@ export default function DiscountTrendPage() {
               <div className="flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-destructive mt-0.5" />
                 <div>
-                  <div className="font-medium text-destructive mb-1">加载失败</div>
+                  <div className="font-medium text-destructive mb-1">{t.discountTrend.loadFailed}</div>
                   <div className="text-sm text-muted-foreground">{error}</div>
                   <div className="mt-4 text-sm space-y-1">
-                    <p className="font-medium">可能的原因:</p>
+                    <p className="font-medium">{t.discountTrend.possibleReasons}</p>
                     <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                      <li>数据库中暂无该账号的账单数据</li>
-                      <li>请先运行账单获取命令：<code className="px-1 py-0.5 bg-muted rounded text-xs">./cl bill fetch --account ydzn --use-db</code></li>
-                      <li>或等待自动账单同步任务完成</li>
-                      <li>如问题持续，请联系管理员</li>
+                      <li>{t.discountTrend.noBillData}</li>
+                      <li>{t.discountTrend.runCommand}</li>
+                      <li>{t.discountTrend.waitSync}</li>
+                      <li>{t.discountTrend.contactAdmin}</li>
                     </ul>
                   </div>
                 </div>
@@ -470,47 +472,47 @@ export default function DiscountTrendPage() {
                   <div className="text-3xl font-bold text-primary">{fmtPct(trendData.latest_discount_rate)}</div>
                   <div className={`text-sm mt-2 flex items-center gap-1 ${trendData.discount_rate_change > 0 ? 'text-green-600' : trendData.discount_rate_change < 0 ? 'text-red-600' : 'text-gray-600'}`}>
                     {trendData.discount_rate_change > 0 ? <TrendingUp className="w-4 h-4" /> : trendData.discount_rate_change < 0 ? <TrendingDown className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
-                    <span>{trendData.discount_rate_change > 0 ? '+' : ''}{trendData.discount_rate_change_pct.toFixed(2)}% vs 首月</span>
+                    <span>{trendData.discount_rate_change > 0 ? '+' : ''}{trendData.discount_rate_change_pct.toFixed(2)}% {t.discountTrend.vsFirstMonth}</span>
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="glass border border-border/50 hover:shadow-xl transition-all">
                 <CardHeader>
-                  <CardTitle className="text-sm text-muted-foreground">平均折扣率</CardTitle>
+                  <CardTitle className="text-sm text-muted-foreground">{t.discountTrend.avgDiscountRateTitle}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold">{fmtPct(trendData.average_discount_rate)}</div>
                   <div className="text-sm text-muted-foreground mt-2">
-                    最近 {data?.data?.analysis_periods.length || 6} 个月
+                    {t.discountTrend.recentMonths.replace('{count}', (data?.data?.analysis_periods.length || 6).toString())}
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="glass border border-border/50 hover:shadow-xl transition-all">
                 <CardHeader>
-                  <CardTitle className="text-sm text-muted-foreground">折扣趋势</CardTitle>
+                  <CardTitle className="text-sm text-muted-foreground">{t.discountTrend.discountTrendTitle}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className={`text-3xl font-bold ${getTrendColor(trendData.trend_direction)}`}>
                     {trendData.trend_direction}
                   </div>
                   <div className="text-sm text-muted-foreground mt-2">
-                    范围: {fmtPct(trendData.min_discount_rate)} - {fmtPct(trendData.max_discount_rate)}
+                    {t.discountTrend.range} {fmtPct(trendData.min_discount_rate)} - {fmtPct(trendData.max_discount_rate)}
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="glass border border-border/50 hover:shadow-xl transition-all">
                 <CardHeader>
-                  <CardTitle className="text-sm text-muted-foreground">累计节省</CardTitle>
+                  <CardTitle className="text-sm text-muted-foreground">{t.discountTrend.cumulativeSavingsTitle}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-green-600 dark:text-green-400">
                     {fmtCny(trendData.total_savings_6m)}
                   </div>
                   <div className="text-sm text-muted-foreground mt-2">
-                    最近 {data?.data?.analysis_periods.length || 6} 个月
+                    {t.discountTrend.recentMonths.replace('{count}', (data?.data?.analysis_periods.length || 6).toString())}
                   </div>
                 </CardContent>
               </Card>
@@ -544,7 +546,7 @@ export default function DiscountTrendPage() {
                 {/* 折扣率趋势图 */}
                 <Card className="glass border border-border/50 shadow-xl">
                   <CardHeader>
-                    <CardTitle>折扣率变化趋势</CardTitle>
+                    <CardTitle>{t.discountTrend.discountRateTrend}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
@@ -554,7 +556,7 @@ export default function DiscountTrendPage() {
                         <YAxis stroke="#6b7280" label={{ value: '折扣率 (%)', angle: -90, position: 'insideLeft' }} />
                         <Tooltip
                           contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                          formatter={(value: any) => [`${Number(value).toFixed(2)}%`, '折扣率']}
+                          formatter={(value: any) => [`${Number(value).toFixed(2)}%`, t.discountTrend.discountRate]}
                         />
                         <Line
                           type="monotone"
@@ -572,7 +574,7 @@ export default function DiscountTrendPage() {
                 {/* 折扣金额趋势图 */}
                 <Card className="glass border border-border/50 shadow-xl">
                   <CardHeader>
-                    <CardTitle>折扣金额与官网价对比</CardTitle>
+                    <CardTitle>{t.discountTrend.discountAmountComparison}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
@@ -598,7 +600,7 @@ export default function DiscountTrendPage() {
             {activeTab === "products" && productData && (
               <Card className="glass border border-border/50 shadow-xl">
                 <CardHeader>
-                  <CardTitle>产品折扣分析 (TOP 20)</CardTitle>
+                  <CardTitle>{t.discountTrend.productAnalysis}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Table data={productRows.slice(0, 20)} columns={productColumns} />
@@ -609,7 +611,7 @@ export default function DiscountTrendPage() {
             {activeTab === "contracts" && contractData && (
               <Card className="glass border border-border/50 shadow-xl">
                 <CardHeader>
-                  <CardTitle>合同折扣分析 (TOP 10)</CardTitle>
+                  <CardTitle>{t.discountTrend.contractAnalysis}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -652,7 +654,7 @@ export default function DiscountTrendPage() {
             {activeTab === "instances" && instanceData && (
               <Card className="glass border border-border/50 shadow-xl">
                 <CardHeader>
-                  <CardTitle>高折扣实例 TOP 50（最近一个月）</CardTitle>
+                  <CardTitle>{t.discountTrend.topInstances}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Table data={instanceData.slice(0, 50)} columns={instanceColumns} />
@@ -663,7 +665,7 @@ export default function DiscountTrendPage() {
         ) : (
           <Card className="border-muted bg-muted/5">
             <CardContent className="p-6 text-center">
-              <div className="text-muted-foreground">暂无折扣趋势数据</div>
+              <div className="text-muted-foreground">{t.discountTrend.noData}</div>
             </CardContent>
           </Card>
         )}

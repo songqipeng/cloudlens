@@ -396,7 +396,7 @@ export default function BudgetsPage() {
                     {/* 趋势图表 */}
                     {trend.length > 0 && (
                       <div>
-                        <h3 className="text-sm font-medium mb-4">支出趋势</h3>
+                        <h3 className="text-sm font-medium mb-4">{t.budget.spendingTrend}</h3>
                         <ResponsiveContainer width="100%" height={200}>
                           <AreaChart data={trend}>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
@@ -411,8 +411,8 @@ export default function BudgetsPage() {
                               tickFormatter={(value) => `¥${(value / 1000).toFixed(0)}k`}
                             />
                             <Tooltip
-                              formatter={(value: any) => [`¥${Number(value).toLocaleString()}`, "支出"]}
-                              labelFormatter={(label) => `日期: ${label}`}
+                              formatter={(value: any) => [`¥${Number(value).toLocaleString()}`, t.budget.spending]}
+                              labelFormatter={(label) => `${t.budget.date} ${label}`}
                               contentStyle={{
                                 backgroundColor: "hsl(var(--card))",
                                 border: "1px solid hsl(var(--border))",
@@ -521,7 +521,7 @@ function BudgetEditor({
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="text-sm font-medium mb-2 block">预算名称</label>
+              <label className="text-sm font-medium mb-2 block">{t.budget.budgetName}</label>
               <input
                 type="text"
                 value={name}
@@ -545,33 +545,33 @@ function BudgetEditor({
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">预算周期</label>
+              <label className="text-sm font-medium mb-2 block">{t.budget.budgetPeriod}</label>
               <select
                 value={period}
                 onChange={(e) => setPeriod(e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
               >
-                <option value="monthly">月度</option>
-                <option value="quarterly">季度</option>
-                <option value="yearly">年度</option>
+                <option value="monthly">{t.budget.period.monthly}</option>
+                <option value="quarterly">{t.budget.period.quarterly}</option>
+                <option value="yearly">{t.budget.period.yearly}</option>
               </select>
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">预算类型</label>
+              <label className="text-sm font-medium mb-2 block">{t.budget.budgetType}</label>
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
               >
-                <option value="total">总预算</option>
-                <option value="tag">按标签</option>
-                <option value="service">按服务</option>
+                <option value="total">{t.budget.scope.total}</option>
+                <option value="tag">{t.budget.scope.tag}</option>
+                <option value="service">{t.budget.scope.service}</option>
               </select>
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">开始日期</label>
+              <label className="text-sm font-medium mb-2 block">{t.budget.startDate}</label>
               <input
                 type="date"
                 value={startDate}
@@ -584,10 +584,10 @@ function BudgetEditor({
             {/* 告警规则 */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <label className="text-sm font-medium">告警规则</label>
+                <label className="text-sm font-medium">{t.budget.alertRules}</label>
                 <Button type="button" variant="outline" size="sm" onClick={addAlert}>
                   <Plus className="h-4 w-4 mr-1" />
-                  添加告警
+                  {t.budget.addAlert}
                 </Button>
               </div>
               <div className="space-y-3">
@@ -609,7 +609,7 @@ function BudgetEditor({
                         checked={alert.enabled}
                         onChange={(e) => updateAlert(index, "enabled", e.target.checked)}
                       />
-                      <span className="text-sm">启用</span>
+                      <span className="text-sm">{t.budget.enable}</span>
                     </label>
                     <Button
                       type="button"
@@ -623,7 +623,7 @@ function BudgetEditor({
                 ))}
                 {alerts.length === 0 && (
                   <div className="text-sm text-muted-foreground text-center py-4">
-                    暂无告警规则，点击"添加告警"添加
+                    {t.budget.noAlertRulesDesc}
                   </div>
                 )}
               </div>
@@ -631,10 +631,10 @@ function BudgetEditor({
 
             <div className="flex items-center justify-end gap-3">
               <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
-                取消
+                {t.budget.cancel}
               </Button>
               <Button type="submit" disabled={saving}>
-                {saving ? "保存中..." : "保存"}
+                {saving ? t.budget.saving : t.budget.save}
               </Button>
             </div>
           </form>

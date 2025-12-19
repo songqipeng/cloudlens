@@ -229,6 +229,358 @@ export interface Translations {
   // Dashboard View
   dashboardView: {
     saveFailed: string
+    dashboardNotFound: string
+    backToList: string
+    back: string
+    cancel: string
+    save: string
+    editLayout: string
+    editModeHint: string
+  }
+  
+  // CIS
+  cis: {
+    title: string
+    description: string
+    complianceRate: string
+    checks: string
+    noChecks: string
+    loading: string
+  }
+  
+  // Discount Trend
+  discountTrend: {
+    title: string
+    description: string
+    trendUp: string
+    trendDown: string
+    productName: string
+    totalDiscount: string
+    avgDiscountRate: string
+    latestDiscountRate: string
+    discountRateChange: string
+    trend: string
+    instanceId: string
+    instanceName: string
+    product: string
+    officialPrice: string
+    discountAmount: string
+    discountRate: string
+    payableAmount: string
+    loadFailed: string
+    showAllHistory: string
+    showRecentMonths: string
+    months: string
+    loadCache: string
+    forceRefresh: string
+    timeRange: string
+    last3Months: string
+    last6Months: string
+    last1Year: string
+    allTime: string
+    customRange: string
+    startMonth: string
+    endMonth: string
+    apply: string
+    analyzing: string
+    possibleReasons: string
+    noBillData: string
+    runCommand: string
+    waitSync: string
+    contactAdmin: string
+    latestDiscountRateTitle: string
+    vsFirstMonth: string
+    avgDiscountRateTitle: string
+    recentMonths: string
+    discountTrendTitle: string
+    range: string
+    cumulativeSavingsTitle: string
+    tabs: {
+      overview: string
+      products: string
+      contracts: string
+      instances: string
+    }
+    discountRateTrend: string
+    discountRateUnit: string
+    discountAmountComparison: string
+    amountUnit: string
+    productAnalysis: string
+    contractAnalysis: string
+    topInstances: string
+    cumulativeSavings: string
+    avgDiscountRateLabel: string
+    latestDiscountRateLabel: string
+    coverageMonths: string
+    monthsUnit: string
+    noData: string
+  }
+  
+  // Cost Allocation (extended)
+  costAllocation: {
+    title: string
+    description: string
+    rules: string
+    results: string
+    rulesTitle: string
+    rulesDescription: string
+    noRules: string
+    noRulesDesc: string
+    noResults: string
+    noResultsDesc: string
+    createRule: string
+    editRule: string
+    deleteConfirm: string
+    deleteFailed: string
+    executeSuccess: string
+    executeFailed: string
+    saveFailed: string
+    configureRule: string
+    ruleName: string
+    ruleDescription: string
+    allocationMethod: string
+    allocationTarget: string
+    allocationTargetPlaceholder: string
+    add: string
+    weight: string
+    enableRule: string
+    enabled: string
+    disabled: string
+    execute: string
+    period: string
+    totalCost: string
+    allocated: string
+    unallocated: string
+    allocationRate: string
+    allocationDetails: string
+    methods: {
+      equal: string
+      proportional: string
+      usage_based: string
+      tag_based: string
+      custom: string
+    }
+  }
+  
+  // Virtual Tags (extended)
+  virtualTags: {
+    title: string
+    description: string
+    noTags: string
+    noTagsDesc: string
+    noMatchTags: string
+    tryOtherKeywords: string
+    createTag: string
+    editTag: string
+    searchPlaceholder: string
+    deleteConfirm: string
+    deleteFailed: string
+    selectAccountFirst: string
+    fillRequiredFields: string
+    atLeastOneRule: string
+    saveFailed: string
+    previewFailed: string
+    previewMatchingResources: string
+    ruleCount: string
+    priority: string
+    moreRules: string
+    configureTagRules: string
+    tagName: string
+    tagKey: string
+    tagValue: string
+    priority: string
+    priorityDesc: string
+    field: string
+    operator: string
+    pattern: string
+    matchingRules: string
+    addRule: string
+    rule: string
+    exampleProduction: string
+    exampleEnvironment: string
+    exampleProd: string
+    resourceName: string
+    region: string
+    resourceType: string
+    instanceId: string
+    contains: string
+    equals: string
+    startsWith: string
+    endsWith: string
+    regex: string
+    saving: string
+    previewTitle: string
+    previewDescription: string
+    matchedResources: string
+    totalResources: string
+    matchRate: string
+    matchingRulesLabel: string
+    resourceList: string
+    resourceListMax: string
+    resourceId: string
+    name: string
+    status: string
+    spec: string
+    noMatchedResources: string
+    previewDataEmpty: string
+  }
+  
+  // Custom Dashboards (extended)
+  customDashboards: {
+    title: string
+    description: string
+    noDashboards: string
+    noDashboardsDesc: string
+    noMatchDashboards: string
+    tryOtherKeywords: string
+    createDashboard: string
+    editDashboard: string
+    searchPlaceholder: string
+    noWidgets: string
+    deleteFailed: string
+    saveFailed: string
+    deleteConfirm: string
+    gridLayout: string
+    freeLayout: string
+    widgets: string
+    widgetsUnit: string
+    updatedAt: string
+    createdAt: string
+    view: string
+    shared: string
+    dashboardName: string
+    dashboardDescription: string
+    layoutType: string
+    shareDashboard: string
+    widgetList: string
+    addMetric: string
+    addChart: string
+    addTable: string
+    widgetTitle: string
+    metric: string
+    chart: string
+    table: string
+    cancel: string
+    save: string
+  }
+  
+  // Budgets (extended)
+  budget: {
+    title: string
+    description: string
+    budgetSettings: string
+    monthlyBudget: string
+    annualBudget: string
+    saveBudget: string
+    saving: string
+    budgetUsage: string
+    currentMonthUsed: string
+    usageRate: string
+    selectAccountFirst: string
+    saveSuccess: string
+    saveFailed: string
+    deleteConfirm: string
+    deleteFailed: string
+    createBudget: string
+    searchPlaceholder: string
+    noBudgets: string
+    noBudgetsDesc: string
+    noMatchBudgets: string
+    tryOtherKeywords: string
+    budgetAmount: string
+    spent: string
+    remaining: string
+    usageProgress: string
+    days: string
+    predictedSpend: string
+    predictedOverspend: string
+    alertTriggered: string
+    editBudget: string
+    newBudget: string
+    configureBudget: string
+    budgetName: string
+    budgetAmountLabel: string
+    budgetPeriod: string
+    budgetType: string
+    startDate: string
+    alertRules: string
+    addAlert: string
+    enable: string
+    noAlertRules: string
+    noAlertRulesDesc: string
+    cancel: string
+    save: string
+    spendingTrend: string
+    date: string
+    spending: string
+    thresholdTriggered: string
+    period: {
+      monthly: string
+      quarterly: string
+      yearly: string
+    }
+    scope: {
+      total: string
+      tag: string
+      service: string
+    }
+  }
+  
+  // Reports (extended)
+  reports: {
+    title: string
+    description: string
+    selectReportType: string
+    selectFormat: string
+    generateReport: string
+    selected: string
+    format: string
+    reportType: string
+    outputFormat: string
+    generating: string
+    generateAndDownload: string
+    tip: string
+    tipContent: string
+    excelTip: string
+    htmlTip: string
+    pdfTip: string
+    selectAccountFirst: string
+    generateSuccess: string
+    generateFailed: string
+    recentReports: string
+    download: string
+    types: {
+      comprehensive: {
+        name: string
+        description: string
+      }
+      resource: {
+        name: string
+        description: string
+      }
+      cost: {
+        name: string
+        description: string
+      }
+      security: {
+        name: string
+        description: string
+      }
+    }
+    formats: {
+      excel: {
+        name: string
+        description: string
+      }
+      html: {
+        name: string
+        description: string
+      }
+      pdf: {
+        name: string
+        description: string
+      }
+    }
   }
   
   // Settings
@@ -1358,6 +1710,344 @@ const en: Translations = {
   },
   dashboardView: {
     saveFailed: 'Save failed',
+    dashboardNotFound: 'Dashboard not found',
+    backToList: 'Back to List',
+    back: 'Back',
+    cancel: 'Cancel',
+    save: 'Save',
+    editLayout: 'Edit Layout',
+    editModeHint: '💡 Edit mode: Drag widgets to adjust position and size, then click "Save" when done',
+  },
+  cis: {
+    title: 'CIS Compliance Check',
+    description: 'CIS Benchmark compliance check',
+    complianceRate: 'Compliance Rate',
+    checks: 'Checks',
+    noChecks: 'No checks available',
+    loading: 'Loading...',
+  },
+  discountTrend: {
+    title: 'Discount Trend Analysis',
+    description: 'Analyze discount trends and patterns',
+    trendUp: 'Rising',
+    trendDown: 'Falling',
+    productName: 'Product Name',
+    totalDiscount: 'Total Discount',
+    avgDiscountRate: 'Average Discount Rate',
+    latestDiscountRate: 'Latest Discount Rate',
+    discountRateChange: 'Discount Rate Change',
+    trend: 'Trend',
+    instanceId: 'Instance ID',
+    instanceName: 'Instance Name',
+    product: 'Product',
+    officialPrice: 'Official Price',
+    discountAmount: 'Discount Amount',
+    discountRate: 'Discount Rate',
+    payableAmount: 'Payable Amount',
+    loadFailed: 'Load Failed',
+    showAllHistory: 'Show all historical data',
+    showRecentMonths: 'Show recent {months} months',
+    months: 'months',
+    loadCache: 'Load Cache',
+    forceRefresh: 'Force Refresh',
+    timeRange: 'Time Range',
+    last3Months: 'Last 3 Months',
+    last6Months: 'Last 6 Months',
+    last1Year: 'Last 1 Year',
+    allTime: 'All Time',
+    customRange: 'Custom Range',
+    startMonth: 'Start Month',
+    endMonth: 'End Month',
+    apply: 'Apply',
+    analyzing: 'Analyzing billing data...',
+    possibleReasons: 'Possible reasons:',
+    noBillData: 'No billing data for this account in the database',
+    runCommand: 'Please run billing fetch command first: ./cl bill fetch --account ydzn --use-db',
+    waitSync: 'Or wait for automatic billing sync task to complete',
+    contactAdmin: 'If the problem persists, please contact the administrator',
+    latestDiscountRateTitle: 'Latest Discount Rate',
+    vsFirstMonth: 'vs First Month',
+    avgDiscountRateTitle: 'Average Discount Rate',
+    recentMonths: 'Recent {count} months',
+    discountTrendTitle: 'Discount Trend',
+    range: 'Range:',
+    cumulativeSavingsTitle: 'Cumulative Savings',
+    tabs: {
+      overview: 'Trend Overview',
+      products: 'Product Analysis',
+      contracts: 'Contract Analysis',
+      instances: 'TOP Instances',
+    },
+    discountRateTrend: 'Discount Rate Trend',
+    discountRateUnit: 'Discount Rate (%)',
+    discountAmountComparison: 'Discount Amount vs Official Price',
+    amountUnit: 'Amount (¥)',
+    productAnalysis: 'Product Discount Analysis (TOP 20)',
+    contractAnalysis: 'Contract Discount Analysis (TOP 10)',
+    topInstances: 'High Discount Instances TOP 50 (Last Month)',
+    cumulativeSavings: 'Cumulative Savings',
+    avgDiscountRateLabel: 'Average Discount Rate',
+    latestDiscountRateLabel: 'Latest Discount Rate',
+    coverageMonths: 'Coverage Months',
+    monthsUnit: 'months',
+    noData: 'No discount trend data available',
+  },
+  costAllocation: {
+    title: 'Cost Allocation',
+    description: 'Manage cost allocation rules and view allocation results',
+    rules: 'Allocation Rules',
+    results: 'Allocation Results',
+    rulesTitle: 'Cost Allocation Rules',
+    rulesDescription: 'Configure and manage cost allocation rules',
+    noRules: 'No cost allocation rules yet',
+    noRulesDesc: 'Create your first cost allocation rule to allocate shared costs',
+    noResults: 'No allocation results yet',
+    noResultsDesc: 'After executing cost allocation rules, results will be displayed here',
+    createRule: 'Create Rule',
+    editRule: 'Edit Rule',
+    deleteConfirm: 'Are you sure you want to delete this cost allocation rule?',
+    deleteFailed: 'Delete failed',
+    executeSuccess: 'Cost allocation executed successfully',
+    executeFailed: 'Execution failed',
+    saveFailed: 'Save failed',
+    configureRule: 'Configure Cost Allocation Rule',
+    ruleName: 'Rule Name',
+    ruleDescription: 'Description',
+    allocationMethod: 'Allocation Method',
+    allocationTarget: 'Allocation Target',
+    allocationTargetPlaceholder: 'Enter target name (e.g., department, project)',
+    add: 'Add',
+    weight: 'Weight',
+    enableRule: 'Enable this rule',
+    enabled: 'Enabled',
+    disabled: 'Disabled',
+    execute: 'Execute',
+    period: 'Period',
+    totalCost: 'Total Cost',
+    allocated: 'Allocated',
+    unallocated: 'Unallocated',
+    allocationRate: 'Allocation Rate',
+    allocationDetails: 'Allocation Details',
+    methods: {
+      equal: 'Equal Allocation',
+      proportional: 'Proportional Allocation',
+      usage_based: 'Usage-based Allocation',
+      tag_based: 'Tag-based Allocation',
+      custom: 'Custom Rule',
+    },
+  },
+  virtualTags: {
+    title: 'Virtual Tags',
+    description: 'Create virtual tags through rule engine for cost allocation and grouping without modifying actual cloud resource tags',
+    noTags: 'No virtual tags yet',
+    noTagsDesc: 'Click "Create Tag" above to create your first virtual tag',
+    noMatchTags: 'No matching tags found',
+    tryOtherKeywords: 'Try other search terms',
+    createTag: 'Create Tag',
+    editTag: 'Edit Tag',
+    searchPlaceholder: 'Search tag name, key or value...',
+    deleteConfirm: 'Are you sure you want to delete this tag?',
+    deleteFailed: 'Delete failed',
+    selectAccountFirst: 'Please select account first',
+    fillRequiredFields: 'Please fill in all required fields',
+    atLeastOneRule: 'At least one valid rule is required',
+    saveFailed: 'Save failed',
+    previewFailed: 'Preview failed',
+    previewMatchingResources: 'Preview Matching Resources',
+    ruleCount: 'Rule Count',
+    priority: 'Priority',
+    moreRules: 'more rules...',
+    configureTagRules: 'Configure tag rules for matching cloud resources',
+    tagName: 'Tag Name',
+    tagKey: 'Tag Key',
+    tagValue: 'Tag Value',
+    priority: 'Priority',
+    priorityDesc: 'Higher numbers have higher priority',
+    field: 'Field',
+    operator: 'Operator',
+    pattern: 'Pattern',
+    matchingRules: 'Matching Rules',
+    addRule: 'Add Rule',
+    rule: 'Rule',
+    exampleProduction: 'e.g.: Production Environment',
+    exampleEnvironment: 'e.g.: environment',
+    exampleProd: 'e.g.: prod',
+    resourceName: 'Resource Name',
+    region: 'Region',
+    resourceType: 'Resource Type',
+    instanceId: 'Instance ID',
+    contains: 'Contains',
+    equals: 'Equals',
+    startsWith: 'Starts With',
+    endsWith: 'Ends With',
+    regex: 'Regex',
+    saving: 'Saving...',
+    previewTitle: 'Tag Preview',
+    previewDescription: 'View matching resource list',
+    matchedResources: 'Matched Resources',
+    totalResources: 'Total Resources',
+    matchRate: 'Match Rate',
+    matchingRulesLabel: 'Matching Rules',
+    resourceList: 'Matching Resource List',
+    resourceListMax: 'Matching Resource List (max 100)',
+    resourceId: 'Resource ID',
+    name: 'Name',
+    status: 'Status',
+    spec: 'Spec',
+    noMatchedResources: 'No matched resources',
+    previewDataEmpty: 'Preview data is empty',
+  },
+  customDashboards: {
+    title: 'Custom Dashboards',
+    description: 'Create and manage custom dashboards',
+    noDashboards: 'No custom dashboards yet',
+    noDashboardsDesc: 'Click "Create Dashboard" above to create your first dashboard',
+    noMatchDashboards: 'No matching dashboards found',
+    tryOtherKeywords: 'Try using other keywords to search',
+    createDashboard: 'Create Dashboard',
+    editDashboard: 'Edit Dashboard',
+    searchPlaceholder: 'Search dashboards...',
+    noWidgets: 'No widgets yet, click the button above to add',
+    deleteFailed: 'Delete failed',
+    saveFailed: 'Save failed',
+    deleteConfirm: 'Are you sure you want to delete this dashboard?',
+    gridLayout: 'Grid Layout',
+    freeLayout: 'Free Layout',
+    widgets: 'widgets',
+    widgetsUnit: 'widgets',
+    updatedAt: 'Updated on',
+    createdAt: 'Created on',
+    view: 'View',
+    shared: 'Shared',
+    dashboardName: 'Dashboard Name',
+    dashboardDescription: 'Description',
+    layoutType: 'Layout Type',
+    shareDashboard: 'Share Dashboard',
+    widgetList: 'Widget List',
+    addMetric: '+ Metric',
+    addChart: '+ Chart',
+    addTable: '+ Table',
+    widgetTitle: 'Widget Title',
+    metric: '📊 Metric',
+    chart: '📈 Chart',
+    table: '📋 Table',
+    cancel: 'Cancel',
+    save: 'Save',
+  },
+  budget: {
+    title: 'Budget Management',
+    description: 'Create and manage cost budgets, monitor spending',
+    budgetSettings: 'Budget Settings',
+    monthlyBudget: 'Monthly Budget (CNY)',
+    annualBudget: 'Annual Budget (CNY)',
+    saveBudget: 'Save Budget',
+    saving: 'Saving...',
+    budgetUsage: 'Budget Usage',
+    currentMonthUsed: 'Current Month Used',
+    usageRate: 'Usage Rate',
+    selectAccountFirst: 'Please select account first',
+    saveSuccess: 'Budget settings saved successfully!',
+    saveFailed: 'Save failed',
+    deleteConfirm: 'Are you sure you want to delete this budget?',
+    deleteFailed: 'Delete failed',
+    createBudget: 'Create Budget',
+    searchPlaceholder: 'Search budgets...',
+    noBudgets: 'No budgets yet',
+    noBudgetsDesc: 'Click "Create Budget" above to create your first budget',
+    noMatchBudgets: 'No matching budgets found',
+    tryOtherKeywords: 'Try using other keywords to search',
+    budgetAmount: 'Budget Amount',
+    spent: 'Spent',
+    remaining: 'Remaining',
+    usageProgress: 'Budget Usage Progress',
+    days: 'days',
+    predictedSpend: 'Predicted Spend',
+    predictedOverspend: 'Predicted Overspend',
+    alertTriggered: 'Alert Triggered',
+    editBudget: 'Edit Budget',
+    newBudget: 'New Budget',
+    configureBudget: 'Configure budget information and alert rules',
+    budgetName: 'Budget Name',
+    budgetAmountLabel: 'Budget Amount (CNY)',
+    budgetPeriod: 'Budget Period',
+    budgetType: 'Budget Type',
+    startDate: 'Start Date',
+    alertRules: 'Alert Rules',
+    addAlert: 'Add Alert',
+    enable: 'Enable',
+    noAlertRules: 'No alert rules',
+    noAlertRulesDesc: 'No alert rules yet, click "Add Alert" to add',
+    cancel: 'Cancel',
+    save: 'Save',
+    spendingTrend: 'Spending Trend',
+    date: 'Date:',
+    spending: 'Spending',
+    thresholdTriggered: 'threshold triggered',
+    period: {
+      monthly: 'Monthly',
+      quarterly: 'Quarterly',
+      yearly: 'Yearly',
+    },
+    scope: {
+      total: 'Total Budget',
+      tag: 'By Tag',
+      service: 'By Service',
+    },
+  },
+  reports: {
+    title: 'Report Generation',
+    description: 'Generate professional resource analysis reports in multiple formats and types',
+    selectReportType: 'Select Report Type',
+    selectFormat: 'Select Output Format',
+    generateReport: 'Generate Report',
+    selected: 'Selected',
+    format: 'Format',
+    reportType: 'Report Type',
+    outputFormat: 'Output Format',
+    generating: 'Generating report...',
+    generateAndDownload: 'Generate and Download Report',
+    tip: 'Tip',
+    tipContent: 'Report generation may take a few minutes, please wait patiently. The report will be automatically downloaded when ready.',
+    excelTip: ' Excel format is suitable for data analysis and further processing.',
+    htmlTip: ' HTML format includes beautiful styles, suitable for online viewing and sharing.',
+    pdfTip: ' PDF format is suitable for printing and archiving.',
+    selectAccountFirst: 'Please select account first',
+    generateSuccess: 'Report generated successfully!',
+    generateFailed: 'Report generation failed',
+    recentReports: 'Recent Reports',
+    download: 'Download',
+    types: {
+      comprehensive: {
+        name: 'Comprehensive Report',
+        description: 'Complete report including resource inventory, cost analysis, security checks and optimization suggestions',
+      },
+      resource: {
+        name: 'Resource Inventory',
+        description: 'Detailed resource list including configuration and status information for all cloud resources',
+      },
+      cost: {
+        name: 'Cost Analysis',
+        description: 'Detailed cost analysis report including cost trends, composition and optimization suggestions',
+      },
+      security: {
+        name: 'Security Report',
+        description: 'Security compliance check report including risk assessment and compliance analysis',
+      },
+    },
+    formats: {
+      excel: {
+        name: 'Excel',
+        description: 'Suitable for data analysis and further processing',
+      },
+      html: {
+        name: 'HTML',
+        description: 'Beautiful web format, suitable for online viewing and sharing',
+      },
+      pdf: {
+        name: 'PDF',
+        description: 'Professional document format, suitable for printing and archiving',
+      },
+    },
   },
 }
 
@@ -2025,6 +2715,344 @@ const zh: Translations = {
   },
   dashboardView: {
     saveFailed: '保存失败',
+    dashboardNotFound: '仪表盘不存在',
+    backToList: '返回列表',
+    back: '返回',
+    cancel: '取消',
+    save: '保存',
+    editLayout: '编辑布局',
+    editModeHint: '💡 编辑模式：拖拽组件调整位置和大小，完成后点击"保存"',
+  },
+  cis: {
+    title: 'CIS合规检查',
+    description: 'CIS Benchmark合规性检查',
+    complianceRate: '合规度',
+    checks: '检查项',
+    noChecks: '暂无检查项',
+    loading: '加载中...',
+  },
+  discountTrend: {
+    title: '折扣趋势分析',
+    description: '分析折扣趋势和模式',
+    trendUp: '上升',
+    trendDown: '下降',
+    productName: '产品名称',
+    totalDiscount: '累计折扣',
+    avgDiscountRate: '平均折扣率',
+    latestDiscountRate: '最新折扣率',
+    discountRateChange: '折扣率变化',
+    trend: '趋势',
+    instanceId: '实例ID',
+    instanceName: '实例名称',
+    product: '产品',
+    officialPrice: '官网价',
+    discountAmount: '折扣金额',
+    discountRate: '折扣率',
+    payableAmount: '应付金额',
+    loadFailed: '加载失败',
+    showAllHistory: '显示全部历史数据',
+    showRecentMonths: '显示最近{months}个月数据',
+    months: '个月',
+    loadCache: '加载缓存',
+    forceRefresh: '强制刷新',
+    timeRange: '时间范围',
+    last3Months: '近3个月',
+    last6Months: '近6个月',
+    last1Year: '近1年',
+    allTime: '全部时间',
+    customRange: '自定义范围',
+    startMonth: '开始月份',
+    endMonth: '结束月份',
+    apply: '应用',
+    analyzing: '正在分析账单数据...',
+    possibleReasons: '可能的原因:',
+    noBillData: '数据库中暂无该账号的账单数据',
+    runCommand: '请先运行账单获取命令：./cl bill fetch --account ydzn --use-db',
+    waitSync: '或等待自动账单同步任务完成',
+    contactAdmin: '如问题持续，请联系管理员',
+    latestDiscountRateTitle: '最新折扣率',
+    vsFirstMonth: 'vs 首月',
+    avgDiscountRateTitle: '平均折扣率',
+    recentMonths: '最近 {count} 个月',
+    discountTrendTitle: '折扣趋势',
+    range: '范围:',
+    cumulativeSavingsTitle: '累计节省',
+    tabs: {
+      overview: '趋势总览',
+      products: '产品分析',
+      contracts: '合同分析',
+      instances: 'TOP实例',
+    },
+    discountRateTrend: '折扣率变化趋势',
+    discountRateUnit: '折扣率 (%)',
+    discountAmountComparison: '折扣金额与官网价对比',
+    amountUnit: '金额 (¥)',
+    productAnalysis: '产品折扣分析 (TOP 20)',
+    contractAnalysis: '合同折扣分析 (TOP 10)',
+    topInstances: '高折扣实例 TOP 50（最近一个月）',
+    cumulativeSavings: '累计节省',
+    avgDiscountRateLabel: '平均折扣率',
+    latestDiscountRateLabel: '最新折扣率',
+    coverageMonths: '覆盖月份',
+    monthsUnit: '个月',
+    noData: '暂无折扣趋势数据',
+  },
+  costAllocation: {
+    title: '成本分配',
+    description: '管理成本分配规则和查看分配结果',
+    rules: '分配规则',
+    results: '分配结果',
+    rulesTitle: '成本分配规则',
+    rulesDescription: '配置和管理成本分配规则',
+    noRules: '暂无成本分配规则',
+    noRulesDesc: '创建第一个成本分配规则来分配共享成本',
+    noResults: '暂无分配结果',
+    noResultsDesc: '执行成本分配规则后，结果将显示在这里',
+    createRule: '新建分配规则',
+    editRule: '编辑分配规则',
+    deleteConfirm: '确定要删除此成本分配规则吗？',
+    deleteFailed: '删除失败',
+    executeSuccess: '成本分配执行成功',
+    executeFailed: '执行失败',
+    saveFailed: '保存失败',
+    configureRule: '配置成本分配规则',
+    ruleName: '规则名称',
+    ruleDescription: '描述',
+    allocationMethod: '分配方法',
+    allocationTarget: '分配目标',
+    allocationTargetPlaceholder: '输入目标名称（如：部门、项目等）',
+    add: '添加',
+    weight: '权重',
+    enableRule: '启用此规则',
+    enabled: '已启用',
+    disabled: '已禁用',
+    execute: '执行',
+    period: '周期',
+    totalCost: '总成本',
+    allocated: '已分配',
+    unallocated: '未分配',
+    allocationRate: '分配率',
+    allocationDetails: '分配明细',
+    methods: {
+      equal: '平均分配',
+      proportional: '按比例分配',
+      usage_based: '按使用量分配',
+      tag_based: '按标签分配',
+      custom: '自定义规则',
+    },
+  },
+  virtualTags: {
+    title: '虚拟标签管理',
+    description: '通过规则引擎创建虚拟标签，用于成本分配和分组，无需修改云资源实际标签',
+    noTags: '暂无虚拟标签',
+    noTagsDesc: '点击上方"新建标签"按钮创建第一个标签',
+    noMatchTags: '未找到匹配的标签',
+    tryOtherKeywords: '尝试其他搜索词',
+    createTag: '新建标签',
+    editTag: '编辑标签',
+    searchPlaceholder: '搜索标签名称、key或value...',
+    deleteConfirm: '确定要删除这个标签吗？',
+    deleteFailed: '删除失败',
+    selectAccountFirst: '请先选择账号',
+    fillRequiredFields: '请填写所有必填字段',
+    atLeastOneRule: '至少需要一个有效的规则',
+    saveFailed: '保存失败',
+    previewFailed: '预览失败',
+    previewMatchingResources: '预览匹配资源',
+    ruleCount: '规则数量',
+    priority: '优先级',
+    moreRules: '更多规则...',
+    configureTagRules: '配置标签规则，用于匹配云资源',
+    tagName: '标签名称',
+    tagKey: '标签Key',
+    tagValue: '标签Value',
+    priority: '优先级',
+    priorityDesc: '数字越大优先级越高',
+    field: '字段',
+    operator: '操作符',
+    pattern: '模式',
+    matchingRules: '匹配规则',
+    addRule: '添加规则',
+    rule: '规则',
+    exampleProduction: '例如：生产环境',
+    exampleEnvironment: '例如：environment',
+    exampleProd: '例如：prod',
+    resourceName: '资源名称',
+    region: '区域',
+    resourceType: '资源类型',
+    instanceId: '实例ID',
+    contains: '包含',
+    equals: '等于',
+    startsWith: '开头',
+    endsWith: '结尾',
+    regex: '正则表达式',
+    saving: '保存中...',
+    previewTitle: '标签预览',
+    previewDescription: '查看匹配的资源列表',
+    matchedResources: '匹配资源',
+    totalResources: '总资源数',
+    matchRate: '匹配率',
+    matchingRulesLabel: '匹配规则',
+    resourceList: '匹配的资源列表',
+    resourceListMax: '匹配的资源列表（最多显示100个）',
+    resourceId: '资源ID',
+    name: '名称',
+    status: '状态',
+    spec: '规格',
+    noMatchedResources: '没有匹配的资源',
+    previewDataEmpty: '预览数据为空',
+  },
+  customDashboards: {
+    title: '自定义仪表盘',
+    description: '创建和管理自定义仪表盘，灵活配置数据展示',
+    noDashboards: '还没有自定义仪表盘',
+    noDashboardsDesc: '点击上方"新建仪表盘"按钮创建第一个仪表盘',
+    noMatchDashboards: '未找到匹配的仪表盘',
+    tryOtherKeywords: '尝试使用其他关键词搜索',
+    createDashboard: '新建仪表盘',
+    editDashboard: '编辑仪表盘',
+    searchPlaceholder: '搜索仪表盘...',
+    noWidgets: '暂无组件，点击上方按钮添加',
+    deleteFailed: '删除失败',
+    saveFailed: '保存失败',
+    deleteConfirm: '确定要删除这个仪表盘吗？',
+    gridLayout: '网格布局',
+    freeLayout: '自由布局',
+    widgets: '个组件',
+    widgetsUnit: '个组件',
+    updatedAt: '更新于',
+    createdAt: '创建于',
+    view: '查看',
+    shared: '已共享',
+    dashboardName: '仪表盘名称',
+    dashboardDescription: '描述',
+    layoutType: '布局类型',
+    shareDashboard: '共享仪表盘',
+    widgetList: '组件列表',
+    addMetric: '+ 指标',
+    addChart: '+ 图表',
+    addTable: '+ 表格',
+    widgetTitle: '组件标题',
+    metric: '📊 指标',
+    chart: '📈 图表',
+    table: '📋 表格',
+    cancel: '取消',
+    save: '保存',
+  },
+  budget: {
+    title: '预算管理',
+    description: '创建和管理成本预算，监控支出情况',
+    budgetSettings: '预算设置',
+    monthlyBudget: '月度预算 (CNY)',
+    annualBudget: '年度预算 (CNY)',
+    saveBudget: '保存预算',
+    saving: '保存中...',
+    budgetUsage: '预算使用情况',
+    currentMonthUsed: '本月已使用',
+    usageRate: '使用率',
+    selectAccountFirst: '请先选择账号',
+    saveSuccess: '预算设置成功！',
+    saveFailed: '保存失败',
+    deleteConfirm: '确定要删除这个预算吗？',
+    deleteFailed: '删除失败',
+    createBudget: '新建预算',
+    searchPlaceholder: '搜索预算...',
+    noBudgets: '还没有预算',
+    noBudgetsDesc: '点击上方"新建预算"按钮创建第一个预算',
+    noMatchBudgets: '未找到匹配的预算',
+    tryOtherKeywords: '尝试使用其他关键词搜索',
+    budgetAmount: '预算金额',
+    spent: '已支出',
+    remaining: '剩余预算',
+    usageProgress: '预算使用进度',
+    days: '天',
+    predictedSpend: '预测支出',
+    predictedOverspend: '预计超支',
+    alertTriggered: '已触发告警',
+    editBudget: '编辑预算',
+    newBudget: '新建预算',
+    configureBudget: '配置预算信息和告警规则',
+    budgetName: '预算名称',
+    budgetAmountLabel: '预算金额 (CNY)',
+    budgetPeriod: '预算周期',
+    budgetType: '预算类型',
+    startDate: '开始日期',
+    alertRules: '告警规则',
+    addAlert: '添加告警',
+    enable: '启用',
+    noAlertRules: '暂无告警规则',
+    noAlertRulesDesc: '暂无告警规则，点击"添加告警"添加',
+    cancel: '取消',
+    save: '保存',
+    spendingTrend: '支出趋势',
+    date: '日期:',
+    spending: '支出',
+    thresholdTriggered: '阈值已触发',
+    period: {
+      monthly: '月度',
+      quarterly: '季度',
+      yearly: '年度',
+    },
+    scope: {
+      total: '总预算',
+      tag: '按标签',
+      service: '按服务',
+    },
+  },
+  reports: {
+    title: '报告生成',
+    description: '生成专业的资源分析报告，支持多种格式和类型',
+    selectReportType: '选择报告类型',
+    selectFormat: '选择输出格式',
+    generateReport: '生成报告',
+    selected: '已选择',
+    format: '格式',
+    reportType: '报告类型',
+    outputFormat: '输出格式',
+    generating: '正在生成报告...',
+    generateAndDownload: '生成并下载报告',
+    tip: '提示',
+    tipContent: '报告生成可能需要几分钟时间，请耐心等待。生成完成后将自动下载。',
+    excelTip: ' Excel 格式适合数据分析和进一步处理。',
+    htmlTip: ' HTML 格式包含精美的样式，适合在线查看和分享。',
+    pdfTip: ' PDF 格式适合打印和归档保存。',
+    selectAccountFirst: '请先选择账号',
+    generateSuccess: '报告生成成功！',
+    generateFailed: '报告生成失败',
+    recentReports: '最近生成的报告',
+    download: '下载',
+    types: {
+      comprehensive: {
+        name: '综合报告',
+        description: '包含资源清单、成本分析、安全检查和优化建议的完整报告',
+      },
+      resource: {
+        name: '资源清单',
+        description: '详细的资源列表，包括所有云资源的配置和状态信息',
+      },
+      cost: {
+        name: '成本分析',
+        description: '详细的成本分析报告，包括成本趋势、构成和优化建议',
+      },
+      security: {
+        name: '安全报告',
+        description: '安全合规检查报告，包括风险评估和合规性分析',
+      },
+    },
+    formats: {
+      excel: {
+        name: 'Excel',
+        description: '适合数据分析和进一步处理',
+      },
+      html: {
+        name: 'HTML',
+        description: '精美的网页格式，适合在线查看和分享',
+      },
+      pdf: {
+        name: 'PDF',
+        description: '专业的文档格式，适合打印和归档',
+      },
+    },
   },
 }
 

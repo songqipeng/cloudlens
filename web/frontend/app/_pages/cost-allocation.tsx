@@ -478,7 +478,7 @@ function AllocationRuleEditor({
                   type="text"
                   value={newTarget}
                   onChange={(e) => setNewTarget(e.target.value)}
-                  placeholder={t.locale === 'zh' ? "输入目标名称（如：部门、项目等）" : "Enter target name (e.g., department, project)"}
+                  placeholder={t.costAllocation.allocationTargetPlaceholder}
                   className="flex-1 px-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
                   onKeyPress={(e) => {
                     if (e.key === "Enter") {

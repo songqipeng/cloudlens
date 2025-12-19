@@ -222,9 +222,9 @@ export default function DashboardViewPage() {
         <div className="p-6 md:p-8 max-w-[1600px] mx-auto">
           <Card>
             <CardContent className="p-12 text-center">
-              <p className="text-muted-foreground">仪表盘不存在</p>
+              <p className="text-muted-foreground">{t.dashboardView.dashboardNotFound}</p>
               <Button onClick={() => router.push("/custom-dashboards")} className="mt-4">
-                返回列表
+                {t.dashboardView.backToList}
               </Button>
             </CardContent>
           </Card>
@@ -279,7 +279,7 @@ export default function DashboardViewPage() {
         <div className="relative">
           {editing && (
             <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm text-blue-500">
-              💡 编辑模式：拖拽组件调整位置和大小，完成后点击"保存"
+              {t.dashboardView.editModeHint}
             </div>
           )}
           

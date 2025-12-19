@@ -181,13 +181,13 @@ export default function DashboardPage() {
               </svg>
             </div>
             <div>
-              <h3 className="text-xl font-semibold text-foreground mb-2">加载失败</h3>
+              <h3 className="text-xl font-semibold text-foreground mb-2">{t.common.error}</h3>
               <p className="text-muted-foreground text-sm">{error}</p>
               <button
                 onClick={() => window.location.reload()}
                 className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
               >
-                重新加载
+                {t.common.refresh}
               </button>
             </div>
           </div>

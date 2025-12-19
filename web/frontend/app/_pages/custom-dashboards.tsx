@@ -166,7 +166,7 @@ export default function CustomDashboardsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       {dashboard.is_shared && (
-                        <Share2 className="h-4 w-4 text-muted-foreground" title="已共享" />
+                        <Share2 className="h-4 w-4 text-muted-foreground" title={t.customDashboards.shared} />
                       )}
                       <Button
                         variant="ghost"
@@ -193,9 +193,9 @@ export default function CustomDashboardsPage() {
                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Layout className="h-4 w-4" />
-                        {dashboard.layout === "grid" ? "网格布局" : "自由布局"}
+                        {dashboard.layout === "grid" ? t.customDashboards.gridLayout : t.customDashboards.freeLayout}
                       </span>
-                      <span>{dashboard.widgets.length} 个组件</span>
+                      <span>{dashboard.widgets.length} {t.customDashboards.widgets}</span>
                     </div>
                     
                     {/* Widget预览 */}
@@ -221,9 +221,9 @@ export default function CustomDashboardsPage() {
                     <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
                       <span>
                         {dashboard.updated_at
-                          ? `更新于 ${new Date(dashboard.updated_at).toLocaleDateString()}`
+                          ? `${t.customDashboards.updatedAt} ${new Date(dashboard.updated_at).toLocaleDateString()}`
                           : dashboard.created_at
-                          ? `创建于 ${new Date(dashboard.created_at).toLocaleDateString()}`
+                          ? `${t.customDashboards.createdAt} ${new Date(dashboard.created_at).toLocaleDateString()}`
                           : ""}
                       </span>
                       <Button
@@ -233,7 +233,7 @@ export default function CustomDashboardsPage() {
                           window.location.href = `/custom-dashboards/${dashboard.id}`
                         }}
                       >
-                        查看
+                        {t.customDashboards.view}
                       </Button>
                     </div>
                   </div>
@@ -269,6 +269,7 @@ function DashboardEditor({
   onSave: (data: any) => void
   onCancel: () => void
 }) {
+  const { t } = useLocale()
   const [name, setName] = useState(dashboard?.name || "")
   const [description, setDescription] = useState(dashboard?.description || "")
   const [layout, setLayout] = useState(dashboard?.layout || "grid")
@@ -290,7 +291,7 @@ function DashboardEditor({
     const newWidget: WidgetConfig = {
       id: `widget-${Date.now()}`,
       type,
-      title: type === "metric" ? "指标" : type === "chart" ? "图表" : "表格",
+      title: type === "metric" ? t.customDashboards.metric : type === "chart" ? t.customDashboards.chart : t.customDashboards.table,
       position: { x: 0, y: 0, w: 4, h: 2 },
       config: {}
     }
@@ -317,7 +318,7 @@ function DashboardEditor({
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="text-sm font-medium mb-2 block">仪表盘名称</label>
+              <label className="text-sm font-medium mb-2 block">{t.customDashboards.dashboardName}</label>
               <input
                 type="text"
                 value={name}
@@ -328,7 +329,7 @@ function DashboardEditor({
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">描述</label>
+              <label className="text-sm font-medium mb-2 block">{t.customDashboards.dashboardDescription}</label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -338,14 +339,14 @@ function DashboardEditor({
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">布局类型</label>
+              <label className="text-sm font-medium mb-2 block">{t.customDashboards.layoutType}</label>
               <select
                 value={layout}
                 onChange={(e) => setLayout(e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
               >
-                <option value="grid">网格布局</option>
-                <option value="freeform">自由布局</option>
+                <option value="grid">{t.customDashboards.gridLayout}</option>
+                <option value="freeform">{t.customDashboards.freeLayout}</option>
               </select>
             </div>
 
@@ -357,23 +358,23 @@ function DashboardEditor({
                 onChange={(e) => setIsShared(e.target.checked)}
               />
               <label htmlFor="isShared" className="text-sm font-medium">
-                共享仪表盘
+                {t.customDashboards.shareDashboard}
               </label>
             </div>
 
             {/* Widget管理 */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <label className="text-sm font-medium">组件列表</label>
+                <label className="text-sm font-medium">{t.customDashboards.widgetList}</label>
                 <div className="flex items-center gap-2">
                   <Button type="button" variant="outline" size="sm" onClick={() => addWidget("metric")}>
-                    + 指标
+                    {t.customDashboards.addMetric}
                   </Button>
                   <Button type="button" variant="outline" size="sm" onClick={() => addWidget("chart")}>
-                    + 图表
+                    {t.customDashboards.addChart}
                   </Button>
                   <Button type="button" variant="outline" size="sm" onClick={() => addWidget("table")}>
-                    + 表格
+                    {t.customDashboards.addTable}
                   </Button>
                 </div>
               </div>
@@ -414,9 +415,9 @@ function DashboardEditor({
 
             <div className="flex items-center justify-end gap-3">
               <Button type="button" variant="outline" onClick={onCancel}>
-                取消
+                {t.customDashboards.cancel}
               </Button>
-              <Button type="submit">保存</Button>
+              <Button type="submit">{t.customDashboards.save}</Button>
             </div>
           </form>
         </CardContent>

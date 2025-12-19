@@ -277,7 +277,7 @@ export default function ReportsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="w-5 h-5" />
-                最近生成的报告
+                {t.reports.recentReports}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -291,7 +291,7 @@ export default function ReportsPage() {
                           {report.type} · {report.format} · {report.created_at}
                         </div>
                       </div>
-                      <button className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">下载</button>
+                      <button className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">{t.reports.download}</button>
                     </div>
                   </div>
                 ))}
