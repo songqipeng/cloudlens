@@ -92,7 +92,7 @@ export function CostDateRangeSelector({ onChange, className = "" }: CostDateRang
   const handleCustomChange = () => {
     if (customStart && customEnd) {
       if (customStart > customEnd) {
-        alert(t.locale === 'zh' ? "开始日期不能晚于结束日期" : "Start date cannot be later than end date")
+        alert(locale === 'zh' ? "开始日期不能晚于结束日期" : "Start date cannot be later than end date")
         return
       }
       onChange({
@@ -103,7 +103,7 @@ export function CostDateRangeSelector({ onChange, className = "" }: CostDateRang
     }
   }
 
-  const { t } = useLocale()
+  const { t, locale } = useLocale()
   
   // 预设选项
   const presets = [
@@ -172,5 +172,6 @@ export function CostDateRangeSelector({ onChange, className = "" }: CostDateRang
     </div>
   )
 }
+
 
 

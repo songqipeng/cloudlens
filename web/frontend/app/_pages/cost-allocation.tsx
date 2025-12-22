@@ -368,6 +368,7 @@ function AllocationRuleEditor({
   onCancel: () => void
 }) {
   const { currentAccount } = useAccount()
+  const { t } = useLocale()
   const [name, setName] = useState(rule?.name || "")
   const [description, setDescription] = useState(rule?.description || "")
   const [method, setMethod] = useState(rule?.method || "equal")
@@ -543,6 +544,7 @@ function AllocationRuleEditor({
     </div>
   )
 }
+
 
 
 

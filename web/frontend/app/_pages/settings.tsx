@@ -9,7 +9,7 @@ import { apiGet, apiPost } from "@/lib/api"
 import { toastSuccess, toastError } from "@/components/ui/toast"
 
 export default function SettingsPage() {
-  const { t } = useLocale()
+  const { t, locale } = useLocale()
   const [rules, setRules] = useState<any>(null)
   const [notificationConfig, setNotificationConfig] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -275,7 +275,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-2">{t.settings.language.currentLanguage}</p>
-                <p className="text-base font-semibold">{t.locale === 'zh' ? t.settings.language.chinese : t.settings.language.english}</p>
+                <p className="text-base font-semibold">{locale === 'zh' ? t.settings.language.chinese : t.settings.language.english}</p>
               </div>
               <LanguageSwitcher />
             </div>
@@ -308,6 +308,7 @@ export default function SettingsPage() {
     </DashboardLayout>
   )
 }
+
 
 
 

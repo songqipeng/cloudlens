@@ -79,6 +79,11 @@ export interface Translations {
     selectAccountDesc: string
     goToAccountManagement: string
     scanFailed: string
+    loading: string
+    loadingDesc: string
+    loadingSummary: string
+    loadingIdle: string
+    loadingTrend: string
   }
   
   // Cost
@@ -114,116 +119,6 @@ export interface Translations {
     page: string
     previousPage: string
     nextPage: string
-  }
-  
-  // Custom Dashboards
-  customDashboards: {
-    title: string
-    description: string
-    noDashboards: string
-    noDashboardsDesc: string
-    noMatchDashboards: string
-    tryOtherKeywords: string
-    createDashboard: string
-    editDashboard: string
-    searchPlaceholder: string
-    noWidgets: string
-    deleteFailed: string
-    saveFailed: string
-  }
-  
-  // Virtual Tags
-  virtualTags: {
-    title: string
-    description: string
-    noTags: string
-    noTagsDesc: string
-    noMatchTags: string
-    tryOtherKeywords: string
-    createTag: string
-    editTag: string
-    searchPlaceholder: string
-    deleteConfirm: string
-    deleteFailed: string
-    selectAccountFirst: string
-    fillRequiredFields: string
-    atLeastOneRule: string
-    saveFailed: string
-    previewFailed: string
-    previewMatchingResources: string
-    ruleCount: string
-    priority: string
-    moreRules: string
-    configureTagRules: string
-    tagName: string
-    tagKey: string
-    tagValue: string
-    priority: string
-    priorityDesc: string
-    field: string
-    operator: string
-    pattern: string
-    matchingRules: string
-    addRule: string
-    rule: string
-    exampleProduction: string
-    exampleEnvironment: string
-    exampleProd: string
-    resourceName: string
-    region: string
-    resourceType: string
-    instanceId: string
-    contains: string
-    equals: string
-    startsWith: string
-    endsWith: string
-    regex: string
-    saving: string
-  }
-  
-  // Cost Allocation
-  costAllocation: {
-    title: string
-    description: string
-    rules: string
-    results: string
-    rulesTitle: string
-    rulesDescription: string
-    noRules: string
-    noRulesDesc: string
-    noResults: string
-    noResultsDesc: string
-    createRule: string
-    editRule: string
-    deleteConfirm: string
-    deleteFailed: string
-    executeSuccess: string
-    executeFailed: string
-    saveFailed: string
-    configureRule: string
-    ruleName: string
-    ruleDescription: string
-    allocationMethod: string
-    allocationTarget: string
-    add: string
-    weight: string
-    enableRule: string
-    enabled: string
-    disabled: string
-    execute: string
-    period: string
-    totalCost: string
-    allocated: string
-    unallocated: string
-    allocationRate: string
-    allocationDetails: string
-    methods: {
-      equal: string
-      proportional: string
-      usage_based: string
-      tag_based: string
-      custom: string
-    }
   }
   
   // Dashboard View
@@ -316,7 +211,7 @@ export interface Translations {
     noData: string
   }
   
-  // Cost Allocation (extended)
+  // Cost Allocation
   costAllocation: {
     title: string
     description: string
@@ -362,7 +257,7 @@ export interface Translations {
     }
   }
   
-  // Virtual Tags (extended)
+  // Virtual Tags
   virtualTags: {
     title: string
     description: string
@@ -382,7 +277,6 @@ export interface Translations {
     previewFailed: string
     previewMatchingResources: string
     ruleCount: string
-    priority: string
     moreRules: string
     configureTagRules: string
     tagName: string
@@ -425,7 +319,7 @@ export interface Translations {
     previewDataEmpty: string
   }
   
-  // Custom Dashboards (extended)
+  // Custom Dashboards
   customDashboards: {
     title: string
     description: string
@@ -831,6 +725,16 @@ export interface Translations {
     secretRequired: string
     saving: string
     saveAndSwitch: string
+    editAccount: string
+    editAccountDesc: string
+    editSecretPlaceholder: string
+    editSecretNote: string
+    editNameNote: string
+    confirmNameChange: string
+    alias: string
+    aliasPlaceholder: string
+    aliasNote: string
+    accountNameImmutable: string
   }
   
   // Optimization
@@ -862,104 +766,6 @@ export interface Translations {
     refresh: string
     unit: string
     perMonth: string
-  }
-  
-  // Budget
-  budget: {
-    title: string
-    description: string
-    budgetSettings: string
-    monthlyBudget: string
-    annualBudget: string
-    saveBudget: string
-    saving: string
-    budgetUsage: string
-    currentMonthUsed: string
-    usageRate: string
-    selectAccountFirst: string
-    saveSuccess: string
-    saveFailed: string
-    deleteConfirm: string
-    deleteFailed: string
-    createBudget: string
-    searchPlaceholder: string
-    noBudgets: string
-    noBudgetsDesc: string
-    noMatchBudgets: string
-    tryOtherKeywords: string
-    budgetAmount: string
-    spent: string
-    remaining: string
-    usageProgress: string
-    days: string
-    predictedSpend: string
-    predictedOverspend: string
-    alertTriggered: string
-    period: {
-      monthly: string
-      quarterly: string
-      yearly: string
-    }
-    scope: {
-      total: string
-      tag: string
-      service: string
-    }
-  }
-  
-  // Reports
-  reports: {
-    title: string
-    description: string
-    selectReportType: string
-    selectFormat: string
-    generateReport: string
-    selected: string
-    format: string
-    reportType: string
-    outputFormat: string
-    generating: string
-    generateAndDownload: string
-    tip: string
-    tipContent: string
-    excelTip: string
-    htmlTip: string
-    pdfTip: string
-    selectAccountFirst: string
-    generateSuccess: string
-    generateFailed: string
-    types: {
-      comprehensive: {
-        name: string
-        description: string
-      }
-      resource: {
-        name: string
-        description: string
-      }
-      cost: {
-        name: string
-        description: string
-      }
-      security: {
-        name: string
-        description: string
-      }
-    }
-    formats: {
-      excel: {
-        name: string
-        description: string
-      }
-      html: {
-        name: string
-        description: string
-      }
-      pdf: {
-        name: string
-        description: string
-      }
-    }
   }
   
   // Security
@@ -1028,12 +834,11 @@ export interface Translations {
     enable: string
     disable: string
     editRule: string
-    createRule: string
     configureRule: string
     alertType: string
     costThreshold: string
     ruleName: string
-    description: string
+    ruleDescription: string
     severity: string
     condition: string
     notificationChannels: string
@@ -1060,7 +865,6 @@ export interface Translations {
     lessThanOrEqual: string
     notificationChannelsLabel: string
     noChannelsWarning: string
-    enable: string
     disable: string
   }
 }
@@ -1135,6 +939,11 @@ const en: Translations = {
     selectAccountDesc: 'Please select a cloud account from the left sidebar',
     goToAccountManagement: 'Go to Account Management',
     scanFailed: 'Scan failed',
+    loading: 'Loading Dashboard...',
+    loadingDesc: 'Fetching the latest data from the cloud, please wait...',
+    loadingSummary: 'Loading summary data...',
+    loadingIdle: 'Loading idle resources...',
+    loadingTrend: 'Loading cost trends...',
   },
   cost: {
     title: 'Cost Analysis',
@@ -1400,6 +1209,16 @@ const en: Translations = {
     secretRequired: 'Please enter AccessKeySecret',
     saving: 'Saving...',
     saveAndSwitch: 'Save and Switch',
+    editAccount: 'Edit Account',
+    editAccountDesc: 'Update account configuration. Leave secret blank to keep existing secret.',
+    editSecretPlaceholder: 'Leave blank to keep existing secret',
+    editSecretNote: 'Leave blank to keep existing secret, enter new secret to replace existing one',
+    editNameNote: 'Changing the account name will automatically migrate all related data to ensure correct associations.',
+    confirmNameChange: 'Are you sure you want to change the account name from "{old}" to "{new}"? The system will automatically update all related data.',
+    alias: 'Display Alias',
+    aliasPlaceholder: 'Optional, used for display. Leave blank to show account name.',
+    aliasNote: 'After setting an alias, the interface will display the alias instead of the account name, but data associations still use the account name.',
+    accountNameImmutable: 'Account name cannot be modified and is used for data associations.',
   },
   optimization: {
     title: 'Optimization Suggestions',
@@ -1592,7 +1411,7 @@ const en: Translations = {
     alertType: 'Alert Type',
     costThreshold: 'Cost Threshold',
     ruleName: 'Rule Name',
-    description: 'Description',
+    ruleDescription: 'Description',
     severity: 'Severity',
     condition: 'Condition',
     notificationChannels: 'Notification Channels',
@@ -2123,6 +1942,11 @@ const zh: Translations = {
     selectAccountDesc: '请在左侧侧边栏选择要查看的云账号',
     goToAccountManagement: '前往账号管理',
     scanFailed: '扫描失败',
+    loading: '正在加载仪表盘...',
+    loadingDesc: '正在从云端获取最新数据，请稍候...',
+    loadingSummary: '正在加载摘要数据...',
+    loadingIdle: '正在加载闲置资源...',
+    loadingTrend: '正在加载成本趋势...',
   },
   cost: {
     title: '成本分析',
@@ -2391,6 +2215,16 @@ const zh: Translations = {
     secretRequired: '请输入 AccessKeySecret',
     saving: '保存中...',
     saveAndSwitch: '保存并切换',
+    editAccount: '编辑账号',
+    editAccountDesc: '更新账号配置信息。如果不输入新密钥，将保持现有密钥不变。',
+    editSecretPlaceholder: '留空则不更新密钥',
+    editSecretNote: '留空则不更新密钥，输入新密钥将替换现有密钥',
+    editNameNote: '修改名称后，系统会自动迁移所有相关数据，确保数据关联正确',
+    confirmNameChange: '确定要将账号名称从 "{old}" 更改为 "{new}" 吗？系统会自动更新所有相关数据。',
+    alias: '显示别名',
+    aliasPlaceholder: '可选，用于显示，留空则显示账号名称',
+    aliasNote: '设置别名后，界面将显示别名而不是账号名称，但数据关联仍使用账号名称',
+    accountNameImmutable: '账号名称不可修改，用于数据关联',
   },
   optimization: {
     title: '优化建议',
@@ -3087,5 +2921,7 @@ export function t(locale: Locale, key: string): string {
   
   return typeof value === 'string' ? value : key
 }
+
+
 
 

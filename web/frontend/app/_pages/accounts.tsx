@@ -7,12 +7,14 @@ import { ConfirmModal, Modal } from "@/components/ui/modal"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
-import { apiGet, apiDelete, apiPost } from "@/lib/api"
-import { Eye, EyeOff, Plus } from "lucide-react"
+import { apiGet, apiDelete, apiPost, apiPut } from "@/lib/api"
+import { Eye, EyeOff, Plus, Edit } from "lucide-react"
 
 interface Account {
   name: string
+  alias?: string  // 别名（可选，用于显示）
   region: string
+  provider?: string
   access_key_id: string
 }
 
@@ -27,11 +29,16 @@ export default function AccountsPage() {
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null)
 
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null)
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+  const [editError, setEditError] = useState<string | null>(null)
   const [showSecret, setShowSecret] = useState(false)
   const [form, setForm] = useState({
     name: "",
+    alias: "",  // 别名
     provider: "aliyun",
     region: "cn-hangzhou",
     access_key_id: "",
@@ -45,11 +52,24 @@ export default function AccountsPage() {
 
   const fetchAccounts = async () => {
     try {
-      const data = await apiGet("/accounts")
-      setAccounts(data)
+      const response = await apiGet("/settings/accounts")
+      if (response && response.success) {
+        setAccounts(response.data || [])
+      } else {
+        // 兼容旧接口
+        const data = await apiGet("/accounts")
+        setAccounts(Array.isArray(data) ? data : [])
+      }
       await refreshAccountContext()
     } catch (e) {
       console.error("Failed to fetch accounts:", e)
+      // 如果新接口失败，尝试旧接口
+      try {
+        const data = await apiGet("/accounts")
+        setAccounts(Array.isArray(data) ? data : [])
+      } catch (e2) {
+        console.error("Failed to fetch accounts from fallback:", e2)
+      }
     } finally {
       setLoading(false)
     }
@@ -61,6 +81,7 @@ export default function AccountsPage() {
     setShowSecret(false)
     setForm({
       name: "",
+      alias: "",
       provider: "aliyun",
       region: "cn-hangzhou",
       access_key_id: "",
@@ -84,6 +105,7 @@ export default function AccountsPage() {
   const handleAdd = async () => {
     setAddError(null)
     const name = form.name.trim()
+    const alias = form.alias.trim() || undefined
     const region = form.region.trim() || "cn-hangzhou"
     const accessKeyId = form.access_key_id.trim()
     const accessKeySecret = form.access_key_secret.trim()
@@ -94,13 +116,17 @@ export default function AccountsPage() {
 
     setAdding(true)
     try {
-      await apiPost("/settings/accounts", {
+      const accountData: any = {
         name,
         provider: form.provider || "aliyun",
         region,
         access_key_id: accessKeyId,
         access_key_secret: accessKeySecret,
-      })
+      }
+      if (alias) {
+        accountData.alias = alias
+      }
+      await apiPost("/settings/accounts", accountData)
       await fetchAccounts()
       setCurrentAccount(name)
       setShowAddModal(false)
@@ -110,6 +136,63 @@ export default function AccountsPage() {
       console.error("Failed to add account:", e)
       setAddError(String(e))
       setAdding(false)
+    }
+  }
+
+  const handleEdit = (account: Account) => {
+    setEditingAccount(account)
+    setForm({
+      name: account.name,
+      alias: account.alias || "",
+      provider: account.provider || "aliyun",
+      region: account.region,
+      access_key_id: account.access_key_id,
+      access_key_secret: "", // 不显示现有密钥，需要用户重新输入
+    })
+    setShowSecret(false)
+    setEditError(null)
+    setShowEditModal(true)
+  }
+
+  const handleUpdate = async () => {
+    if (!editingAccount) return
+    
+    setEditError(null)
+    const alias = form.alias.trim() || undefined
+    const region = form.region.trim() || "cn-hangzhou"
+    const accessKeyId = form.access_key_id.trim()
+    const accessKeySecret = form.access_key_secret.trim()
+
+    if (!accessKeyId) return setEditError(t.accounts.keyIdRequired)
+
+    setEditing(true)
+    try {
+      const updateData: any = {
+        provider: form.provider || "aliyun",
+        region,
+        access_key_id: accessKeyId,
+      }
+      
+      // 添加别名（如果有）
+      if (alias !== undefined) {
+        updateData.alias = alias
+      }
+      
+      // 只有用户输入了新密钥时才更新
+      if (accessKeySecret) {
+        updateData.access_key_secret = accessKeySecret
+      }
+      
+      await apiPut(`/settings/accounts/${editingAccount.name}`, updateData)
+      await fetchAccounts()
+      
+      setShowEditModal(false)
+      setEditingAccount(null)
+      resetAddForm()
+    } catch (e: any) {
+      console.error("Failed to update account:", e)
+      setEditError(e?.message || String(e))
+      setEditing(false)
     }
   }
 
@@ -170,18 +253,33 @@ export default function AccountsPage() {
                     className="flex items-center justify-between p-4 border border-border/50 rounded-xl hover:bg-muted/30 transition-all hover:shadow-md"
                   >
                     <div>
-                      <div className="font-semibold text-foreground">{account.name}</div>
+                      <div className="font-semibold text-foreground">
+                        {account.alias || account.name}
+                        {account.alias && (
+                          <span className="text-xs text-muted-foreground ml-2 font-normal">
+                            ({account.name})
+                          </span>
+                        )}
+                      </div>
                       <div className="text-sm text-muted-foreground mt-1">{t.accounts.region}: {account.region} | AK: {account.access_key_id.substring(0, 8)}...</div>
                     </div>
-                    <button
-                      onClick={() => {
-                        setSelectedAccount(account.name)
-                        setShowDeleteModal(true)
-                      }}
-                      className="px-4 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
-                    >
-                      {t.accounts.delete}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEdit(account)}
+                        className="px-4 py-2 text-sm text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                      >
+                        {t.common.edit}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedAccount(account.name)
+                          setShowDeleteModal(true)
+                        }}
+                        className="px-4 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                      >
+                        {t.accounts.delete}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -202,6 +300,136 @@ export default function AccountsPage() {
           cancelText={t.common.cancel}
           variant="danger"
         />
+
+        {/* 编辑账号模态框 */}
+        <Modal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false)
+            setEditingAccount(null)
+            resetAddForm()
+          }}
+          title={t.accounts.editAccount || "编辑账号"}
+          size="md"
+        >
+          <div className="space-y-5">
+            <div className="text-sm text-muted-foreground">
+              {t.accounts.editAccountDesc || "更新账号配置信息。如果不输入新密钥，将保持现有密钥不变。"}
+            </div>
+
+            {editError && (
+              <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-sm text-destructive">
+                {editError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div className="text-sm font-medium">{t.accounts.accountName}</div>
+                <input
+                  value={form.name}
+                  disabled
+                  className="w-full px-3 py-2.5 rounded-lg border border-border/60 bg-muted/30 text-muted-foreground text-sm cursor-not-allowed"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t.accounts.accountNameImmutable || "账号名称不可修改，用于数据关联"}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">{t.accounts.alias || "显示别名"}</div>
+                <input
+                  value={form.alias}
+                  onChange={(e) => setForm((s) => ({ ...s, alias: e.target.value }))}
+                  placeholder={t.accounts.aliasPlaceholder || "可选，用于显示，留空则显示账号名称"}
+                  className="w-full px-3 py-2.5 rounded-lg border border-border/60 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t.accounts.aliasNote || "设置别名后，界面将显示别名而不是账号名称，但数据关联仍使用账号名称"}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">{t.accounts.provider}</div>
+                <select
+                  value={form.provider}
+                  onChange={(e) => setForm((s) => ({ ...s, provider: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-lg border border-border/60 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
+                >
+                  <option value="aliyun">{t.accounts.aliyun}</option>
+                  <option value="tencent">{t.accounts.tencent}</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">{t.accounts.region}</div>
+                <input
+                  value={form.region}
+                  onChange={(e) => setForm((s) => ({ ...s, region: e.target.value }))}
+                  placeholder={t.accounts.regionPlaceholder}
+                  className="w-full px-3 py-2.5 rounded-lg border border-border/60 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">{t.accounts.accessKeyId}</div>
+                <input
+                  value={form.access_key_id}
+                  onChange={(e) => setForm((s) => ({ ...s, access_key_id: e.target.value }))}
+                  placeholder="LTAIxxxxxxxxxxxxxxxx"
+                  className="w-full px-3 py-2.5 rounded-lg border border-border/60 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm font-mono"
+                  autoComplete="off"
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <div className="text-sm font-medium">{t.accounts.accessKeySecret}</div>
+                <div className="relative">
+                  <input
+                    type={showSecret ? "text" : "password"}
+                    value={form.access_key_secret}
+                    onChange={(e) => setForm((s) => ({ ...s, access_key_secret: e.target.value }))}
+                    placeholder={t.accounts.editSecretPlaceholder || "留空则不更新密钥"}
+                    className="w-full pr-10 px-3 py-2.5 rounded-lg border border-border/60 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm font-mono"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSecret((v) => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-md hover:bg-muted/40 text-muted-foreground"
+                    title={showSecret ? t.accounts.hide : t.accounts.show}
+                  >
+                    {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {t.accounts.editSecretNote || "留空则不更新密钥，输入新密钥将替换现有密钥"}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => {
+                  setShowEditModal(false)
+                  setEditingAccount(null)
+                  resetAddForm()
+                }}
+                className="px-4 py-2.5 rounded-lg border border-border hover:bg-muted/40 transition-colors text-sm"
+                disabled={editing}
+              >
+                {t.common.cancel}
+              </button>
+              <button
+                onClick={handleUpdate}
+                disabled={editing}
+                className="px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {editing ? t.accounts.saving : t.common.save}
+              </button>
+            </div>
+          </div>
+        </Modal>
 
         <Modal
           isOpen={showAddModal}
@@ -232,6 +460,19 @@ export default function AccountsPage() {
                   placeholder={t.accounts.accountNamePlaceholder}
                   className="w-full px-3 py-2.5 rounded-lg border border-border/60 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">{t.accounts.alias || "显示别名"}</div>
+                <input
+                  value={form.alias}
+                  onChange={(e) => setForm((s) => ({ ...s, alias: e.target.value }))}
+                  placeholder={t.accounts.aliasPlaceholder || "可选，用于显示，留空则显示账号名称"}
+                  className="w-full px-3 py-2.5 rounded-lg border border-border/60 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t.accounts.aliasNote || "设置别名后，界面将显示别名而不是账号名称，但数据关联仍使用账号名称"}
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -318,6 +559,7 @@ export default function AccountsPage() {
     </DashboardLayout>
   )
 }
+
 
 
 

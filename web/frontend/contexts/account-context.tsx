@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 
 interface Account {
     name: string
+    alias?: string  // 别名（可选）
     region: string
     access_key_id: string
 }
@@ -53,9 +54,16 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     // 获取账号列表
     const refreshAccounts = async () => {
         try {
-            const res = await fetch('http://127.0.0.1:8000/api/accounts')
+            // 优先使用新的 /settings/accounts 接口（包含别名）
+            let res = await fetch('http://127.0.0.1:8000/api/settings/accounts')
+            if (!res.ok) {
+                // 如果新接口失败，回退到旧接口
+                res = await fetch('http://127.0.0.1:8000/api/accounts')
+            }
             if (res.ok) {
-                const data = await res.json()
+                const response = await res.json()
+                // 处理不同的响应格式
+                const data = response.data || response
                 setAccounts(data)
                 
                 // 注意：这里不要只依赖闭包里的 currentAccount（可能是旧值）
@@ -122,6 +130,7 @@ export function useAccount() {
     }
     return context
 }
+
 
 
 

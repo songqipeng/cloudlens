@@ -18,7 +18,7 @@ interface CostChartProps {
 }
 
 export function CostChart({ data, account }: CostChartProps) {
-    const { t } = useLocale()
+    const { t, locale } = useLocale()
     
     // 初始化默认30天
     const getDefaultRange = (): CostDateRange => {
@@ -165,7 +165,7 @@ export function CostChart({ data, account }: CostChartProps) {
                                 labelStyle={{ color: '#94a3b8', marginBottom: '8px', fontWeight: 600, fontSize: '12px' }}
                                 formatter={(value: any, name: any, props: any) => {
                                     const fullDate = props.payload?.fullDate || props.payload?.date
-                                    return [`¥${Number(value).toLocaleString()}`, t.locale === 'zh' ? '成本' : 'Cost']
+                                    return [`¥${Number(value).toLocaleString()}`, locale === 'zh' ? '成本' : 'Cost']
                                 }}
                                 labelFormatter={(label: any, payload: any) => {
                                     const fullDate = payload?.[0]?.payload?.fullDate || label

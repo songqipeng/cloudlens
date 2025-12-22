@@ -321,3 +321,4 @@ CREATE TABLE IF NOT EXISTS cost_allocation (
 SELECT 'Database schema created successfully!' AS status;
 
 
+

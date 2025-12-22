@@ -127,7 +127,7 @@ export function TableWidget({
                   >
                     {tableColumns.map((col) => (
                       <td key={col.key} className="px-4 py-3">
-                        {formatValue(row[col.key], col.formatter)}
+                        {formatValue(row[col.key], 'formatter' in col ? col.formatter : undefined)}
                       </td>
                     ))}
                   </tr>
@@ -164,6 +164,7 @@ export function TableWidget({
     </Card>
   )
 }
+
 
 
 

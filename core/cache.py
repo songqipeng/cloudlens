@@ -183,13 +183,13 @@ class CacheManager:
             account_name: 如果指定，只清除该账号的缓存
         """
         if self.db_type == "mysql":
-        if resource_type and account_name:
+            if resource_type and account_name:
                 sql = "DELETE FROM resource_cache WHERE resource_type = %s AND account_name = %s"
                 params = (resource_type, account_name)
-        elif resource_type:
+            elif resource_type:
                 sql = "DELETE FROM resource_cache WHERE resource_type = %s"
                 params = (resource_type,)
-        elif account_name:
+            elif account_name:
                 sql = "DELETE FROM resource_cache WHERE account_name = %s"
                 params = (account_name,)
             else:

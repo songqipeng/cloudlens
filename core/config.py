@@ -18,12 +18,14 @@ class CloudAccount:
         access_key_id: str,
         access_key_secret: str = None,
         region: str = None,
+        alias: str = None,
     ):
-        self.name = name
+        self.name = name  # 原始账号名称（用于数据关联，不可变）
         self.provider = provider
         self.access_key_id = access_key_id
         self.access_key_secret = access_key_secret
         self.region = region or "cn-hangzhou"
+        self.alias = alias  # 显示别名（可选，用于前端显示）
 
 
 class ConfigManager:
@@ -46,6 +48,7 @@ class ConfigManager:
         access_key_id: str,
         access_key_secret: str,
         region: str = None,
+        alias: str = None,
     ):
         """
         添加账号配置
@@ -66,15 +69,18 @@ class ConfigManager:
             existing["provider"] = provider
             existing["access_key_id"] = access_key_id
             existing["region"] = region or "cn-hangzhou"
+            if alias is not None:
+                existing["alias"] = alias
         else:
-            config["accounts"].append(
-                {
-                    "name": name,
-                    "provider": provider,
-                    "access_key_id": access_key_id,
-                    "region": region or "cn-hangzhou",
-                }
-            )
+            account_data = {
+                "name": name,
+                "provider": provider,
+                "access_key_id": access_key_id,
+                "region": region or "cn-hangzhou",
+            }
+            if alias:
+                account_data["alias"] = alias
+            config["accounts"].append(account_data)
 
         self._save_config(config)
         print(f"✅ Account '{name}' saved successfully!")
@@ -191,6 +197,7 @@ class ConfigManager:
                             access_key_id=acc_config["access_key_id"],
                             access_key_secret=secret,
                             region=acc_config.get("region", "cn-hangzhou"),
+                            alias=acc_config.get("alias"),
                         )
                     )
             except:

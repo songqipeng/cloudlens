@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { SummaryCards } from "@/components/summary-cards"
 import { CostChart } from "@/components/cost-chart"
@@ -10,6 +10,7 @@ import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
 import { toastError } from "@/components/ui/toast"
+import { SmartLoadingProgress } from "@/components/loading-progress"
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
@@ -18,6 +19,8 @@ export default function DashboardPage() {
   const [idleData, setIdleData] = useState<any>([])
   const [error, setError] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
+  const [loadingMessage, setLoadingMessage] = useState<string>("")
+  const loadingStartTime = useRef<number | null>(null)
   const { currentAccount } = useAccount()
 
   const { t } = useLocale()
@@ -58,20 +61,25 @@ export default function DashboardPage() {
 
       // 账号切换时先清空旧数据，避免短暂显示上一账号内容
       setLoading(true)
+      loadingStartTime.current = Date.now()
       setError(null)
       setSummary(null)
       setChartData(null)
       setIdleData([])
+      setLoadingMessage(t.dashboard.loading || "正在加载仪表盘数据...")
 
       console.log("[Dashboard] 当前账号:", currentAccount)
 
       try {
         // dashboard API 可能需要较长时间，增加超时时间
         const apiOptions = { timeout: 60000, retries: 2 } as any
+        
+        setLoadingMessage(t.dashboard.loadingSummary || "正在加载摘要数据...")
         const sumData = await apiGet("/dashboard/summary", { account: currentAccount }, apiOptions)
         console.log("[Dashboard] Summary 数据:", sumData)
         setSummary(sumData)
 
+        setLoadingMessage(t.dashboard.loadingIdle || "正在加载闲置资源...")
         try {
           const idleD = await apiGet("/dashboard/idle", { account: currentAccount }, apiOptions)
           console.log("[Dashboard] Idle 数据:", idleD)
@@ -80,6 +88,7 @@ export default function DashboardPage() {
           console.error("Failed to fetch idle data:", e)
         }
 
+        setLoadingMessage(t.dashboard.loadingTrend || "正在加载成本趋势...")
         try {
           const trendD = await apiGet("/dashboard/trend", { account: currentAccount, days: 30 }, apiOptions)
           console.log("[Dashboard] Trend 数据:", trendD)
@@ -88,11 +97,18 @@ export default function DashboardPage() {
           console.error("Failed to fetch trend data:", e)
         }
 
+        setLoadingMessage("")
         setLoading(false)
-      } catch (e) {
+        // 延迟清除开始时间，让进度动画完成
+        setTimeout(() => {
+          loadingStartTime.current = null
+        }, 500)
+      } catch (e: any) {
         console.error(e)
         setError(String(e))
+        setLoadingMessage("")
         setLoading(false)
+        loadingStartTime.current = null
       }
     }
 
@@ -133,35 +149,14 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
-          {/* Header Skeleton */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-            <div className="space-y-2">
-              <div className="h-9 w-48 bg-muted/50 rounded-lg animate-pulse"></div>
-              <div className="h-5 w-32 bg-muted/50 rounded animate-pulse"></div>
-            </div>
-            <div className="h-10 w-32 bg-muted/50 rounded-lg animate-pulse"></div>
-          </div>
-          
-          {/* Summary Cards Skeleton */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
-            {Array.from({ length: 7 }).map((_, i) => (
-              <div key={i} className="rounded-xl border border-border/50 bg-card/75 p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="h-4 w-24 bg-muted/50 rounded animate-pulse"></div>
-                  <div className="h-10 w-10 bg-muted/50 rounded-xl animate-pulse"></div>
-                </div>
-                <div className="h-10 w-32 bg-muted/50 rounded animate-pulse"></div>
-                <div className="h-3 w-20 bg-muted/50 rounded animate-pulse"></div>
-              </div>
-            ))}
-          </div>
-          
-          {/* Chart Skeleton */}
-          <div className="rounded-xl border border-border/50 bg-card/75 p-6">
-            <div className="h-8 w-48 bg-muted/50 rounded mb-4 animate-pulse"></div>
-            <div className="h-[450px] w-full bg-muted/30 rounded-lg animate-pulse"></div>
-          </div>
+        <div className="p-6 md:p-8 max-w-[1600px] mx-auto">
+          <SmartLoadingProgress
+            message={loadingMessage || t.dashboard.loading || "正在加载仪表盘数据..."}
+            subMessage={t.dashboard.loadingDesc || "正在从云端获取最新数据，请稍候..."}
+            loading={loading}
+            startTime={loadingStartTime.current || undefined}
+            estimatedDuration={30} // 预估30秒
+          />
         </div>
       </DashboardLayout>
     )

@@ -60,7 +60,8 @@ class AnalysisService:
         
         if not instances:
             # 即使没有实例，也保存空结果到缓存，避免重复查询
-            cache.set(cache_key, account_name, [])
+            cache.set(resource_type="dashboard_idle", account_name=account_name, data=[])
+            cache.set(resource_type="idle_result", account_name=account_name, data=[])
             return [], False
 
         # 5. Analyze
@@ -72,7 +73,11 @@ class AnalysisService:
                 
                 # Detection
                 detector = IdleDetector(rules)
-                is_idle, reasons = detector.is_ecs_idle(metrics, inst.tags)
+                # 转换 tags 格式：UnifiedResource.tags 是 Dict[str, str]，需要转换为列表格式
+                tags_list = None
+                if inst.tags and isinstance(inst.tags, dict):
+                    tags_list = [{"Key": k, "Value": v} for k, v in inst.tags.items()]
+                is_idle, reasons = detector.is_ecs_idle(metrics, tags_list)
                 
                 if is_idle:
                     idle_instances.append({

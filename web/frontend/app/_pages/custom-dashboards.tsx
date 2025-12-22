@@ -166,7 +166,9 @@ export default function CustomDashboardsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       {dashboard.is_shared && (
-                        <Share2 className="h-4 w-4 text-muted-foreground" title={t.customDashboards.shared} />
+                        <span title="共享">
+                          <Share2 className="h-4 w-4 text-muted-foreground" />
+                        </span>
                       )}
                       <Button
                         variant="ghost"
@@ -193,9 +195,9 @@ export default function CustomDashboardsPage() {
                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Layout className="h-4 w-4" />
-                        {dashboard.layout === "grid" ? t.customDashboards.gridLayout : t.customDashboards.freeLayout}
+                        {dashboard.layout === "grid" ? "网格布局" : "自由布局"}
                       </span>
-                      <span>{dashboard.widgets.length} {t.customDashboards.widgets}</span>
+                      <span>{dashboard.widgets.length} 组件</span>
                     </div>
                     
                     {/* Widget预览 */}
@@ -425,6 +427,7 @@ function DashboardEditor({
     </div>
   )
 }
+
 
 
 

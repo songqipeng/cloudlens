@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { apiGet } from "@/lib/api"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -290,17 +289,17 @@ export default function AlertsPage() {
                           <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                             <span className="font-medium">{t.alerts.notificationChannelsLabel}</span>
                             {rule.notify_email && (
-                              <Badge variant="outline" className="text-xs">
+                              <Badge variant="default" className="text-xs">
                                 📧 {rule.notify_email}
                               </Badge>
                             )}
                             {rule.notify_webhook && (
-                              <Badge variant="outline" className="text-xs">
+                              <Badge variant="default" className="text-xs">
                                 🔗 Webhook
                               </Badge>
                             )}
                             {rule.notify_sms && (
-                              <Badge variant="outline" className="text-xs">
+                              <Badge variant="default" className="text-xs">
                                 📱 {rule.notify_sms}
                               </Badge>
                             )}
@@ -314,28 +313,28 @@ export default function AlertsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
-                          variant="outline"
+                          variant="default"
                           size="sm"
                           onClick={() => handleCheckRule(rule.id)}
                         >
                           {t.alerts.check}
                         </Button>
                         <Button
-                          variant="outline"
+                          variant="default"
                           size="sm"
                           onClick={() => handleToggleRule(rule)}
                         >
                           {rule.enabled ? t.alerts.disable : t.alerts.enable}
                         </Button>
                         <Button
-                          variant="outline"
+                          variant="default"
                           size="sm"
                           onClick={() => setEditingRule(rule)}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button
-                          variant="outline"
+                          variant="default"
                           size="sm"
                           onClick={() => handleDeleteRule(rule.id)}
                         >
@@ -396,14 +395,14 @@ export default function AlertsPage() {
                         {alert.status === "triggered" && (
                           <>
                             <Button
-                              variant="outline"
+                              variant="default"
                               size="sm"
                               onClick={() => handleUpdateAlertStatus(alert.id, "acknowledged")}
                             >
                               {t.alerts.confirm}
                             </Button>
                             <Button
-                              variant="outline"
+                              variant="default"
                               size="sm"
                               onClick={() => handleUpdateAlertStatus(alert.id, "resolved")}
                             >
@@ -413,7 +412,7 @@ export default function AlertsPage() {
                         )}
                         {alert.status === "acknowledged" && (
                           <Button
-                            variant="outline"
+                            variant="default"
                             size="sm"
                             onClick={() => handleUpdateAlertStatus(alert.id, "resolved")}
                           >
@@ -421,7 +420,7 @@ export default function AlertsPage() {
                           </Button>
                         )}
                         <Button
-                          variant="outline"
+                          variant="default"
                           size="sm"
                           onClick={() => handleUpdateAlertStatus(alert.id, "closed")}
                         >
@@ -681,7 +680,7 @@ function AlertRuleEditor({
             </div>
 
             <div className="flex items-center justify-end gap-3">
-              <Button type="button" variant="outline" onClick={onCancel}>
+              <Button type="button" variant="default" onClick={onCancel}>
                 {t.common.cancel}
               </Button>
               <Button type="submit">{t.common.save}</Button>
@@ -692,6 +691,7 @@ function AlertRuleEditor({
     </div>
   )
 }
+
 
 
 

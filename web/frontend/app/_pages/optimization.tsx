@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
@@ -9,6 +9,8 @@ import { TrendingDown, DollarSign, AlertCircle, Tag, Server, Globe, Lock, Networ
 import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
+import { LanguageSwitcher } from "@/components/language-switcher"
+import { SmartLoadingProgress } from "@/components/loading-progress"
 
 interface Suggestion {
   type: string
@@ -37,12 +39,13 @@ interface OptimizationData {
 export default function OptimizationPage() {
   const router = useRouter()
   const { currentAccount } = useAccount()
-  const { t } = useLocale()
+  const { t, locale } = useLocale()
   const [data, setData] = useState<OptimizationData | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadingProgress, setLoadingProgress] = useState<string>("")
   const [expandedSuggestions, setExpandedSuggestions] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState<string>("all")
+  const loadingStartTime = useRef<number | null>(null)
 
   const base = useMemo(() => {
     return currentAccount ? `/a/${encodeURIComponent(currentAccount)}` : ""
@@ -62,6 +65,7 @@ export default function OptimizationPage() {
 
     try {
       setLoading(true)
+      loadingStartTime.current = Date.now()
       setLoadingProgress(t.optimization.loadingProgress)
       
       // 先尝试使用缓存（快速返回）
@@ -71,6 +75,7 @@ export default function OptimizationPage() {
           setData(cachedResult.data)
           setLoadingProgress("")
           setLoading(false)
+          loadingStartTime.current = null
           return
         }
       } catch (e) {
@@ -94,13 +99,26 @@ export default function OptimizationPage() {
       console.error("Failed to fetch suggestions:", e)
       // 如果是超时错误，显示友好提示
       if (e?.status === 408 || e?.message?.includes('超时') || e?.message?.includes('timeout')) {
-        setLoadingProgress(t.optimization.timeoutMessage)
+        setLoadingProgress(t.optimization.timeoutMessage || "请求超时，请稍后重试")
       } else {
-        setLoadingProgress(t.common.error)
+        setLoadingProgress(t.common.error || "加载失败")
       }
-      setData({ suggestions: [], summary: {} })
+      setData({ 
+        suggestions: [], 
+        summary: {
+          total_suggestions: 0,
+          total_savings_potential: 0,
+          high_priority_count: 0,
+          medium_priority_count: 0,
+          low_priority_count: 0
+        }
+      })
     } finally {
       setLoading(false)
+      // 延迟清除开始时间，让进度动画完成
+      setTimeout(() => {
+        loadingStartTime.current = null
+      }, 500)
     }
   }
 
@@ -202,21 +220,13 @@ export default function OptimizationPage() {
         </div>
 
         {loading ? (
-          <Card className="glass border border-border/50">
-            <CardContent className="py-12">
-              <div className="flex flex-col items-center justify-center space-y-4">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                <div className="text-center">
-                  <p className="text-lg font-medium text-foreground mb-2">
-                    {loadingProgress || t.common.loading}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {t.optimization.loadingProgressDesc}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <SmartLoadingProgress
+            message={loadingProgress || t.optimization.loadingProgress || "正在加载优化建议..."}
+            subMessage={t.optimization.loadingProgressDesc || "正在分析资源使用情况，这可能需要一些时间"}
+            loading={loading}
+            startTime={loadingStartTime.current || undefined}
+            estimatedDuration={60} // 预估60秒
+          />
         ) : !data || data.suggestions.length === 0 ? (
           <Card className="glass border border-border/50">
             <CardContent className="py-12 text-center">
@@ -412,6 +422,8 @@ export default function OptimizationPage() {
     </DashboardLayout>
   )
 }
+
+
 
 
 

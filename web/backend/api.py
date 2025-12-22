@@ -1,7 +1,7 @@
 
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Body
 from typing import List, Dict, Optional, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 import sys
 import logging
 
@@ -10,7 +10,7 @@ from core.config import ConfigManager, CloudAccount
 from web.backend.i18n import get_translation, get_locale_from_request, Locale
 from core.context import ContextManager
 from core.cost_trend_analyzer import CostTrendAnalyzer
-from core.cache import CacheManager  # SQLite缓存管理器（统一使用）
+from core.cache import CacheManager  # MySQL缓存管理器（统一使用）
 from core.rules_manager import RulesManager
 from core.services.analysis_service import AnalysisService
 from core.virtual_tags import VirtualTagStorage, VirtualTag, TagRule, TagEngine
@@ -25,6 +25,23 @@ class AccountInfo(BaseModel):
     name: str
     region: str
     access_key_id: str
+
+class AccountUpdateRequest(BaseModel):
+    """账号更新请求"""
+    alias: Optional[str] = None
+    provider: Optional[str] = None
+    region: Optional[str] = None
+    access_key_id: Optional[str] = None
+    access_key_secret: Optional[str] = None
+
+class AccountCreateRequest(BaseModel):
+    """账号创建请求"""
+    name: str
+    alias: Optional[str] = None
+    provider: str = "aliyun"
+    region: str = "cn-hangzhou"
+    access_key_id: str
+    access_key_secret: str
 
 class DashboardSummary(BaseModel):
     account: str
@@ -249,6 +266,14 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
         cached_result = cache_manager.get(resource_type="dashboard_summary", account_name=account)
         if cached_result:
             logger.debug(f"使用缓存数据，账号: {account}")
+            # 但是需要确保 idle_count 是最新的（从闲置资源缓存中重新获取）
+            idle_data = cache_manager.get(resource_type="dashboard_idle", account_name=account)
+            if not idle_data:
+                idle_data = cache_manager.get(resource_type="idle_result", account_name=account)
+            # 如果缓存中有闲置资源数据，更新 idle_count
+            if idle_data:
+                cached_result["idle_count"] = len(idle_data) if idle_data else 0
+                logger.info(f"从缓存更新 idle_count: {cached_result['idle_count']} (账号: {account})")
     
     # 如果缓存有效，直接使用缓存数据
     if cached_result is not None:
@@ -348,13 +373,40 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
             trend = "N/A"
             trend_pct = 0.0
 
-    # Get Idle Data
-    cache_manager = CacheManager(ttl_seconds=86400)
-    idle_data = cache_manager.get(resource_type="idle_result", account_name=account)
-    # 兼容旧缓存键
-    if not idle_data:
-        idle_data = cache_manager.get(resource_type="dashboard_idle", account_name=account)
-    idle_count = len(idle_data) if idle_data else 0
+    # Get Idle Data - 确保与 /dashboard/idle 使用相同的数据源和逻辑
+    # 直接复用 /dashboard/idle 的逻辑，确保数据完全一致
+    try:
+        # 使用与 /dashboard/idle 完全相同的逻辑
+        cache_manager = CacheManager(ttl_seconds=86400)
+        idle_data = None
+        
+        # 先尝试从缓存获取（与 /dashboard/idle 保持一致）
+        if not force_refresh:
+            idle_data = cache_manager.get(resource_type="dashboard_idle", account_name=account)
+            if not idle_data:
+                idle_data = cache_manager.get(resource_type="idle_result", account_name=account)
+        
+        # 如果缓存为空或强制刷新，调用分析服务（与 /dashboard/idle 保持一致）
+        if not idle_data or force_refresh:
+            from core.services.analysis_service import AnalysisService
+            idle_data, _ = AnalysisService.analyze_idle_resources(account, days=7, force_refresh=force_refresh)
+            # 分析服务内部会更新缓存，这里不需要再次更新
+        
+        idle_count = len(idle_data) if idle_data else 0
+        logger.info(f"获取闲置资源数量: {idle_count} (账号: {account})")
+    except Exception as e:
+        logger.warning(f"获取闲置资源数据失败: {str(e)}")
+        # 如果分析失败，尝试从缓存获取（降级处理）
+        try:
+            cache_manager = CacheManager(ttl_seconds=86400)
+            idle_data = cache_manager.get(resource_type="dashboard_idle", account_name=account)
+            if not idle_data:
+                idle_data = cache_manager.get(resource_type="idle_result", account_name=account)
+            idle_count = len(idle_data) if idle_data else 0
+            logger.info(f"从缓存获取闲置资源数量: {idle_count} (账号: {account})")
+        except Exception as e2:
+            logger.error(f"从缓存获取闲置资源也失败: {str(e2)}")
+            idle_count = 0
 
     # Get Resource Statistics (Task 1.1)
     try:
@@ -660,11 +712,15 @@ def _get_billing_cycle_default() -> str:
 
 
 def _get_billing_overview_from_db(
-    account_name: str,
+    account_config: CloudAccount,
     billing_cycle: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     从本地账单数据库读取成本概览（优先使用，速度快）
+    
+    Args:
+        account_config: 账号配置对象
+        billing_cycle: 账期，格式 YYYY-MM，默认当前月
     
     Returns:
         成本概览数据，如果数据库不存在或读取失败则返回 None
@@ -673,53 +729,58 @@ def _get_billing_overview_from_db(
     from datetime import datetime
     from core.database import DatabaseFactory
     
-    # 使用数据库抽象层（默认MySQL）
-    db_type = os.getenv("DB_TYPE", "mysql").lower()
-    
+    # 统一使用 MySQL，不再支持 SQLite
     try:
         if billing_cycle is None:
             billing_cycle = datetime.now().strftime("%Y-%m")
         
-        if db_type == "mysql":
-            db = DatabaseFactory.create_adapter("mysql")
-        else:
-            db_path = os.path.expanduser("~/.cloudlens/bills.db")
-            if not os.path.exists(db_path):
-                return None
-            db = DatabaseFactory.create_adapter("sqlite", db_path=db_path)
+        db = DatabaseFactory.create_adapter("mysql")
         
-        placeholder = "%s" if db_type == "mysql" else "?"
+        # 构造正确的 account_id 格式：{access_key_id[:10]}-{account_name}
+        account_id = f"{account_config.access_key_id[:10]}-{account_config.name}"
         
-        # 查找匹配的 account_id
-        account_result = db.query_one(f"""
+        # 验证 account_id 是否存在（精确匹配）
+        account_result = db.query_one("""
             SELECT DISTINCT account_id 
             FROM bill_items 
-            WHERE account_id LIKE {placeholder}
+            WHERE account_id = %s
             LIMIT 1
-        """, (f"%{account_name}%",))
+        """, (account_id,))
         
         if not account_result:
-            return None
+            # 如果精确匹配失败，尝试模糊匹配（兼容旧数据）
+            logger.warning(f"精确匹配失败，尝试模糊匹配: {account_id}")
+            account_result = db.query_one("""
+                SELECT DISTINCT account_id 
+                FROM bill_items 
+                WHERE account_id LIKE %s
+                LIMIT 1
+            """, (f"%{account_config.name}%",))
+            
+            if not account_result:
+                logger.warning(f"未找到账号 '{account_config.name}' (account_id: {account_id}) 的账单数据")
+                return None
+            
+            # 处理字典格式的结果（MySQL）
+            if isinstance(account_result, dict):
+                matched_account_id = account_result.get('account_id')
+            else:
+                matched_account_id = account_result[0] if account_result else None
+            
+            if matched_account_id and matched_account_id != account_id:
+                logger.warning(f"使用模糊匹配的 account_id: {matched_account_id} (期望: {account_id})，可能存在数据串号风险")
+                account_id = matched_account_id
         
-        # 处理字典格式的结果（MySQL）或元组格式（SQLite）
-        if isinstance(account_result, dict):
-            account_id = account_result.get('account_id')
-        else:
-            account_id = account_result[0] if account_result else None
-        
-        if not account_id:
-            return None
-        
-        # 按产品聚合当月成本
-        product_results = db.query(f"""
+        # 按产品聚合当月成本（MySQL 使用 %s 占位符）
+        product_results = db.query("""
             SELECT 
                 product_name,
                 product_code,
                 subscription_type,
                 SUM(pretax_amount) as total_pretax
             FROM bill_items
-            WHERE account_id = {placeholder}
-                AND billing_cycle = {placeholder}
+            WHERE account_id = %s
+                AND billing_cycle = %s
                 AND pretax_amount IS NOT NULL
             GROUP BY product_name, product_code, subscription_type
         """, (account_id, billing_cycle))
@@ -730,7 +791,7 @@ def _get_billing_overview_from_db(
         total = 0.0
         
         for row in product_results:
-            # 处理字典格式的结果（MySQL）或元组格式（SQLite）
+            # 处理字典格式的结果（MySQL）
             if isinstance(row, dict):
                 product_name = row.get('product_name') or "unknown"
                 product_code = row.get('product_code') or "unknown"
@@ -996,7 +1057,7 @@ def _get_billing_overview_totals(
 
     # 优先尝试从本地数据库读取（快速）
     if not force_refresh:
-        db_result = _get_billing_overview_from_db(account_config.name, billing_cycle)
+        db_result = _get_billing_overview_from_db(account_config, billing_cycle)
         if db_result is not None:
             logger.info(f"✅ 从本地数据库读取账单概览: {account_config.name}, {billing_cycle}, 总成本={db_result.get('total_pretax', 0)}")
             cache_manager.set(resource_type=cache_key, account_name=account_config.name, data=[db_result])
@@ -1675,6 +1736,7 @@ def list_accounts_settings():
         if isinstance(account, CloudAccount):
             result.append({
                 "name": account.name,
+                "alias": getattr(account, 'alias', None),  # 别名（可选）
                 "region": account.region,
                 "provider": account.provider,
                 "access_key_id": account.access_key_id,
@@ -1683,18 +1745,64 @@ def list_accounts_settings():
 
 
 @router.post("/settings/accounts")
-def add_account(account_data: Dict[str, Any]):
+def add_account(account_data: AccountCreateRequest):
     """添加账号"""
     cm = ConfigManager()
     try:
         cm.add_account(
-            name=account_data["name"],
-            provider=account_data.get("provider", "aliyun"),
-            access_key_id=account_data["access_key_id"],
-            access_key_secret=account_data["access_key_secret"],
-            region=account_data.get("region", "cn-hangzhou"),
+            name=account_data.name,
+            provider=account_data.provider,
+            access_key_id=account_data.access_key_id,
+            access_key_secret=account_data.access_key_secret,
+            region=account_data.region,
+            alias=account_data.alias,  # 别名（可选）
         )
         return {"success": True, "message": "账号添加成功"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/settings/accounts/{account_name}")
+def update_account(account_name: str, account_data: AccountUpdateRequest):
+    """更新账号"""
+    import keyring
+    cm = ConfigManager()
+    try:
+        # 检查账号是否存在
+        existing_account = cm.get_account(account_name)
+        if not existing_account:
+            raise HTTPException(status_code=404, detail=f"账号 '{account_name}' 不存在")
+        
+        # 账号名称不可修改（用于数据关联），只允许修改别名
+        # 获取别名（如果提供了）
+        alias = account_data.alias.strip() if account_data.alias else None
+        
+        # 获取新密钥，如果没有提供则使用现有密钥
+        new_secret = account_data.access_key_secret
+        if not new_secret:
+            # 从 keyring 获取现有密钥
+            try:
+                existing_secret = keyring.get_password("cloudlens", f"{account_name}_access_key_secret")
+                if existing_secret:
+                    new_secret = existing_secret
+                else:
+                    raise HTTPException(status_code=400, detail="无法获取现有密钥，请提供新密钥")
+            except Exception:
+                raise HTTPException(status_code=400, detail="无法获取现有密钥，请提供新密钥")
+        
+        # 更新账号配置（不修改账号名称，只更新其他字段和别名）
+        cm.add_account(
+            name=account_name,  # 保持原名称不变（用于数据关联）
+            provider=account_data.provider or existing_account.provider,
+            access_key_id=account_data.access_key_id or existing_account.access_key_id,
+            access_key_secret=new_secret,
+            region=account_data.region or existing_account.region,
+            alias=alias,  # 更新别名
+        )
+        
+        return {"success": True, "message": "账号更新成功"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2784,7 +2892,7 @@ def get_discount_trend(
     """
     折扣趋势分析 - 基于数据库全量数据分析
     
-    数据来源：SQLite数据库（自动同步最新账单数据）
+    数据来源：MySQL数据库（自动同步最新账单数据）
     支持：
     - 查看长期折扣趋势（最多19个月历史）
     - 分析商务合同折扣效果
@@ -4544,33 +4652,114 @@ def get_budget_status(
             from core.database import DatabaseFactory
             import os
             
-            db_type = os.getenv("DB_TYPE", "mysql").lower()
-            if db_type == "mysql":
-                db = DatabaseFactory.create_adapter("mysql")
-                placeholder = "%s"
-            else:
-                if not _bill_storage.db_path or not os.path.exists(_bill_storage.db_path):
-                    return spent
-                db = DatabaseFactory.create_adapter("sqlite", db_path=_bill_storage.db_path)
-                placeholder = "?"
+            # 统一使用 MySQL，不再支持 SQLite
+            db = DatabaseFactory.create_adapter("mysql")
             
             start_date_str = budget.start_date.strftime('%Y-%m-%d')
             end_date_str = min(now, budget.end_date).strftime('%Y-%m-%d')
             
-            # 使用 ? 作为占位符，数据库适配器会自动转换为 %s (MySQL) 或保持 ? (SQLite)
+            # 关键修复：优先使用 billing_date 进行精确日期匹配
+            # 如果 billing_date 为空，则使用 billing_cycle 匹配，但需要确保账期在预算周期内
+            # 这样可以确保"已支出"包含预算周期内的实际消费数据
+            # 统一使用 MySQL，数据库适配器会自动处理占位符转换
+            
+            # 计算预算周期覆盖的账期（YYYY-MM格式）
+            start_cycle = budget.start_date.strftime('%Y-%m')
+            end_cycle = min(now, budget.end_date).strftime('%Y-%m')
+            
+            # 先尝试使用 billing_date 精确匹配
             result = db.query_one("""
                 SELECT SUM(pretax_amount) as total
                 FROM bill_items
                 WHERE account_id = ?
+                    AND pretax_amount IS NOT NULL
+                    AND pretax_amount > 0
+                    AND billing_date IS NOT NULL 
+                    AND billing_date != ''
                     AND billing_date >= ?
                     AND billing_date <= ?
-                    AND pretax_amount IS NOT NULL
             """, (account_id, start_date_str, end_date_str))
             
+            spent_from_date = 0.0
             if result and result.get('total'):
-                spent = float(result['total'])
+                spent_from_date = float(result['total'])
+            
+            # 如果 billing_date 匹配的结果为0或很小，尝试使用 billing_cycle 匹配
+            # 但需要按比例计算，确保只包含预算周期内的数据
+            if spent_from_date == 0:
+                # 使用 billing_cycle 匹配，但需要按比例计算预算周期内的金额
+                cycle_result = db.query_one("""
+                    SELECT SUM(pretax_amount) as total
+                    FROM bill_items
+                    WHERE account_id = ?
+                        AND pretax_amount IS NOT NULL
+                        AND pretax_amount > 0
+                        AND (billing_date IS NULL OR billing_date = '')
+                        AND billing_cycle >= ?
+                        AND billing_cycle <= ?
+                """, (account_id, start_cycle, end_cycle))
+                
+                if cycle_result and cycle_result.get('total'):
+                    spent_from_cycle = float(cycle_result.get('total'))
+                    
+                    # 按比例计算预算周期内的金额
+                    # 计算每个账期在预算周期内的天数比例
+                    total_proportional_spent = 0.0
+                    
+                    # 遍历预算周期内的所有账期
+                    from calendar import monthrange
+                    current_cycle = start_cycle
+                    while current_cycle <= end_cycle:
+                        # 计算该账期的总天数
+                        year, month = int(current_cycle[:4]), int(current_cycle[5:7])
+                        cycle_days = monthrange(year, month)[1]
+                        
+                        # 计算预算周期在该账期内的天数
+                        cycle_start = datetime(year, month, 1)
+                        if month == 12:
+                            cycle_end = datetime(year + 1, 1, 1) - timedelta(days=1)
+                        else:
+                            cycle_end = datetime(year, month + 1, 1) - timedelta(days=1)
+                        
+                        budget_start_in_cycle = max(budget.start_date, cycle_start)
+                        budget_end_in_cycle = min(min(now, budget.end_date), cycle_end)
+                        
+                        budget_days_in_cycle = (budget_end_in_cycle - budget_start_in_cycle).days + 1
+                        if budget_days_in_cycle > 0:
+                            # 查询该账期的总金额
+                            cycle_total = db.query_one("""
+                                SELECT SUM(pretax_amount) as total
+                                FROM bill_items
+                                WHERE account_id = ?
+                                    AND pretax_amount IS NOT NULL
+                                    AND pretax_amount > 0
+                                    AND (billing_date IS NULL OR billing_date = '')
+                                    AND billing_cycle = ?
+                            """, (account_id, current_cycle))
+                            
+                            if cycle_total and cycle_total.get('total'):
+                                cycle_total_amount = float(cycle_total.get('total'))
+                                # 按比例计算
+                                proportional_amount = cycle_total_amount * (budget_days_in_cycle / cycle_days)
+                                total_proportional_spent += proportional_amount
+                        
+                        # 移动到下一个账期
+                        if month == 12:
+                            current_cycle = f"{year + 1}-01"
+                        else:
+                            current_cycle = f"{year}-{month + 1:02d}"
+                    
+                    spent = spent_from_date + total_proportional_spent
+                else:
+                    spent = spent_from_date
+            else:
+                spent = spent_from_date
+            
+            logger.info(f"预算支出计算: account_id={account_id}, 日期范围={start_date_str}至{end_date_str}, 已支出={spent:.2f}")
         except Exception as e:
             logger.error(f"Error calculating budget spend: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
         
         # 计算剩余预算和使用率
         remaining = max(0, budget.amount - spent)
@@ -4631,16 +4820,182 @@ def get_budget_status(
 @router.get("/budgets/{budget_id}/trend")
 def get_budget_trend(
     budget_id: str,
-    days: int = Query(30, ge=1, le=365)
+    days: int = Query(30, ge=1, le=365),
+    account: Optional[str] = None
 ) -> Dict[str, Any]:
-    """获取预算趋势"""
+    """获取预算趋势（按天）"""
     try:
-        history = _budget_storage.get_spend_history(budget_id, days)
+        # 获取预算
+        budget = _budget_storage.get_budget(budget_id)
+        if not budget:
+            raise HTTPException(status_code=404, detail=f"预算 {budget_id} 不存在")
+        
+        # 获取账号ID
+        account_id = budget.account_id
+        if not account_id and account:
+            cm = ConfigManager()
+            account_config = cm.get_account(account)
+            if account_config:
+                account_id = f"{account_config.access_key_id[:10]}-{account}"
+        
+        if not account_id:
+            raise HTTPException(status_code=400, detail="无法确定账号ID")
+        
+        # 计算日期范围
+        now = datetime.now()
+        end_date = min(now, budget.end_date)
+        start_date = max(budget.start_date, end_date - timedelta(days=days))
+        
+        start_date_str = start_date.strftime('%Y-%m-%d')
+        end_date_str = end_date.strftime('%Y-%m-%d')
+        
+        # 从账单数据库按天获取支出数据
+        trend_data = []
+        try:
+            from core.database import DatabaseFactory
+            import os
+            
+            # 统一使用 MySQL，不再支持 SQLite
+            db = DatabaseFactory.create_adapter("mysql")
+            
+            # 按天查询支出数据
+            # 关键修复：优先使用 billing_date 进行精确日期匹配
+            # 如果 billing_date 为空，则使用 billing_cycle 匹配，但需要按比例分配到每一天
+            # 统一使用 MySQL，数据库适配器会自动处理占位符转换
+            
+            # 计算预算周期覆盖的账期
+            start_cycle = start_date.strftime('%Y-%m')
+            end_cycle = end_date.strftime('%Y-%m')
+            
+            # 先查询有 billing_date 的数据
+            rows = db.query("""
+                SELECT 
+                    billing_date as date,
+                    SUM(pretax_amount) as spent
+                FROM bill_items
+                WHERE account_id = ?
+                    AND pretax_amount IS NOT NULL
+                    AND pretax_amount > 0
+                    AND billing_date IS NOT NULL 
+                    AND billing_date != ''
+                    AND billing_date >= ? 
+                    AND billing_date <= ?
+                GROUP BY billing_date
+                ORDER BY billing_date ASC
+            """, (account_id, start_date_str, end_date_str))
+            
+            # 如果结果为空或很少，尝试使用 billing_cycle 匹配
+            if not rows or len(rows) == 0:
+                # 查询按账期匹配的数据
+                cycle_rows = db.query("""
+                    SELECT 
+                        billing_cycle as cycle,
+                        SUM(pretax_amount) as spent
+                    FROM bill_items
+                    WHERE account_id = ?
+                        AND pretax_amount IS NOT NULL
+                        AND pretax_amount > 0
+                        AND (billing_date IS NULL OR billing_date = '')
+                        AND billing_cycle >= ?
+                        AND billing_cycle <= ?
+                    GROUP BY billing_cycle
+                    ORDER BY billing_cycle ASC
+                """, (account_id, start_cycle, end_cycle))
+                
+                # 将按账期的数据按比例分配到每一天
+                for cycle_row in cycle_rows:
+                    cycle = cycle_row.get('cycle') if isinstance(cycle_row, dict) else cycle_row[0]
+                    cycle_spent = float(cycle_row.get('spent', 0) if isinstance(cycle_row, dict) else cycle_row[1])
+                    
+                    # 计算该账期在预算周期内的天数
+                    cycle_start = datetime.strptime(f"{cycle}-01", "%Y-%m-%d")
+                    if cycle[:4] == "2025" and cycle[5:7] == "12":
+                        cycle_end = datetime(2025, 12, 31)
+                    else:
+                        if int(cycle[5:7]) == 12:
+                            cycle_end = datetime(int(cycle[:4]) + 1, 1, 1) - timedelta(days=1)
+                        else:
+                            cycle_end = datetime(int(cycle[:4]), int(cycle[5:7]) + 1, 1) - timedelta(days=1)
+                    
+                    # 计算预算周期在该账期内的范围
+                    budget_start_in_cycle = max(start_date, cycle_start)
+                    budget_end_in_cycle = min(end_date, cycle_end)
+                    
+                    cycle_days = (cycle_end - cycle_start).days + 1
+                    budget_days_in_cycle = (budget_end_in_cycle - budget_start_in_cycle).days + 1
+                    
+                    if cycle_days > 0 and budget_days_in_cycle > 0:
+                        # 按比例计算预算周期内的金额
+                        budget_portion = cycle_spent * (budget_days_in_cycle / cycle_days)
+                        daily_amount = budget_portion / budget_days_in_cycle if budget_days_in_cycle > 0 else 0
+                        
+                        # 为预算周期内的每一天生成数据点
+                        current_day = budget_start_in_cycle
+                        while current_day <= budget_end_in_cycle:
+                            date_str = current_day.strftime('%Y-%m-%d')
+                            # 检查是否已存在该日期的数据
+                            existing = next((r for r in rows if (r.get('date') if isinstance(r, dict) else r[0]) == date_str), None)
+                            if not existing:
+                                rows.append({
+                                    'date': date_str,
+                                    'spent': daily_amount
+                                })
+                            current_day += timedelta(days=1)
+            
+            # 转换为趋势数据格式
+            # 注意：现在只使用 billing_date 进行精确匹配，不再需要按比例分配
+            for row in rows:
+                date_str = row.get('date') if isinstance(row, dict) else row[0]
+                spent = float(row.get('spent') or 0) if isinstance(row, dict) else float(row[1] or 0)
+                
+                # 确保日期格式正确
+                if date_str and len(date_str) >= 10:
+                    date_str = date_str[:10]  # 只取 YYYY-MM-DD 部分
+                else:
+                    continue
+                
+                # 现在只使用 billing_date 进行精确匹配，不再需要按比例分配
+                # 直接使用日期和支出金额
+                try:
+                    row_date = datetime.strptime(date_str, '%Y-%m-%d')
+                    
+                    # 确保日期在预算周期内（双重检查）
+                    if start_date <= row_date <= end_date:
+                        trend_data.append({
+                            'date': date_str,
+                            'spent': spent
+                        })
+                except Exception as e:
+                    logger.debug(f"处理趋势数据日期失败: {e}")
+                    continue
+            
+        except Exception as e:
+            logger.error(f"获取预算趋势数据失败: {e}")
+            # 如果查询失败，尝试从 budget_records 获取历史记录
+            history = _budget_storage.get_spend_history(budget_id, days)
+            return {
+                "success": True,
+                "data": history
+            }
+        
+        # 如果从账单表获取的数据为空，尝试从 budget_records 获取
+        if not trend_data:
+            history = _budget_storage.get_spend_history(budget_id, days)
+            return {
+                "success": True,
+                "data": history
+            }
+        
         return {
             "success": True,
-            "data": history
+            "data": trend_data
         }
+    except HTTPException:
+        raise
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"获取预算趋势失败: {str(e)}\n{error_trace}")
         raise HTTPException(status_code=500, detail=f"获取预算趋势失败: {str(e)}")
 
 

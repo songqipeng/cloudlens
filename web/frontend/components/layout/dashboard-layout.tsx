@@ -26,7 +26,7 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children }: DashboardLayoutProps) {
     const pathname = usePathname()
     const { currentAccount } = useAccount()
-    const { t } = useLocale()
+    const { t, locale } = useLocale()
 
     // currentAccount 可能在首次渲染时还没从 /a/[account]/layout 同步进来
     // 优先从 URL 推断，避免侧边栏链接瞬间指向旧路由
@@ -72,7 +72,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <h1 className="text-lg font-bold tracking-tight text-foreground">CloudLens</h1>
-                                <p className="text-xs text-muted-foreground truncate">{t.locale === 'zh' ? '多云资源治理平台' : 'Multi-Cloud Resource Governance Platform'}</p>
+                                <p className="text-xs text-muted-foreground truncate">{locale === 'zh' ? '多云资源治理平台' : 'Multi-Cloud Resource Governance Platform'}</p>
                             </div>
                         </div>
                     </div>
@@ -117,10 +117,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
     )
 }
-
-
-
-
 
 
 

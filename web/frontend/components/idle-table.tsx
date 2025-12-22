@@ -13,7 +13,7 @@ interface IdleInstance {
 }
 
 export function IdleTable({ data }: { data: IdleInstance[] }) {
-    const { t } = useLocale()
+    const { t, locale } = useLocale()
     const [search, setSearch] = useState("")
     const [sortBy, setSortBy] = useState<"name" | "region" | "spec" | null>(null)
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
@@ -55,8 +55,8 @@ export function IdleTable({ data }: { data: IdleInstance[] }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <p className="text-base font-medium text-foreground">{t.locale === 'zh' ? '暂无闲置资源' : 'No Idle Resources'}</p>
-            <p className="text-sm mt-1 opacity-70">{t.locale === 'zh' ? '所有资源运行正常' : 'All resources are running normally'}</p>
+            <p className="text-base font-medium text-foreground">{locale === 'zh' ? '暂无闲置资源' : 'No Idle Resources'}</p>
+            <p className="text-sm mt-1 opacity-70">{locale === 'zh' ? '所有资源运行正常' : 'All resources are running normally'}</p>
           </div>
         </CardContent>
       </Card>
@@ -70,7 +70,7 @@ export function IdleTable({ data }: { data: IdleInstance[] }) {
                     <div>
                         <CardTitle className="text-xl font-semibold">{t.dashboard.idleResources}</CardTitle>
                         <CardDescription className="mt-1.5">
-                            {t.locale === 'zh' 
+                            {locale === 'zh' 
                                 ? `共发现 ${data.length} 个闲置实例，建议及时处理`
                                 : `Found ${data.length} idle instances, suggest handling soon`}
                         </CardDescription>
@@ -78,7 +78,7 @@ export function IdleTable({ data }: { data: IdleInstance[] }) {
                     <div className="relative">
                         <input
                             type="text"
-                            placeholder={t.locale === 'zh' ? '搜索资源名称、ID或区域...' : 'Search by name, ID or region...'}
+                            placeholder={locale === 'zh' ? '搜索资源名称、ID或区域...' : 'Search by name, ID or region...'}
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             className="w-full sm:w-72 px-4 py-2.5 pl-11 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-200 shadow-sm hover:border-primary/30"
@@ -99,7 +99,7 @@ export function IdleTable({ data }: { data: IdleInstance[] }) {
                                     onClick={() => handleSort("name")}
                                 >
                                     <div className="flex items-center gap-2">
-                                        {t.locale === 'zh' ? '资源信息' : 'Resource Info'}
+                                        {locale === 'zh' ? '资源信息' : 'Resource Info'}
                                         {sortBy === "name" && (
                                             <span className="text-primary font-bold">{sortOrder === "asc" ? "↑" : "↓"}</span>
                                         )}
@@ -110,7 +110,7 @@ export function IdleTable({ data }: { data: IdleInstance[] }) {
                                     onClick={() => handleSort("spec")}
                                 >
                                     <div className="flex items-center gap-2">
-                                        {t.locale === 'zh' ? '规格' : 'Spec'}
+                                        {locale === 'zh' ? '规格' : 'Spec'}
                                         {sortBy === "spec" && (
                                             <span className="text-primary font-bold">{sortOrder === "asc" ? "↑" : "↓"}</span>
                                         )}
@@ -127,14 +127,14 @@ export function IdleTable({ data }: { data: IdleInstance[] }) {
                                         )}
                                     </div>
                                 </th>
-                                <th className="px-6 py-4 font-semibold">{t.locale === 'zh' ? '闲置原因' : 'Idle Reason'}</th>
+                                <th className="px-6 py-4 font-semibold">{locale === 'zh' ? '闲置原因' : 'Idle Reason'}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border/20">
                             {filtered.map((item) => (
                                 <tr key={item.instance_id} className="hover:bg-primary/8 transition-all duration-200 group border-b border-border/10">
                                     <td className="px-6 py-4">
-                                        <div className="font-semibold text-foreground group-hover:text-primary transition-colors duration-200">{item.name || (t.locale === 'zh' ? '未命名' : 'Unnamed')}</div>
+                                        <div className="font-semibold text-foreground group-hover:text-primary transition-colors duration-200">{item.name || (locale === 'zh' ? '未命名' : 'Unnamed')}</div>
                                         <div className="text-xs text-muted-foreground font-mono mt-1.5 opacity-75">{item.instance_id}</div>
                                     </td>
                                     <td className="px-6 py-4">
@@ -145,7 +145,7 @@ export function IdleTable({ data }: { data: IdleInstance[] }) {
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-yellow-500/15 text-yellow-500 border border-yellow-500/30 shadow-sm">
-                                            {item.reasons[0] || (t.locale === 'zh' ? '未知原因' : 'Unknown')}
+                                            {item.reasons[0] || (locale === 'zh' ? '未知原因' : 'Unknown')}
                                         </span>
                                     </td>
                                 </tr>

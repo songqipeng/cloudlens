@@ -205,7 +205,7 @@ export default function AIOptimizerPage() {
                           {getPriorityLabel(suggestion.priority)}
                         </Badge>
                         {suggestion.confidence && (
-                          <Badge variant="outline">
+                          <Badge variant="default">
                             置信度: {(suggestion.confidence * 100).toFixed(0)}%
                           </Badge>
                         )}
@@ -245,6 +245,7 @@ export default function AIOptimizerPage() {
     </DashboardLayout>
   )
 }
+
 
 
 

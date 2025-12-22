@@ -140,7 +140,7 @@ class AlertStorage:
                 db_dir = Path("data")
                 db_dir.mkdir(parents=True, exist_ok=True)
                 db_path = str(db_dir / "alerts.db")
-        self.db_path = db_path
+            self.db_path = db_path
             self.db = DatabaseFactory.create_adapter("sqlite", db_path=db_path)
         
         self._init_database()
@@ -517,7 +517,7 @@ class AlertStorage:
                 updated_at=datetime.fromisoformat(row['updated_at']) if row.get('updated_at') else None
             )
         else:
-        return AlertRule(
+            return AlertRule(
             id=row[0],
             name=row[1],
             description=row[2],
@@ -562,7 +562,7 @@ class AlertStorage:
                 metadata=row.get('metadata')
             )
         else:
-        return Alert(
+            return Alert(
             id=row[0],
             rule_id=row[1],
             rule_name=row[2],

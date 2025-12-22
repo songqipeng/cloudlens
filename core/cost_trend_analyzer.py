@@ -20,10 +20,15 @@ class CostTrendAnalyzer:
     def __init__(self, data_dir: str = "./data/cost"):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.cost_history_file = self.data_dir / "cost_history.json"
+        # 不再使用全局的 cost_history_file，改为按账号隔离
+        # self.cost_history_file = self.data_dir / "cost_history.json"
         
         # 账单数据库路径
         self.bills_db_path = os.path.expanduser("~/.cloudlens/bills.db")
+    
+    def _get_cost_history_file(self, account_name: str) -> Path:
+        """获取指定账号的成本历史文件路径（按账号隔离）"""
+        return self.data_dir / f"cost_history_{account_name}.json"
 
     def record_cost_snapshot(
         self, account_name: str, resources: List, timestamp: Optional[datetime] = None
@@ -65,8 +70,8 @@ class CostTrendAnalyzer:
             "resource_count": len(resources),
         }
 
-        # 保存到历史记录
-        self._append_snapshot(snapshot)
+        # 保存到历史记录（按账号隔离）
+        self._append_snapshot(snapshot, account_name)
 
         return snapshot
 
@@ -173,17 +178,18 @@ class CostTrendAnalyzer:
 
         return base_cost
 
-    def _append_snapshot(self, snapshot: Dict):
-        """追加快照到历史文件"""
+    def _append_snapshot(self, snapshot: Dict, account_name: str):
+        """追加快照到历史文件（按账号隔离）"""
+        history_file = self._get_cost_history_file(account_name)
         history = []
 
         # 读取现有历史
-        if self.cost_history_file.exists():
+        if history_file.exists():
             try:
-                with open(self.cost_history_file, "r") as f:
+                with open(history_file, "r") as f:
                     history = json.load(f)
             except Exception as e:
-                logger.warning(f"Failed to load cost history: {e}")
+                logger.warning(f"Failed to load cost history for {account_name}: {e}")
                 history = []
 
         # 追加新快照
@@ -198,32 +204,40 @@ class CostTrendAnalyzer:
         ]
 
         # 保存
-        with open(self.cost_history_file, "w") as f:
+        with open(history_file, "w") as f:
             json.dump(history, f, indent=2, ensure_ascii=False)
 
     def get_cost_trend(
         self, account_name: str, days: int = 30
     ) -> Tuple[List[Dict], Dict]:
         """
-        获取成本趋势
+        获取成本趋势（按账号隔离）
+        
+        Args:
+            account_name: 账号名称
+            days: 查询天数
         
         Returns:
             (history_data, analysis)
         """
-        # 读取历史数据
-        if not self.cost_history_file.exists():
+        # 读取历史数据（按账号隔离的文件）
+        history_file = self._get_cost_history_file(account_name)
+        if not history_file.exists():
             return [], {"error": "No cost history available"}
 
-        with open(self.cost_history_file, "r") as f:
-            all_history = json.load(f)
+        try:
+            with open(history_file, "r") as f:
+                history = json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load cost history for {account_name}: {e}")
+            return [], {"error": f"Failed to load cost history: {str(e)}"}
 
-        # 筛选账号和时间范围
+        # 筛选时间范围（账号已经在文件名中隔离，不需要再筛选）
         cutoff_date = datetime.now() - timedelta(days=days)
         history = [
             s
-            for s in all_history
-            if s["account"] == account_name
-            and datetime.fromisoformat(s["timestamp"]) > cutoff_date
+            for s in history
+            if datetime.fromisoformat(s["timestamp"]) > cutoff_date
         ]
 
         if len(history) < 2:
@@ -361,21 +375,53 @@ class CostTrendAnalyzer:
             start_billing_date = start_date_obj.strftime("%Y-%m-%d")
             end_billing_date = end_date_obj.strftime("%Y-%m-%d")
             
-            # 查询账号ID（可能是 access_key_id 前10位 + 账号名）
-            # 先尝试直接匹配
+            # 根据 account_name 获取 account_config，构造正确的 account_id
+            # account_id 格式：{access_key_id[:10]}-{account_name}
+            from core.config import ConfigManager
+            cm = ConfigManager()
+            account_config = cm.get_account(account_name)
+            
+            if not account_config:
+                logger.warning(f"账号 '{account_name}' 未找到，无法查询账单数据")
+                return {"error": f"Account '{account_name}' not found"}
+            
+            # 构造正确的 account_id 格式
+            account_id = f"{account_config.access_key_id[:10]}-{account_name}"
+            
+            # 验证 account_id 是否存在（精确匹配）
             rows = db.query("""
                 SELECT DISTINCT account_id 
                 FROM bill_items 
-                WHERE account_id LIKE ?
+                WHERE account_id = ?
                 LIMIT 1
-            """, (f"%{account_name}%",))
+            """, (account_id,))
             
             if not rows:
-                logger.warning(f"未找到账号 {account_name} 的账单数据")
-                return {"error": "No cost history available"}
+                # 如果精确匹配失败，尝试模糊匹配（兼容旧数据）
+                logger.warning(f"精确匹配失败，尝试模糊匹配: {account_id}")
+                rows = db.query("""
+                    SELECT DISTINCT account_id 
+                    FROM bill_items 
+                    WHERE account_id LIKE ?
+                    LIMIT 1
+                """, (f"%{account_name}%",))
+                
+                if not rows:
+                    logger.warning(f"未找到账号 '{account_name}' (account_id: {account_id}) 的账单数据")
+                    return {"error": "No cost history available"}
+                
+                result = rows[0]
+                matched_account_id = result['account_id'] if isinstance(result, dict) else result[0]
+                
+                if matched_account_id and matched_account_id != account_id:
+                    logger.warning(f"使用模糊匹配的 account_id: {matched_account_id} (期望: {account_id})")
+                    account_id = matched_account_id
+            else:
+                # 精确匹配成功
+                result = rows[0]
+                matched_account_id = result['account_id'] if isinstance(result, dict) else result[0]
+                account_id = matched_account_id
             
-            result = rows[0]
-            account_id = result['account_id'] if isinstance(result, dict) else result[0]
             logger.info(f"找到账号ID: {account_id}, 查询时间范围: {start_billing_date} 至今")
             
             # 计算起始账期（YYYY-MM格式）

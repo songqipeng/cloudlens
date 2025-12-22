@@ -144,16 +144,20 @@ export async function apiGet<T = any>(
                     if (i === retries - 1) {
                         pendingRequests.delete(requestKey)
                         const locale = getCurrentLocale() as Locale
-                        const t = getTranslations(locale)
                         // 提供更详细的超时错误信息，包括端点名称
                         const endpointName = endpoint.split('?')[0].split('/').pop() || endpoint
                         const timeoutMessage = locale === 'zh' 
-                            ? `${t.common.timeout} (${endpointName})`
-                            : `${t.common.timeout} (${endpointName})`
-                        throw new ApiError(408, { error: timeoutMessage, endpoint }, t.common.timeoutTitle)
+                            ? `请求超时 (${endpointName})`
+                            : `Request Timeout (${endpointName})`
+                        // 不抛出错误，而是返回一个包含错误信息的对象，让调用方决定如何处理
+                        console.warn(`[API] 请求超时: ${endpoint}`, { timeout, retries })
+                        throw new ApiError(408, { error: timeoutMessage, endpoint, timeout }, timeoutMessage)
                     }
                     // 超时错误也进行重试，但增加等待时间
                     console.warn(`[API] 请求超时，正在重试 (${i + 1}/${retries}): ${endpoint}`)
+                    // 超时重试时增加等待时间
+                    await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, i)))
+                    continue
                 } else if (i === retries - 1) {
                     pendingRequests.delete(requestKey)
                     if (error instanceof ApiError) {

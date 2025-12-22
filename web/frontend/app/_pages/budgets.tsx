@@ -476,6 +476,7 @@ function BudgetEditor({
   onSave: (data: any) => void
   onCancel: () => void
 }) {
+  const { t } = useLocale()
   const [name, setName] = useState(budget?.name || "")
   const [amount, setAmount] = useState(budget?.amount || 0)
   const [period, setPeriod] = useState(budget?.period || "monthly")
@@ -643,6 +644,7 @@ function BudgetEditor({
     </div>
   )
 }
+
 
 
 

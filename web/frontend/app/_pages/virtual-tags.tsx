@@ -243,6 +243,7 @@ export default function VirtualTagsPage() {
 
 // 标签编辑器组件
 function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => void; onSave: () => void }) {
+  const { t } = useLocale()
   const [formData, setFormData] = useState({
     name: tag.name,
     tag_key: tag.tag_key,
@@ -440,6 +441,7 @@ function TagEditor({ tag, onClose, onSave }: { tag: VirtualTag; onClose: () => v
 
 // 标签预览组件
 function TagPreview({ tagId, account, onClose }: { tagId: string; account: string | null; onClose: () => void }) {
+  const { t } = useLocale()
   const [loading, setLoading] = useState(true)
   const [previewData, setPreviewData] = useState<any>(null)
   const [resourceType, setResourceType] = useState("ecs")
@@ -582,6 +584,7 @@ function TagPreview({ tagId, account, onClose }: { tagId: string; account: strin
     </div>
   )
 }
+
 
 
 

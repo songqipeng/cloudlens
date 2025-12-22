@@ -9,7 +9,7 @@ import { Check, ChevronDown, Search, User, RefreshCw, Plus, Settings } from "luc
 
 export function AccountSelector() {
     const { currentAccount, accounts, setCurrentAccount, refreshAccounts, loading } = useAccount()
-    const { t } = useLocale()
+    const { t, locale } = useLocale()
     const router = useRouter()
     const pathname = usePathname()
     const [isOpen, setIsOpen] = useState(false)
@@ -56,9 +56,11 @@ export function AccountSelector() {
                         <User className="w-4 h-4 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0 text-left">
-                        <div className="text-[11px] text-muted-foreground leading-none mb-1">{t.locale === 'zh' ? '当前账号' : 'Current Account'}</div>
+                        <div className="text-[11px] text-muted-foreground leading-none mb-1">{locale === 'zh' ? '当前账号' : 'Current Account'}</div>
                         <div className="font-semibold text-foreground truncate leading-snug">
-                            {selectedAccount ? selectedAccount.name : (t.locale === 'zh' ? '请选择账号' : 'Select Account')}
+                            {selectedAccount 
+                                ? (selectedAccount.alias || selectedAccount.name)
+                                : (locale === 'zh' ? '请选择账号' : 'Select Account')}
                         </div>
                         {selectedAccount?.region && (
                             <div className="text-[11px] text-muted-foreground/90 truncate mt-0.5">
@@ -80,9 +82,9 @@ export function AccountSelector() {
                         <div className="p-4 border-b border-border/50 bg-gradient-to-r from-primary/8 via-cyan-500/8 to-primary/8">
                             <div className="flex items-center justify-between gap-3">
                                 <div className="min-w-0">
-                                    <div className="text-sm font-semibold text-foreground leading-snug">{t.locale === 'zh' ? '账号' : 'Account'}</div>
+                                    <div className="text-sm font-semibold text-foreground leading-snug">{locale === 'zh' ? '账号' : 'Account'}</div>
                                     <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                                        {t.locale === 'zh' ? '当前：' : 'Current: '}<span className="font-medium text-foreground">{selectedAccount?.name || (t.locale === 'zh' ? '未选择' : 'Not Selected')}</span>
+                                        {locale === 'zh' ? '当前：' : 'Current: '}<span className="font-medium text-foreground">{selectedAccount ? (selectedAccount.alias || selectedAccount.name) : (locale === 'zh' ? '未选择' : 'Not Selected')}</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -177,12 +179,19 @@ export function AccountSelector() {
                                                     }`}>
                                                         <User className={`w-4 h-4 ${active ? "text-primary" : "text-muted-foreground"}`} />
                                                     </div>
-                                                    <div className="min-w-0">
-                                                        <div className="font-semibold text-sm text-foreground truncate">{account.name}</div>
-                                                        <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                                                            {account.region} · AK {account.access_key_id.substring(0, 8)}...
-                                                        </div>
-                                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="font-semibold text-sm text-foreground truncate">
+                                            {account.alias || account.name}
+                                            {account.alias && (
+                                                <span className="text-xs text-muted-foreground ml-2 font-normal">
+                                                    ({account.name})
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                                            {account.region} · AK {account.access_key_id.substring(0, 8)}...
+                                        </div>
+                                    </div>
                                                 </div>
                                                 {active && (
                                                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -215,6 +224,7 @@ export function AccountSelector() {
 
 // 兼容默认导入（有些地方可能会写成 `import AccountSelector from ...`）
 export default AccountSelector
+
 
 
 

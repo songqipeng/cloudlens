@@ -262,10 +262,10 @@ class BudgetStorage:
             self.db = DatabaseFactory.create_adapter("mysql")
             self.db_path = None
         else:
-        if db_path is None:
-            db_dir = Path.home() / ".cloudlens"
-            db_dir.mkdir(parents=True, exist_ok=True)
-            db_path = str(db_dir / "budgets.db")
+            if db_path is None:
+                db_dir = Path.home() / ".cloudlens"
+                db_dir.mkdir(parents=True, exist_ok=True)
+                db_path = str(db_dir / "budgets.db")
             self.db_path = db_path
             self.db = DatabaseFactory.create_adapter("sqlite", db_path=db_path)
         
@@ -546,13 +546,18 @@ class BudgetStorage:
         placeholder = self._get_placeholder()
         if account_id:
             rows = self.db.query(f"SELECT id FROM budgets WHERE account_id = {placeholder} ORDER BY created_at DESC", (account_id,))
-            else:
+        else:
             rows = self.db.query("SELECT id FROM budgets ORDER BY created_at DESC")
-            
+        
+        # 处理查询结果可能为None的情况
+        if rows is None:
+            logger.warning("查询预算列表返回None，返回空列表")
+            return []
+        
         budget_ids = [row.get('id') if isinstance(row, dict) else row[0] for row in rows]
-            
-            budgets = []
-            for budget_id in budget_ids:
+        
+        budgets = []
+        for budget_id in budget_ids:
             try:
                 budget = self.get_budget(budget_id)
                 if budget:
@@ -565,8 +570,8 @@ class BudgetStorage:
                 # 其他错误也记录但继续
                 logger.error(f"获取预算 {budget_id} 时出错: {str(e)}")
                 continue
-            
-            return budgets
+        
+        return budgets
     
     def update_budget(self, budget: Budget) -> bool:
         """更新预算"""

@@ -17,7 +17,7 @@ interface ResourceCardProps {
 export const ResourceCard = React.memo(({ resource, onClick }: ResourceCardProps) => {
     const { t } = useLocale()
     
-    const getStatusColor = (status: string) => {
+    const getStatusColor = (status?: string) => {
         const statusLower = status?.toLowerCase() || ""
         if (statusLower.includes("running") || statusLower.includes("active")) {
             return "bg-green-500"
@@ -41,15 +41,15 @@ export const ResourceCard = React.memo(({ resource, onClick }: ResourceCardProps
                     <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                             <h3 className="font-semibold text-sm">{resource.name || resource.id}</h3>
-                            <Badge className={getStatusColor(resource.status)}>
-                                {resource.status}
+                            <Badge variant="default" className={getStatusColor(resource.status || "")}>
+                                {resource.status || "Unknown"}
                             </Badge>
                         </div>
                         <div className="text-xs text-muted-foreground space-y-1">
-                            <div>{t.resources.id || 'ID'}: {resource.id}</div>
+                            <div>ID: {resource.id}</div>
                             {resource.region && <div>{t.resources.region || 'Region'}: {resource.region}</div>}
                             {resource.instanceType && <div>{t.resources.spec || 'Spec'}: {resource.instanceType}</div>}
-                            {resource.cost && <div>{t.resources.monthlyCost || 'Cost'}: ¥{resource.cost.toFixed(2)}</div>}
+                            {resource.cost !== undefined && <div>{t.resources.monthlyCost || 'Cost'}: ¥{resource.cost.toFixed(2)}</div>}
                         </div>
                     </div>
                 </div>
@@ -67,6 +67,7 @@ export const ResourceCard = React.memo(({ resource, onClick }: ResourceCardProps
 })
 
 ResourceCard.displayName = "ResourceCard"
+
 
 
 

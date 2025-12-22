@@ -48,6 +48,9 @@
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 20px;
+  
+  /* 动画 */
+  --animation-shimmer: shimmer 2s infinite;
   --space-6: 24px;
   --space-8: 32px;
   --space-12: 48px;
@@ -203,6 +206,19 @@ body {
     to {
         transform: rotate(360deg);
     }
+}
+
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+.animate-shimmer {
+    animation: shimmer 2s infinite;
 }
 
 .animate-fade-in {

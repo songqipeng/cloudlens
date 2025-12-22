@@ -190,10 +190,10 @@ class VirtualTagStorage:
             self.db = DatabaseFactory.create_adapter("mysql")
             self.db_path = None
         else:
-        if db_path is None:
-            db_dir = Path.home() / ".cloudlens"
-            db_dir.mkdir(parents=True, exist_ok=True)
-            db_path = str(db_dir / "virtual_tags.db")
+            if db_path is None:
+                db_dir = Path.home() / ".cloudlens"
+                db_dir.mkdir(parents=True, exist_ok=True)
+                db_path = str(db_dir / "virtual_tags.db")
             self.db_path = db_path
             self.db = DatabaseFactory.create_adapter("sqlite", db_path=db_path)
         
@@ -420,15 +420,21 @@ class VirtualTagStorage:
     def list_tags(self) -> List[VirtualTag]:
         """列出所有虚拟标签"""
         rows = self.db.query("SELECT id FROM virtual_tags ORDER BY priority DESC, created_at DESC")
+        
+        # 处理查询结果可能为None的情况
+        if rows is None:
+            logger.warning("查询虚拟标签列表返回None，返回空列表")
+            return []
+        
         tag_ids = [row.get('id') if isinstance(row, dict) else row[0] for row in rows]
-            
-            tags = []
-            for tag_id in tag_ids:
-                tag = self.get_tag(tag_id)
-                if tag:
-                    tags.append(tag)
-            
-            return tags
+        
+        tags = []
+        for tag_id in tag_ids:
+            tag = self.get_tag(tag_id)
+            if tag:
+                tags.append(tag)
+        
+        return tags
     
     def update_tag(self, tag: VirtualTag) -> bool:
         """更新虚拟标签"""
