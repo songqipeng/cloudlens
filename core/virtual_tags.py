@@ -282,7 +282,7 @@ class VirtualTagStorage:
                 indexes_to_create = [
                     ("idx_tag_key_value", "virtual_tags", "tag_key, tag_value"),
                     ("idx_tag_rules_tag_id", "tag_rules", "tag_id"),
-                    ("idx_tag_matches_resource", "tag_matches", "resource_id, resource_type, account_name"),
+                    ("idx_tag_matches_resource", "tag_matches", "resource_id, resource_type"),
                     ("idx_tag_matches_tag", "tag_matches", "tag_id"),
                 ]
                 for idx_name, table_name, columns in indexes_to_create:
