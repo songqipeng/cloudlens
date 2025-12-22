@@ -1,4 +1,4 @@
-# CloudLens CLI - 多云资源治理工具
+# CloudLens - 多云资源治理与分析平台
 
 <div align="center">
 
@@ -8,62 +8,96 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/Version-2.1.0-brightgreen.svg)]()
 
+[快速开始](#-快速开始) • [功能特性](#-功能特性) • [使用文档](#-文档) • [产品能力](#-产品能力)
+
 </div>
+
+---
 
 ## 🚀 项目简介
 
 **CloudLens** 是一款企业级多云资源治理与分析平台，提供 **CLI 命令行工具** 和 **Web 可视化界面** 两种使用方式。通过统一的接口管理阿里云、腾讯云等多个云平台的资源，提供智能成本分析、安全合规检查和专业报告生成能力。
 
-## ✨ 核心功能
+### 核心价值
 
-### 基础能力
-- 🌐 **多云统一管理** - 一个工具管理 阿里云、腾讯云 等多平台资源
-- 💰 **智能成本分析** - 成本趋势分析、AI预测，降低 30%+ 云成本
-- 🔒 **安全合规检查** - CIS Benchmark、公网暴露检测、权限审计
-- 🤖 **自动化修复** - 批量打标签、安全组修复，支持干运行模式
-- 📊 **专业报告生成** - Excel、HTML、JSON/CSV 多格式导出
-- ⚡ **高性能查询** - 并发查询 + 智能缓存，速度提升 5 倍
+- 🌐 **统一视图** - 一个工具管理多个云平台，告别频繁切换控制台
+- 💰 **智能分析** - AI 成本预测、折扣趋势分析，降低 30%+ 云成本
+- 🔒 **安全合规** - CIS Benchmark、公网暴露检测、权限审计
+- 📊 **降本增效** - 闲置资源识别、自动修复、专业报告生成
 
-### v2.1 新增能力 ⭐
-- 🌐 **Web 可视化界面** - 基于 Next.js + FastAPI 的现代化 Web 应用，支持中英文双语
-- 📈 **成本趋势分析** - 环比/同比增长分析，按类型/区域统计，支持自定义时间范围
-- 🔮 **AI成本预测** - 基于Prophet ML模型，预测未来90天成本趋势
-- 💰 **折扣趋势分析** - 基于账单CSV，分析最近6个月折扣变化，支持产品/合同/实例维度
-- 📥 **账单自动获取** - 通过BSS OpenAPI自动获取账单数据，支持定时任务 ✨
-- 🛡️ **CIS Benchmark** - 10+安全基线检查，覆盖IAM/网络/数据/审计
-- 🔧 **自动修复引擎** - 批量修复资源问题，完整审计日志
-- ⚡ **异步I/O架构** - AsyncProvider基础，为高性能查询做准备
-- 🎨 **现代化UI设计** - Finout风格界面，响应式布局，支持深色模式
+---
 
-### v2.0 特性
-- 🎨 **交互式 REPL** - 基于 `prompt_toolkit` 和 `rich` 的现代化命令行体验
-- 📺 **TUI 仪表盘** - 使用 `textual` 实现的全屏监控界面（类 K9s）
-- 🔍 **高级查询引擎** - 支持 Pandas 聚合分析和 JMESPath 过滤
-- 🔌 **插件生态** - 通过 Python `entry_points` 支持第三方插件
-- ⚙️ **灵活配置** - 支持环境变量、credentials 文件（AWS CLI 兼容）
-- 🗄️ **智能缓存** - SQLite 缓存系统，加速重复查询
-- 🔐 **Keyring 存储** - 安全存储密钥，自动迁移明文配置
+## ✨ 功能特性
+
+### 核心能力
+
+#### 🌐 多云统一管理
+- 支持阿里云、腾讯云（可扩展 AWS、火山引擎）
+- 统一的资源数据模型，屏蔽云平台差异
+- 支持多账号、多区域管理
+- CLI 和 Web 两种使用方式
+
+#### 💰 智能成本分析
+- **成本趋势分析**：环比/同比增长，按类型/区域统计
+- **AI 成本预测**：基于 Prophet ML 模型，预测未来 90 天成本
+- **折扣趋势分析**：分析账单折扣变化，支持产品/合同/实例维度
+- **预算管理**：支持月度/季度/年度预算，多级告警阈值
+- **成本分配**：支持多维度成本分配规则
+
+#### 🔒 安全合规检查
+- **CIS Benchmark**：10+ 安全基线检查，覆盖 IAM/网络/数据/审计
+- **公网暴露检测**：识别暴露在公网的资源
+- **权限审计**：检查账号权限，识别高危权限
+- **安全组审计**：分析安全组规则风险
+
+#### 🤖 自动化修复
+- **批量打标签**：自动为资源打标签，支持干运行模式
+- **修复历史**：完整的修复操作审计日志
+- **安全组修复**：修复安全组规则（开发中）
+
+#### 📊 专业报告生成
+- **Excel 报告**：多 Sheet 格式，包含资源清单、闲置分析、成本分析
+- **HTML 报告**：精美样式，适合在线分享
+- **JSON/CSV 导出**：机器可读，集成到其他系统
+
+#### ⚡ 高性能查询
+- **并发查询**：多账号并发，速度提升 3-5 倍
+- **智能缓存**：MySQL 缓存表，24 小时 TTL
+- **高级筛选**：支持 SQL-like 语法和 JMESPath
+
+### Web 界面特性
+
+- 🎨 **现代化 UI**：Finout 风格界面，响应式布局，支持深色模式
+- 🌍 **国际化**：支持中英文双语切换
+- 📈 **实时数据**：Dashboard 实时展示关键指标
+- 🔍 **高级分析**：折扣趋势、成本分析、安全合规可视化
+- 📱 **响应式设计**：支持桌面和移动设备
+
+---
 
 ## 📋 支持的资源类型
 
-### 已实现
-- **阿里云**: ECS, RDS, Redis, OSS, NAS, VPC, EIP, SLB, MongoDB, ACK, ClickHouse, PolarDB, ECI, Disk
-- **腾讯云**: CVM, CDB, Redis, COS, VPC
+### 阿里云
+ECS、RDS、Redis、OSS、NAS、VPC、EIP、SLB、MongoDB、ACK、ClickHouse、PolarDB、ECI、Disk 等
 
-### 规划中
-- AWS: EC2, RDS, S3 等
-- 火山引擎: ECS, VPC 等
+### 腾讯云
+CVM、CDB、Redis、COS、VPC 等
+
+---
 
 ## 🛠️ 快速开始
 
 ### 1. 安装
 
 ```bash
-git clone <repository>
+# 克隆仓库
+git clone https://github.com/songqipeng/aliyunidle.git
 cd aliyunidle
+
+# 安装 Python 依赖
 pip install -r requirements.txt
 
-# 可选: 安装AI预测依赖
+# 可选：安装 AI 预测依赖
 pip install prophet
 ```
 
@@ -82,34 +116,12 @@ pip install prophet
 ./cl config list
 ```
 
-### 3. Shell自动补齐（可选但推荐）
-
-启用Tab键自动补齐,提升使用体验:
-
-```bash
-# 自动安装
-./scripts/install_completion.sh
-
-# 重新加载shell
-source ~/.bashrc  # bash用户
-source ~/.zshrc   # zsh用户
-```
-
-现在可以使用Tab键自动补齐命令和参数:
-```bash
-cl ana<Tab>              → cl analyze
-cl analyze <Tab>         → 显示子命令列表
-cl query ecs --<Tab>     → 显示选项参数
-```
-
-详见: [Shell Completion文档](docs/shell_completion.md)
-
-### 4. 开始使用
+### 3. 开始使用
 
 #### CLI 命令行方式
 
 ```bash
-# 查询ECS实例
+# 查询 ECS 实例
 ./cl query ecs --account prod
 
 # 分析闲置资源
@@ -118,26 +130,23 @@ cl query ecs --<Tab>     → 显示选项参数
 # 成本趋势分析
 ./cl analyze cost --account prod --trend
 
-# AI成本预测
+# AI 成本预测
 ./cl analyze forecast --account prod --days 90
 
-# 折扣趋势分析（基于账单CSV）
+# 折扣趋势分析
 ./cl analyze discount --export
 
-# CIS安全合规检查
+# CIS 安全合规检查
 ./cl analyze security --account prod --cis
 
-# 自动打标签(干运行)
+# 自动打标签（干运行）
 ./cl remediate tags --account prod
-
-# 实际执行修复
-./cl remediate tags --account prod --confirm
 ```
 
 #### Web 界面方式
 
 ```bash
-# 启动后端API服务
+# 启动后端 API 服务
 cd web/backend
 python -m uvicorn main:app --reload --port 8000
 
@@ -151,176 +160,47 @@ npm run dev
 
 详细说明请参考 [Web 快速开始指南](docs/WEB_QUICKSTART.md)
 
-## 📖 使用指南
+---
 
-### 资源查询
+## 📖 文档
 
-```bash
-# 查询各类资源
-./cl query ecs --account prod
-./cl query rds --account prod
-./cl query vpc --account prod
+### 核心文档
+- [产品能力总览](PRODUCT_CAPABILITIES.md) - 完整的产品功能列表
+- [产品介绍](PRODUCT_INTRODUCTION.md) - 详细的产品定位和功能介绍
+- [技术架构](TECHNICAL_ARCHITECTURE.md) - 系统架构和设计理念
+- [项目结构](PROJECT_STRUCTURE.md) - 详细的目录结构和模块说明
+- [用户指南](USER_GUIDE.md) - 完整的使用手册
+- [快速开始](QUICKSTART.md) - 快速上手指南
+- [快速参考](QUICK_REFERENCE.md) - 一页纸命令速查
+- [更新日志](CHANGELOG.md) - 版本更新记录
 
-# 导出为JSON/CSV
-./cl query ecs --account prod --format json --output ecs.json
-./cl query ecs --account prod --format csv --output ecs.csv
+### Web 界面文档
+- [Web 快速开始](docs/WEB_QUICKSTART.md) - Web 界面安装和使用指南
+- [折扣分析指南](docs/DISCOUNT_ANALYSIS_GUIDE.md) - 折扣分析功能详细说明
+- [账单自动获取](docs/BILL_AUTO_FETCH_GUIDE.md) - 账单自动获取功能说明
 
-# 并发查询多账号
-./cl query ecs --concurrent
+### 开发文档
+- [贡献指南](CONTRIBUTING.md) - 如何参与项目开发
+- [插件开发](docs/PLUGIN_DEVELOPMENT.md) - 如何开发自定义插件
+- [Shell 自动补齐](docs/shell_completion.md) - Shell 自动补齐功能说明
 
-# 高级筛选
-./cl query ecs --status Running --region cn-hangzhou
-./cl query ecs --filter "charge_type=PrePaid AND expire_days<7"
-```
-
-### 分析功能
-
-```bash
-# 闲置资源分析
-./cl analyze idle --account prod --days 14
-
-# 续费提醒
-./cl analyze renewal --account prod --days 30
-
-# 成本趋势分析 (v2.1 新增)
-./cl analyze cost --account prod           # 当前成本快照
-./cl analyze cost --account prod --trend   # 显示趋势分析
-
-# AI成本预测 (v2.1 新增)
-./cl analyze forecast --account prod --days 90
-
-# 账单自动获取 (v2.1 新增) ✨
-./cl bill test --account prod              # 测试API连接
-./cl bill fetch --account prod             # 获取最近3个月账单
-./cl bill fetch --account prod --start 2025-01 --end 2025-06  # 指定时间范围
-
-# 折扣趋势分析 (v2.1 新增)
-./cl analyze discount                      # 自动查找账单CSV
-./cl analyze discount --bill-dir ./bills   # 指定账单目录
-./cl analyze discount --export             # 导出HTML报告
-./cl analyze discount --format excel       # 导出Excel报告
-
-# 安全合规检查
-./cl analyze security --account prod       # 基础安全检查
-./cl analyze security --account prod --cis # CIS Benchmark合规检查
-
-# 标签治理
-./cl analyze tags --account prod
-```
-
-### 自动修复功能 (v2.1 新增)
-
-```bash
-# 自动打标签 - 干运行模式(默认)
-./cl remediate tags --account prod
-
-# 指定标签
-./cl remediate tags --account prod --env production --owner devops
-
-# 确认执行(实际修改)
-./cl remediate tags --account prod --confirm
-
-# 查看修复历史
-./cl remediate history --limit 50
-
-# 安全组修复(开发中)
-./cl remediate security --account prod
-```
-
-### 报告生成
-
-```bash
-# 生成Excel报告
-cl report generate --account prod --format excel
-
-# 生成HTML报告
-cl report generate --account prod --format html
-
-# 包含闲置分析
-cl report generate --account prod --format excel --include-idle
-```
-
-### 网络拓扑
-
-```bash
-# 生成网络拓扑图（Mermaid格式）
-cl topology generate --account prod --output topology.md
-```
-
-### 权限审计
-
-```bash
-# 审计账号权限
-cl audit permissions --account prod
-```
-
-## 📁 项目结构
-
-```
-aliyunidle/
-├── cli/                        # CLI命令行工具
-│   ├── main.py                # CLI主入口
-│   └── commands/              # 命令模块
-│       ├── analyze_cmd.py     # 分析命令
-│       ├── bill_cmd.py        # 账单命令
-│       ├── query_cmd.py       # 资源查询命令
-│       └── ...
-├── core/                       # 核心业务逻辑
-│   ├── database.py            # 数据库抽象层（MySQL/SQLite）
-│   ├── config.py              # 配置管理
-│   ├── provider.py            # 云厂商抽象层
-│   ├── cache.py               # 缓存管理器
-│   ├── bill_storage.py        # 账单存储
-│   ├── dashboard_manager.py   # 仪表盘管理
-│   ├── budget_manager.py      # 预算管理
-│   ├── idle_detector.py       # 闲置检测
-│   ├── cost_analyzer.py       # 成本分析
-│   ├── security_compliance.py # 安全合规
-│   └── services/              # 服务层
-│       └── analysis_service.py
-├── providers/                  # 云厂商实现
-│   ├── aliyun/                # 阿里云Provider
-│   └── tencent/               # 腾讯云Provider
-├── resource_modules/           # 资源分析模块
-│   ├── ecs_analyzer.py        # ECS分析器
-│   ├── rds_analyzer.py        # RDS分析器
-│   └── ...
-├── web/                        # Web应用
-│   ├── backend/               # FastAPI后端
-│   │   ├── main.py            # API入口
-│   │   └── api.py             # API路由
-│   └── frontend/              # Next.js前端
-│       ├── app/               # 页面组件
-│       └── components/        # UI组件
-├── models/                     # 数据模型
-│   └── resource.py            # 统一资源模型
-├── utils/                      # 工具模块
-│   ├── logger.py              # 日志工具
-│   └── ...
-├── sql/                        # SQL脚本
-│   └── init_mysql_schema.sql  # MySQL表结构
-├── tests/                      # 测试用例
-├── docs/                       # 文档
-└── scripts/                    # 工具脚本
-```
-
-详细的项目结构说明请参考 [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
+---
 
 ## 🎯 典型应用场景
 
-### 场景1：每周成本优化会议
+### 场景 1：每周成本优化会议
 
 ```bash
-# 生成Excel报告（含闲置分析）
+# 生成 Excel 报告（含闲置分析）
 cl report generate --account prod --format excel --include-idle
 
 # 查看即将到期资源
 cl analyze renewal --days 30
-
-# 耗时：5分钟（传统方式需4-6小时）
 ```
 
-### 场景2：安全合规审计
+**效果**：节省 95% 时间，数据更准确
+
+### 场景 2：安全合规审计
 
 ```bash
 # 权限审计
@@ -329,70 +209,40 @@ cl audit permissions --account prod
 # 公网暴露检测
 cl analyze security --account prod
 
-# 标签合规检查
-cl analyze tags --account prod
+# CIS 合规检查
+cl analyze security --account prod --cis
 ```
 
-### 场景3：资源盘点
+**效果**：系统化、可追溯、自动化
+
+### 场景 3：资源盘点
 
 ```bash
 # 并发查询所有账号、所有资源
 cl query ecs --concurrent --format csv > all_ecs.csv
 cl query rds --concurrent --format csv > all_rds.csv
-
-# 生成网络拓扑
-cl topology generate --account prod
 ```
 
-## 📊 分析标准
+**效果**：完整、快速、可视化
 
-### ECS闲置标准（或关系）
-- CPU利用率 < 5%
-- 内存利用率 < 20%
-- Load Average < vCPU * 5%
-- 磁盘IOPS < 100
-- EIP带宽使用率 < 峰值 * 10%
-
-> 当前闲置分析仅对阿里云 ECS 实现（基于 CloudMonitor）。RDS 及其他资源的闲置检测仍在规划，标准以文档为准。
-
-更多说明详见 [USER_GUIDE.md](USER_GUIDE.md)
+---
 
 ## 🔐 安全性
 
-- ✅ **强制Keyring存储密钥** - 密钥不会明文保存
-- ✅ **零变更机制** - 代码层面无任何Write/Delete API
+- ✅ **强制 Keyring 存储密钥** - 密钥不会明文保存
+- ✅ **零变更机制** - 代码层面无任何 Write/Delete API
 - ✅ **权限自动审计** - 检测高危权限
 - ✅ **本地运行** - 数据不出网
 
+---
+
 ## 🚀 性能优化
 
-- ✅ **并发查询** - 多账号并发，速度提升3倍
-- ✅ **懒加载SDK** - 启动快
-- ✅ **智能缓存** - 减少API调用
+- ✅ **并发查询** - 多账号并发，速度提升 3-5 倍
+- ✅ **智能缓存** - MySQL 缓存表，24 小时 TTL
+- ✅ **懒加载 SDK** - 启动快
 
-## 📚 文档
-
-### 核心文档
-- [产品介绍](PRODUCT_INTRODUCTION.md) - 详细的产品定位和功能介绍
-- [技术架构](TECHNICAL_ARCHITECTURE.md) - 系统架构和设计理念
-- [项目结构](PROJECT_STRUCTURE.md) - 详细的目录结构和模块说明
-- [用户指南](USER_GUIDE.md) - 完整的使用手册
-- [快速开始](QUICKSTART.md) - 快速上手指南
-- [更新日志](CHANGELOG.md) - 版本更新记录
-
-### Web 界面文档
-- [Web 快速开始](docs/WEB_QUICKSTART.md) - Web 界面安装和使用指南
-- [折扣分析指南](docs/DISCOUNT_ANALYSIS_GUIDE.md) - 折扣分析功能详细说明
-- [账单自动获取](docs/BILL_AUTO_FETCH_GUIDE.md) - 账单自动获取功能说明
-
-### 部署文档
-- [K8s 部署方案](K8S_DEPLOYMENT_PLAN.md) - Kubernetes 部署指南
-- [K8s 实施细节](K8S_IMPLEMENTATION_DETAILS.md) - 详细的实施步骤
-
-### 开发文档
-- [贡献指南](CONTRIBUTING.md) - 如何参与项目开发
-- [插件开发](docs/PLUGIN_DEVELOPMENT.md) - 如何开发自定义插件
-- [Shell 自动补齐](docs/shell_completion.md) - Shell 自动补齐功能说明
+---
 
 ## 🧪 测试
 
@@ -400,17 +250,30 @@ cl topology generate --account prod
 # 运行所有测试
 python3 -m pytest tests/
 
-# 运行CLI流程测试
+# 运行 CLI 流程测试
 python3 -m pytest tests/test_cli_flow.py
 ```
 
+---
+
 ## 🤝 贡献
 
-欢迎提交Issue和Pull Request！
+欢迎提交 Issue 和 Pull Request！
+
+详见 [贡献指南](CONTRIBUTING.md)
+
+---
 
 ## 📄 许可证
 
-本项目采用MIT许可证。
+本项目采用 MIT 许可证。
+
+---
+
+## 📞 联系方式
+
+- GitHub Issues: [提交问题](https://github.com/songqipeng/aliyunidle/issues)
+- 文档: [查看文档](https://github.com/songqipeng/aliyunidle/tree/main/docs)
 
 ---
 
