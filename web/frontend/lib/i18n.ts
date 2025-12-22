@@ -1095,6 +1095,8 @@ const en: Translations = {
     maximum: 'Maximum',
     minimum: 'Minimum',
     to: 'to',
+    timeout: 'Request timeout, please try again later',
+    timeoutTitle: 'Request Timeout',
   },
   nav: {
     dashboard: 'Dashboard',
@@ -2081,6 +2083,8 @@ const zh: Translations = {
     maximum: '最大',
     minimum: '最小',
     to: '至',
+    timeout: '请求超时，请稍后重试',
+    timeoutTitle: '请求超时',
   },
   nav: {
     dashboard: '仪表盘',

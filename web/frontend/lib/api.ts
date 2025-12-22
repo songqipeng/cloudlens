@@ -4,6 +4,9 @@
  * 支持重试、超时、请求去重
  */
 
+import { getTranslations } from "./i18n"
+import type { Locale } from "./i18n"
+
 const API_BASE = "http://127.0.0.1:8000/api"
 
 // 请求去重Map
@@ -18,7 +21,7 @@ export class ApiError extends Error {
         public detail: any,
         message?: string
     ) {
-        super(message || detail?.error || detail?.detail || `API请求失败: ${status}`)
+        super(message || detail?.error || detail?.detail || `API request failed: ${status}`)
         this.name = "ApiError"
     }
 }
@@ -122,7 +125,12 @@ export async function apiGet<T = any>(
                 
                 if (!res.ok) {
                     const errorData = await res.json().catch(() => ({}))
-                    const errorMessage = errorData?.detail || errorData?.error || errorData?.message || `API请求失败: ${res.status} ${res.statusText}`
+                    const locale = getCurrentLocale() as Locale
+                    const t = getTranslations(locale)
+                    const defaultMessage = locale === 'zh' 
+                        ? `API请求失败: ${res.status} ${res.statusText}` 
+                        : `API request failed: ${res.status} ${res.statusText}`
+                    const errorMessage = errorData?.detail || errorData?.error || errorData?.message || defaultMessage
                     console.error(`[API Error] ${res.status} ${res.statusText}: ${url}`, errorData)
                     throw new ApiError(res.status, errorData, `${errorMessage} (${url})`)
                 }
@@ -135,7 +143,9 @@ export async function apiGet<T = any>(
                 if (error instanceof Error && error.name === 'AbortError') {
                     if (i === retries - 1) {
                         pendingRequests.delete(requestKey)
-                        throw new ApiError(408, { error: '请求超时，请稍后重试' }, '请求超时')
+                        const locale = getCurrentLocale() as Locale
+                        const t = getTranslations(locale)
+                        throw new ApiError(408, { error: t.common.timeout }, t.common.timeoutTitle)
                     }
                     // 超时错误也进行重试
                 } else if (i === retries - 1) {
