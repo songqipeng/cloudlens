@@ -215,11 +215,27 @@ export default function CostPage() {
                         <Tooltip
                           formatter={(value: any, name: any) => [currency(Number(value || 0)), name]}
                           contentStyle={{
-                            background: "rgba(9, 9, 11, 0.9)",
-                            border: "1px solid #27272a",
-                            borderRadius: "8px",
-                            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.5)",
+                            background: "rgba(15, 15, 20, 0.95)",
+                            border: "1px solid rgba(255, 255, 255, 0.1)",
+                            borderRadius: "12px",
+                            boxShadow: "0 8px 24px rgba(0, 0, 0, 0.5)",
+                            color: "#ffffff",
+                            padding: "12px 16px",
+                            backdropFilter: "blur(20px)",
                           }}
+                          itemStyle={{
+                            color: "#ffffff",
+                            padding: "6px 0",
+                            fontSize: "14px",
+                            fontWeight: 500,
+                          }}
+                          labelStyle={{
+                            color: "#94a3b8",
+                            marginBottom: "8px",
+                            fontWeight: 600,
+                            fontSize: "13px",
+                          }}
+                          cursor={{ fill: "rgba(255, 255, 255, 0.1)" }}
                         />
                         <Legend />
                       </PieChart>
