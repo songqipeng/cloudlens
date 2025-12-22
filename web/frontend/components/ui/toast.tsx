@@ -130,3 +130,4 @@ export function toastWarning(message: string, duration?: number) {
 export function toastInfo(message: string, duration?: number) {
   toast(message, "info", duration)
 }
+

@@ -326,3 +326,4 @@ class BillStorageManager:
             'db_type': self.db_type
         }
 
+

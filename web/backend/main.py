@@ -9,6 +9,18 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 import logging
+import os
+from pathlib import Path
+
+# 加载环境变量（从 ~/.cloudlens/.env 文件）
+env_file = Path.home() / ".cloudlens" / ".env"
+if env_file.exists():
+    with open(env_file, "r") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, value = line.split("=", 1)
+                os.environ[key.strip()] = value.strip()
 
 # 配置日志
 logging.basicConfig(

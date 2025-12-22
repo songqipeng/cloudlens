@@ -44,3 +44,4 @@ echo ""
 echo "或者添加到 ~/.bashrc 或 ~/.zshrc:"
 echo "  source $ENV_FILE"
 
+

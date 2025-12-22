@@ -203,7 +203,11 @@ export async function apiPost<T = any>(
             
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}))
-                const errorMessage = errorData?.detail || errorData?.error || errorData?.message || `API请求失败: ${res.status} ${res.statusText}`
+                const locale = getCurrentLocale() as Locale
+                const defaultMessage = locale === 'zh' 
+                    ? `API请求失败: ${res.status} ${res.statusText}` 
+                    : `API request failed: ${res.status} ${res.statusText}`
+                const errorMessage = errorData?.detail || errorData?.error || errorData?.message || defaultMessage
                 console.error(`[API Error] ${res.status} ${res.statusText}: ${url}`, errorData)
                 throw new ApiError(res.status, errorData, `${errorMessage} (${url})`)
             }
@@ -257,7 +261,11 @@ export async function apiPut<T = any>(
             
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}))
-                const errorMessage = errorData?.detail || errorData?.error || errorData?.message || `API请求失败: ${res.status} ${res.statusText}`
+                const locale = getCurrentLocale() as Locale
+                const defaultMessage = locale === 'zh' 
+                    ? `API请求失败: ${res.status} ${res.statusText}` 
+                    : `API request failed: ${res.status} ${res.statusText}`
+                const errorMessage = errorData?.detail || errorData?.error || errorData?.message || defaultMessage
                 console.error(`[API Error] ${res.status} ${res.statusText}: ${url}`, errorData)
                 throw new ApiError(res.status, errorData, `${errorMessage} (${url})`)
             }
@@ -305,7 +313,11 @@ export async function apiDelete<T = any>(
             
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}))
-                const errorMessage = errorData?.detail || errorData?.error || errorData?.message || `API请求失败: ${res.status} ${res.statusText}`
+                const locale = getCurrentLocale() as Locale
+                const defaultMessage = locale === 'zh' 
+                    ? `API请求失败: ${res.status} ${res.statusText}` 
+                    : `API request failed: ${res.status} ${res.statusText}`
+                const errorMessage = errorData?.detail || errorData?.error || errorData?.message || defaultMessage
                 console.error(`[API Error] ${res.status} ${res.statusText}: ${url}`, errorData)
                 throw new ApiError(res.status, errorData, `${errorMessage} (${url})`)
             }
@@ -323,6 +335,7 @@ export async function apiDelete<T = any>(
     }
     throw new ApiError(500, { error: "Request failed after retries" })
 }
+
 
 
 

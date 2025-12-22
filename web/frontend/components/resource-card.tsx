@@ -69,3 +69,4 @@ export const ResourceCard = React.memo(({ resource, onClick }: ResourceCardProps
 ResourceCard.displayName = "ResourceCard"
 
 
+

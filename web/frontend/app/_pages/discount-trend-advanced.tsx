@@ -980,3 +980,4 @@ function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent, t 
 }
 
 
+

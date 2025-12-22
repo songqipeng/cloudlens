@@ -245,3 +245,4 @@ class DashboardStorage:
         )
         return True
 
+

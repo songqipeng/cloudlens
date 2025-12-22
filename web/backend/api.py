@@ -3369,7 +3369,14 @@ def get_product_discount_trends(
         result = analyzer.get_product_discount_trends(account_id, months, top_n, start_date, end_date)
         
         if not result.get('success'):
-            raise HTTPException(status_code=500, detail=result.get('error', '分析失败'))
+            error_msg = result.get('error', '分析失败')
+            # 如果是数据库连接错误，返回更友好的错误信息
+            if 'Access denied' in error_msg or '连接' in error_msg or 'connection' in error_msg.lower():
+                raise HTTPException(
+                    status_code=503, 
+                    detail="数据库连接失败，请检查MySQL配置。错误: " + error_msg
+                )
+            raise HTTPException(status_code=500, detail=error_msg)
         
         return {
             "success": True,
@@ -3378,8 +3385,18 @@ def get_product_discount_trends(
             "source": "database"
         }
     
+    except HTTPException:
+        # 重新抛出HTTPException，保持原有状态码
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"产品趋势分析失败: {str(e)}")
+        error_msg = str(e)
+        # 如果是数据库连接错误，返回更友好的错误信息
+        if 'Access denied' in error_msg or '连接' in error_msg or 'connection' in error_msg.lower():
+            raise HTTPException(
+                status_code=503, 
+                detail=f"数据库连接失败，请检查MySQL配置。错误: {error_msg}"
+            )
+        raise HTTPException(status_code=500, detail=f"产品趋势分析失败: {error_msg}")
 
 
 @router.get("/discounts/regions")

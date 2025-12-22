@@ -29,3 +29,4 @@ for i, line in enumerate(lines, 1):
 
 print("\n提示：这些方法需要手动修复，使用 _query_db() 方法替换 sqlite3.connect()")
 
+
