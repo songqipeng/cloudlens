@@ -276,14 +276,38 @@ class VirtualTagStorage:
                 )
             """)
             
-            # 创建索引
-            try:
-                self.db.execute("CREATE INDEX IF NOT EXISTS idx_tag_key_value ON virtual_tags(tag_key, tag_value)")
-                self.db.execute("CREATE INDEX IF NOT EXISTS idx_tag_rules_tag_id ON tag_rules(tag_id)")
-                self.db.execute("CREATE INDEX IF NOT EXISTS idx_tag_matches_resource ON tag_matches(resource_id, resource_type, account_name)")
-                self.db.execute("CREATE INDEX IF NOT EXISTS idx_tag_matches_tag ON tag_matches(tag_id)")
-            except Exception as e:
-                logger.debug(f"Index creation skipped (may already exist): {e}")
+            # 创建索引（MySQL不支持IF NOT EXISTS，需要先检查）
+            if self.db_type == "mysql":
+                # MySQL: 先检查索引是否存在，不存在则创建
+                indexes_to_create = [
+                    ("idx_tag_key_value", "virtual_tags", "tag_key, tag_value"),
+                    ("idx_tag_rules_tag_id", "tag_rules", "tag_id"),
+                    ("idx_tag_matches_resource", "tag_matches", "resource_id, resource_type, account_name"),
+                    ("idx_tag_matches_tag", "tag_matches", "tag_id"),
+                ]
+                for idx_name, table_name, columns in indexes_to_create:
+                    try:
+                        # 检查索引是否存在
+                        result = self.db.query(f"""
+                            SELECT COUNT(*) as cnt 
+                            FROM information_schema.statistics 
+                            WHERE table_schema = DATABASE() 
+                            AND table_name = '{table_name}' 
+                            AND index_name = '{idx_name}'
+                        """)
+                        if result and result[0].get('cnt', 0) == 0:
+                            self.db.execute(f"CREATE INDEX {idx_name} ON {table_name}({columns})")
+                    except Exception as e:
+                        logger.debug(f"Index {idx_name} creation skipped: {e}")
+            else:
+                # SQLite支持IF NOT EXISTS
+                try:
+                    self.db.execute("CREATE INDEX IF NOT EXISTS idx_tag_key_value ON virtual_tags(tag_key, tag_value)")
+                    self.db.execute("CREATE INDEX IF NOT EXISTS idx_tag_rules_tag_id ON tag_rules(tag_id)")
+                    self.db.execute("CREATE INDEX IF NOT EXISTS idx_tag_matches_resource ON tag_matches(resource_id, resource_type, account_name)")
+                    self.db.execute("CREATE INDEX IF NOT EXISTS idx_tag_matches_tag ON tag_matches(tag_id)")
+                except Exception as e:
+                    logger.debug(f"Index creation skipped (may already exist): {e}")
         except Exception as e:
             logger.error(f"Error initializing database: {e}")
             raise

@@ -358,15 +358,39 @@ class BudgetStorage:
                 )
             """)
             
-            # 创建索引
-            try:
-                self.db.execute("CREATE INDEX IF NOT EXISTS idx_budgets_account ON budgets(account_id)")
-                self.db.execute("CREATE INDEX IF NOT EXISTS idx_budgets_period ON budgets(period)")
-                self.db.execute("CREATE INDEX IF NOT EXISTS idx_budget_records_budget ON budget_records(budget_id, date)")
-                self.db.execute("CREATE INDEX IF NOT EXISTS idx_budget_alerts_budget ON budget_alerts(budget_id)")
-            except Exception as e:
-                # 索引可能已存在，忽略错误
-                logger.debug(f"Index creation skipped (may already exist): {e}")
+            # 创建索引（MySQL不支持IF NOT EXISTS，需要先检查）
+            if self.db_type == "mysql":
+                # MySQL: 先检查索引是否存在，不存在则创建
+                indexes_to_create = [
+                    ("idx_budgets_account", "budgets", "account_id"),
+                    ("idx_budgets_period", "budgets", "period"),
+                    ("idx_budget_records_budget", "budget_records", "budget_id, date"),
+                    ("idx_budget_alerts_budget", "budget_alerts", "budget_id"),
+                ]
+                for idx_name, table_name, columns in indexes_to_create:
+                    try:
+                        # 检查索引是否存在
+                        result = self.db.query(f"""
+                            SELECT COUNT(*) as cnt 
+                            FROM information_schema.statistics 
+                            WHERE table_schema = DATABASE() 
+                            AND table_name = '{table_name}' 
+                            AND index_name = '{idx_name}'
+                        """)
+                        if result and result[0].get('cnt', 0) == 0:
+                            self.db.execute(f"CREATE INDEX {idx_name} ON {table_name}({columns})")
+                    except Exception as e:
+                        logger.debug(f"Index {idx_name} creation skipped: {e}")
+            else:
+                # SQLite支持IF NOT EXISTS
+                try:
+                    self.db.execute("CREATE INDEX IF NOT EXISTS idx_budgets_account ON budgets(account_id)")
+                    self.db.execute("CREATE INDEX IF NOT EXISTS idx_budgets_period ON budgets(period)")
+                    self.db.execute("CREATE INDEX IF NOT EXISTS idx_budget_records_budget ON budget_records(budget_id, date)")
+                    self.db.execute("CREATE INDEX IF NOT EXISTS idx_budget_alerts_budget ON budget_alerts(budget_id)")
+                except Exception as e:
+                    # 索引可能已存在，忽略错误
+                    logger.debug(f"Index creation skipped (may already exist): {e}")
         except Exception as e:
             logger.error(f"Error initializing database: {e}")
             raise

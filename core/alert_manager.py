@@ -154,29 +154,32 @@ class AlertStorage:
         placeholder = self._get_placeholder()
         
         # 告警规则表
-        self.db.execute(f"""
-            CREATE TABLE IF NOT EXISTS alert_rules (
-                id VARCHAR(255) PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                description TEXT,
-                type VARCHAR(50) NOT NULL,
-                severity VARCHAR(20) NOT NULL,
-                enabled TINYINT NOT NULL DEFAULT 1,
-                \`condition\` VARCHAR(50) NOT NULL,
-                threshold DECIMAL(20, 2),
-                metric VARCHAR(100),
-                account_id VARCHAR(255),
-                tag_filter TEXT,
-                service_filter TEXT,
-                notify_email VARCHAR(255),
-                notify_webhook TEXT,
-                notify_sms VARCHAR(50),
-                check_interval INT DEFAULT 60,
-                cooldown_period INT DEFAULT 300,
-                created_at DATETIME,
-                updated_at DATETIME
-            )
-        """ if self.db_type == "mysql" else """
+        if self.db_type == "mysql":
+            self.db.execute("""
+                CREATE TABLE IF NOT EXISTS alert_rules (
+                    id VARCHAR(255) PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    description TEXT,
+                    type VARCHAR(50) NOT NULL,
+                    severity VARCHAR(20) NOT NULL,
+                    enabled TINYINT NOT NULL DEFAULT 1,
+                    `condition` VARCHAR(50) NOT NULL,
+                    threshold DECIMAL(20, 2),
+                    metric VARCHAR(100),
+                    account_id VARCHAR(255),
+                    tag_filter TEXT,
+                    service_filter TEXT,
+                    notify_email VARCHAR(255),
+                    notify_webhook TEXT,
+                    notify_sms VARCHAR(50),
+                    check_interval INT DEFAULT 60,
+                    cooldown_period INT DEFAULT 300,
+                    created_at DATETIME,
+                    updated_at DATETIME
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """)
+        else:
+            self.db.execute("""
             CREATE TABLE IF NOT EXISTS alert_rules (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -201,28 +204,31 @@ class AlertStorage:
         """)
         
         # 告警记录表
-        self.db.execute(f"""
-            CREATE TABLE IF NOT EXISTS alerts (
-                id VARCHAR(255) PRIMARY KEY,
-                rule_id VARCHAR(255) NOT NULL,
-                rule_name VARCHAR(255) NOT NULL,
-                severity VARCHAR(20) NOT NULL,
-                status VARCHAR(20) NOT NULL DEFAULT 'triggered',
-                title VARCHAR(255) NOT NULL,
-                message TEXT,
-                metric_value DECIMAL(20, 2),
-                threshold DECIMAL(20, 2),
-                account_id VARCHAR(255),
-                resource_id VARCHAR(255),
-                resource_type VARCHAR(50),
-                triggered_at DATETIME,
-                acknowledged_at DATETIME,
-                resolved_at DATETIME,
-                closed_at DATETIME,
-                metadata TEXT,
-                FOREIGN KEY (rule_id) REFERENCES alert_rules(id)
-            )
-        """ if self.db_type == "mysql" else """
+        if self.db_type == "mysql":
+            self.db.execute("""
+                CREATE TABLE IF NOT EXISTS alerts (
+                    id VARCHAR(255) PRIMARY KEY,
+                    rule_id VARCHAR(255) NOT NULL,
+                    rule_name VARCHAR(255) NOT NULL,
+                    severity VARCHAR(20) NOT NULL,
+                    status VARCHAR(20) NOT NULL DEFAULT 'triggered',
+                    title VARCHAR(255) NOT NULL,
+                    message TEXT,
+                    metric_value DECIMAL(20, 2),
+                    threshold DECIMAL(20, 2),
+                    account_id VARCHAR(255),
+                    resource_id VARCHAR(255),
+                    resource_type VARCHAR(50),
+                    triggered_at DATETIME,
+                    acknowledged_at DATETIME,
+                    resolved_at DATETIME,
+                    closed_at DATETIME,
+                    metadata TEXT,
+                    FOREIGN KEY (rule_id) REFERENCES alert_rules(id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """)
+        else:
+            self.db.execute("""
             CREATE TABLE IF NOT EXISTS alerts (
                 id TEXT PRIMARY KEY,
                 rule_id TEXT NOT NULL,

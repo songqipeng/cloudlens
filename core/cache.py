@@ -80,7 +80,7 @@ class CacheManager:
                     expires_at TIMESTAMP
                 )
             """)
-            # 创建索引
+            # 创建索引（SQLite支持IF NOT EXISTS）
             try:
                 self.db.execute("CREATE INDEX IF NOT EXISTS idx_resource_type_account ON resource_cache(resource_type, account_name)")
                 self.db.execute("CREATE INDEX IF NOT EXISTS idx_expires_at ON resource_cache(expires_at)")
