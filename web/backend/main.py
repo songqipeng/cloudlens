@@ -2,15 +2,14 @@
 FastAPI 主应用入口
 """
 
-from fastapi import FastAPI, Request, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.openapi.utils import get_openapi
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-import logging
+import sys
 import os
 from pathlib import Path
+
+# 添加项目根目录到 Python 路径（确保可以导入 web 模块）
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 # 加载环境变量（从 ~/.cloudlens/.env 文件）
 env_file = Path.home() / ".cloudlens" / ".env"
@@ -21,6 +20,14 @@ if env_file.exists():
             if line and not line.startswith("#") and "=" in line:
                 key, value = line.split("=", 1)
                 os.environ[key.strip()] = value.strip()
+
+from fastapi import FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.openapi.utils import get_openapi
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+import logging
 
 # 配置日志
 logging.basicConfig(
