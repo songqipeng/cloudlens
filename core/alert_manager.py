@@ -140,7 +140,7 @@ class AlertStorage:
                 db_dir = Path("data")
                 db_dir.mkdir(parents=True, exist_ok=True)
                 db_path = str(db_dir / "alerts.db")
-            self.db_path = db_path
+        self.db_path = db_path
             self.db = DatabaseFactory.create_adapter("sqlite", db_path=db_path)
         
         self._init_database()
@@ -517,27 +517,27 @@ class AlertStorage:
                 updated_at=datetime.fromisoformat(row['updated_at']) if row.get('updated_at') else None
             )
         else:
-            return AlertRule(
-                id=row[0],
-                name=row[1],
-                description=row[2],
-                type=row[3],
-                severity=row[4],
-                enabled=bool(row[5]),
-                condition=row[6],
-                threshold=row[7],
-                metric=row[8],
-                account_id=row[9],
-                tag_filter=row[10],
-                service_filter=row[11],
-                notify_email=row[12],
-                notify_webhook=row[13],
-                notify_sms=row[14],
-                check_interval=row[15],
-                cooldown_period=row[16],
-                created_at=datetime.fromisoformat(row[17]) if row[17] else None,
-                updated_at=datetime.fromisoformat(row[18]) if row[18] else None
-            )
+        return AlertRule(
+            id=row[0],
+            name=row[1],
+            description=row[2],
+            type=row[3],
+            severity=row[4],
+            enabled=bool(row[5]),
+            condition=row[6],
+            threshold=row[7],
+            metric=row[8],
+            account_id=row[9],
+            tag_filter=row[10],
+            service_filter=row[11],
+            notify_email=row[12],
+            notify_webhook=row[13],
+            notify_sms=row[14],
+            check_interval=row[15],
+            cooldown_period=row[16],
+            created_at=datetime.fromisoformat(row[17]) if row[17] else None,
+            updated_at=datetime.fromisoformat(row[18]) if row[18] else None
+        )
     
     def _row_to_alert(self, row) -> Alert:
         """将数据库行转换为Alert对象"""
@@ -562,25 +562,25 @@ class AlertStorage:
                 metadata=row.get('metadata')
             )
         else:
-            return Alert(
-                id=row[0],
-                rule_id=row[1],
-                rule_name=row[2],
-                severity=row[3],
-                status=row[4],
-                title=row[5],
-                message=row[6],
-                metric_value=row[7],
-                threshold=row[8],
-                account_id=row[9],
-                resource_id=row[10],
-                resource_type=row[11],
-                triggered_at=datetime.fromisoformat(row[12]) if row[12] else None,
-                acknowledged_at=datetime.fromisoformat(row[13]) if row[13] else None,
-                resolved_at=datetime.fromisoformat(row[14]) if row[14] else None,
-                closed_at=datetime.fromisoformat(row[15]) if row[15] else None,
-                metadata=row[16]
-            )
+        return Alert(
+            id=row[0],
+            rule_id=row[1],
+            rule_name=row[2],
+            severity=row[3],
+            status=row[4],
+            title=row[5],
+            message=row[6],
+            metric_value=row[7],
+            threshold=row[8],
+            account_id=row[9],
+            resource_id=row[10],
+            resource_type=row[11],
+            triggered_at=datetime.fromisoformat(row[12]) if row[12] else None,
+            acknowledged_at=datetime.fromisoformat(row[13]) if row[13] else None,
+            resolved_at=datetime.fromisoformat(row[14]) if row[14] else None,
+            closed_at=datetime.fromisoformat(row[15]) if row[15] else None,
+            metadata=row[16]
+        )
 
 
 

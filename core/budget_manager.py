@@ -262,10 +262,10 @@ class BudgetStorage:
             self.db = DatabaseFactory.create_adapter("mysql")
             self.db_path = None
         else:
-            if db_path is None:
-                db_dir = Path.home() / ".cloudlens"
-                db_dir.mkdir(parents=True, exist_ok=True)
-                db_path = str(db_dir / "budgets.db")
+        if db_path is None:
+            db_dir = Path.home() / ".cloudlens"
+            db_dir.mkdir(parents=True, exist_ok=True)
+            db_path = str(db_dir / "budgets.db")
             self.db_path = db_path
             self.db = DatabaseFactory.create_adapter("sqlite", db_path=db_path)
         
@@ -546,13 +546,13 @@ class BudgetStorage:
         placeholder = self._get_placeholder()
         if account_id:
             rows = self.db.query(f"SELECT id FROM budgets WHERE account_id = {placeholder} ORDER BY created_at DESC", (account_id,))
-        else:
+            else:
             rows = self.db.query("SELECT id FROM budgets ORDER BY created_at DESC")
-        
+            
         budget_ids = [row.get('id') if isinstance(row, dict) else row[0] for row in rows]
-        
-        budgets = []
-        for budget_id in budget_ids:
+            
+            budgets = []
+            for budget_id in budget_ids:
             try:
                 budget = self.get_budget(budget_id)
                 if budget:
@@ -565,8 +565,8 @@ class BudgetStorage:
                 # 其他错误也记录但继续
                 logger.error(f"获取预算 {budget_id} 时出错: {str(e)}")
                 continue
-        
-        return budgets
+            
+            return budgets
     
     def update_budget(self, budget: Budget) -> bool:
         """更新预算"""
@@ -625,7 +625,7 @@ class BudgetStorage:
                 """, (record_id, budget_id, date.date().isoformat(), spent, predicted))
             else:
                 self.db.execute(f"""
-                    INSERT OR REPLACE INTO budget_records (id, budget_id, date, spent, predicted)
+                INSERT OR REPLACE INTO budget_records (id, budget_id, date, spent, predicted)
                     VALUES ({', '.join([placeholder] * 5)})
                 """, (record_id, budget_id, date.date().isoformat(), spent, predicted))
         except Exception as e:
@@ -635,13 +635,13 @@ class BudgetStorage:
         """获取支出历史"""
         placeholder = self._get_placeholder()
         rows = self.db.query(f"""
-            SELECT date, spent, predicted
-            FROM budget_records
+                SELECT date, spent, predicted
+                FROM budget_records
             WHERE budget_id = {placeholder}
-            ORDER BY date DESC
+                ORDER BY date DESC
             LIMIT {placeholder}
-        """, (budget_id, days))
-        
+            """, (budget_id, days))
+            
         return [
             {
                 'date': row.get('date') if isinstance(row, dict) else row[0],

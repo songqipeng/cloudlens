@@ -1,77 +1,215 @@
-# CloudLens CLI - 快速开始
+# CloudLens 快速开始指南
 
-## 安装
+本指南将帮助您在 5 分钟内快速上手 CloudLens。
+
+---
+
+## 📋 前置要求
+
+- **Python**: 3.8 或更高版本
+- **Node.js**: 18+ （仅 Web 界面需要）
+- **MySQL**: 5.7+ 或 8.0+ （推荐）
+- **操作系统**: macOS, Linux, Windows
+
+---
+
+## 🚀 安装步骤
+
+### 1. 克隆仓库
 
 ```bash
-cd /Users/mac/aliyunidle
+git clone https://github.com/songqipeng/aliyunidle.git
+cd aliyunidle
+```
+
+### 2. 安装 Python 依赖
+
+```bash
 pip install -r requirements.txt
-chmod +x cloudlens
-chmod +x cl
+
+# 可选：安装 AI 预测依赖
+pip install prophet
 ```
 
-## 新的简化命令格式
+### 3. 配置 MySQL 数据库
 
-### 基本用法
+#### 3.1 创建数据库
 
 ```bash
-# 第一次查询 - 会提示选择账号
-./cloudlens query ecs
-
-# 指定账号查询
-./cloudlens query ydzn ecs
-
-# 后续查询 - 自动使用上次的账号
-./cloudlens query rds
-./cloudlens query vpc
-
-# 简写命令
-./cl query ecs
-./cl query ydzn ecs
+mysql -u root -p
 ```
 
-### 完整示例
+```sql
+CREATE DATABASE cloudlens CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'cloudlens'@'localhost' IDENTIFIED BY 'your_password';
+GRANT ALL PRIVILEGES ON cloudlens.* TO 'cloudlens'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+#### 3.2 初始化表结构
 
 ```bash
-# 配置账号（只需一次）
-./cloudlens config add
-
-# 查询资源（自动记住账号）
-./cloudlens query ydzn ecs      # 查询ydzn账号的ECS
-./cloudlens query rds            # 自动使用ydzn账号查询RDS
-./cloudlens query zmyc vpc       # 切换到zmyc账号查询VPC
-./cloudlens query ecs            # 继续使用zmyc账号
-
-# 分析功能
-./cloudlens analyze idle         # 使用记住的账号
-./cloudlens analyze ydzn cost    # 指定账号
-
-# 生成报告
-./cloudlens report generate      # 使用记住的账号
-
-# 简写命令
-./cl analyze idle
-./cl report generate
+mysql -u cloudlens -p cloudlens < sql/init_mysql_schema.sql
 ```
 
-> 仍可使用 `cl ...` 命令形式；`./cloudlens` 只是封装了账号记忆与位置参数。
+#### 3.3 配置环境变量
 
-## 添加到 PATH（可选）
-
-为了在任何地方都能使用 `cloudlens` 命令：
+创建 `~/.cloudlens/.env` 文件：
 
 ```bash
-# 创建符号链接到 /usr/local/bin
-sudo ln -s /Users/mac/aliyunidle/cloudlens /usr/local/bin/cloudlens
-sudo ln -s /Users/mac/aliyunidle/cl /usr/local/bin/cl
-
-# 现在可以直接使用
-cloudlens query ecs
-cl query ecs
+mkdir -p ~/.cloudlens
+cat > ~/.cloudlens/.env << EOF
+DB_TYPE=mysql
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=cloudlens
+MYSQL_PASSWORD=your_password
+MYSQL_DATABASE=cloudlens
+MYSQL_CHARSET=utf8mb4
+EOF
 ```
 
-## 主要改进
+### 4. 配置云账号
 
-1. ✅ **可执行命令** - 不再需要 `cl`
-2. ✅ **简化语法** - `cloudlens query ydzn ecs` 而不是 `cloudlens query ecs --account ydzn`
-3. ✅ **智能记忆** - 自动记住上次使用的账号
-4. ✅ **交互提示** - 首次使用时友好的账号选择界面
+```bash
+# 添加阿里云账号
+./cl config add \
+  --provider aliyun \
+  --name prod \
+  --region cn-hangzhou \
+  --ak YOUR_ACCESS_KEY \
+  --sk YOUR_SECRET_KEY
+
+# 查看已配置账号
+./cl config list
+```
+
+---
+
+## 🎯 快速体验
+
+### CLI 命令行方式
+
+#### 1. 查询资源
+
+```bash
+# 查询 ECS 实例
+./cl query ecs --account prod
+
+# 查询 RDS 数据库
+./cl query rds --account prod
+
+# 导出为 JSON
+./cl query ecs --account prod --format json --output ecs.json
+```
+
+#### 2. 分析功能
+
+```bash
+# 闲置资源分析
+./cl analyze idle --account prod
+
+# 成本趋势分析
+./cl analyze cost --account prod --trend
+
+# AI 成本预测
+./cl analyze forecast --account prod --days 90
+
+# 折扣趋势分析
+./cl analyze discount --export
+
+# CIS 安全合规检查
+./cl analyze security --account prod --cis
+```
+
+#### 3. 账单管理
+
+```bash
+# 测试账单 API 连接
+./cl bill test --account prod
+
+# 获取最近 3 个月账单
+./cl bill fetch --account prod
+
+# 获取指定时间范围账单
+./cl bill fetch --account prod --start 2025-01 --end 2025-06
+```
+
+#### 4. 自动修复
+
+```bash
+# 批量打标签（干运行，不会实际修改）
+./cl remediate tags --account prod
+
+# 实际执行修复
+./cl remediate tags --account prod --confirm
+
+# 查看修复历史
+./cl remediate history
+```
+
+---
+
+### Web 界面方式
+
+#### 1. 启动后端服务
+
+```bash
+cd web/backend
+python -m uvicorn main:app --reload --port 8000
+```
+
+后端服务将在 `http://127.0.0.1:8000` 启动。
+
+#### 2. 启动前端服务（新终端）
+
+```bash
+cd web/frontend
+npm install
+npm run dev
+```
+
+前端服务将在 `http://localhost:3000` 启动。
+
+#### 3. 访问界面
+
+打开浏览器访问 http://localhost:3000
+
+---
+
+## 📖 下一步
+
+- 查看 [用户指南](USER_GUIDE.md) 了解详细功能
+- 查看 [产品能力总览](PRODUCT_CAPABILITIES.md) 了解所有功能
+- 查看 [快速参考](QUICK_REFERENCE.md) 快速查找命令
+
+---
+
+## ❓ 常见问题
+
+### Q: 如何验证安装是否成功？
+
+```bash
+./cl --version
+./cl config list
+```
+
+### Q: MySQL 连接失败怎么办？
+
+1. 检查 MySQL 服务是否运行：`mysqladmin ping`
+2. 检查环境变量配置：`cat ~/.cloudlens/.env`
+3. 测试连接：`mysql -u cloudlens -p cloudlens`
+
+### Q: 如何查看日志？
+
+日志文件位置：`~/.cloudlens/logs/cloudlens.log`
+
+### Q: Web 界面无法访问？
+
+1. 检查后端是否运行：`curl http://127.0.0.1:8000/health`
+2. 检查前端是否运行：访问 http://localhost:3000
+3. 查看浏览器控制台错误信息
+
+---
+
+**祝您使用愉快！🎉**

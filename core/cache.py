@@ -70,15 +70,15 @@ class CacheManager:
         else:
             # SQLite表结构
             self.db.execute("""
-                CREATE TABLE IF NOT EXISTS resource_cache (
-                    cache_key TEXT PRIMARY KEY,
-                    resource_type TEXT,
-                    account_name TEXT,
-                    region TEXT,
-                    data TEXT,
-                    created_at TIMESTAMP,
-                    expires_at TIMESTAMP
-                )
+            CREATE TABLE IF NOT EXISTS resource_cache (
+                cache_key TEXT PRIMARY KEY,
+                resource_type TEXT,
+                account_name TEXT,
+                region TEXT,
+                data TEXT,
+                created_at TIMESTAMP,
+                expires_at TIMESTAMP
+            )
             """)
             # 创建索引（SQLite支持IF NOT EXISTS）
             try:
@@ -112,8 +112,8 @@ class CacheManager:
         else:
             # SQLite使用ISO格式字符串比较
             sql = """
-                SELECT data, expires_at FROM resource_cache 
-                WHERE cache_key = ? AND expires_at > ?
+            SELECT data, expires_at FROM resource_cache 
+            WHERE cache_key = ? AND expires_at > ?
             """
             params = (cache_key, now.isoformat())
 
@@ -166,9 +166,9 @@ class CacheManager:
             # SQLite使用TEXT类型
             data_json = json.dumps(data, ensure_ascii=False)
             sql = """
-                INSERT OR REPLACE INTO resource_cache 
-                (cache_key, resource_type, account_name, region, data, created_at, expires_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO resource_cache 
+            (cache_key, resource_type, account_name, region, data, created_at, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """
             params = (cache_key, resource_type, account_name, region, data_json, created_at.isoformat(), expires_at.isoformat())
 
@@ -183,13 +183,13 @@ class CacheManager:
             account_name: 如果指定，只清除该账号的缓存
         """
         if self.db_type == "mysql":
-            if resource_type and account_name:
+        if resource_type and account_name:
                 sql = "DELETE FROM resource_cache WHERE resource_type = %s AND account_name = %s"
                 params = (resource_type, account_name)
-            elif resource_type:
+        elif resource_type:
                 sql = "DELETE FROM resource_cache WHERE resource_type = %s"
                 params = (resource_type,)
-            elif account_name:
+        elif account_name:
                 sql = "DELETE FROM resource_cache WHERE account_name = %s"
                 params = (account_name,)
             else:
@@ -235,7 +235,7 @@ class CacheManager:
             if count > 0:
                 sql = "DELETE FROM resource_cache WHERE expires_at < ?"
                 self.db.execute(sql, params)
-            
+
             return count
 
     def _generate_key(self, resource_type: str, account_name: str, region: str = None) -> str:

@@ -9,8 +9,10 @@ All notable changes to CloudLens will be documented in this file.
   - 删除所有过时的迁移文档（K8S_*, 迁移脚本等）
   - 删除过程性的修复文档和测试脚本
   - 清理根目录的临时/调试文件
-  - 重新编写 README、产品能力文档、技术架构文档
+  - 删除过时的脚本文件（使用旧SQLite数据库的一次性脚本）
+  - 重新编写 README、QUICKSTART、USER_GUIDE、QUICK_REFERENCE 等核心文档
   - 统一文档结构，提升可维护性和可读性
+  - 更新所有文档中的数据库信息（从SQLite迁移到MySQL）
 
 ### Fixed
 - 🐛 修复资源列表中 VPC 名称/ID 显示为空的问题
@@ -19,6 +21,27 @@ All notable changes to CloudLens will be documented in this file.
 - 🐛 修复闲置资源获取时的数据格式处理问题
 - 🐛 修复成本构成饼图工具提示显示不清晰的问题
 - 🐛 优化 API 超时处理，增加默认超时时间到 60 秒
+
+### Removed
+- 🗑️ 删除过时的一次性脚本：
+  - `scripts/detailed_idle_report.py`（使用旧SQLite数据库）
+  - `scripts/quick_summary.py`（使用旧SQLite数据库）
+  - `scripts/view_idle_resources.py`（使用旧SQLite数据库）
+  - `scripts/analyze_ip_traffic.py`（特定场景脚本）
+  - `scripts/list_completely_unused.py`（特定场景脚本）
+  - `scripts/list_tenant_eips.py`（特定场景脚本）
+  - `scripts/list_unbound_eips.py`（特定场景脚本）
+  - `scripts/summarize_reports.py`（特定场景脚本）
+  - `scripts/ecs_price_comparison.py`（特定场景脚本）
+  - `scripts/get_disk_discounts.py`（特定场景脚本）
+  - `scripts/get_ecs_disks.py`（特定场景脚本）
+  - `scripts/check_current_identity.py`（特定场景脚本）
+  - `scripts/analyze_all_tenants.py`（已由CLI命令替代）
+  - `scripts/generate_idle_summary.py`（已由CLI命令替代）
+  - `scripts/resource_overview.py`（已由CLI命令替代）
+  - `scripts/ram_permission_checker.py`（已由CLI命令替代）
+  - `scripts/set_mysql_default.sh`（过程性脚本）
+  - `CLEANUP_PLAN.md`（过程性文档）
 
 ## [2.1.0] - 2025-01-XX
 

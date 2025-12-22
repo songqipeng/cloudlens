@@ -1,4 +1,4 @@
-# CloudLens 快速参考卡片
+# CloudLens 快速参考
 
 > 📖 一页纸了解全部核心命令和功能
 
@@ -26,9 +26,15 @@
 ./cl analyze idle --account prod           # 闲置资源分析
 ./cl analyze cost --account prod --trend   # 成本趋势分析
 ./cl analyze forecast --account prod       # AI成本预测
-./cl analyze discount --export ✨          # 折扣趋势分析（新）
+./cl analyze discount --export             # 折扣趋势分析
 ./cl analyze security --account prod --cis # CIS安全合规
 ./cl analyze tags --account prod           # 标签治理
+```
+
+### 账单管理
+```bash
+./cl bill test --account prod              # 测试账单API连接
+./cl bill fetch --account prod             # 获取账单数据
 ```
 
 ### 自动修复
@@ -52,31 +58,32 @@
 | 模块 | 文件 | 核心功能 |
 |------|------|----------|
 | 配置管理 | `core/config.py` | 多源账号加载+Keyring |
-| 缓存系统 | `core/cache.py` | SQLite TTL缓存（主路径✅） |
-| 闲置检测 | `core/idle_detector.py` | 2/4条件判定+白名单 |
+| 缓存系统 | `core/cache.py` | MySQL缓存表，24小时TTL |
+| 数据库抽象 | `core/database.py` | MySQL/SQLite兼容 |
+| 闲置检测 | `core/idle_detector.py` | 多条件判定+白名单 |
 | 成本趋势 | `core/cost_trend_analyzer.py` | 快照+环比MoM |
-| **折扣分析**✨ | `core/discount_analyzer.py` | CSV解析+6月趋势 |
+| 折扣分析 | `core/discount_analyzer_advanced.py` | 账单分析+趋势 |
 | 安全合规 | `core/security_compliance.py` | 公网暴露+CIS |
 | 云抽象 | `core/provider.py` | BaseProvider接口 |
-| 阿里云 | `providers/aliyun/provider.py` | 17种资源 |
+| 阿里云 | `providers/aliyun/provider.py` | 20+种资源 |
 
 ---
 
-## 🔄 3个核心数据流
+## 🔄 核心数据流
 
-### 流程1: 资源查询（5分钟缓存）
+### 流程1: 资源查询（24小时缓存）
 ```
-CLI → Config → Cache → Provider API → SQLite → 输出
+CLI/Web → ConfigManager → CacheManager → Provider → 云平台API → MySQL → 统一资源模型 → 返回结果
 ```
 
 ### 流程2: 闲置分析（24小时缓存）
 ```
-CLI → Cache → Rules → Provider → CloudMonitor(6指标) → 判定 → Cache → 输出
+CLI/Web → IdleDetector → Provider → CloudMonitor API → 规则匹配 → 判定结果 → MySQL → 返回
 ```
 
-### 流程3: 折扣分析（24小时缓存）✨
+### 流程3: 折扣分析（24小时缓存）
 ```
-CLI → 账单CSV(143万行) → 解析 → 按月聚合 → 趋势分析 → Cache → HTML报告
+CLI/Web → DiscountAnalyzer → BillStorage → MySQL → 趋势分析 → 返回结果
 ```
 
 ---
@@ -86,31 +93,19 @@ CLI → 账单CSV(143万行) → 解析 → 按月聚合 → 趋势分析 → Ca
 ```
 ~/.cloudlens/
 ├── config.json              # 账号配置
-├── cache.db                 # SQLite缓存（主）✅
-├── discount_cache/          # 折扣缓存 ✨
-└── rules.json               # 优化规则
+├── .env                     # 环境变量（MySQL配置等）
+├── notifications.json       # 通知配置
+└── logs/                    # 日志文件
 
-./data/cost/
-└── cost_history.json        # 成本快照历史
-
-项目根目录/
-└── 账号ID-名称/              # 账单CSV目录 ✨
-    ├── *_detail_1.csv
-    └── *_detail_2.csv
+MySQL数据库 (cloudlens)
+├── resource_cache           # 资源查询缓存（24小时TTL）
+├── bill_items              # 账单明细数据
+├── dashboards              # 仪表盘配置
+├── budgets                 # 预算数据
+├── virtual_tags            # 虚拟标签
+├── alert_rules             # 告警规则
+└── ...                     # 其他业务表
 ```
-
----
-
-## ⚠️ 技术债务速查
-
-| 问题 | 影响 | 优先级 | 预估工时 |
-|------|------|--------|----------|
-| 缓存体系双轨（同名冲突） | 🔴 功能混乱 | P0 | 2-4h |
-| `list_eip()` 命名不统一 | 🔴 功能退化 | P0 | 30min |
-| `list_nas()` 有bug | 🔴 NAS查询失败 | P0 | 1h |
-| 成本口径不统一 | 🟡 数据不准 | P1 | 1-2天 |
-| 优化引擎依赖本地DB | 🟡 环境依赖 | P1 | 2-3天 |
-| Web前端功能缺失 | 🟢 体验影响 | P2 | 2-3周 |
 
 ---
 
@@ -120,20 +115,8 @@ CLI → 账单CSV(143万行) → 解析 → 按月聚合 → 趋势分析 → Ca
 |------|--------|--------|----------|
 | 单账号ECS查询（100实例） | 3-5秒 | <100ms | 50x |
 | 闲置分析（含监控） | 30-60秒 | <1秒 | 60x |
-| **账单解析✨（143万行）** | **60-90秒** | **<1秒** | **90x** |
+| 折扣分析（账单数据） | 60-90秒 | <1秒 | 90x |
 | 5账号并发查询 | 8秒 | <500ms | 16x |
-
----
-
-## 🎯 核心价值数据
-
-基于示例账单（2025-07至2025-12）:
-
-- **累计节省**: ¥258万（折扣）
-- **平均折扣率**: 52.68%
-- **TOP产品**: ECS ¥141万（57.69%）
-- **TOP合同**: ALY20250616174046069782_V1（¥123万）
-- **折扣趋势**: 📈 上升 +6.85%
 
 ---
 
@@ -152,7 +135,7 @@ CLI → 账单CSV(143万行) → 解析 → 按月聚合 → 趋势分析 → Ca
 ### 3️⃣ 分析优化
 ```bash
 ./cl analyze idle --account prod      # 闲置分析
-./cl analyze discount --export ✨     # 折扣分析（新功能）
+./cl analyze discount --export        # 折扣分析
 ```
 
 ---
@@ -161,11 +144,14 @@ CLI → 账单CSV(143万行) → 解析 → 按月聚合 → 趋势分析 → Ca
 
 | 文档 | 用途 | 适合人群 |
 |------|------|----------|
-| `PROJECT_SUMMARY.md` 📄 | 项目摘要 | 所有人 |
-| `PROJECT_DEEP_ANALYSIS.md` 📖 | 深度梳理 | 开发者、架构师 |
-| `ARCHITECTURE_DIAGRAM.md` 🎨 | 架构图谱 | 技术团队 |
-| `DISCOUNT_ANALYSIS_GUIDE.md` ✨ | 折扣指南 | 成本团队、财务 |
-| `README.md` 📘 | 使用手册 | 新用户 |
+| `README.md` | 项目主文档 | 所有人 |
+| `PRODUCT_CAPABILITIES.md` | 产品能力总览 | 产品、技术 |
+| `PRODUCT_INTRODUCTION.md` | 产品介绍 | 产品、业务 |
+| `TECHNICAL_ARCHITECTURE.md` | 技术架构 | 开发者、架构师 |
+| `PROJECT_STRUCTURE.md` | 项目结构 | 开发者 |
+| `USER_GUIDE.md` | 用户手册 | 用户、运维 |
+| `QUICKSTART.md` | 快速开始 | 新用户 |
+| `IMPROVEMENT_PLAN.md` | 改进计划 | 开发者、产品 |
 
 ---
 
@@ -173,7 +159,7 @@ CLI → 账单CSV(143万行) → 解析 → 按月聚合 → 趋势分析 → Ca
 
 - **CLI入口**: `cli/main.py`
 - **Web API**: `web/backend/api.py`
-- **折扣分析器**: `core/discount_analyzer.py` ✨
+- **折扣分析器**: `core/discount_analyzer_advanced.py`
 - **配置示例**: `~/.cloudlens/config.json`
 
 ---
@@ -184,9 +170,5 @@ CLI → 账单CSV(143万行) → 解析 → 按月聚合 → 趋势分析 → Ca
 
 ---
 
-**最后更新**: 2025-12-15  
-**版本**: v2.1.0  
-**新功能**: ✨ 折扣趋势分析
-
-
-
+**最后更新**: 2025-12-22  
+**版本**: v2.1.0
