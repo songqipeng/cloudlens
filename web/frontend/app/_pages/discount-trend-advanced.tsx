@@ -75,15 +75,17 @@ export default function AdvancedDiscountTrendPage() {
     try {
       const dateParams = getDateRangeParams()
       
+      // 这些分析 API 可能需要较长时间，增加超时时间到90秒
+      const apiOptions = { timeout: 90000, retries: 2 } as any
       const [quarterly, yearly, products, regions, subscription, opts, anom, insightsData] = await Promise.all([
-        apiGet<QuarterlyResponse>(`/discounts/quarterly?account=${currentAccount}&quarters=8${dateParams}`),
-        apiGet<YearlyResponse>(`/discounts/yearly?account=${currentAccount}${dateParams}`),
-        apiGet<ProductTrendsResponse>(`/discounts/product-trends?account=${currentAccount}&months=19&top_n=10${dateParams}`),
-        apiGet<RegionsResponse>(`/discounts/regions?account=${currentAccount}${dateParams}`),
-        apiGet<SubscriptionTypesResponse>(`/discounts/subscription-types?account=${currentAccount}${dateParams}`),
-        apiGet<OptimizationSuggestionsResponse>(`/discounts/optimization-suggestions?account=${currentAccount}${dateParams}`),
-        apiGet<AnomaliesResponse>(`/discounts/anomalies?account=${currentAccount}&threshold=0.10${dateParams}`),
-        apiGet(`/discounts/insights?account=${currentAccount}${dateParams}`),
+        apiGet<QuarterlyResponse>(`/discounts/quarterly?account=${currentAccount}&quarters=8${dateParams}`, {}, apiOptions),
+        apiGet<YearlyResponse>(`/discounts/yearly?account=${currentAccount}${dateParams}`, {}, apiOptions),
+        apiGet<ProductTrendsResponse>(`/discounts/product-trends?account=${currentAccount}&months=19&top_n=10${dateParams}`, {}, apiOptions),
+        apiGet<RegionsResponse>(`/discounts/regions?account=${currentAccount}${dateParams}`, {}, apiOptions),
+        apiGet<SubscriptionTypesResponse>(`/discounts/subscription-types?account=${currentAccount}${dateParams}`, {}, apiOptions),
+        apiGet<OptimizationSuggestionsResponse>(`/discounts/optimization-suggestions?account=${currentAccount}${dateParams}`, {}, apiOptions),
+        apiGet<AnomaliesResponse>(`/discounts/anomalies?account=${currentAccount}&threshold=0.10${dateParams}`, {}, apiOptions),
+        apiGet(`/discounts/insights?account=${currentAccount}${dateParams}`, {}, apiOptions),
       ])
       
       setQuarterlyData(quarterly)

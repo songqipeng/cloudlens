@@ -109,7 +109,7 @@ export async function apiGet<T = any>(
     }
     
     const retries = options?.retries ?? 3
-    const timeout = options?.timeout ?? 30000
+    const timeout = options?.timeout ?? 60000  // 默认超时时间增加到60秒
     
     const requestPromise = (async () => {
         for (let i = 0; i < retries; i++) {
@@ -145,9 +145,15 @@ export async function apiGet<T = any>(
                         pendingRequests.delete(requestKey)
                         const locale = getCurrentLocale() as Locale
                         const t = getTranslations(locale)
-                        throw new ApiError(408, { error: t.common.timeout }, t.common.timeoutTitle)
+                        // 提供更详细的超时错误信息，包括端点名称
+                        const endpointName = endpoint.split('?')[0].split('/').pop() || endpoint
+                        const timeoutMessage = locale === 'zh' 
+                            ? `${t.common.timeout} (${endpointName})`
+                            : `${t.common.timeout} (${endpointName})`
+                        throw new ApiError(408, { error: timeoutMessage, endpoint }, t.common.timeoutTitle)
                     }
-                    // 超时错误也进行重试
+                    // 超时错误也进行重试，但增加等待时间
+                    console.warn(`[API] 请求超时，正在重试 (${i + 1}/${retries}): ${endpoint}`)
                 } else if (i === retries - 1) {
                     pendingRequests.delete(requestKey)
                     if (error instanceof ApiError) {

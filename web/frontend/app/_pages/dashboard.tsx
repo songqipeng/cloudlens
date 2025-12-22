@@ -66,12 +66,14 @@ export default function DashboardPage() {
       console.log("[Dashboard] 当前账号:", currentAccount)
 
       try {
-        const sumData = await apiGet("/dashboard/summary", { account: currentAccount })
+        // dashboard API 可能需要较长时间，增加超时时间
+        const apiOptions = { timeout: 60000, retries: 2 } as any
+        const sumData = await apiGet("/dashboard/summary", { account: currentAccount }, apiOptions)
         console.log("[Dashboard] Summary 数据:", sumData)
         setSummary(sumData)
 
         try {
-          const idleD = await apiGet("/dashboard/idle", { account: currentAccount })
+          const idleD = await apiGet("/dashboard/idle", { account: currentAccount }, apiOptions)
           console.log("[Dashboard] Idle 数据:", idleD)
           setIdleData(idleD.data || idleD || [])
         } catch (e) {
@@ -79,7 +81,7 @@ export default function DashboardPage() {
         }
 
         try {
-          const trendD = await apiGet("/dashboard/trend", { account: currentAccount, days: 30 })
+          const trendD = await apiGet("/dashboard/trend", { account: currentAccount, days: 30 }, apiOptions)
           console.log("[Dashboard] Trend 数据:", trendD)
           setChartData(trendD.chart_data)
         } catch (e) {
