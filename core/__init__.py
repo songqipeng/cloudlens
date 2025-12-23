@@ -5,6 +5,7 @@ from .cache import CacheManager
 from .config import ConfigManager
 from .db_manager import DatabaseManager
 from .threshold_manager import ThresholdManager
+from .storage_base import BaseStorage
 
 __all__ = [
     "CacheManager",
@@ -12,4 +13,5 @@ __all__ = [
     "ConfigManager",
     "ThresholdManager",
     "BaseResourceAnalyzer",
+    "BaseStorage",
 ]

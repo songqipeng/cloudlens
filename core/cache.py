@@ -210,6 +210,10 @@ class CacheManager:
                 params = None
 
         self.db.execute(sql, params)
+    
+    def clear_all(self):
+        """清除所有缓存"""
+        self.clear()
 
     def cleanup_expired(self):
         """清理过期缓存"""

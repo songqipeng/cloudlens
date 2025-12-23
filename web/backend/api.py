@@ -4789,6 +4789,10 @@ def get_budget_status(
         # 检查告警
         alerts_triggered = BudgetCalculator.check_alerts(budget, temp_status)
         
+        # 如果触发了告警，发送邮件通知
+        if alerts_triggered:
+            _send_budget_alert_emails(budget, temp_status, alerts_triggered)
+        
         status = BudgetStatus(
             budget_id=budget.id,
             spent=spent,
@@ -4815,6 +4819,106 @@ def get_budget_status(
         error_trace = traceback.format_exc()
         logger.error(f"获取预算状态失败: {str(e)}\n{error_trace}")
         raise HTTPException(status_code=500, detail=f"获取预算状态失败: {str(e)}")
+
+
+def _send_budget_alert_emails(budget: Budget, status: BudgetStatus, alerts_triggered: List[Dict]):
+    """发送预算告警邮件"""
+    try:
+        # 加载通知配置
+        import json
+        import os
+        from pathlib import Path
+        from core.notification_service import NotificationService
+        from core.alert_manager import Alert, AlertRule, AlertSeverity
+        
+        config_dir = Path(os.path.expanduser("~/.cloudlens"))
+        config_file = config_dir / "notifications.json"
+        
+        if not config_file.exists():
+            logger.warning("通知配置文件不存在，无法发送预算告警邮件")
+            return
+        
+        with open(config_file, "r", encoding="utf-8") as f:
+            notification_config = json.load(f)
+        
+        # 初始化通知服务
+        smtp_config = {
+            "smtp_host": notification_config.get("smtp_host", "smtp.qq.com"),
+            "smtp_port": notification_config.get("smtp_port", 587),
+            "smtp_user": notification_config.get("smtp_user") or notification_config.get("email"),
+            "smtp_password": notification_config.get("smtp_password") or notification_config.get("auth_code"),
+            "smtp_from": notification_config.get("smtp_from") or notification_config.get("email")
+        }
+        
+        if not smtp_config.get("smtp_user") or not smtp_config.get("smtp_password"):
+            logger.warning("SMTP配置不完整，无法发送预算告警邮件")
+            return
+        
+        notification_service = NotificationService(smtp_config)
+        
+        # 获取接收邮箱（优先使用default_receiver_email，否则使用发送邮箱）
+        receiver_email = notification_config.get("default_receiver_email") or notification_config.get("email")
+        if not receiver_email:
+            logger.warning("未配置接收邮箱，无法发送预算告警邮件")
+            return
+        
+        # 为每个触发的告警发送邮件
+        for alert_info in alerts_triggered:
+            threshold = alert_info.get("threshold", 0)
+            current_rate = alert_info.get("current_rate", 0)
+            channels = alert_info.get("channels", [])
+            
+            # 检查是否配置了邮件通知渠道
+            if "email" not in channels and len(channels) == 0:
+                # 如果没有明确配置渠道，默认发送邮件
+                pass
+            elif "email" not in channels:
+                # 如果配置了其他渠道但没有邮件，跳过
+                continue
+            
+            # 创建临时Alert对象用于发送邮件
+            alert = Alert(
+                id=f"budget-alert-{budget.id}-{threshold}",
+                rule_id=f"budget-rule-{budget.id}",
+                rule_name=f"预算告警: {budget.name}",
+                severity=AlertSeverity.WARNING.value if current_rate < 100 else AlertSeverity.ERROR.value,
+                status="triggered",
+                title=f"预算告警: {budget.name} 使用率已达 {current_rate:.2f}%",
+                message=f"预算 '{budget.name}' 的使用率已达到 {current_rate:.2f}%，超过告警阈值 {threshold}%。\n\n"
+                       f"预算金额: ¥{budget.amount:,.2f}\n"
+                       f"已支出: ¥{status.spent:,.2f}\n"
+                       f"剩余预算: ¥{status.remaining:,.2f}\n"
+                       f"使用率: {current_rate:.2f}%\n"
+                       f"预测支出: ¥{(status.predicted_spend or 0):,.2f}\n"
+                       f"预测超支: ¥{(status.predicted_overspend or 0):,.2f}",
+                metric_value=current_rate,
+                threshold=threshold,
+                account_id=budget.account_id,
+                triggered_at=datetime.now()
+            )
+            
+            # 创建临时AlertRule对象
+            rule = AlertRule(
+                id=f"budget-rule-{budget.id}",
+                name=f"预算告警: {budget.name}",
+                description=f"预算 {budget.name} 的告警规则",
+                type="budget_overspend",
+                severity=AlertSeverity.WARNING.value if current_rate < 100 else AlertSeverity.ERROR.value,
+                enabled=True,
+                notify_email=receiver_email
+            )
+            
+            # 发送邮件
+            try:
+                notification_service.send_email(alert, rule, receiver_email)
+                logger.info(f"预算告警邮件已发送: {budget.name} (使用率: {current_rate:.2f}%) -> {receiver_email}")
+            except Exception as e:
+                logger.error(f"发送预算告警邮件失败: {str(e)}")
+    
+    except Exception as e:
+        logger.error(f"发送预算告警邮件时出错: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
 
 
 @router.get("/budgets/{budget_id}/trend")
