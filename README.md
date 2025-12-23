@@ -165,6 +165,7 @@ npm run dev
 ## 📖 文档
 
 ### 核心文档
+- [项目深度分析](PROJECT_DEEP_ANALYSIS.md) - 🆕 **完整的代码库深度分析、架构剖析、优化建议和发展方向**
 - [产品能力总览](PRODUCT_CAPABILITIES.md) - 完整的产品功能列表
 - [产品介绍](PRODUCT_INTRODUCTION.md) - 详细的产品定位和功能介绍
 - [技术架构](TECHNICAL_ARCHITECTURE.md) - 系统架构和设计理念
