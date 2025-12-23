@@ -39,8 +39,8 @@ def api_error_handler(func: Callable) -> Callable:
                 exc_info=True,
                 extra={
                     "function": func.__name__,
-                    "args": str(args)[:200],  # 限制长度
-                    "kwargs": str(kwargs)[:200]
+                    "func_args": str(args)[:200],  # 限制长度，避免与日志系统的args冲突
+                    "func_kwargs": str(kwargs)[:200]
                 }
             )
             
@@ -64,6 +64,7 @@ def api_error_handler(func: Callable) -> Callable:
             raise HTTPException(status_code=status_code, detail=error_detail)
     
     return wrapper
+
 
 
 
