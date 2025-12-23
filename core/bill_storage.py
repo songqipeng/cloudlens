@@ -122,7 +122,7 @@ class BillStorageManager:
         items: List[Dict]
     ) -> Tuple[int, int]:
         """
-        批量插入账单明细
+        批量插入账单明细（优化版本：使用executemany提升性能）
         
         Args:
             account_id: 账号ID
@@ -132,6 +132,9 @@ class BillStorageManager:
         Returns:
             (插入数量, 跳过数量)
         """
+        if not items:
+            return 0, 0
+        
         placeholder = self._get_placeholder()
         inserted = 0
         skipped = 0
@@ -139,9 +142,12 @@ class BillStorageManager:
         try:
             self.db.begin_transaction()
             
+            # 准备批量数据
+            batch_size = 1000  # 每批插入1000条
+            all_values = []
+            
             for item in items:
                 try:
-                    # 准备数据
                     values = (
                         account_id,
                         billing_cycle,
@@ -179,60 +185,65 @@ class BillStorageManager:
                         item.get('ServicePeriodUnit', ''),
                         json.dumps(item, ensure_ascii=False)
                     )
-                    
-                    if self.db_type == "mysql":
-                        # MySQL使用ON DUPLICATE KEY UPDATE
-                        sql = f"""
-                            INSERT INTO bill_items (
-                                account_id, billing_cycle, billing_date,
-                                product_name, product_code, product_type, subscription_type,
-                                pricing_unit, `usage`, list_price, list_price_unit,
-                                invoice_discount, pretax_amount,
-                                deducted_by_coupons, deducted_by_cash_coupons,
-                                deducted_by_prepaid_card, payment_amount,
-                                outstanding_amount, currency,
-                                nick_name, resource_group, tag,
-                                instance_id, instance_config, internet_ip, intranet_ip,
-                                region, zone, item, cost_unit, billing_item,
-                                pip_code, service_period, service_period_unit,
-                                raw_data
-                            ) VALUES ({', '.join([placeholder] * 35)})
-                            ON DUPLICATE KEY UPDATE
-                                updated_at = CURRENT_TIMESTAMP
-                        """
-                    else:
-                        # SQLite使用INSERT OR IGNORE
-                        sql = f"""
-                            INSERT OR IGNORE INTO bill_items (
-                                account_id, billing_cycle, billing_date,
-                                product_name, product_code, product_type, subscription_type,
-                                pricing_unit, usage, list_price, list_price_unit,
-                                invoice_discount, pretax_amount,
-                                deducted_by_coupons, deducted_by_cash_coupons,
-                                deducted_by_prepaid_card, payment_amount,
-                                outstanding_amount, currency,
-                                nick_name, resource_group, tag,
-                                instance_id, instance_config, internet_ip, intranet_ip,
-                                region, zone, item, cost_unit, billing_item,
-                                pip_code, service_period, service_period_unit,
-                                raw_data
-                            ) VALUES ({', '.join([placeholder] * 35)})
-                        """
-                    
-                    cursor = self.db.execute(sql, values)
-                    
-                    # 检查是否插入成功
-                    if hasattr(cursor, 'rowcount') and cursor.rowcount > 0:
-                        inserted += 1
-                    else:
-                        skipped += 1
-                
+                    all_values.append(values)
                 except Exception as e:
-                    logger.warning(f"插入账单明细失败: {str(e)}")
+                    logger.warning(f"准备账单明细数据失败: {str(e)}")
                     skipped += 1
             
+            # 批量插入
+            if all_values:
+                if self.db_type == "mysql":
+                    # MySQL使用ON DUPLICATE KEY UPDATE
+                    sql = f"""
+                        INSERT INTO bill_items (
+                            account_id, billing_cycle, billing_date,
+                            product_name, product_code, product_type, subscription_type,
+                            pricing_unit, `usage`, list_price, list_price_unit,
+                            invoice_discount, pretax_amount,
+                            deducted_by_coupons, deducted_by_cash_coupons,
+                            deducted_by_prepaid_card, payment_amount,
+                            outstanding_amount, currency,
+                            nick_name, resource_group, tag,
+                            instance_id, instance_config, internet_ip, intranet_ip,
+                            region, zone, item, cost_unit, billing_item,
+                            pip_code, service_period, service_period_unit,
+                            raw_data
+                        ) VALUES ({', '.join([placeholder] * 35)})
+                        ON DUPLICATE KEY UPDATE
+                            updated_at = CURRENT_TIMESTAMP
+                    """
+                else:
+                    # SQLite使用INSERT OR IGNORE
+                    sql = f"""
+                        INSERT OR IGNORE INTO bill_items (
+                            account_id, billing_cycle, billing_date,
+                            product_name, product_code, product_type, subscription_type,
+                            pricing_unit, usage, list_price, list_price_unit,
+                            invoice_discount, pretax_amount,
+                            deducted_by_coupons, deducted_by_cash_coupons,
+                            deducted_by_prepaid_card, payment_amount,
+                            outstanding_amount, currency,
+                            nick_name, resource_group, tag,
+                            instance_id, instance_config, internet_ip, intranet_ip,
+                            region, zone, item, cost_unit, billing_item,
+                            pip_code, service_period, service_period_unit,
+                            raw_data
+                        ) VALUES ({', '.join([placeholder] * 35)})
+                    """
+                
+                # 分批执行（避免单次插入过多数据）
+                for i in range(0, len(all_values), batch_size):
+                    batch = all_values[i:i + batch_size]
+                    try:
+                        # 使用executemany批量插入（性能优化）
+                        rows_affected = self.db.executemany(sql, batch)
+                        inserted += rows_affected if rows_affected > 0 else len(batch)
+                    except Exception as e:
+                        logger.warning(f"批量插入失败（批次 {i//batch_size + 1}）: {str(e)}")
+                        skipped += len(batch)
+            
             self.db.commit()
-            logger.info(f"账期 {billing_cycle} 插入 {inserted} 条，跳过 {skipped} 条")
+            logger.info(f"账期 {billing_cycle} 批量插入 {inserted} 条，跳过 {skipped} 条")
             
             return inserted, skipped
         
@@ -325,6 +336,8 @@ class BillStorageManager:
             'db_path': self.db_path or "MySQL",
             'db_type': self.db_type
         }
+
+
 
 
 

@@ -43,6 +43,25 @@ class DatabaseAdapter(ABC):
         """执行SQL语句（INSERT, UPDATE, DELETE）"""
         pass
     
+    def executemany(self, sql: str, params_list: List[Tuple]) -> int:
+        """
+        批量执行SQL语句（优化性能）
+        
+        Args:
+            sql: SQL语句
+            params_list: 参数列表
+            
+        Returns:
+            影响的行数
+        """
+        # 默认实现：循环执行（子类可以重写以优化）
+        total_rows = 0
+        for params in params_list:
+            cursor = self.execute(sql, params)
+            if hasattr(cursor, 'rowcount'):
+                total_rows += cursor.rowcount
+        return total_rows
+    
     @abstractmethod
     def query(self, sql: str, params: Optional[Tuple] = None) -> List[Dict]:
         """查询并返回字典列表"""
@@ -115,6 +134,21 @@ class SQLiteAdapter(DatabaseAdapter):
             conn.rollback()
             logger.error(f"SQLite执行错误: {sql[:100]}, 错误: {e}")
             raise
+    
+    def executemany(self, sql: str, params_list: List[Tuple]) -> int:
+        """批量执行SQL（SQLite优化版本）"""
+        conn = self.connect()
+        cursor = conn.cursor()
+        try:
+            cursor.executemany(sql, params_list)
+            conn.commit()
+            return cursor.rowcount
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"SQLite批量执行错误: {sql[:100]}, 错误: {e}")
+            raise
+        finally:
+            cursor.close()
     
     def query(self, sql: str, params: Optional[Tuple] = None) -> List[Dict]:
         """查询并返回字典列表"""
@@ -253,6 +287,26 @@ class MySQLAdapter(DatabaseAdapter):
             cursor.close()
             conn.close()  # 归还连接到连接池
     
+    def executemany(self, sql: str, params_list: List[Tuple]) -> int:
+        """批量执行SQL（MySQL优化版本）"""
+        # 每次操作都获取新连接，操作完成后立即归还
+        conn = self.pool.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            # 转换占位符：? -> %s
+            sql = self.normalize_sql(sql)
+            
+            cursor.executemany(sql, params_list)
+            conn.commit()
+            return cursor.rowcount
+        except MySQLError as e:
+            conn.rollback()
+            logger.error(f"MySQL批量执行错误: {sql[:100]}, 错误: {e}")
+            raise
+        finally:
+            cursor.close()
+            conn.close()  # 归还连接到连接池
+    
     def query(self, sql: str, params: Optional[Tuple] = None) -> List[Dict]:
         """查询并返回字典列表"""
         # 每次操作都获取新连接，操作完成后立即归还
@@ -376,6 +430,8 @@ def get_database_adapter(db_type: Optional[str] = None, **kwargs) -> DatabaseAda
         DatabaseAdapter实例
     """
     return DatabaseFactory.create_adapter(db_type, **kwargs)
+
+
 
 
 
