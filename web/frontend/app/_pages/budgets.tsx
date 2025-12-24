@@ -427,43 +427,68 @@ export default function BudgetsPage() {
                     {trend.length > 0 && (
                       <div>
                         <h3 className="text-sm font-medium mb-4">{t.budget.spendingTrend}</h3>
-                        <ResponsiveContainer width="100%" height={200}>
-                          <AreaChart data={trend}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                        <ResponsiveContainer width="100%" height={250}>
+                          <AreaChart data={trend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="spentGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
+                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05}/>
+                              </linearGradient>
+                              <linearGradient id="predictedGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                                <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.05}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
                             <XAxis
                               dataKey="date"
-                              stroke="hsl(var(--muted-foreground))"
-                              fontSize={12}
+                              stroke="#9ca3af"
+                              fontSize={11}
+                              tick={{ fill: '#d1d5db' }}
+                              tickLine={{ stroke: '#6b7280' }}
                             />
                             <YAxis
-                              stroke="hsl(var(--muted-foreground))"
-                              fontSize={12}
+                              stroke="#9ca3af"
+                              fontSize={11}
+                              tick={{ fill: '#d1d5db' }}
+                              tickLine={{ stroke: '#6b7280' }}
                               tickFormatter={(value) => `¥${(value / 1000).toFixed(0)}k`}
                             />
                             <Tooltip
                               formatter={(value: any) => [`¥${Number(value).toLocaleString()}`, t.budget.spending]}
                               labelFormatter={(label) => `${t.budget.date} ${label}`}
                               contentStyle={{
-                                backgroundColor: "hsl(var(--card))",
-                                border: "1px solid hsl(var(--border))",
-                                borderRadius: "8px"
+                                backgroundColor: "rgba(17, 24, 39, 0.95)",
+                                border: "1px solid rgba(75, 85, 99, 0.5)",
+                                borderRadius: "8px",
+                                color: "#f3f4f6"
                               }}
+                              labelStyle={{ color: "#f3f4f6" }}
+                            />
+                            <Legend 
+                              wrapperStyle={{ color: '#d1d5db', fontSize: '12px' }}
                             />
                             <Area
                               type="monotone"
                               dataKey="spent"
-                              stroke="hsl(var(--primary))"
-                              fill="hsl(var(--primary))"
-                              fillOpacity={0.2}
+                              name="实际支出"
+                              stroke="#3b82f6"
+                              strokeWidth={2}
+                              fill="url(#spentGradient)"
+                              dot={{ fill: '#3b82f6', r: 3 }}
+                              activeDot={{ r: 5 }}
                             />
                             {trend.some((d: any) => d.predicted) && (
                               <Area
                                 type="monotone"
                                 dataKey="predicted"
-                                stroke="hsl(var(--muted-foreground))"
-                                fill="hsl(var(--muted-foreground))"
-                                fillOpacity={0.1}
+                                name="预测支出"
+                                stroke="#f59e0b"
+                                strokeWidth={2}
                                 strokeDasharray="5 5"
+                                fill="url(#predictedGradient)"
+                                dot={{ fill: '#f59e0b', r: 3 }}
+                                activeDot={{ r: 5 }}
                               />
                             )}
                           </AreaChart>

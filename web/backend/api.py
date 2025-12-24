@@ -5047,17 +5047,31 @@ def _send_budget_alert_emails(budget: Budget, status: BudgetStatus, alerts_trigg
             return
         
         # 为每个触发的告警发送邮件
+        logger.info(f"预算告警检查: 预算={budget.name}, 触发的告警数量={len(alerts_triggered)}")
         for alert_info in alerts_triggered:
             threshold = alert_info.get("threshold", 0)
             current_rate = alert_info.get("current_rate", 0)
             channels = alert_info.get("channels", [])
             
+            logger.info(f"处理告警: 阈值={threshold}%, 当前使用率={current_rate:.2f}%, 渠道={channels}")
+            
             # 检查是否配置了邮件通知渠道
-            if "email" not in channels and len(channels) == 0:
-                # 如果没有明确配置渠道，默认发送邮件
-                pass
-            elif "email" not in channels:
-                # 如果配置了其他渠道但没有邮件，跳过
+            # 如果没有明确配置渠道，默认发送邮件
+            should_send_email = False
+            if len(channels) == 0:
+                # 没有配置渠道，默认发送邮件
+                should_send_email = True
+                logger.info("未配置通知渠道，默认发送邮件")
+            elif "email" in channels:
+                # 明确配置了邮件渠道
+                should_send_email = True
+                logger.info("已配置邮件通知渠道")
+            else:
+                # 配置了其他渠道但没有邮件，跳过
+                logger.info(f"配置了其他渠道但未配置邮件，跳过: {channels}")
+                continue
+            
+            if not should_send_email:
                 continue
             
             # 创建临时Alert对象用于发送邮件
@@ -5230,8 +5244,8 @@ def get_budget_trend(
                                 })
                             current_day += timedelta(days=1)
             
-            # 转换为趋势数据格式
-            # 注意：现在只使用 billing_date 进行精确匹配，不再需要按比例分配
+            # 转换为趋势数据格式，并确保每天都有数据点
+            trend_dict = {}
             for row in rows:
                 date_str = row.get('date') if isinstance(row, dict) else row[0]
                 spent = float(row.get('spent') or 0) if isinstance(row, dict) else float(row[1] or 0)
@@ -5242,20 +5256,36 @@ def get_budget_trend(
                 else:
                     continue
                 
-                # 现在只使用 billing_date 进行精确匹配，不再需要按比例分配
-                # 直接使用日期和支出金额
-                try:
-                    row_date = datetime.strptime(date_str, '%Y-%m-%d')
-                    
-                    # 确保日期在预算周期内（双重检查）
-                    if start_date <= row_date <= end_date:
-                        trend_data.append({
-                            'date': date_str,
-                            'spent': spent
-                        })
-                except Exception as e:
-                    logger.debug(f"处理趋势数据日期失败: {e}")
-                    continue
+                # 累加同一天的支出（如果有重复）
+                if date_str in trend_dict:
+                    trend_dict[date_str] += spent
+                else:
+                    trend_dict[date_str] = spent
+            
+            # 填充缺失的日期，使用前一天的累计值（保持数据连续性）
+            trend_data = []
+            cumulative_spent = 0.0
+            current_date = start_date
+            
+            while current_date <= end_date:
+                date_str = current_date.strftime('%Y-%m-%d')
+                
+                # 如果当天有数据，使用当天的支出；否则使用0（不累加）
+                if date_str in trend_dict:
+                    daily_spent = trend_dict[date_str]
+                    cumulative_spent += daily_spent
+                else:
+                    # 如果当天没有数据，使用前一天的累计值（保持连续性）
+                    daily_spent = 0
+                
+                trend_data.append({
+                    'date': date_str,
+                    'spent': cumulative_spent  # 使用累计值，而不是每日值
+                })
+                
+                current_date += timedelta(days=1)
+            
+            # 使用累计值，让前端显示累计趋势（更符合预算监控的需求）
             
         except Exception as e:
             logger.error(f"获取预算趋势数据失败: {e}")
