@@ -67,7 +67,9 @@ class NotificationService:
         try:
             # 创建邮件
             msg = MIMEMultipart('alternative')
-            msg['Subject'] = f"[{alert.severity.upper()}] {alert.title}"
+            # 修复编码问题：使用 Header 处理中文主题
+            from email.header import Header
+            msg['Subject'] = Header(f"[{alert.severity.upper()}] {alert.title}", 'utf-8')
             msg['From'] = self.smtp_from
             msg['To'] = to_email
             
@@ -75,8 +77,9 @@ class NotificationService:
             html_body = self._generate_email_html(alert, rule)
             text_body = self._generate_email_text(alert, rule)
             
-            msg.attach(MIMEText(text_body, 'plain'))
-            msg.attach(MIMEText(html_body, 'html'))
+            # 修复编码问题：明确指定字符编码
+            msg.attach(MIMEText(text_body, 'plain', 'utf-8'))
+            msg.attach(MIMEText(html_body, 'html', 'utf-8'))
             
             # 发送邮件
             # 根据端口判断使用SSL还是TLS
@@ -223,6 +226,7 @@ class NotificationService:
 </body>
 </html>
 """
+
 
 
 

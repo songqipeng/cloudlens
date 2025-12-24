@@ -5032,11 +5032,18 @@ def _send_budget_alert_emails(budget: Budget, status: BudgetStatus, alerts_trigg
             notification_config = json.load(f)
         
         # 初始化通知服务
+        smtp_password = notification_config.get("smtp_password") or notification_config.get("auth_code")
+        
+        # 验证密码配置是否正确（不应该包含错误信息）
+        if smtp_password and ("Console Error" in str(smtp_password) or "API Error" in str(smtp_password)):
+            logger.error("SMTP密码配置错误：包含错误信息字符串，不是实际密码。请重新配置正确的SMTP密码（QQ邮箱需要使用授权码）")
+            return
+        
         smtp_config = {
             "smtp_host": notification_config.get("smtp_host", "smtp.qq.com"),
             "smtp_port": notification_config.get("smtp_port", 587),
             "smtp_user": notification_config.get("smtp_user") or notification_config.get("email"),
-            "smtp_password": notification_config.get("smtp_password") or notification_config.get("auth_code"),
+            "smtp_password": smtp_password,
             "smtp_from": notification_config.get("smtp_from") or notification_config.get("email")
         }
         
