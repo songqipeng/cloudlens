@@ -108,7 +108,10 @@ export default function BudgetsPage() {
 
   const fetchBudgetTrend = async (budgetId: string) => {
     try {
-      const response = await apiGet(`/budgets/${budgetId}/trend`, { days: 30 })
+      const response = await apiGet(`/budgets/${budgetId}/trend`, { 
+        days: 30,
+        account: currentAccount || undefined 
+      })
       if (response.success) {
         setTrendData(prev => ({
           ...prev,
