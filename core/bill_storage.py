@@ -40,8 +40,8 @@ class BillStorageManager:
         self._init_database()
     
     def _get_placeholder(self) -> str:
-        """获取SQL占位符"""
-        return "%s" if self.db_type == "mysql" else "?"
+        """获取SQL占位符（只支持MySQL）"""
+        return "%s"  # MySQL使用%s
     
     def _quote_column(self, col: str) -> str:
         """引用列名（处理MySQL保留关键字）"""
@@ -51,60 +51,14 @@ class BillStorageManager:
         return col
     
     def _init_database(self):
-        """初始化数据库表结构"""
-        if self.db_type == "mysql":
-            # MySQL表结构已在init_mysql_schema.sql中创建
-            # 这里只检查表是否存在
-            try:
-                self.db.query("SELECT 1 FROM bill_items LIMIT 1")
-                logger.info("MySQL账单表已存在")
-            except Exception:
-                logger.warning("MySQL账单表不存在，请先运行sql/init_mysql_schema.sql")
-        else:
-            # SQLite表结构
-            self.db.execute("""
-                CREATE TABLE IF NOT EXISTS bill_items (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    account_id TEXT NOT NULL,
-                    billing_cycle TEXT NOT NULL,
-                    billing_date TEXT,
-                    product_name TEXT,
-                    product_code TEXT,
-                    product_type TEXT,
-                    subscription_type TEXT,
-                    pricing_unit TEXT,
-                    usage REAL,
-                    list_price REAL,
-                    list_price_unit TEXT,
-                    invoice_discount REAL,
-                    pretax_amount REAL,
-                    deducted_by_coupons REAL,
-                    deducted_by_cash_coupons REAL,
-                    deducted_by_prepaid_card REAL,
-                    payment_amount REAL,
-                    outstanding_amount REAL,
-                    currency TEXT,
-                    nick_name TEXT,
-                    resource_group TEXT,
-                    tag TEXT,
-                    instance_id TEXT,
-                    instance_config TEXT,
-                    internet_ip TEXT,
-                    intranet_ip TEXT,
-                    region TEXT,
-                    zone TEXT,
-                    item TEXT,
-                    cost_unit TEXT,
-                    billing_item TEXT,
-                    pip_code TEXT,
-                    service_period TEXT,
-                    service_period_unit TEXT,
-                    raw_data TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(account_id, billing_cycle, instance_id, billing_date, billing_item)
-                )
-            """)
+        """初始化数据库表结构（只支持MySQL）"""
+        # MySQL表结构已在init_mysql_schema.sql中创建
+        # 这里只检查表是否存在
+        try:
+            self.db.query("SELECT 1 FROM bill_items LIMIT 1")
+            logger.info("MySQL账单表已存在")
+        except Exception:
+            logger.warning("MySQL账单表不存在，请先运行sql/init_mysql_schema.sql")
     
     def insert_bill_items(
         self, 
