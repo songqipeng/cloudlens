@@ -71,8 +71,8 @@ export default function DashboardPage() {
       console.log("[Dashboard] 当前账号:", currentAccount)
 
       try {
-        // dashboard API 可能需要较长时间，增加超时时间
-        const apiOptions = { timeout: 60000, retries: 2 } as any
+        // dashboard API 可能需要较长时间，增加超时时间到 120 秒
+        const apiOptions = { timeout: 120000, retries: 3 } as any
         
         setLoadingMessage(t.dashboard.loadingSummary || "正在加载摘要数据...")
         const sumData = await apiGet("/dashboard/summary", { account: currentAccount }, apiOptions)

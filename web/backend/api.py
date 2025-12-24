@@ -297,36 +297,60 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
     
     print(f"[DEBUG get_summary] 使用账号配置: {account_config.name}, region: {account_config.region}, AK: {account_config.access_key_id[:8]}...")
 
-    # 账单全量口径：优先用当月 BillOverview 的 PretaxAmount 汇总作为 total_cost
-    billing_total_cost = None
-    try:
-        billing_total_cost = float(_get_billing_overview_totals(account_config).get("total_pretax") or 0.0)
-        if billing_total_cost <= 0:
-            billing_total_cost = None
-    except Exception:
-        billing_total_cost = None
-
-    # Get Cost Data - 使用真实账单数据比较本月和上月
+    # Get Cost Data - 使用真实账单数据比较本月和上月（优化：并行获取）
     from datetime import datetime, timedelta
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+    
     now = datetime.now()
     current_cycle = now.strftime("%Y-%m")
     first_day_this_month = now.replace(day=1)
     last_day_last_month = first_day_this_month - timedelta(days=1)
     last_cycle = last_day_last_month.strftime("%Y-%m")
     
+    # 账单全量口径：优先用当月 BillOverview 的 PretaxAmount 汇总作为 total_cost
+    billing_total_cost = None
+    current_totals = None
+    last_totals = None
+    
     try:
-        # 获取本月和上月的账单数据
-        current_totals = _get_billing_overview_totals(account_config, billing_cycle=current_cycle, force_refresh=False) if account_config else None
-        last_totals = _get_billing_overview_totals(account_config, billing_cycle=last_cycle, force_refresh=False) if account_config else None
-        
-        # 如果数据库没有上月数据，尝试通过API获取
-        if last_totals is None or (last_totals.get("total_pretax", 0) == 0 and last_totals.get("data_source") == "local_db"):
-            logger.info(f"上月数据不可用，尝试通过API获取: {last_cycle}")
+        # 并行获取本月和上月的账单数据（优化性能）
+        def get_current_totals():
             try:
-                last_totals = _get_billing_overview_totals(account_config, billing_cycle=last_cycle, force_refresh=True)
+                return _get_billing_overview_totals(account_config, billing_cycle=current_cycle, force_refresh=False)
             except Exception as e:
-                logger.error(f"获取上月数据失败: {str(e)}")
-                last_totals = None
+                logger.error(f"获取本月账单数据失败: {str(e)}")
+                return None
+        
+        def get_last_totals():
+            try:
+                totals = _get_billing_overview_totals(account_config, billing_cycle=last_cycle, force_refresh=False)
+                # 如果数据库没有上月数据，尝试通过API获取
+                if totals is None or (totals.get("total_pretax", 0) == 0 and totals.get("data_source") == "local_db"):
+                    logger.info(f"上月数据不可用，尝试通过API获取: {last_cycle}")
+                    return _get_billing_overview_totals(account_config, billing_cycle=last_cycle, force_refresh=True)
+                return totals
+            except Exception as e:
+                logger.error(f"获取上月账单数据失败: {str(e)}")
+                return None
+        
+        # 使用线程池并行执行（避免阻塞）
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            current_future = executor.submit(get_current_totals)
+            last_future = executor.submit(get_last_totals)
+            
+            # 等待结果（设置超时：30秒）
+            try:
+                current_totals = current_future.result(timeout=30)
+                last_totals = last_future.result(timeout=30)
+            except Exception as e:
+                logger.warning(f"获取账单数据超时或失败: {str(e)}")
+        
+        # 使用本月数据作为 billing_total_cost
+        if current_totals:
+            billing_total_cost = float(current_totals.get("total_pretax") or 0.0)
+            if billing_total_cost <= 0:
+                billing_total_cost = None
         
         current_cost = float((current_totals or {}).get("total_pretax") or 0.0)
         last_cost = float((last_totals or {}).get("total_pretax") or 0.0)
@@ -380,48 +404,106 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
             trend = "N/A"
             trend_pct = 0.0
 
-    # Get Idle Data - 确保与 /dashboard/idle 使用相同的数据源和逻辑
-    # 直接复用 /dashboard/idle 的逻辑，确保数据完全一致
+    # Get Idle Data - 优化：优先使用缓存，避免耗时分析
     try:
-        # 使用与 /dashboard/idle 完全相同的逻辑
         cache_manager = CacheManager(ttl_seconds=86400)
         idle_data = None
+        idle_count = 0
         
-        # 先尝试从缓存获取（与 /dashboard/idle 保持一致）
+        # 优先从缓存获取（避免耗时分析）
         if not force_refresh:
             idle_data = cache_manager.get(resource_type="dashboard_idle", account_name=account)
             if not idle_data:
                 idle_data = cache_manager.get(resource_type="idle_result", account_name=account)
+            
+            if idle_data:
+                idle_count = len(idle_data) if idle_data else 0
+                logger.info(f"从缓存获取闲置资源数量: {idle_count} (账号: {account})")
         
-        # 如果缓存为空或强制刷新，调用分析服务（与 /dashboard/idle 保持一致）
-        if not idle_data or force_refresh:
-            from core.services.analysis_service import AnalysisService
-            idle_data, _ = AnalysisService.analyze_idle_resources(account, days=7, force_refresh=force_refresh)
-            # 分析服务内部会更新缓存，这里不需要再次更新
-        
-        idle_count = len(idle_data) if idle_data else 0
-        logger.info(f"获取闲置资源数量: {idle_count} (账号: {account})")
+        # 如果缓存为空且强制刷新，才调用分析服务（耗时操作）
+        if (not idle_data or force_refresh) and force_refresh:
+            logger.info(f"强制刷新，开始分析闲置资源 (账号: {account})")
+            try:
+                from core.services.analysis_service import AnalysisService
+                idle_data, _ = AnalysisService.analyze_idle_resources(account, days=7, force_refresh=force_refresh)
+                idle_count = len(idle_data) if idle_data else 0
+                logger.info(f"分析完成，闲置资源数量: {idle_count} (账号: {account})")
+            except Exception as e:
+                logger.warning(f"分析闲置资源失败: {str(e)}")
+                # 降级：使用缓存数据
+                idle_data = cache_manager.get(resource_type="dashboard_idle", account_name=account)
+                if not idle_data:
+                    idle_data = cache_manager.get(resource_type="idle_result", account_name=account)
+                idle_count = len(idle_data) if idle_data else 0
+        elif not idle_data:
+            # 缓存为空但不强制刷新，返回0（避免耗时分析）
+            logger.info(f"缓存为空且未强制刷新，跳过分析 (账号: {account})")
+            idle_count = 0
+            
     except Exception as e:
         logger.warning(f"获取闲置资源数据失败: {str(e)}")
-        # 如果分析失败，尝试从缓存获取（降级处理）
-        try:
-            cache_manager = CacheManager(ttl_seconds=86400)
-            idle_data = cache_manager.get(resource_type="dashboard_idle", account_name=account)
-            if not idle_data:
-                idle_data = cache_manager.get(resource_type="idle_result", account_name=account)
-            idle_count = len(idle_data) if idle_data else 0
-            logger.info(f"从缓存获取闲置资源数量: {idle_count} (账号: {account})")
-        except Exception as e2:
-            logger.error(f"从缓存获取闲置资源也失败: {str(e2)}")
-            idle_count = 0
+        idle_count = 0
 
-    # Get Resource Statistics (Task 1.1)
+    # Get Resource Statistics (Task 1.1) - 优化：使用缓存或快速查询
     try:
         from cli.utils import get_provider
         provider = get_provider(account_config)
-        instances = provider.list_instances()
-        rds_list = provider.list_rds()
-        redis_list = provider.list_redis()
+        
+        # 尝试从缓存获取资源列表（避免重复查询）
+        resource_cache_key = f"resource_list_{account}"
+        cached_resources = cache_manager.get(resource_type=resource_cache_key, account_name=account)
+        
+        if cached_resources and not force_refresh:
+            instances = cached_resources.get("instances", [])
+            rds_list = cached_resources.get("rds", [])
+            redis_list = cached_resources.get("redis", [])
+            logger.debug(f"从缓存获取资源列表 (账号: {account})")
+        else:
+            # 查询资源（可能较慢，但可以并行）
+            def get_instances():
+                try:
+                    return provider.list_instances()
+                except Exception as e:
+                    logger.warning(f"获取ECS列表失败: {str(e)}")
+                    return []
+            
+            def get_rds():
+                try:
+                    return provider.list_rds()
+                except Exception as e:
+                    logger.warning(f"获取RDS列表失败: {str(e)}")
+                    return []
+            
+            def get_redis():
+                try:
+                    return provider.list_redis()
+                except Exception as e:
+                    logger.warning(f"获取Redis列表失败: {str(e)}")
+                    return []
+            
+            # 并行查询资源（优化性能）
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                instances_future = executor.submit(get_instances)
+                rds_future = executor.submit(get_rds)
+                redis_future = executor.submit(get_redis)
+                
+                try:
+                    instances = instances_future.result(timeout=20)
+                    rds_list = rds_future.result(timeout=20)
+                    redis_list = redis_future.result(timeout=20)
+                    
+                    # 缓存资源列表（5分钟有效）
+                    cache_manager_short = CacheManager(ttl_seconds=300)
+                    cache_manager_short.set(
+                        resource_type=resource_cache_key,
+                        account_name=account,
+                        data={"instances": instances, "rds": rds_list, "redis": redis_list}
+                    )
+                except Exception as e:
+                    logger.warning(f"查询资源列表超时或失败: {str(e)}")
+                    instances = []
+                    rds_list = []
+                    redis_list = []
         
         resource_breakdown = {
             "ecs": len(instances),

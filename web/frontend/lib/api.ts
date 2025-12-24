@@ -109,7 +109,7 @@ export async function apiGet<T = any>(
     }
     
     const retries = options?.retries ?? 3
-    const timeout = options?.timeout ?? 60000  // 默认超时时间增加到60秒
+    const timeout = options?.timeout ?? 90000  // 默认超时时间增加到90秒（dashboard API 需要更长时间）
     
     const requestPromise = (async () => {
         for (let i = 0; i < retries; i++) {
