@@ -104,11 +104,19 @@ export default function DashboardPage() {
           loadingStartTime.current = null
         }, 500)
       } catch (e: any) {
-        console.error(e)
-        setError(String(e))
+        console.error("[Dashboard] 加载失败:", e)
+        // 即使失败也尝试显示部分数据（如果有的话）
+        const errorMsg = e?.message || e?.detail || String(e) || "加载失败"
+        setError(errorMsg)
         setLoadingMessage("")
         setLoading(false)
         loadingStartTime.current = null
+        
+        // 如果 summary 数据已加载，至少显示这部分
+        if (!summary) {
+          // 如果完全没有数据，显示错误
+          console.error("[Dashboard] 无法获取任何数据")
+        }
       }
     }
 

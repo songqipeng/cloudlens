@@ -297,6 +297,20 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
     
     print(f"[DEBUG get_summary] 使用账号配置: {account_config.name}, region: {account_config.region}, AK: {account_config.access_key_id[:8]}...")
 
+    # 初始化所有变量，确保即使某些步骤失败也能返回有效数据
+    total_cost = 0.0
+    trend = "数据不足"
+    trend_pct = 0.0
+    idle_count = 0
+    total_resources = 0
+    resource_breakdown = {"ecs": 0, "rds": 0, "redis": 0}
+    tag_coverage = 0.0
+    alert_count = 0
+    savings_potential = 0.0
+    billing_total_cost = None
+    current_totals = None
+    last_totals = None
+
     # Get Cost Data - 使用真实账单数据比较本月和上月（优化：并行获取）
     from datetime import datetime, timedelta
     import asyncio
@@ -307,11 +321,6 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
     first_day_this_month = now.replace(day=1)
     last_day_last_month = first_day_this_month - timedelta(days=1)
     last_cycle = last_day_last_month.strftime("%Y-%m")
-    
-    # 账单全量口径：优先用当月 BillOverview 的 PretaxAmount 汇总作为 total_cost
-    billing_total_cost = None
-    current_totals = None
-    last_totals = None
     
     try:
         # 并行获取本月和上月的账单数据（优化性能）
@@ -445,6 +454,11 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
         idle_count = 0
 
     # Get Resource Statistics (Task 1.1) - 优化：使用缓存或快速查询
+    # 初始化资源列表变量
+    instances = []
+    rds_list = []
+    redis_list = []
+    
     try:
         from cli.utils import get_provider
         provider = get_provider(account_config)
@@ -454,9 +468,9 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
         cached_resources = cache_manager.get(resource_type=resource_cache_key, account_name=account)
         
         if cached_resources and not force_refresh:
-            instances = cached_resources.get("instances", [])
-            rds_list = cached_resources.get("rds", [])
-            redis_list = cached_resources.get("redis", [])
+            instances = cached_resources.get("instances", []) or []
+            rds_list = cached_resources.get("rds", []) or []
+            redis_list = cached_resources.get("redis", []) or []
             logger.debug(f"从缓存获取资源列表 (账号: {account})")
         else:
             # 查询资源（可能较慢，但可以并行）
@@ -505,10 +519,24 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
                     rds_list = []
                     redis_list = []
         
+        # 确保变量存在（处理作用域问题）
+        try:
+            _ = instances
+        except NameError:
+            instances = []
+        try:
+            _ = rds_list
+        except NameError:
+            rds_list = []
+        try:
+            _ = redis_list
+        except NameError:
+            redis_list = []
+        
         resource_breakdown = {
-            "ecs": len(instances),
-            "rds": len(rds_list),
-            "redis": len(redis_list),
+            "ecs": len(instances) if instances else 0,
+            "rds": len(rds_list) if rds_list else 0,
+            "redis": len(redis_list) if redis_list else 0,
         }
         total_resources = sum(resource_breakdown.values())
         
@@ -609,29 +637,70 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
         
     except Exception as e:
         # Fallback if resource query fails
+        logger.warning(f"获取资源统计失败: {str(e)}")
+        # 确保所有变量都有默认值（使用 try-except 处理作用域问题）
+        try:
+            _ = total_resources
+        except NameError:
+            total_resources = 0
+        try:
+            _ = resource_breakdown
+        except NameError:
+            resource_breakdown = {"ecs": 0, "rds": 0, "redis": 0}
+        try:
+            _ = tag_coverage
+        except NameError:
+            tag_coverage = 0.0
+        try:
+            _ = alert_count
+        except NameError:
+            alert_count = 0
+        try:
+            _ = savings_potential
+        except NameError:
+            savings_potential = 0.0
+
+    # 确保所有必需字段都有值（最终检查）
+    if total_cost is None:
+        total_cost = 0.0
+    if trend is None or trend == "":
+        trend = "数据不足"
+    if trend_pct is None:
+        trend_pct = 0.0
+    if idle_count is None:
+        idle_count = 0
+    if total_resources is None:
         total_resources = 0
+    if resource_breakdown is None:
         resource_breakdown = {"ecs": 0, "rds": 0, "redis": 0}
-        tag_coverage = 0
+    if tag_coverage is None:
+        tag_coverage = 0.0
+    if alert_count is None:
         alert_count = 0
-        savings_potential = 0
-        if total_cost is None:
-            total_cost = 0.0
+    if savings_potential is None:
+        savings_potential = 0.0
 
     result_data = {
-        "account": account,
-        "total_cost": total_cost,
-        "idle_count": idle_count,
-        "cost_trend": trend,
-        "trend_pct": trend_pct,
-        "total_resources": total_resources,
-        "resource_breakdown": resource_breakdown,
-        "alert_count": alert_count,
-        "tag_coverage": round(tag_coverage, 2),
-        "savings_potential": savings_potential,
+        "account": str(account),
+        "total_cost": float(total_cost),
+        "idle_count": int(idle_count),
+        "cost_trend": str(trend),
+        "trend_pct": float(trend_pct),
+        "total_resources": int(total_resources),
+        "resource_breakdown": dict(resource_breakdown),
+        "alert_count": int(alert_count),
+        "tag_coverage": round(float(tag_coverage), 2),
+        "savings_potential": float(savings_potential),
     }
     
+    logger.info(f"✅ Dashboard summary 数据准备完成: account={account}, total_cost={result_data['total_cost']}, idle_count={result_data['idle_count']}, total_resources={result_data['total_resources']}")
+    
     # 保存到缓存（24小时有效）
-    cache_manager.set(resource_type="dashboard_summary", account_name=account, data=result_data)
+    try:
+        cache_manager.set(resource_type="dashboard_summary", account_name=account, data=result_data)
+        logger.debug(f"✅ 缓存已保存: {account}")
+    except Exception as e:
+        logger.warning(f"⚠️ 保存缓存失败: {str(e)}")
     
     return {
         **result_data,
