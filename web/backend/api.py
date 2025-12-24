@@ -5206,6 +5206,8 @@ def get_budget_trend(
                 ORDER BY billing_date ASC
             """, (account_id, start_date_str, end_date_str))
             
+            logger.info(f"预算趋势查询: account_id={account_id}, 日期范围={start_date_str}至{end_date_str}, 查询结果={len(rows) if rows else 0}条")
+            
             # 如果结果为空，说明没有按日期的账单数据
             # 这种情况下，我们不应该按比例分配（因为不准确），而是返回空数据或提示需要同步账单
             if not rows or len(rows) == 0:
