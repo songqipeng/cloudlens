@@ -87,18 +87,39 @@ class NotificationService:
                 # 使用SSL
                 import ssl
                 context = ssl.create_default_context()
-                with smtplib.SMTP_SSL(self.smtp_host, self.smtp_port, context=context) as server:
+                server = smtplib.SMTP_SSL(self.smtp_host, self.smtp_port, context=context)
+                try:
                     server.login(self.smtp_user, self.smtp_password)
                     server.send_message(msg)
+                    logger.info(f"Email notification sent to {to_email}")
+                    return True
+                finally:
+                    try:
+                        server.quit()
+                    except:
+                        server.close()
             else:
                 # 使用TLS（默认）
-                with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
-                    server.starttls()
+                import ssl
+                context = ssl.create_default_context()
+                server = smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=10)
+                try:
+                    # 启动TLS，使用SSL上下文
+                    server.starttls(context=context)
                     server.login(self.smtp_user, self.smtp_password)
                     server.send_message(msg)
-            
-            logger.info(f"Email notification sent to {to_email}")
-            return True
+                    logger.info(f"Email notification sent to {to_email}")
+                    return True
+                finally:
+                    try:
+                        server.quit()
+                    except Exception as quit_error:
+                        # 忽略退出时的错误（某些SMTP服务器会返回异常退出码）
+                        logger.debug(f"SMTP quit error (ignored): {quit_error}")
+                        try:
+                            server.close()
+                        except:
+                            pass
         except Exception as e:
             logger.error(f"Failed to send email: {e}")
             return False
