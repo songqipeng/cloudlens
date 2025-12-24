@@ -4973,8 +4973,14 @@ def get_budget_status(
         # 检查告警
         alerts_triggered = BudgetCalculator.check_alerts(budget, temp_status)
         
+        # 记录告警检查结果
+        logger.info(f"预算告警检查: 预算={budget.name}, 使用率={usage_rate:.2f}%, 触发的告警数量={len(alerts_triggered)}")
+        if alerts_triggered:
+            logger.info(f"触发的告警详情: {alerts_triggered}")
+        
         # 如果触发了告警，发送邮件通知
         if alerts_triggered:
+            logger.info(f"准备发送预算告警邮件: {budget.name}")
             _send_budget_alert_emails(budget, temp_status, alerts_triggered)
         
         status = BudgetStatus(
