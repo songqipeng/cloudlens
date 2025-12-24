@@ -5237,12 +5237,17 @@ def get_budget_trend(
                         # 2. 计算每个资源在整个服务期间内，每天应该分摊的费用
                         # 3. 对于PayAsYouGo类型，直接使用当天的账单金额
                         
-                        # 获取整个账期的所有账单数据（不按天分组，获取所有）
-                        billing_cycle = start_date_str[:7]  # YYYY-MM
-                        all_bills = fetcher.fetch_instance_bill(
-                            billing_cycle=billing_cycle,
-                            granularity="DAILY"
+                        # 获取查询日期范围内的所有账单数据
+                        # 按天获取，然后合并处理
+                        daily_bills = fetcher.fetch_daily_bills(
+                            start_date=start_date_str,
+                            end_date=end_date_str
                         )
+                        
+                        # 合并所有日期的账单
+                        all_bills = []
+                        for date_str, bills in daily_bills.items():
+                            all_bills.extend(bills)
                         
                         # 关键修复：正确计算每日费用
                         # 对于Subscription类型：每个账单独立处理，从账单日期开始按服务时长分摊
