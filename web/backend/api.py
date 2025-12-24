@@ -5217,8 +5217,8 @@ def get_budget_trend(
                     from core.config import ConfigManager
                     from core.bill_fetcher import BillFetcher
                     from core.bill_storage import BillStorageManager
-                    from datetime import datetime, timedelta
                     from collections import defaultdict
+                    # 注意：datetime和timedelta已在文件顶部导入，不需要重复导入
                     
                     cm = ConfigManager()
                     account_config = cm.get_account(account) if account else None
@@ -5341,7 +5341,7 @@ def get_budget_trend(
                                 while current_date <= service_end_date:
                                     date_str = current_date.strftime('%Y-%m-%d')
                                     trend_dict[date_str] += daily_cost
-                                    current_date += timedelta(days=1)
+                                    current_date = current_date + timedelta(days=1)
                                 
                             except (ValueError, TypeError) as e:
                                 logger.warning(f"计算Subscription资源费用失败: {instance_id}, {e}")
