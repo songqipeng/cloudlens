@@ -5244,45 +5244,10 @@ def get_budget_trend(
                             granularity="DAILY"
                         )
                         
-                        # 按实例ID和计费类型分组Subscription资源
-                        subscription_resources = {}  # instance_id -> {amount, period, period_unit, billing_date, product}
-                        payasyougo_daily = defaultdict(float)  # date_str -> total_amount
+                        # 关键修复：正确计算每日费用
+                        # 对于Subscription类型：每个账单独立处理，从账单日期开始按服务时长分摊
+                        # 对于PayAsYouGo类型：直接使用当天的账单金额
                         
-                        for bill in all_bills:
-                            sub_type = bill.get('SubscriptionType', '')
-                            instance_id = bill.get('InstanceID', '')
-                            billing_date = bill.get('BillingDate', '')
-                            
-                            if sub_type == 'Subscription' and instance_id:
-                                # Subscription类型：按实例ID去重，只保留每个实例的费用信息
-                                # 关键：同一个实例可能在多个日期有账单（续费），需要合并
-                                if instance_id not in subscription_resources:
-                                    amount = float(bill.get('PretaxGrossAmount', 0) or 0)
-                                    if amount == 0:
-                                        amount = float(bill.get('PretaxAmount', 0) or 0)
-                                    
-                                    if amount > 0:
-                                        subscription_resources[instance_id] = {
-                                            'amount': amount,
-                                            'period': bill.get('ServicePeriod', ''),
-                                            'period_unit': bill.get('ServicePeriodUnit', ''),
-                                            'billing_date': billing_date,
-                                            'product': bill.get('ProductName', 'Unknown')
-                                        }
-                                else:
-                                    # 如果同一个实例有多个账单（续费），累加费用
-                                    amount = float(bill.get('PretaxGrossAmount', 0) or 0)
-                                    if amount == 0:
-                                        amount = float(bill.get('PretaxAmount', 0) or 0)
-                                    if amount > 0:
-                                        subscription_resources[instance_id]['amount'] += amount
-                            else:
-                                # PayAsYouGo类型：直接按日期累加
-                                amount = float(bill.get('PretaxAmount', 0) or 0)
-                                if amount > 0 and billing_date:
-                                    payasyougo_daily[billing_date] += amount
-                        
-                        # 计算Subscription资源在查询日期范围内，每天应该分摊的费用
                         trend_dict = defaultdict(float)
                         
                         # 初始化所有日期的费用为0
@@ -5292,64 +5257,76 @@ def get_budget_trend(
                             trend_dict[date_str] = 0.0
                             current_date += timedelta(days=1)
                         
-                        # 为每个Subscription资源计算在服务期间内，每天应该分摊的费用
-                        for instance_id, resource_info in subscription_resources.items():
-                            amount = resource_info['amount']
-                            period = resource_info['period']
-                            period_unit = resource_info['period_unit']
-                            billing_date_str = resource_info['billing_date']
+                        # 处理每个账单
+                        for bill in all_bills:
+                            sub_type = bill.get('SubscriptionType', '')
+                            billing_date = bill.get('BillingDate', '')
                             
-                            if not period or not period_unit:
-                                continue
-                            
-                            try:
-                                period_value = float(period)
+                            if sub_type == 'Subscription':
+                                # Subscription类型：从账单日期开始，按服务时长分摊费用
+                                amount = float(bill.get('PretaxGrossAmount', 0) or 0)
+                                if amount == 0:
+                                    amount = float(bill.get('PretaxAmount', 0) or 0)
                                 
-                                # 将服务时长转换为天数
-                                if period_unit == '年' or period_unit.lower() == 'year':
-                                    service_days = period_value * 365
-                                elif period_unit == '月' or period_unit.lower() == 'month':
-                                    service_days = period_value * 30
-                                elif period_unit == '日' or period_unit.lower() == 'day':
-                                    service_days = period_value
-                                elif period_unit == '小时' or period_unit.lower() == 'hour':
-                                    service_days = period_value / 24
-                                elif period_unit == '秒' or period_unit.lower() == 'second':
-                                    service_days = period_value / 86400
-                                else:
-                                    service_days = 30  # 默认
-                                
-                                if service_days <= 0:
+                                if amount <= 0:
                                     continue
                                 
-                                # 计算每天的费用
-                                daily_cost = amount / service_days
+                                period = bill.get('ServicePeriod', '')
+                                period_unit = bill.get('ServicePeriodUnit', '')
                                 
-                                # 确定服务的开始和结束日期
-                                if billing_date_str and len(billing_date_str) >= 10:
-                                    service_start = datetime.strptime(billing_date_str[:10], '%Y-%m-%d')
-                                else:
-                                    # 如果没有账单日期，使用查询开始日期
-                                    service_start = start_date
+                                if not period or not period_unit:
+                                    continue
                                 
-                                service_end = service_start + timedelta(days=int(service_days) - 1)
-                                
-                                # 在服务期间内，每天分摊费用
-                                current_date = max(service_start, start_date)
-                                service_end_date = min(service_end, end_date)
-                                
-                                while current_date <= service_end_date:
-                                    date_str = current_date.strftime('%Y-%m-%d')
-                                    trend_dict[date_str] += daily_cost
-                                    current_date = current_date + timedelta(days=1)
-                                
-                            except (ValueError, TypeError) as e:
-                                logger.warning(f"计算Subscription资源费用失败: {instance_id}, {e}")
-                        
-                        # 添加PayAsYouGo类型的费用
-                        for date_str, amount in payasyougo_daily.items():
-                            if date_str in trend_dict:
-                                trend_dict[date_str] += amount
+                                try:
+                                    period_value = float(period)
+                                    
+                                    # 将服务时长转换为天数
+                                    if period_unit == '年' or period_unit.lower() == 'year':
+                                        service_days = period_value * 365
+                                    elif period_unit == '月' or period_unit.lower() == 'month':
+                                        service_days = period_value * 30
+                                    elif period_unit == '日' or period_unit.lower() == 'day':
+                                        service_days = period_value
+                                    elif period_unit == '小时' or period_unit.lower() == 'hour':
+                                        service_days = period_value / 24
+                                    elif period_unit == '秒' or period_unit.lower() == 'second':
+                                        service_days = period_value / 86400
+                                    else:
+                                        service_days = 30  # 默认
+                                    
+                                    if service_days <= 0:
+                                        continue
+                                    
+                                    # 计算每天的费用
+                                    daily_cost = amount / service_days
+                                    
+                                    # 确定服务的开始日期（账单日期）
+                                    if billing_date and len(billing_date) >= 10:
+                                        service_start = datetime.strptime(billing_date[:10], '%Y-%m-%d')
+                                    else:
+                                        # 如果没有账单日期，跳过这个账单
+                                        continue
+                                    
+                                    service_end = service_start + timedelta(days=int(service_days) - 1)
+                                    
+                                    # 在服务期间内，每天分摊费用（只计算查询日期范围内的）
+                                    current_date = max(service_start, start_date)
+                                    service_end_date = min(service_end, end_date)
+                                    
+                                    while current_date <= service_end_date:
+                                        date_str = current_date.strftime('%Y-%m-%d')
+                                        trend_dict[date_str] += daily_cost
+                                        current_date = current_date + timedelta(days=1)
+                                    
+                                except (ValueError, TypeError) as e:
+                                    logger.warning(f"计算Subscription资源费用失败: {e}")
+                            else:
+                                # PayAsYouGo类型：直接使用当天的账单金额
+                                amount = float(bill.get('PretaxAmount', 0) or 0)
+                                if amount > 0 and billing_date and len(billing_date) >= 10:
+                                    date_str = billing_date[:10]
+                                    if date_str in trend_dict:
+                                        trend_dict[date_str] += amount
                         
                         # 使用BSS接口的数据构建趋势数据
                         rows = []
