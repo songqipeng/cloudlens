@@ -5170,8 +5170,15 @@ def get_budget_trend(
             from core.database import DatabaseFactory
             import os
             
-            # 统一使用 MySQL，不再支持 SQLite
-            db = DatabaseFactory.create_adapter("mysql")
+            # 优先使用 MySQL，如果连接失败则使用 SQLite
+            db = None
+            try:
+                db = DatabaseFactory.create_adapter("mysql")
+            except Exception as mysql_error:
+                logger.warning(f"MySQL连接失败，使用SQLite作为fallback: {mysql_error}")
+                # 使用SQLite作为fallback
+                sqlite_path = os.path.expanduser("~/.cloudlens/bills.db")
+                db = DatabaseFactory.create_adapter("sqlite", db_path=sqlite_path)
             
             # 按天查询支出数据
             # 关键修复：优先使用 billing_date 进行精确日期匹配
