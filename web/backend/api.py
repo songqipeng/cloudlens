@@ -5183,18 +5183,19 @@ def get_budget_trend(
             end_cycle = end_date.strftime('%Y-%m')
             
             # 先查询有 billing_date 的数据
-            # 关键修复：需要查询subscription_type和service_period字段，以便按服务时长分摊费用
+            # 关键修复：需要查询subscription_type、service_period和pretax_gross_amount字段，以便按服务时长分摊费用
             rows = db.query("""
                 SELECT 
                     billing_date as date,
                     subscription_type,
                     service_period,
                     service_period_unit,
-                    pretax_amount
+                    pretax_amount,
+                    pretax_gross_amount
                 FROM bill_items
                 WHERE account_id = ?
-                    AND pretax_amount IS NOT NULL
-                    AND pretax_amount > 0
+                    AND (pretax_amount IS NOT NULL AND pretax_amount > 0 
+                         OR pretax_gross_amount IS NOT NULL AND pretax_gross_amount > 0)
                     AND billing_date IS NOT NULL 
                     AND billing_date != ''
                     AND billing_date >= ? 
@@ -5243,12 +5244,21 @@ def get_budget_trend(
                                 daily_spent = 0.0
                                 
                                 for bill in bills:
-                                    amount = float(bill.get('PretaxAmount', 0) or 0)
                                     sub_type = bill.get('SubscriptionType', '')
                                     service_period = bill.get('ServicePeriod', '')
                                     service_period_unit = bill.get('ServicePeriodUnit', '')
                                     
-                                    if sub_type == 'Subscription' and service_period and service_period_unit:
+                                    # 关键修复：Subscription类型可能PretaxAmount为0，需要使用PretaxGrossAmount
+                                    if sub_type == 'Subscription':
+                                        # 优先使用PretaxGrossAmount，如果为0则使用PretaxAmount
+                                        amount = float(bill.get('PretaxGrossAmount', 0) or 0)
+                                        if amount == 0:
+                                            amount = float(bill.get('PretaxAmount', 0) or 0)
+                                    else:
+                                        # PayAsYouGo使用PretaxAmount
+                                        amount = float(bill.get('PretaxAmount', 0) or 0)
+                                    
+                                    if sub_type == 'Subscription' and service_period and service_period_unit and amount > 0:
                                         # 包年包月：需要将费用分摊到每一天
                                         try:
                                             period_value = float(service_period)
