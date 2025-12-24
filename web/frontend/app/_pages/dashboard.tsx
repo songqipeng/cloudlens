@@ -78,6 +78,22 @@ export default function DashboardPage() {
         const sumData = await apiGet("/dashboard/summary", { account: currentAccount }, apiOptions)
         console.log("[Dashboard] Summary 数据:", sumData)
         setSummary(sumData)
+        
+        // 如果返回的是加载中的状态，等待一段时间后自动刷新
+        if (sumData?.loading) {
+          console.log("[Dashboard] 数据正在后台加载，3秒后自动刷新...")
+          setTimeout(async () => {
+            try {
+              const refreshedData = await apiGet("/dashboard/summary", { account: currentAccount }, apiOptions)
+              if (refreshedData && !refreshedData.loading) {
+                console.log("[Dashboard] 数据已加载完成，更新显示")
+                setSummary(refreshedData)
+              }
+            } catch (e) {
+              console.warn("[Dashboard] 自动刷新失败:", e)
+            }
+          }, 3000)
+        }
 
         setLoadingMessage(t.dashboard.loadingIdle || "正在加载闲置资源...")
         try {

@@ -289,14 +289,60 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
             "cached": True,
         }
 
-    logger.debug(f"缓存未命中，重新计算，账号: {account}")
+    logger.debug(f"缓存未命中，快速返回默认值并后台更新，账号: {account}")
     account_config = cm.get_account(account)
     if not account_config:
         print(f"[DEBUG get_summary] 账号 '{account}' 未找到")
         raise HTTPException(status_code=404, detail=f"Account '{account}' not found")
     
-    print(f"[DEBUG get_summary] 使用账号配置: {account_config.name}, region: {account_config.region}, AK: {account_config.access_key_id[:8]}...")
+    # 快速返回默认值，避免前端超时
+    # 后台任务会在后台更新数据，下次请求时就能从缓存获取
+    default_result = {
+        "account": account,
+        "total_cost": 0.0,
+        "idle_count": 0,
+        "cost_trend": "数据加载中",
+        "trend_pct": 0.0,
+        "total_resources": 0,
+        "resource_breakdown": {"ecs": 0, "rds": 0, "redis": 0},
+        "alert_count": 0,
+        "tag_coverage": 0.0,
+        "savings_potential": 0.0,
+        "cached": False,
+        "loading": True,  # 标记为加载中
+    }
+    
+    # 在后台异步更新数据（不阻塞响应）
+    try:
+        from fastapi import BackgroundTasks
+        # 注意：这里需要从请求中获取 BackgroundTasks，但为了简化，我们使用线程
+        import threading
+        
+        def update_cache_in_background():
+            """后台更新缓存"""
+            try:
+                logger.info(f"后台开始更新 dashboard summary 缓存: {account}")
+                _update_dashboard_summary_cache(account, account_config)
+                logger.info(f"后台完成更新 dashboard summary 缓存: {account}")
+            except Exception as e:
+                logger.error(f"后台更新缓存失败: {str(e)}")
+        
+        # 启动后台线程更新缓存
+        thread = threading.Thread(target=update_cache_in_background, daemon=True)
+        thread.start()
+        
+        logger.info(f"快速返回默认值，后台更新缓存: {account}")
+    except Exception as e:
+        logger.warning(f"启动后台更新失败: {str(e)}")
+    
+    return default_result
 
+
+def _update_dashboard_summary_cache(account: str, account_config):
+    """更新 dashboard summary 缓存（后台任务）"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     # 初始化所有变量，确保即使某些步骤失败也能返回有效数据
     total_cost = 0.0
     trend = "数据不足"
@@ -420,33 +466,16 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
         idle_count = 0
         
         # 优先从缓存获取（避免耗时分析）
-        if not force_refresh:
-            idle_data = cache_manager.get(resource_type="dashboard_idle", account_name=account)
-            if not idle_data:
-                idle_data = cache_manager.get(resource_type="idle_result", account_name=account)
-            
-            if idle_data:
-                idle_count = len(idle_data) if idle_data else 0
-                logger.info(f"从缓存获取闲置资源数量: {idle_count} (账号: {account})")
+        idle_data = cache_manager.get(resource_type="dashboard_idle", account_name=account)
+        if not idle_data:
+            idle_data = cache_manager.get(resource_type="idle_result", account_name=account)
         
-        # 如果缓存为空且强制刷新，才调用分析服务（耗时操作）
-        if (not idle_data or force_refresh) and force_refresh:
-            logger.info(f"强制刷新，开始分析闲置资源 (账号: {account})")
-            try:
-                from core.services.analysis_service import AnalysisService
-                idle_data, _ = AnalysisService.analyze_idle_resources(account, days=7, force_refresh=force_refresh)
-                idle_count = len(idle_data) if idle_data else 0
-                logger.info(f"分析完成，闲置资源数量: {idle_count} (账号: {account})")
-            except Exception as e:
-                logger.warning(f"分析闲置资源失败: {str(e)}")
-                # 降级：使用缓存数据
-                idle_data = cache_manager.get(resource_type="dashboard_idle", account_name=account)
-                if not idle_data:
-                    idle_data = cache_manager.get(resource_type="idle_result", account_name=account)
-                idle_count = len(idle_data) if idle_data else 0
-        elif not idle_data:
-            # 缓存为空但不强制刷新，返回0（避免耗时分析）
-            logger.info(f"缓存为空且未强制刷新，跳过分析 (账号: {account})")
+        if idle_data:
+            idle_count = len(idle_data) if idle_data else 0
+            logger.info(f"从缓存获取闲置资源数量: {idle_count} (账号: {account})")
+        else:
+            # 缓存为空，返回0（后台任务中不进行耗时分析）
+            logger.info(f"缓存为空，跳过分析 (账号: {account})")
             idle_count = 0
             
     except Exception as e:
@@ -464,10 +493,11 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
         provider = get_provider(account_config)
         
         # 尝试从缓存获取资源列表（避免重复查询）
+        cache_manager = CacheManager(ttl_seconds=86400)
         resource_cache_key = f"resource_list_{account}"
         cached_resources = cache_manager.get(resource_type=resource_cache_key, account_name=account)
         
-        if cached_resources and not force_refresh:
+        if cached_resources:
             instances = cached_resources.get("instances", []) or []
             rds_list = cached_resources.get("rds", []) or []
             redis_list = cached_resources.get("redis", []) or []
@@ -697,15 +727,11 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
     
     # 保存到缓存（24小时有效）
     try:
+        cache_manager = CacheManager(ttl_seconds=86400)
         cache_manager.set(resource_type="dashboard_summary", account_name=account, data=result_data)
-        logger.debug(f"✅ 缓存已保存: {account}")
+        logger.info(f"✅ 缓存已保存: {account}")
     except Exception as e:
         logger.warning(f"⚠️ 保存缓存失败: {str(e)}")
-    
-    return {
-        **result_data,
-        "cached": False,
-    }
 
 
 @router.get("/dashboard/trend")
