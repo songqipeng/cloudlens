@@ -45,7 +45,8 @@ class BillFetcher:
         
         if use_database:
             from core.bill_storage import BillStorageManager
-            self._storage = BillStorageManager(db_path)
+            # db_path参数已废弃，只使用MySQL
+            self._storage = BillStorageManager()
     
     @property
     def client(self):

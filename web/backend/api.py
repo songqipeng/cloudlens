@@ -5170,15 +5170,8 @@ def get_budget_trend(
             from core.database import DatabaseFactory
             import os
             
-            # 优先使用 MySQL，如果连接失败则使用 SQLite
-            db = None
-            try:
-                db = DatabaseFactory.create_adapter("mysql")
-            except Exception as mysql_error:
-                logger.warning(f"MySQL连接失败，使用SQLite作为fallback: {mysql_error}")
-                # 使用SQLite作为fallback
-                sqlite_path = os.path.expanduser("~/.cloudlens/bills.db")
-                db = DatabaseFactory.create_adapter("sqlite", db_path=sqlite_path)
+            # 只使用 MySQL（SQLite已废弃）
+            db = DatabaseFactory.create_adapter("mysql")
             
             # 按天查询支出数据
             # 关键修复：优先使用 billing_date 进行精确日期匹配
@@ -5208,11 +5201,77 @@ def get_budget_trend(
             
             logger.info(f"预算趋势查询: account_id={account_id}, 日期范围={start_date_str}至{end_date_str}, 查询结果={len(rows) if rows else 0}条")
             
-            # 如果结果为空，说明没有按日期的账单数据
-            # 这种情况下，我们不应该按比例分配（因为不准确），而是返回空数据或提示需要同步账单
+            # 如果结果为空，尝试通过BSS接口获取数据
             if not rows or len(rows) == 0:
-                logger.warning(f"没有找到 {start_date_str} 至 {end_date_str} 期间的按日账单数据（billing_date），无法显示真实的每日消费趋势")
-                logger.info("提示：需要同步账单数据（包含 billing_date 字段）才能显示准确的每日消费趋势")
+                logger.warning(f"MySQL中没有找到 {start_date_str} 至 {end_date_str} 期间的按日账单数据，尝试通过BSS接口获取")
+                
+                # 通过BSS接口获取账单数据
+                try:
+                    from core.config import ConfigManager
+                    from core.bill_fetcher import BillFetcher
+                    from core.bill_storage import BillStorageManager
+                    
+                    cm = ConfigManager()
+                    account_config = cm.get_account(account) if account else None
+                    
+                    if account_config:
+                        logger.info(f"通过BSS接口获取账单数据: {account}, {start_date_str} 至 {end_date_str}")
+                        
+                        # 创建BillFetcher，使用MySQL存储
+                        fetcher = BillFetcher(
+                            access_key_id=account_config.access_key_id,
+                            access_key_secret=account_config.access_key_secret,
+                            region=account_config.region,
+                            use_database=True
+                        )
+                        
+                        # 按天获取账单数据
+                        daily_bills = fetcher.fetch_daily_bills(
+                            start_date=start_date_str,
+                            end_date=end_date_str
+                        )
+                        
+                        # 保存到MySQL数据库
+                        storage = BillStorageManager()
+                        account_id = f"{account_config.access_key_id[:10]}-{account}"
+                        
+                        for date_str, bills in daily_bills.items():
+                            if bills:
+                                billing_cycle = date_str[:7]  # YYYY-MM
+                                inserted, skipped = storage.insert_bill_items(
+                                    account_id=account_id,
+                                    billing_cycle=billing_cycle,
+                                    items=bills
+                                )
+                                logger.info(f"保存 {date_str} 的账单数据: 插入 {inserted} 条，跳过 {skipped} 条")
+                        
+                        # 重新查询数据库
+                        rows = db.query("""
+                            SELECT 
+                                billing_date as date,
+                                SUM(pretax_amount) as spent
+                            FROM bill_items
+                            WHERE account_id = ?
+                                AND pretax_amount IS NOT NULL
+                                AND pretax_amount > 0
+                                AND billing_date IS NOT NULL 
+                                AND billing_date != ''
+                                AND billing_date >= ? 
+                                AND billing_date <= ?
+                            GROUP BY billing_date
+                            ORDER BY billing_date ASC
+                        """, (account_id, start_date_str, end_date_str))
+                        
+                        if rows:
+                            logger.info(f"通过BSS接口获取到 {len(rows)} 天的账单数据")
+                        else:
+                            logger.warning("通过BSS接口获取后，仍然没有数据")
+                    else:
+                        logger.warning(f"无法获取账号配置: {account}")
+                except Exception as e:
+                    logger.error(f"通过BSS接口获取账单数据失败: {e}")
+                    import traceback
+                    logger.error(traceback.format_exc())
             
             # 转换为趋势数据格式：显示每天的实际消费，而不是累计消费
             trend_dict = {}

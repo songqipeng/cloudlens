@@ -68,13 +68,13 @@ def fetch_bills(account, start, end, output_dir, use_db, db_path, max_records):
             border_style="cyan"
         ))
         
-        # 创建获取器
+        # 创建获取器（只支持MySQL，SQLite已废弃）
         fetcher = BillFetcher(
             access_key_id=account_config.access_key_id,
             access_key_secret=account_config.access_key_secret,
             region=account_config.region,
             use_database=use_db,
-            db_path=db_path
+            db_path=None  # SQLite已废弃，只使用MySQL
         )
         
         # 批量获取账单
@@ -383,6 +383,7 @@ def show_stats(db_path):
     
     except Exception as e:
         console.print(f"[red]❌ 查询失败: {str(e)}[/red]")
+
 
 
 

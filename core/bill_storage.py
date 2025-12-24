@@ -19,33 +19,23 @@ logger = logging.getLogger(__name__)
 
 
 class BillStorageManager:
-    """账单数据存储管理器（支持SQLite和MySQL）"""
+    """账单数据存储管理器（只支持MySQL，SQLite已废弃）"""
     
     # 数据库schema版本
     SCHEMA_VERSION = 1
     
     def __init__(self, db_path: Optional[str] = None, db_type: Optional[str] = None):
         """
-        初始化存储管理器
+        初始化存储管理器（只支持MySQL，SQLite已废弃）
         
         Args:
-            db_path: 数据库文件路径（仅SQLite使用），默认使用~/.cloudlens/bills.db
-            db_type: 数据库类型（'sqlite' 或 'mysql'），None则从环境变量读取
+            db_path: 已废弃，不再使用
+            db_type: 已废弃，只使用MySQL
         """
-        self.db_type = db_type or os.getenv("DB_TYPE", "mysql").lower()
-        
-        if self.db_type == "mysql":
-            # MySQL使用数据库抽象层
-            self.db = DatabaseFactory.create_adapter("mysql")
-            self.db_path = None  # MySQL不使用文件路径
-        else:
-            # SQLite使用文件路径
-            if db_path is None:
-                db_dir = Path.home() / ".cloudlens"
-                db_dir.mkdir(parents=True, exist_ok=True)
-                db_path = str(db_dir / "bills.db")
-            self.db_path = db_path
-            self.db = DatabaseFactory.create_adapter("sqlite", db_path=db_path)
+        # 只使用MySQL（SQLite已废弃）
+        self.db_type = "mysql"
+        self.db = DatabaseFactory.create_adapter("mysql")
+        self.db_path = None
         
         self._init_database()
     
@@ -214,7 +204,7 @@ class BillStorageManager:
                             updated_at = CURRENT_TIMESTAMP
                     """
                 else:
-                    # SQLite使用INSERT OR IGNORE
+                    # MySQL使用INSERT IGNORE（已废弃SQLite）
                     sql = f"""
                         INSERT OR IGNORE INTO bill_items (
                             account_id, billing_cycle, billing_date,
