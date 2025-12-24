@@ -381,11 +381,36 @@ class BillFetcher:
             logger.info(f"处理账期: {billing_cycle}")
             logger.info(f"{'='*60}")
             
-            # 获取账单数据
-            records = self.fetch_instance_bill(billing_cycle)
+            # 按天获取账单数据（这样可以获取到BillingDate字段）
+            all_records = []
+            month_start = current_date
+            month_end = (current_date + relativedelta(months=1)) - timedelta(days=1)
+            day_date = month_start
             
-            if records:
-                total_records += len(records)
+            logger.info(f"开始按天获取账单数据：{month_start.strftime('%Y-%m-%d')} 至 {month_end.strftime('%Y-%m-%d')}")
+            
+            while day_date <= month_end and day_date <= datetime.now():
+                date_str = day_date.strftime("%Y-%m-%d")
+                try:
+                    # 按天查询，使用DAILY粒度
+                    daily_records = self.fetch_instance_bill(
+                        billing_cycle=billing_cycle,
+                        billing_date=date_str,
+                        granularity="DAILY"
+                    )
+                    if daily_records:
+                        all_records.extend(daily_records)
+                        logger.info(f"日期 {date_str} 获取到 {len(daily_records)} 条记录")
+                except Exception as e:
+                    logger.warning(f"获取日期 {date_str} 的账单失败: {str(e)}")
+                
+                day_date += timedelta(days=1)
+                # API限流：每天之间稍作延迟
+                time.sleep(0.3)
+            
+            if all_records:
+                total_records += len(all_records)
+                logger.info(f"账期 {billing_cycle} 共获取 {len(all_records)} 条记录")
                 
                 if self.use_database:
                     # 数据库模式：保存到数据库
@@ -395,7 +420,7 @@ class BillFetcher:
                     inserted, skipped = self._storage.insert_bill_items(
                         account_id=account_id,
                         billing_cycle=billing_cycle,
-                        items=records
+                        items=all_records
                     )
                     result[billing_cycle] = {'inserted': inserted, 'skipped': skipped}
                     
@@ -403,7 +428,7 @@ class BillFetcher:
                     # CSV模式：保存到CSV
                     csv_filename = f"{account_name or 'bill'}-{billing_cycle}-detail.csv"
                     csv_path = output_dir / csv_filename
-                    self.save_to_csv(records, csv_path, billing_cycle)
+                    self.save_to_csv(all_records, csv_path, billing_cycle)
                     result[billing_cycle] = csv_path
             else:
                 logger.warning(f"账期 {billing_cycle} 没有数据")
@@ -515,6 +540,7 @@ if __name__ == "__main__":
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     main()
+
 
 
 
