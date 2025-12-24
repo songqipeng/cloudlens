@@ -5348,11 +5348,23 @@ def get_budget_trend(
                     logger.error(traceback.format_exc())
             
             # 转换为趋势数据格式：显示每天的实际消费，而不是累计消费
-            # 关键修复：从MySQL查询的数据也需要按服务时长分摊费用
+            # 关键修复：如果rows是从BSS接口获取的（已经是处理好的格式），直接使用
+            # 如果rows是从MySQL查询的，需要按服务时长分摊费用
             trend_dict = {}
             
-            # 检查数据格式：如果包含subscription_type字段，说明是详细格式
+            # 检查rows格式：如果已经是处理好的格式（包含date和spent），直接使用
             if rows and len(rows) > 0:
+                first_row = rows[0]
+                # 如果已经是处理好的格式（从BSS接口获取的），直接使用
+                if isinstance(first_row, dict) and 'date' in first_row and 'spent' in first_row:
+                    for row in rows:
+                        date_str = row.get('date', '')
+                        spent = float(row.get('spent', 0) or 0)
+                        if date_str and len(date_str) >= 10:
+                            date_str = date_str[:10]
+                            trend_dict[date_str] = spent
+                # 否则，需要从MySQL数据重新计算
+                elif isinstance(first_row, dict) and 'subscription_type' in first_row:
                 first_row = rows[0]
                 has_detailed_fields = isinstance(first_row, dict) and 'subscription_type' in first_row
                 
