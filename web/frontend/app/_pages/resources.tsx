@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useRef } from "react"
 import { Table, TableColumn } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/ui/badge"
@@ -9,6 +9,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
+import { SmartLoadingProgress } from "@/components/loading-progress"
 
 interface Resource {
   id: string
@@ -35,6 +36,7 @@ export default function ResourcesPage() {
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [search, setSearch] = useState("")
+  const loadingStartTime = useRef<number | null>(null)
 
   const base = useMemo(() => {
     return currentAccount ? `/a/${encodeURIComponent(currentAccount)}` : ""
@@ -53,6 +55,7 @@ export default function ResourcesPage() {
     if (!currentAccount) return
 
     setLoading(true)
+    loadingStartTime.current = Date.now()
     try {
       const params: Record<string, string> = {
         type: resourceType,
@@ -76,6 +79,10 @@ export default function ResourcesPage() {
       console.error("Failed to fetch resources:", e)
     } finally {
       setLoading(false)
+      // 延迟清除开始时间，让进度动画完成
+      setTimeout(() => {
+        loadingStartTime.current = null
+      }, 500)
     }
   }
 
@@ -162,6 +169,14 @@ export default function ResourcesPage() {
             <p className="text-muted-foreground mt-1">{t.resources.description}</p>
           </div>
         </div>
+
+        {loading && loadingStartTime.current && (
+          <SmartLoadingProgress
+            message={t.resources.loading || "正在加载资源列表..."}
+            loading={loading}
+            startTime={loadingStartTime.current}
+          />
+        )}
 
         <Card>
           <CardHeader>
@@ -253,6 +268,7 @@ export default function ResourcesPage() {
     </DashboardLayout>
   )
 }
+
 
 
 

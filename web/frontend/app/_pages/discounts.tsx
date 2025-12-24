@@ -7,6 +7,7 @@ import { Table, TableColumn } from "@/components/ui/table"
 import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
+import { SmartLoadingProgress } from "@/components/loading-progress"
 
 type SubscriptionType = "Subscription" | "PayAsYouGo" | "Unknown"
 
@@ -72,6 +73,7 @@ export default function DiscountsPage() {
   const [elapsedSec, setElapsedSec] = useState<number>(0)
   const abortRef = useRef<AbortController | null>(null)
   const reqSeqRef = useRef(0)
+  const loadingStartTime = useRef<number | null>(null)
 
   useEffect(() => {
     if (!currentAccount) {
@@ -103,6 +105,7 @@ export default function DiscountsPage() {
     const startedAt = Date.now()
 
     setLoading(true)
+    loadingStartTime.current = Date.now()
     setElapsedSec(0)
     setError(null)
     setStatusText(force ? t.discounts.forceRefreshing : t.discounts.loadingCache)
@@ -131,6 +134,9 @@ export default function DiscountsPage() {
       if (reqSeq !== reqSeqRef.current) return
       setLoading(false)
       setStatusText("")
+      setTimeout(() => {
+        loadingStartTime.current = null
+      }, 500)
     }
   }
 
@@ -215,6 +221,14 @@ export default function DiscountsPage() {
           <h2 className="text-3xl font-bold tracking-tight">{t.discounts.title}</h2>
           <p className="text-muted-foreground">{t.discounts.description}</p>
         </div>
+
+        {loading && loadingStartTime.current && (
+          <SmartLoadingProgress
+            message={statusText || t.discounts.loading || "正在加载折扣数据..."}
+            loading={loading}
+            startTime={loadingStartTime.current}
+          />
+        )}
 
         <div className="grid gap-4 md:grid-cols-4">
           <Card className="glass border border-border/50 hover:shadow-xl transition-all">
@@ -339,6 +353,7 @@ export default function DiscountsPage() {
     </DashboardLayout>
   )
 }
+
 
 
 

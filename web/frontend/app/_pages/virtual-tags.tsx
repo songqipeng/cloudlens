@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
@@ -9,6 +9,7 @@ import { useLocale } from "@/contexts/locale-context"
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api"
 import { Plus, Edit, Trash2, Eye, Search } from "lucide-react"
 import { toastError } from "@/components/ui/toast"
+import { SmartLoadingProgress } from "@/components/loading-progress"
 
 interface TagRule {
   id?: string
@@ -37,6 +38,7 @@ export default function VirtualTagsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [editingTag, setEditingTag] = useState<VirtualTag | null>(null)
   const [showPreview, setShowPreview] = useState<string | null>(null)
+  const loadingStartTime = useRef<number | null>(null)
 
   useEffect(() => {
     fetchTags()
@@ -45,6 +47,7 @@ export default function VirtualTagsPage() {
   const fetchTags = async () => {
     try {
       setLoading(true)
+      loadingStartTime.current = Date.now()
       const response = await apiGet("/virtual-tags")
       if (response.success) {
         setTags(response.data || [])
@@ -53,6 +56,9 @@ export default function VirtualTagsPage() {
       console.error("Failed to fetch tags:", e)
     } finally {
       setLoading(false)
+      setTimeout(() => {
+        loadingStartTime.current = null
+      }, 500)
     }
   }
 
@@ -127,6 +133,14 @@ export default function VirtualTagsPage() {
             className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-input/50 bg-background/60 backdrop-blur-sm text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-200"
           />
         </div>
+
+        {loading && loadingStartTime.current && (
+          <SmartLoadingProgress
+            message={t.virtualTags.loading || "正在加载虚拟标签..."}
+            loading={loading}
+            startTime={loadingStartTime.current}
+          />
+        )}
 
         {/* Tags List */}
         {filteredTags.length === 0 ? (
@@ -584,6 +598,7 @@ function TagPreview({ tagId, account, onClose }: { tagId: string; account: strin
     </div>
   )
 }
+
 
 
 

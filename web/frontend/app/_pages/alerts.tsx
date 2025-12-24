@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import { Plus, Edit, Trash2, Bell, CheckCircle, XCircle, AlertTriangle, Info } f
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { toastError, toastSuccess, toastInfo } from "@/components/ui/toast"
+import { SmartLoadingProgress } from "@/components/loading-progress"
 
 interface AlertRule {
   id: string
@@ -54,6 +55,7 @@ export default function AlertsPage() {
   const [loading, setLoading] = useState(true)
   const [editingRule, setEditingRule] = useState<AlertRule | null>(null)
   const [activeTab, setActiveTab] = useState<"rules" | "alerts">("rules")
+  const loadingStartTime = useRef<number | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -62,6 +64,7 @@ export default function AlertsPage() {
   const fetchData = async () => {
     try {
       setLoading(true)
+      loadingStartTime.current = Date.now()
       const [rulesRes, alertsRes] = await Promise.all([
         apiGet("/alerts/rules", { account: currentAccount }),
         apiGet("/alerts", { account: currentAccount, limit: 50 })
@@ -78,6 +81,9 @@ export default function AlertsPage() {
       console.error("Failed to fetch alerts data:", e)
     } finally {
       setLoading(false)
+      setTimeout(() => {
+        loadingStartTime.current = null
+      }, 500)
     }
   }
 
@@ -188,7 +194,7 @@ export default function AlertsPage() {
     )
   }
 
-  if (loading) {
+  if (loading && !loadingStartTime.current) {
     return (
       <DashboardLayout>
         <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
@@ -213,6 +219,14 @@ export default function AlertsPage() {
             {t.alerts.createRule}
           </Button>
         </div>
+
+        {loading && loadingStartTime.current && (
+          <SmartLoadingProgress
+            message={t.alerts.loading || "正在加载告警数据..."}
+            loading={loading}
+            startTime={loadingStartTime.current}
+          />
+        )}
 
         {/* 标签页 */}
         <div className="flex items-center gap-2 border-b">
@@ -691,6 +705,7 @@ function AlertRuleEditor({
     </div>
   )
 }
+
 
 
 

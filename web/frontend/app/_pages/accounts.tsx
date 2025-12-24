@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConfirmModal, Modal } from "@/components/ui/modal"
@@ -9,6 +9,7 @@ import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
 import { apiGet, apiDelete, apiPost, apiPut } from "@/lib/api"
 import { Eye, EyeOff, Plus, Edit } from "lucide-react"
+import { SmartLoadingProgress } from "@/components/loading-progress"
 
 interface Account {
   name: string
@@ -36,6 +37,7 @@ export default function AccountsPage() {
   const [addError, setAddError] = useState<string | null>(null)
   const [editError, setEditError] = useState<string | null>(null)
   const [showSecret, setShowSecret] = useState(false)
+  const loadingStartTime = useRef<number | null>(null)
   const [form, setForm] = useState({
     name: "",
     alias: "",  // 别名
@@ -52,6 +54,8 @@ export default function AccountsPage() {
 
   const fetchAccounts = async () => {
     try {
+      setLoading(true)
+      loadingStartTime.current = Date.now()
       const response = await apiGet("/settings/accounts")
       if (response && response.success) {
         setAccounts(response.data || [])
@@ -72,6 +76,9 @@ export default function AccountsPage() {
       }
     } finally {
       setLoading(false)
+      setTimeout(() => {
+        loadingStartTime.current = null
+      }, 500)
     }
   }
 
@@ -228,12 +235,20 @@ export default function AccountsPage() {
           </button>
         </div>
 
+        {loading && loadingStartTime.current && (
+          <SmartLoadingProgress
+            message={t.accounts.loading || "正在加载账号列表..."}
+            loading={loading}
+            startTime={loadingStartTime.current}
+          />
+        )}
+
         <Card className="glass border border-border/50 shadow-xl">
           <CardHeader>
             <CardTitle>{t.accounts.configuredAccounts}</CardTitle>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {loading && !loadingStartTime.current ? (
               <div className="flex items-center justify-center h-40">
                 <div className="animate-pulse">{t.common.loading}</div>
               </div>
@@ -559,6 +574,7 @@ export default function AccountsPage() {
     </DashboardLayout>
   )
 }
+
 
 
 

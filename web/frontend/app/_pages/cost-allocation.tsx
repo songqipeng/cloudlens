@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts"
 import { toastError, toastSuccess } from "@/components/ui/toast"
+import { SmartLoadingProgress } from "@/components/loading-progress"
 
 interface AllocationRule {
   id: string
@@ -49,6 +50,7 @@ export default function CostAllocationPage() {
   const [loading, setLoading] = useState(true)
   const [editingRule, setEditingRule] = useState<AllocationRule | null>(null)
   const [activeTab, setActiveTab] = useState<"rules" | "results">("rules")
+  const loadingStartTime = useRef<number | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -57,6 +59,7 @@ export default function CostAllocationPage() {
   const fetchData = async () => {
     try {
       setLoading(true)
+      loadingStartTime.current = Date.now()
       const [rulesRes, resultsRes] = await Promise.all([
         apiGet("/cost-allocation/rules", { account: currentAccount }),
         apiGet("/cost-allocation/results", { limit: 50 })
@@ -73,6 +76,9 @@ export default function CostAllocationPage() {
       console.error("Failed to fetch cost allocation data:", e)
     } finally {
       setLoading(false)
+      setTimeout(() => {
+        loadingStartTime.current = null
+      }, 500)
     }
   }
 
@@ -544,6 +550,7 @@ function AllocationRuleEditor({
     </div>
   )
 }
+
 
 
 

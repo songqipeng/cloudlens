@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
 import { toastError, toastSuccess } from "@/components/ui/toast"
+import { SmartLoadingProgress } from "@/components/loading-progress"
 
 interface AlertThreshold {
   percentage: number
@@ -59,6 +60,7 @@ export default function BudgetsPage() {
   const [selectedBudget, setSelectedBudget] = useState<string | null>(null)
   const [budgetStatus, setBudgetStatus] = useState<Record<string, BudgetStatus>>({})
   const [trendData, setTrendData] = useState<Record<string, any[]>>({})
+  const loadingStartTime = useRef<number | null>(null)
 
   useEffect(() => {
     fetchBudgets()
@@ -67,6 +69,7 @@ export default function BudgetsPage() {
   const fetchBudgets = async () => {
     try {
       setLoading(true)
+      loadingStartTime.current = Date.now()
       const response = await apiGet("/budgets", { account: currentAccount || undefined })
       if (response.success) {
         setBudgets(response.data || [])
@@ -80,6 +83,9 @@ export default function BudgetsPage() {
       console.error("Failed to fetch budgets:", e)
     } finally {
       setLoading(false)
+      setTimeout(() => {
+        loadingStartTime.current = null
+      }, 500)
     }
   }
 
@@ -207,7 +213,7 @@ export default function BudgetsPage() {
     }
   }
 
-  if (loading) {
+  if (loading && !loadingStartTime.current) {
     return (
       <DashboardLayout>
         <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
@@ -237,6 +243,14 @@ export default function BudgetsPage() {
             {t.budget.createBudget}
           </Button>
         </div>
+
+        {loading && loadingStartTime.current && (
+          <SmartLoadingProgress
+            message={t.budget.loading || "正在加载预算列表..."}
+            loading={loading}
+            startTime={loadingStartTime.current}
+          />
+        )}
 
         {/* 搜索栏 */}
         <div className="relative">
@@ -644,6 +658,7 @@ function BudgetEditor({
     </div>
   )
 }
+
 
 
 
