@@ -5183,10 +5183,14 @@ def get_budget_trend(
             end_cycle = end_date.strftime('%Y-%m')
             
             # 先查询有 billing_date 的数据
+            # 关键修复：需要查询subscription_type和service_period字段，以便按服务时长分摊费用
             rows = db.query("""
                 SELECT 
                     billing_date as date,
-                    SUM(pretax_amount) as spent
+                    subscription_type,
+                    service_period,
+                    service_period_unit,
+                    pretax_amount
                 FROM bill_items
                 WHERE account_id = ?
                     AND pretax_amount IS NOT NULL
@@ -5195,7 +5199,6 @@ def get_budget_trend(
                     AND billing_date != ''
                     AND billing_date >= ? 
                     AND billing_date <= ?
-                GROUP BY billing_date
                 ORDER BY billing_date ASC
             """, (account_id, start_date_str, end_date_str))
             
