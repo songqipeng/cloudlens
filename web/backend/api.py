@@ -5344,6 +5344,17 @@ def get_budget_trend(
                         service_period = row.get('service_period') if isinstance(row, dict) else (row[2] if len(row) > 2 else '')
                         service_period_unit = row.get('service_period_unit') if isinstance(row, dict) else (row[3] if len(row) > 3 else '')
                         
+                        # 关键修复：Subscription类型可能PretaxAmount为0，需要使用PretaxGrossAmount
+                        # 注意：如果pretax_gross_amount字段不存在，使用pretax_amount
+                        if sub_type == 'Subscription':
+                            try:
+                                gross_amount = float(row.get('pretax_gross_amount') or 0) if isinstance(row, dict) else (float(row[5] or 0) if len(row) > 5 else 0)
+                                if gross_amount > 0:
+                                    amount = gross_amount
+                            except (IndexError, ValueError, TypeError):
+                                # 如果字段不存在或无法解析，继续使用pretax_amount
+                                pass
+                        
                         # 确保日期格式正确
                         if date_str and len(date_str) >= 10:
                             date_str = date_str[:10]  # 只取 YYYY-MM-DD 部分
@@ -5351,7 +5362,7 @@ def get_budget_trend(
                             continue
                         
                         # 按服务时长分摊费用
-                        if sub_type == 'Subscription' and service_period and service_period_unit:
+                        if sub_type == 'Subscription' and service_period and service_period_unit and amount > 0:
                             try:
                                 period_value = float(service_period)
                                 
