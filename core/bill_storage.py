@@ -137,44 +137,26 @@ class BillStorageManager:
             
             # 批量插入
             if all_values:
-                if self.db_type == "mysql":
-                    # MySQL使用ON DUPLICATE KEY UPDATE
-                    sql = f"""
-                        INSERT INTO bill_items (
-                            account_id, billing_cycle, billing_date,
-                            product_name, product_code, product_type, subscription_type,
-                            pricing_unit, `usage`, list_price, list_price_unit,
-                            invoice_discount, pretax_amount,
-                            deducted_by_coupons, deducted_by_cash_coupons,
-                            deducted_by_prepaid_card, payment_amount,
-                            outstanding_amount, currency,
-                            nick_name, resource_group, tag,
-                            instance_id, instance_config, internet_ip, intranet_ip,
-                            region, zone, item, cost_unit, billing_item,
-                            pip_code, service_period, service_period_unit,
-                            raw_data
-                        ) VALUES ({', '.join([placeholder] * 35)})
-                        ON DUPLICATE KEY UPDATE
-                            updated_at = CURRENT_TIMESTAMP
-                    """
-                else:
-                    # MySQL使用INSERT IGNORE（已废弃SQLite）
-                    sql = f"""
-                        INSERT OR IGNORE INTO bill_items (
-                            account_id, billing_cycle, billing_date,
-                            product_name, product_code, product_type, subscription_type,
-                            pricing_unit, usage, list_price, list_price_unit,
-                            invoice_discount, pretax_amount,
-                            deducted_by_coupons, deducted_by_cash_coupons,
-                            deducted_by_prepaid_card, payment_amount,
-                            outstanding_amount, currency,
-                            nick_name, resource_group, tag,
-                            instance_id, instance_config, internet_ip, intranet_ip,
-                            region, zone, item, cost_unit, billing_item,
-                            pip_code, service_period, service_period_unit,
-                            raw_data
-                        ) VALUES ({', '.join([placeholder] * 35)})
-                    """
+                # 只使用MySQL（SQLite已废弃）
+                # MySQL使用ON DUPLICATE KEY UPDATE
+                sql = f"""
+                    INSERT INTO bill_items (
+                        account_id, billing_cycle, billing_date,
+                        product_name, product_code, product_type, subscription_type,
+                        pricing_unit, `usage`, list_price, list_price_unit,
+                        invoice_discount, pretax_amount,
+                        deducted_by_coupons, deducted_by_cash_coupons,
+                        deducted_by_prepaid_card, payment_amount,
+                        outstanding_amount, currency,
+                        nick_name, resource_group, tag,
+                        instance_id, instance_config, internet_ip, intranet_ip,
+                        region, zone, item, cost_unit, billing_item,
+                        pip_code, service_period, service_period_unit,
+                        raw_data
+                    ) VALUES ({', '.join([placeholder] * 35)})
+                    ON DUPLICATE KEY UPDATE
+                        updated_at = CURRENT_TIMESTAMP
+                """
                 
                 # 分批执行（避免单次插入过多数据）
                 for i in range(0, len(all_values), batch_size):
