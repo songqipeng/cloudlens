@@ -5199,63 +5199,11 @@ def get_budget_trend(
                 ORDER BY billing_date ASC
             """, (account_id, start_date_str, end_date_str))
             
-            # 如果结果为空或很少，尝试使用 billing_cycle 匹配
+            # 如果结果为空，说明没有按日期的账单数据
+            # 这种情况下，我们不应该按比例分配（因为不准确），而是返回空数据或提示需要同步账单
             if not rows or len(rows) == 0:
-                # 查询按账期匹配的数据
-                cycle_rows = db.query("""
-                    SELECT 
-                        billing_cycle as cycle,
-                        SUM(pretax_amount) as spent
-                    FROM bill_items
-                    WHERE account_id = ?
-                        AND pretax_amount IS NOT NULL
-                        AND pretax_amount > 0
-                        AND (billing_date IS NULL OR billing_date = '')
-                        AND billing_cycle >= ?
-                        AND billing_cycle <= ?
-                    GROUP BY billing_cycle
-                    ORDER BY billing_cycle ASC
-                """, (account_id, start_cycle, end_cycle))
-                
-                # 将按账期的数据按比例分配到每一天
-                for cycle_row in cycle_rows:
-                    cycle = cycle_row.get('cycle') if isinstance(cycle_row, dict) else cycle_row[0]
-                    cycle_spent = float(cycle_row.get('spent', 0) if isinstance(cycle_row, dict) else cycle_row[1])
-                    
-                    # 计算该账期在预算周期内的天数
-                    cycle_start = datetime.strptime(f"{cycle}-01", "%Y-%m-%d")
-                    if cycle[:4] == "2025" and cycle[5:7] == "12":
-                        cycle_end = datetime(2025, 12, 31)
-                    else:
-                        if int(cycle[5:7]) == 12:
-                            cycle_end = datetime(int(cycle[:4]) + 1, 1, 1) - timedelta(days=1)
-                        else:
-                            cycle_end = datetime(int(cycle[:4]), int(cycle[5:7]) + 1, 1) - timedelta(days=1)
-                    
-                    # 计算预算周期在该账期内的范围
-                    budget_start_in_cycle = max(start_date, cycle_start)
-                    budget_end_in_cycle = min(end_date, cycle_end)
-                    
-                    cycle_days = (cycle_end - cycle_start).days + 1
-                    budget_days_in_cycle = (budget_end_in_cycle - budget_start_in_cycle).days + 1
-                    
-                    if cycle_days > 0 and budget_days_in_cycle > 0:
-                        # 按比例计算预算周期内的金额
-                        budget_portion = cycle_spent * (budget_days_in_cycle / cycle_days)
-                        daily_amount = budget_portion / budget_days_in_cycle if budget_days_in_cycle > 0 else 0
-                        
-                        # 为预算周期内的每一天生成数据点
-                        current_day = budget_start_in_cycle
-                        while current_day <= budget_end_in_cycle:
-                            date_str = current_day.strftime('%Y-%m-%d')
-                            # 检查是否已存在该日期的数据
-                            existing = next((r for r in rows if (r.get('date') if isinstance(r, dict) else r[0]) == date_str), None)
-                            if not existing:
-                                rows.append({
-                                    'date': date_str,
-                                    'spent': daily_amount
-                                })
-                            current_day += timedelta(days=1)
+                logger.warning(f"没有找到 {start_date_str} 至 {end_date_str} 期间的按日账单数据（billing_date），无法显示真实的每日消费趋势")
+                logger.info("提示：需要同步账单数据（包含 billing_date 字段）才能显示准确的每日消费趋势")
             
             # 转换为趋势数据格式：显示每天的实际消费，而不是累计消费
             trend_dict = {}
