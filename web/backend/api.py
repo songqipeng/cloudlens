@@ -5257,7 +5257,7 @@ def get_budget_trend(
                                 })
                             current_day += timedelta(days=1)
             
-            # 转换为趋势数据格式，并确保每天都有数据点
+            # 转换为趋势数据格式：显示每天的实际消费，而不是累计消费
             trend_dict = {}
             for row in rows:
                 date_str = row.get('date') if isinstance(row, dict) else row[0]
@@ -5269,36 +5269,28 @@ def get_budget_trend(
                 else:
                     continue
                 
-                # 累加同一天的支出（如果有重复）
+                # 累加同一天的支出（如果有重复数据）
                 if date_str in trend_dict:
                     trend_dict[date_str] += spent
                 else:
                     trend_dict[date_str] = spent
             
-            # 填充缺失的日期，使用前一天的累计值（保持数据连续性）
+            # 填充缺失的日期，显示每天的实际消费
             trend_data = []
-            cumulative_spent = 0.0
             current_date = start_date
             
             while current_date <= end_date:
                 date_str = current_date.strftime('%Y-%m-%d')
                 
-                # 如果当天有数据，使用当天的支出；否则使用0（不累加）
-                if date_str in trend_dict:
-                    daily_spent = trend_dict[date_str]
-                    cumulative_spent += daily_spent
-                else:
-                    # 如果当天没有数据，使用前一天的累计值（保持连续性）
-                    daily_spent = 0
+                # 如果当天有数据，使用当天的实际消费；否则使用0
+                daily_spent = trend_dict.get(date_str, 0.0)
                 
                 trend_data.append({
                     'date': date_str,
-                    'spent': cumulative_spent  # 使用累计值，而不是每日值
+                    'spent': daily_spent  # 使用每天的实际消费，而不是累计值
                 })
                 
                 current_date += timedelta(days=1)
-            
-            # 使用累计值，让前端显示累计趋势（更符合预算监控的需求）
             
         except Exception as e:
             logger.error(f"获取预算趋势数据失败: {e}")

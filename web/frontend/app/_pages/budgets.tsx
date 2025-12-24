@@ -463,7 +463,7 @@ export default function BudgetsPage() {
                               tickFormatter={(value) => `¥${(value / 1000).toFixed(0)}k`}
                             />
                             <Tooltip
-                              formatter={(value: any) => [`¥${Number(value).toLocaleString()}`, t.budget.spending]}
+                              formatter={(value: any) => [`¥${Number(value).toLocaleString()}`, "每日消费"]}
                               labelFormatter={(label) => `${t.budget.date} ${label}`}
                               contentStyle={{
                                 backgroundColor: "rgba(17, 24, 39, 0.95)",
@@ -479,7 +479,7 @@ export default function BudgetsPage() {
                             <Area
                               type="monotone"
                               dataKey="spent"
-                              name="实际支出"
+                              name="每日消费"
                               stroke="#3b82f6"
                               strokeWidth={2}
                               fill="url(#spentGradient)"
