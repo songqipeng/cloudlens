@@ -5206,8 +5206,8 @@ def get_budget_trend(
             logger.info(f"预算趋势查询: account_id={account_id}, 日期范围={start_date_str}至{end_date_str}, 查询结果={len(rows) if rows else 0}条")
             
             # 优先从BSS接口获取最新数据（确保数据准确性）
-            # 如果MySQL中没有数据，或者数据可能不完整，直接从BSS接口获取
-            should_fetch_from_bss = not rows or len(rows) == 0
+            # 暂时总是从BSS接口获取，因为MySQL中的数据可能不准确
+            should_fetch_from_bss = True  # 强制从BSS接口获取
             
             if should_fetch_from_bss:
                 logger.info(f"从BSS接口获取最新账单数据: {account}, {start_date_str} 至 {end_date_str}")
