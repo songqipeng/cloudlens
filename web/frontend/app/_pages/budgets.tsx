@@ -368,7 +368,7 @@ export default function BudgetsPage() {
                             {status.days_elapsed} / {status.days_total} {t.budget.days}
                           </span>
                         </div>
-                        <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
+                        <div className="w-full bg-muted rounded-full h-3 overflow-hidden relative">
                           <div
                             className={`h-full transition-all ${
                               usageRate >= 100
@@ -381,7 +381,15 @@ export default function BudgetsPage() {
                             }`}
                             style={{ width: `${Math.min(usageRate, 100)}%` }}
                           />
+                          {usageRate > 100 && (
+                            <div className="absolute inset-0 bg-red-600 opacity-30" style={{ width: '100%' }} />
+                          )}
                         </div>
+                        {usageRate > 100 && (
+                          <div className="text-xs text-red-500 mt-1 font-medium">
+                            已超支 ¥{((usageRate - 100) / 100 * budget.amount).toLocaleString()} ({usageRate.toFixed(1)}%)
+                          </div>
+                        )}
                       </div>
                     )}
 
