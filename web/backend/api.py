@@ -1,11 +1,17 @@
 
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Body
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Body, Depends, Request
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import sys
 import logging
 
 logger = logging.getLogger(__name__)
+
+# 创建限流器（使用 IP 地址作为 key）
+limiter = Limiter(key_func=get_remote_address)
 from core.config import ConfigManager, CloudAccount
 from web.backend.i18n import get_translation, get_locale_from_request, Locale
 from core.context import ContextManager
@@ -56,8 +62,9 @@ class TriggerAnalysisRequest(BaseModel):
     force: bool = True
 
 @router.get("/accounts")
-def list_accounts() -> List[Dict]:
-    """List all configured accounts"""
+@limiter.limit("100/minute")
+def list_accounts(request: Request) -> List[Dict]:
+    """List all configured accounts (限流: 100次/分钟)"""
     cm = ConfigManager()
     accounts = cm.list_accounts()
     result = []

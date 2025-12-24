@@ -27,7 +27,11 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import logging
+import os
 
 # 配置日志
 logging.basicConfig(
@@ -46,13 +50,24 @@ app = FastAPI(
     openapi_url="/openapi.json"
 )
 
-# CORS 配置
+# API 限流配置（全局）
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS 配置（优化：支持环境变量配置）
+cors_origins = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # 导入并注册路由
@@ -83,6 +98,20 @@ try:
     logger.info("AI optimizer router registered")
 except Exception as e:
     logger.warning(f"Failed to register AI optimizer router: {e}")
+
+try:
+    from web.backend.api_auth import router as auth_router
+    app.include_router(auth_router)
+    logger.info("Auth router registered")
+except Exception as e:
+    logger.warning(f"Failed to register auth router: {e}")
+
+try:
+    from web.backend.api_backup import router as backup_router
+    app.include_router(backup_router)
+    logger.info("Backup router registered")
+except Exception as e:
+    logger.warning(f"Failed to register backup router: {e}")
 
 # OpenAPI 自定义配置
 def custom_openapi():

@@ -45,3 +45,8 @@ structlog>=23.1.0
 structlog
 scikit-learn
 numpy
+
+# 安全相关
+PyJWT>=2.8.0
+slowapi>=0.1.9
+cryptography>=41.0.0

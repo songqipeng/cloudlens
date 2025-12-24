@@ -21,6 +21,7 @@ from core.resource_converter import (
 )
 from core.security import PermissionGuard
 from core.error_handler import handle_provider_errors
+from core.performance import monitor_api_call
 from models.resource import ResourceStatus, ResourceType, UnifiedResource
 
 logger = logging.getLogger("AliyunProvider")
@@ -51,6 +52,7 @@ class AliyunProvider(BaseProvider):
         response = client.do_action_with_exception(request)
         return json.loads(response)
 
+    @monitor_api_call
     @handle_provider_errors
     def list_instances(self):
         """列出ECS实例（支持分页）"""
@@ -102,8 +104,8 @@ class AliyunProvider(BaseProvider):
                     if inst.get("ExpiredTime"):
                         try:
                             expired_time = datetime.strptime(inst["ExpiredTime"], "%Y-%m-%dT%H:%MZ")
-                        except:
-                            pass
+                        except (ValueError, TypeError) as e:
+                            logger.debug(f"Failed to parse ExpiredTime: {inst.get('ExpiredTime')}, error: {e}")
 
                     # 解析标签
                     tags = {}
@@ -148,6 +150,7 @@ class AliyunProvider(BaseProvider):
 
         return resources
 
+    @monitor_api_call
     @handle_provider_errors
     def list_rds(self):
         """列出RDS实例"""
@@ -287,6 +290,7 @@ class AliyunProvider(BaseProvider):
             logger.error(f"Failed to get metrics for {resource_id}: {e}")
             return []
 
+    @monitor_api_call
     def list_redis(self) -> List[UnifiedResource]:
         """列出Redis实例"""
         from aliyunsdkr_kvstore.request.v20150101.DescribeInstancesRequest import (

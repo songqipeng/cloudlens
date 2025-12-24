@@ -93,15 +93,16 @@ class CostPredictor:
                 self.db.execute(
                     "CREATE INDEX idx_cost_history_tenant_date ON cost_history(tenant_name, date)"
                 )
-            except:
-                pass  # 索引可能已存在
-            
+            except Exception as e:
+                # 索引可能已存在，这是正常的
+                logger.debug(f"Index idx_cost_history_tenant_date may already exist: {e}")
+
             try:
                 self.db.execute(
                     "CREATE INDEX idx_predictions_tenant_date ON cost_predictions(tenant_name, prediction_date)"
                 )
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Index idx_predictions_tenant_date may already exist: {e}")
         else:
             # SQLite表结构
             self.db.execute(

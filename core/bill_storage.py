@@ -13,6 +13,7 @@ from typing import List, Dict, Optional, Tuple
 import json
 
 from core.database import DatabaseFactory, DatabaseAdapter
+from core.performance import monitor_db_query
 
 logger = logging.getLogger(__name__)
 
@@ -252,6 +253,7 @@ class BillStorageManager:
             logger.error(f"批量插入失败: {str(e)}")
             raise
     
+    @monitor_db_query
     def query_bill_items(
         self,
         account_id: Optional[str] = None,
@@ -264,7 +266,7 @@ class BillStorageManager:
     ) -> List[Dict]:
         """
         查询账单明细
-        
+
         Args:
             account_id: 账号ID
             billing_cycle: 账期
@@ -273,14 +275,14 @@ class BillStorageManager:
             product_code: 产品代码
             instance_id: 实例ID
             limit: 限制返回数量
-            
+
         Returns:
             账单明细列表
         """
         placeholder = self._get_placeholder()
         conditions = []
         params = []
-        
+
         if account_id:
             conditions.append(f"account_id = {placeholder}")
             params.append(account_id)
@@ -299,12 +301,19 @@ class BillStorageManager:
         if instance_id:
             conditions.append(f"instance_id = {placeholder}")
             params.append(instance_id)
-        
+
         where_clause = " AND ".join(conditions) if conditions else "1=1"
-        limit_clause = f"LIMIT {limit}" if limit else ""
-        
-        sql = f"SELECT * FROM bill_items WHERE {where_clause} ORDER BY billing_date DESC {limit_clause}"
-        
+
+        # 构建SQL（修复SQL注入风险）
+        sql = f"SELECT * FROM bill_items WHERE {where_clause} ORDER BY billing_date DESC"
+        if limit is not None:
+            try:
+                limit_int = int(limit)
+                if limit_int > 0:
+                    sql += f" LIMIT {limit_int}"
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid limit value: {limit}, ignoring")
+
         return self.db.query(sql, tuple(params) if params else None)
     
     def get_storage_stats(self) -> Dict:
