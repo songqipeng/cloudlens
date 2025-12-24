@@ -5307,8 +5307,10 @@ def get_budget_trend(
                                         # 没有ServicePeriod，直接使用账单金额（可能是按量付费的Subscription）
                                         daily_spent += amount
                                 else:
-                                    # PayAsYouGo类型：直接使用账单金额
-                                    amount = float(bill.get('PretaxAmount', 0) or 0)
+                                    # PayAsYouGo类型：优先使用PretaxGrossAmount，如果为0则使用PretaxAmount
+                                    amount = float(bill.get('PretaxGrossAmount', 0) or 0)
+                                    if amount == 0:
+                                        amount = float(bill.get('PretaxAmount', 0) or 0)
                                     daily_spent += amount
                             
                             # 累加到对应日期
