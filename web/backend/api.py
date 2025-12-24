@@ -5183,7 +5183,7 @@ def get_budget_trend(
             end_cycle = end_date.strftime('%Y-%m')
             
             # 先查询有 billing_date 的数据
-            # 关键修复：需要查询subscription_type、service_period和pretax_gross_amount字段，以便按服务时长分摊费用
+            # 关键修复：pretax_gross_amount字段可能不存在，使用COALESCE处理
             rows = db.query("""
                 SELECT 
                     billing_date as date,
@@ -5191,7 +5191,7 @@ def get_budget_trend(
                     service_period,
                     service_period_unit,
                     pretax_amount,
-                    pretax_gross_amount
+                    COALESCE(pretax_gross_amount, pretax_amount) as pretax_gross_amount
                 FROM bill_items
                 WHERE account_id = ?
                     AND (pretax_amount IS NOT NULL AND pretax_amount > 0 
