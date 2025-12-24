@@ -11,6 +11,7 @@ import { Plus, Edit, Trash2, Layout, Share2, Search, Settings } from "lucide-rea
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { toastError, toastSuccess } from "@/components/ui/toast"
+import { useInlineConfirm } from "@/components/ui/inline-confirm"
 
 interface WidgetConfig {
   id: string
@@ -42,6 +43,7 @@ export default function CustomDashboardsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [editingDashboard, setEditingDashboard] = useState<Dashboard | null>(null)
   const [showEditor, setShowEditor] = useState(false)
+  const { showConfirm, ConfirmComponent } = useInlineConfirm()
 
   useEffect(() => {
     fetchDashboards()
@@ -62,17 +64,26 @@ export default function CustomDashboardsPage() {
   }
 
   const handleDelete = async (dashboardId: string) => {
-    if (!confirm("确定要删除这个仪表盘吗？")) return
-
-    try {
-      const response = await apiDelete(`/dashboards/${dashboardId}`)
-      if (response.success) {
-        setDashboards(dashboards.filter(d => d.id !== dashboardId))
+    showConfirm(
+      "确定要删除这个仪表盘吗？",
+      async () => {
+        try {
+          const response = await apiDelete(`/dashboards/${dashboardId}`)
+          if (response.success) {
+            setDashboards(dashboards.filter(d => d.id !== dashboardId))
+            toastSuccess(t.customDashboards.deleteSuccess || "仪表盘已删除")
+          }
+        } catch (e) {
+          toastError(t.customDashboards.deleteFailed)
+          console.error("Failed to delete dashboard:", e)
+        }
+      },
+      {
+        variant: "danger",
+        confirmText: t.common.delete || "删除",
+        cancelText: t.common.cancel || "取消"
       }
-    } catch (e) {
-      toastError(t.customDashboards.deleteFailed)
-      console.error("Failed to delete dashboard:", e)
-    }
+    )
   }
 
   const handleSave = async (dashboardData: any) => {
@@ -114,6 +125,7 @@ export default function CustomDashboardsPage() {
 
   return (
     <DashboardLayout>
+      {ConfirmComponent}
       <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -427,6 +439,7 @@ function DashboardEditor({
     </div>
   )
 }
+
 
 
 

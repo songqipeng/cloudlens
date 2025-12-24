@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts"
 import { toastError, toastSuccess } from "@/components/ui/toast"
 import { SmartLoadingProgress } from "@/components/loading-progress"
+import { useInlineConfirm } from "@/components/ui/inline-confirm"
 
 interface AllocationRule {
   id: string
@@ -51,6 +52,7 @@ export default function CostAllocationPage() {
   const [editingRule, setEditingRule] = useState<AllocationRule | null>(null)
   const [activeTab, setActiveTab] = useState<"rules" | "results">("rules")
   const loadingStartTime = useRef<number | null>(null)
+  const { showConfirm, ConfirmComponent } = useInlineConfirm()
 
   useEffect(() => {
     fetchData()
@@ -83,19 +85,26 @@ export default function CostAllocationPage() {
   }
 
   const handleDeleteRule = async (ruleId: string) => {
-    if (!confirm(t.costAllocation.deleteConfirm)) {
-      return
-    }
-
-    try {
-      const response = await apiDelete(`/cost-allocation/rules/${ruleId}`)
-      if (response.success) {
-        await fetchData()
+    showConfirm(
+      t.costAllocation.deleteConfirm,
+      async () => {
+        try {
+          const response = await apiDelete(`/cost-allocation/rules/${ruleId}`)
+          if (response.success) {
+            await fetchData()
+            toastSuccess(t.costAllocation.deleteSuccess || "成本分配规则已删除")
+          }
+        } catch (e) {
+          toastError(t.costAllocation.deleteFailed)
+          console.error("Failed to delete rule:", e)
+        }
+      },
+      {
+        variant: "danger",
+        confirmText: t.common.delete || "删除",
+        cancelText: t.common.cancel || "取消"
       }
-    } catch (e) {
-      toastError(t.costAllocation.deleteFailed)
-      console.error("Failed to delete rule:", e)
-    }
+    )
   }
 
   const handleExecuteRule = async (ruleId: string) => {
@@ -135,6 +144,7 @@ export default function CostAllocationPage() {
 
   return (
     <DashboardLayout>
+      {ConfirmComponent}
       <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
         {/* 头部 */}
         <div className="flex items-center justify-between">

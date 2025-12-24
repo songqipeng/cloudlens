@@ -55,10 +55,10 @@ export default function BudgetPage() {
         monthly_budget: monthlyBudget,
         annual_budget: annualBudget,
       })
-      alert(t.budget.saveSuccess)
+      toastSuccess(t.budget.saveSuccess)
       fetchBudget()
     } catch (e) {
-      alert(t.budget.saveFailed)
+      toastError(t.budget.saveFailed)
     } finally {
       setSaving(false)
     }
@@ -151,6 +151,7 @@ export default function BudgetPage() {
     </DashboardLayout>
   )
 }
+
 
 
 

@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
 import { toastError, toastSuccess } from "@/components/ui/toast"
+import { useInlineConfirm } from "@/components/ui/inline-confirm"
 import { SmartLoadingProgress } from "@/components/loading-progress"
 
 interface AlertThreshold {
@@ -61,6 +62,8 @@ export default function BudgetsPage() {
   const [budgetStatus, setBudgetStatus] = useState<Record<string, BudgetStatus>>({})
   const [trendData, setTrendData] = useState<Record<string, any[]>>({})
   const loadingStartTime = useRef<number | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const { showConfirm, ConfirmComponent } = useInlineConfirm()
 
   useEffect(() => {
     fetchBudgets()
@@ -118,23 +121,35 @@ export default function BudgetsPage() {
   }
 
   const handleDelete = async (budgetId: string) => {
-    if (!confirm(t.budget.deleteConfirm)) return
-
-    try {
-      const response = await apiDelete(`/budgets/${budgetId}`)
-      if (response.success) {
-        setBudgets(budgets.filter(b => b.id !== budgetId))
-        const newStatus = { ...budgetStatus }
-        delete newStatus[budgetId]
-        setBudgetStatus(newStatus)
-        const newTrend = { ...trendData }
-        delete newTrend[budgetId]
-        setTrendData(newTrend)
+    setDeleteTarget(budgetId)
+    showConfirm(
+      t.budget.deleteConfirm,
+      async () => {
+        try {
+          const response = await apiDelete(`/budgets/${budgetId}`)
+          if (response.success) {
+            setBudgets(budgets.filter(b => b.id !== budgetId))
+            const newStatus = { ...budgetStatus }
+            delete newStatus[budgetId]
+            setBudgetStatus(newStatus)
+            const newTrend = { ...trendData }
+            delete newTrend[budgetId]
+            setTrendData(newTrend)
+            toastSuccess(t.budget.deleteSuccess || "预算已删除")
+          }
+        } catch (e) {
+          toastError(t.budget.deleteFailed)
+          console.error("Failed to delete budget:", e)
+        } finally {
+          setDeleteTarget(null)
+        }
+      },
+      {
+        variant: "danger",
+        confirmText: t.common.delete || "删除",
+        cancelText: t.common.cancel || "取消"
       }
-    } catch (e) {
-      toastError(t.budget.deleteFailed)
-      console.error("Failed to delete budget:", e)
-    }
+    )
   }
 
   const handleSave = async (budgetData: any) => {
@@ -226,6 +241,7 @@ export default function BudgetsPage() {
 
   return (
     <DashboardLayout>
+      {ConfirmComponent}
       <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>

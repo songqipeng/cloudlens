@@ -8,8 +8,9 @@ import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api"
 import { Plus, Edit, Trash2, Eye, Search } from "lucide-react"
-import { toastError } from "@/components/ui/toast"
+import { toastError, toastSuccess } from "@/components/ui/toast"
 import { SmartLoadingProgress } from "@/components/loading-progress"
+import { useInlineConfirm } from "@/components/ui/inline-confirm"
 
 interface TagRule {
   id?: string
@@ -39,6 +40,7 @@ export default function VirtualTagsPage() {
   const [editingTag, setEditingTag] = useState<VirtualTag | null>(null)
   const [showPreview, setShowPreview] = useState<string | null>(null)
   const loadingStartTime = useRef<number | null>(null)
+  const { showConfirm, ConfirmComponent } = useInlineConfirm()
 
   useEffect(() => {
     fetchTags()
@@ -63,16 +65,25 @@ export default function VirtualTagsPage() {
   }
 
   const handleDelete = async (tagId: string) => {
-    if (!confirm(t.virtualTags.deleteConfirm)) return
-    
-    try {
-      const response = await apiDelete(`/virtual-tags/${tagId}`)
-      if (response.success) {
-        await fetchTags()
+    showConfirm(
+      t.virtualTags.deleteConfirm,
+      async () => {
+        try {
+          const response = await apiDelete(`/virtual-tags/${tagId}`)
+          if (response.success) {
+            await fetchTags()
+            toastSuccess(t.virtualTags.deleteSuccess || "虚拟标签已删除")
+          }
+        } catch (e) {
+          toastError(t.virtualTags.deleteFailed)
+        }
+      },
+      {
+        variant: "danger",
+        confirmText: t.common.delete || "删除",
+        cancelText: t.common.cancel || "取消"
       }
-    } catch (e) {
-      toastError(t.virtualTags.deleteFailed)
-    }
+    )
   }
 
   const handlePreview = async (tagId: string) => {

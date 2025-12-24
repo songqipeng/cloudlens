@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { toastError, toastSuccess, toastInfo } from "@/components/ui/toast"
 import { SmartLoadingProgress } from "@/components/loading-progress"
+import { useInlineConfirm } from "@/components/ui/inline-confirm"
 
 interface AlertRule {
   id: string
@@ -56,6 +57,7 @@ export default function AlertsPage() {
   const [editingRule, setEditingRule] = useState<AlertRule | null>(null)
   const [activeTab, setActiveTab] = useState<"rules" | "alerts">("rules")
   const loadingStartTime = useRef<number | null>(null)
+  const { showConfirm, ConfirmComponent } = useInlineConfirm()
 
   useEffect(() => {
     fetchData()
@@ -88,19 +90,26 @@ export default function AlertsPage() {
   }
 
   const handleDeleteRule = async (ruleId: string) => {
-    if (!confirm(t.alerts.deleteConfirm)) {
-      return
-    }
-
-    try {
-      const response = await apiDelete(`/alerts/rules/${ruleId}`)
-      if (response.success) {
-        await fetchData()
+    showConfirm(
+      t.alerts.deleteConfirm,
+      async () => {
+        try {
+          const response = await apiDelete(`/alerts/rules/${ruleId}`)
+          if (response.success) {
+            await fetchData()
+            toastSuccess(t.alerts.deleteSuccess || "告警规则已删除")
+          }
+        } catch (e) {
+          toastError(t.alerts.deleteFailed)
+          console.error("Failed to delete rule:", e)
+        }
+      },
+      {
+        variant: "danger",
+        confirmText: t.common.delete || "删除",
+        cancelText: t.common.cancel || "取消"
       }
-    } catch (e) {
-      alert(t.alerts.deleteFailed)
-      console.error("Failed to delete rule:", e)
-    }
+    )
   }
 
   const handleToggleRule = async (rule: AlertRule) => {
@@ -207,6 +216,7 @@ export default function AlertsPage() {
 
   return (
     <DashboardLayout>
+      {ConfirmComponent}
       <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
         {/* 头部 */}
         <div className="flex items-center justify-between">
