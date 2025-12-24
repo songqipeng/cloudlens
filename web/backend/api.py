@@ -5207,6 +5207,7 @@ def get_budget_trend(
             
             # 优先从BSS接口获取最新数据（确保数据准确性）
             # 暂时总是从BSS接口获取，因为MySQL中的数据可能不准确
+            # 关键修复：即使MySQL查询成功，也强制从BSS接口获取，确保数据准确性
             should_fetch_from_bss = True  # 强制从BSS接口获取
             
             if should_fetch_from_bss:
