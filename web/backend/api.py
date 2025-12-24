@@ -5365,10 +5365,9 @@ def get_budget_trend(
                             trend_dict[date_str] = spent
                 # 否则，需要从MySQL数据重新计算
                 elif isinstance(first_row, dict) and 'subscription_type' in first_row:
-                first_row = rows[0]
-                has_detailed_fields = isinstance(first_row, dict) and 'subscription_type' in first_row
-                
-                if has_detailed_fields:
+                    has_detailed_fields = isinstance(first_row, dict) and 'subscription_type' in first_row
+                    
+                    if has_detailed_fields:
                     # 详细格式：需要按服务时长分摊
                     for row in rows:
                         date_str = row.get('date') if isinstance(row, dict) else row[0]
