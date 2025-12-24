@@ -5233,12 +5233,53 @@ def get_budget_trend(
                         )
                         
                         # 直接从BSS接口返回的数据构建趋势数据，不依赖MySQL
+                        # 关键修复：按资源实际使用时长分摊费用，而不是直接使用账单金额
                         trend_dict = {}
                         for date_str, bills in daily_bills.items():
                             if bills:
-                                # 计算当天的总消费
-                                daily_spent = sum(float(bill.get('PretaxAmount', 0) or 0) for bill in bills)
+                                daily_spent = 0.0
+                                
+                                for bill in bills:
+                                    amount = float(bill.get('PretaxAmount', 0) or 0)
+                                    sub_type = bill.get('SubscriptionType', '')
+                                    service_period = bill.get('ServicePeriod', '')
+                                    service_period_unit = bill.get('ServicePeriodUnit', '')
+                                    
+                                    if sub_type == 'Subscription' and service_period and service_period_unit:
+                                        # 包年包月：需要将费用分摊到每一天
+                                        try:
+                                            period_value = float(service_period)
+                                            
+                                            # 将服务时长转换为天数
+                                            if service_period_unit == '年' or service_period_unit.lower() == 'year':
+                                                days = period_value * 365
+                                            elif service_period_unit == '月' or service_period_unit.lower() == 'month':
+                                                days = period_value * 30  # 简化处理，按30天计算
+                                            elif service_period_unit == '日' or service_period_unit.lower() == 'day':
+                                                days = period_value
+                                            elif service_period_unit == '小时' or service_period_unit.lower() == 'hour':
+                                                days = period_value / 24
+                                            elif service_period_unit == '秒' or service_period_unit.lower() == 'second':
+                                                days = period_value / 86400
+                                            else:
+                                                # 未知单位，默认按30天处理
+                                                days = 30
+                                            
+                                            # 计算每天的费用
+                                            if days > 0:
+                                                daily_cost = amount / days
+                                                daily_spent += daily_cost
+                                            else:
+                                                daily_spent += amount
+                                        except (ValueError, TypeError):
+                                            # 如果无法解析，直接使用账单金额
+                                            daily_spent += amount
+                                    else:
+                                        # PayAsYouGo（按量付费）：直接使用账单金额，因为已经是按使用量计费的
+                                        daily_spent += amount
+                                
                                 trend_dict[date_str] = daily_spent
+                                logger.debug(f"BSS接口 {date_str}: {len(bills)} 条记录, 每日消费 ¥{daily_spent:,.2f} (已按服务时长分摊)")
                                 
                                 # 同时保存到MySQL数据库（异步，不阻塞返回）
                                 try:
