@@ -181,10 +181,11 @@ class BudgetCalculator:
     
     @staticmethod
     def calculate_usage_rate(spent: float, budget: float) -> float:
-        """计算使用率"""
+        """计算使用率（允许超过100%，表示超支）"""
         if budget == 0:
             return 0.0
-        return min((spent / budget) * 100, 100.0)
+        # 允许超过100%，以正确反映超支情况
+        return (spent / budget) * 100
     
     @staticmethod
     def predict_spend(
