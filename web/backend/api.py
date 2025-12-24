@@ -5463,11 +5463,14 @@ def get_budget_trend(
             
         except Exception as e:
             logger.error(f"获取预算趋势数据失败: {e}")
-            # 如果查询失败，尝试从 budget_records 获取历史记录
-            history = _budget_storage.get_spend_history(budget_id, days)
+            import traceback
+            logger.error(traceback.format_exc())
+            # 关键修复：不再使用budget_records表中的历史数据，因为数据可能不准确
+            # 返回空数据，提示用户需要同步账单数据
             return {
                 "success": True,
-                "data": history
+                "data": [],
+                "note": "无法获取预算趋势数据，请同步账单数据（包含 billing_date 字段）以显示准确的每日消费趋势。"
             }
         
         # 如果从账单表获取的数据为空或全为0，说明没有真实的每日消费数据
