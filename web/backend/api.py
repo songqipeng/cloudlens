@@ -5249,26 +5249,16 @@ def get_budget_trend(
                 "data": history
             }
         
-        # 如果从账单表获取的数据为空，尝试从 budget_records 获取历史记录
+        # 如果从账单表获取的数据为空或全为0，说明没有真实的每日消费数据
+        # 预算历史记录存储的是累计值，不适合用于显示每日消费趋势
         if not trend_data or all(item.get('spent', 0) == 0 for item in trend_data):
-            logger.info("账单数据为空或全为0，尝试从预算历史记录获取")
-            try:
-                history = _budget_storage.get_spend_history(budget_id, days)
-                if history and len(history) > 0:
-                    return {
-                        "success": True,
-                        "data": history,
-                        "note": "数据来源：预算历史记录（非实时账单数据）"
-                    }
-            except Exception as e:
-                logger.warning(f"获取预算历史记录失败: {e}")
-            
-            # 如果历史记录也没有，返回空数据并提示
-            logger.warning("无法获取预算趋势数据：既没有账单数据，也没有历史记录")
+            logger.warning("无法获取预算趋势数据：没有找到按日期的账单数据（billing_date）")
+            logger.info("提示：需要同步账单数据（包含 billing_date 字段）才能显示准确的每日消费趋势")
+            # 返回空数据并提示用户需要同步账单数据
             return {
                 "success": True,
                 "data": trend_data if trend_data else [],
-                "note": "暂无数据，请同步账单数据（包含 billing_date 字段）以显示每日消费趋势"
+                "note": "暂无数据，请同步账单数据（包含 billing_date 字段）以显示每日消费趋势。如果资源没有变化，每天的消费应该是一样的。"
             }
         
         return {
