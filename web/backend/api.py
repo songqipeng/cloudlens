@@ -5330,6 +5330,10 @@ def get_budget_trend(
                             # 调试：输出前3天的数据
                             for row in rows[:3]:
                                 logger.info(f"  {row.get('date')}: ¥{row.get('spent', 0):,.2f}")
+                            
+                            # 调试：检查数据是否正确
+                            total_spent = sum(row.get('spent', 0) for row in rows)
+                            logger.info(f"  总费用: ¥{total_spent:,.2f}, 平均每天: ¥{total_spent/len(rows):,.2f}")
                         else:
                             logger.warning("从BSS接口获取后，仍然没有数据")
                     else:
@@ -5349,12 +5353,17 @@ def get_budget_trend(
                 first_row = rows[0]
                 # 如果已经是处理好的格式（从BSS接口获取的），直接使用
                 if isinstance(first_row, dict) and 'date' in first_row and 'spent' in first_row:
+                    logger.info(f"使用BSS接口返回的处理好的数据，共 {len(rows)} 条")
                     for row in rows:
                         date_str = row.get('date', '')
                         spent = float(row.get('spent', 0) or 0)
                         if date_str and len(date_str) >= 10:
                             date_str = date_str[:10]
-                            trend_dict[date_str] = spent
+                            # 关键修复：如果已经存在，累加（避免重复）
+                            if date_str in trend_dict:
+                                trend_dict[date_str] += spent
+                            else:
+                                trend_dict[date_str] = spent
                 # 否则，需要从MySQL数据重新计算
                 elif isinstance(first_row, dict) and 'subscription_type' in first_row:
                     # 详细格式：需要按服务时长分摊
