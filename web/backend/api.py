@@ -5317,22 +5317,80 @@ def get_budget_trend(
                     logger.error(traceback.format_exc())
             
             # 转换为趋势数据格式：显示每天的实际消费，而不是累计消费
+            # 关键修复：从MySQL查询的数据也需要按服务时长分摊费用
             trend_dict = {}
-            for row in rows:
-                date_str = row.get('date') if isinstance(row, dict) else row[0]
-                spent = float(row.get('spent') or 0) if isinstance(row, dict) else float(row[1] or 0)
+            
+            # 检查数据格式：如果包含subscription_type字段，说明是详细格式
+            if rows and len(rows) > 0:
+                first_row = rows[0]
+                has_detailed_fields = isinstance(first_row, dict) and 'subscription_type' in first_row
                 
-                # 确保日期格式正确
-                if date_str and len(date_str) >= 10:
-                    date_str = date_str[:10]  # 只取 YYYY-MM-DD 部分
+                if has_detailed_fields:
+                    # 详细格式：需要按服务时长分摊
+                    for row in rows:
+                        date_str = row.get('date') if isinstance(row, dict) else row[0]
+                        amount = float(row.get('pretax_amount') or 0) if isinstance(row, dict) else float(row[4] or 0)
+                        sub_type = row.get('subscription_type') if isinstance(row, dict) else (row[1] if len(row) > 1 else '')
+                        service_period = row.get('service_period') if isinstance(row, dict) else (row[2] if len(row) > 2 else '')
+                        service_period_unit = row.get('service_period_unit') if isinstance(row, dict) else (row[3] if len(row) > 3 else '')
+                        
+                        # 确保日期格式正确
+                        if date_str and len(date_str) >= 10:
+                            date_str = date_str[:10]  # 只取 YYYY-MM-DD 部分
+                        else:
+                            continue
+                        
+                        # 按服务时长分摊费用
+                        if sub_type == 'Subscription' and service_period and service_period_unit:
+                            try:
+                                period_value = float(service_period)
+                                
+                                # 将服务时长转换为天数
+                                if service_period_unit == '年' or service_period_unit.lower() == 'year':
+                                    days = period_value * 365
+                                elif service_period_unit == '月' or service_period_unit.lower() == 'month':
+                                    days = period_value * 30
+                                elif service_period_unit == '日' or service_period_unit.lower() == 'day':
+                                    days = period_value
+                                elif service_period_unit == '小时' or service_period_unit.lower() == 'hour':
+                                    days = period_value / 24
+                                elif service_period_unit == '秒' or service_period_unit.lower() == 'second':
+                                    days = period_value / 86400
+                                else:
+                                    days = 30  # 默认
+                                
+                                if days > 0:
+                                    daily_cost = amount / days
+                                else:
+                                    daily_cost = amount
+                            except (ValueError, TypeError):
+                                daily_cost = amount
+                        else:
+                            # PayAsYouGo：直接使用账单金额
+                            daily_cost = amount
+                        
+                        # 累加同一天的支出
+                        if date_str in trend_dict:
+                            trend_dict[date_str] += daily_cost
+                        else:
+                            trend_dict[date_str] = daily_cost
                 else:
-                    continue
-                
-                # 累加同一天的支出（如果有重复数据）
-                if date_str in trend_dict:
-                    trend_dict[date_str] += spent
-                else:
-                    trend_dict[date_str] = spent
+                    # 旧格式（只有date和spent），直接使用
+                    for row in rows:
+                        date_str = row.get('date') if isinstance(row, dict) else row[0]
+                        spent = float(row.get('spent') or 0) if isinstance(row, dict) else float(row[1] or 0)
+                        
+                        # 确保日期格式正确
+                        if date_str and len(date_str) >= 10:
+                            date_str = date_str[:10]  # 只取 YYYY-MM-DD 部分
+                        else:
+                            continue
+                        
+                        # 累加同一天的支出（如果有重复数据）
+                        if date_str in trend_dict:
+                            trend_dict[date_str] += spent
+                        else:
+                            trend_dict[date_str] = spent
             
             # 填充缺失的日期，显示每天的实际消费
             trend_data = []
