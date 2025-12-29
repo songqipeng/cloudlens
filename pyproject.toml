@@ -42,11 +42,57 @@ line-length = 120
 max-complexity = 10
 
 [tool.pytest.ini_options]
-minversion = "6.0"
-addopts = "-ra -q"
-testpaths = [
-    "tests",
+# pytest配置（补充pytest.ini）
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+source = ["core", "web/backend"]
+omit = [
+    "tests/*",
+    "*/migrations/*",
+    "*/examples/*",
+    "*/__pycache__/*",
 ]
-python_files = "test_*.py"
-python_classes = "Test*"
-python_functions = "test_*"
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+
+[tool.black]
+line-length = 120
+target-version = ['py38']
+extend-exclude = '''
+/(
+  migrations
+  | htmlcov
+  | \.venv
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 120
+skip_glob = ["*/migrations/*", "*/venv/*"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true

@@ -2,12 +2,11 @@
 # -*- coding: utf-8 -*-
 """
 数据库抽象层
-支持SQLite和MySQL，提供统一的数据库操作接口
+提供统一的MySQL数据库操作接口
 """
 
 import os
 import json
-import sqlite3
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
@@ -88,117 +87,8 @@ class DatabaseAdapter(ABC):
         pass
     
     def normalize_sql(self, sql: str) -> str:
-        """标准化SQL语句（处理SQLite和MySQL的差异）"""
-        return sql
-
-
-class SQLiteAdapter(DatabaseAdapter):
-    """SQLite适配器"""
-    
-    def __init__(self, db_path: str):
-        """
-        初始化SQLite适配器
-        
-        Args:
-            db_path: 数据库文件路径
-        """
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = None
-    
-    def connect(self):
-        """建立连接"""
-        if not self.conn:
-            self.conn = sqlite3.connect(str(self.db_path))
-            self.conn.row_factory = sqlite3.Row
-        return self.conn
-    
-    def close(self):
-        """关闭连接"""
-        if self.conn:
-            self.conn.close()
-            self.conn = None
-    
-    def execute(self, sql: str, params: Optional[Tuple] = None) -> Any:
-        """执行SQL"""
-        conn = self.connect()
-        cursor = conn.cursor()
-        try:
-            if params:
-                cursor.execute(sql, params)
-            else:
-                cursor.execute(sql)
-            conn.commit()
-            return cursor
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"SQLite执行错误: {sql[:100]}, 错误: {e}")
-            raise
-    
-    def executemany(self, sql: str, params_list: List[Tuple]) -> int:
-        """批量执行SQL（SQLite优化版本）"""
-        conn = self.connect()
-        cursor = conn.cursor()
-        try:
-            cursor.executemany(sql, params_list)
-            conn.commit()
-            return cursor.rowcount
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"SQLite批量执行错误: {sql[:100]}, 错误: {e}")
-            raise
-        finally:
-            cursor.close()
-    
-    def query(self, sql: str, params: Optional[Tuple] = None) -> List[Dict]:
-        """查询并返回字典列表"""
-        conn = self.connect()
-        cursor = conn.cursor()
-        try:
-            if params:
-                cursor.execute(sql, params)
-            else:
-                cursor.execute(sql)
-            
-            columns = [col[0] for col in cursor.description] if cursor.description else []
-            rows = cursor.fetchall()
-            return [dict(zip(columns, row)) for row in rows]
-        finally:
-            cursor.close()
-    
-    def query_one(self, sql: str, params: Optional[Tuple] = None) -> Optional[Dict]:
-        """查询单条记录"""
-        results = self.query(sql, params)
-        return results[0] if results else None
-    
-    def begin_transaction(self):
-        """开始事务（SQLite自动处理）"""
-        pass
-    
-    def commit(self):
-        """提交事务"""
-        if self.conn:
-            self.conn.commit()
-    
-    def rollback(self):
-        """回滚事务"""
-        if self.conn:
-            self.conn.rollback()
-    
-    def normalize_sql(self, sql: str) -> str:
         """标准化SQL语句"""
-        # SQLite使用?作为占位符，MySQL使用%s
-        # 但为了兼容，我们保持?，在MySQL适配器中转换
         return sql
-    
-    def __enter__(self):
-        self.connect()
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type:
-            self.rollback()
-        self.close()
 
 
 class MySQLAdapter(DatabaseAdapter):
@@ -370,52 +260,45 @@ class DatabaseFactory:
     @staticmethod
     def create_adapter(db_type: Optional[str] = None, **kwargs) -> DatabaseAdapter:
         """
-        根据配置创建数据库适配器
-        
+        根据配置创建MySQL数据库适配器
+
         Args:
-            db_type: 数据库类型（'sqlite' 或 'mysql'），如果为None则从环境变量读取
-            **kwargs: 数据库配置参数
-                - 对于SQLite: db_path
-                - 对于MySQL: host, port, user, password, database等
-        
+            db_type: 数据库类型（仅支持'mysql'），如果为None则从环境变量读取
+            **kwargs: MySQL数据库配置参数
+                - host: 主机地址
+                - port: 端口
+                - user: 用户名
+                - password: 密码
+                - database: 数据库名
+                - charset: 字符集
+                - pool_size: 连接池大小
+
         Returns:
-            DatabaseAdapter实例
+            MySQLAdapter实例
         """
         # 从环境变量或参数获取数据库类型（默认使用MySQL）
         db_type = db_type or os.getenv("DB_TYPE", "mysql").lower()
-        
-        if db_type == "mysql":
-            if not MYSQL_AVAILABLE:
-                raise ImportError(
-                    "mysql-connector-python未安装，请运行: pip install mysql-connector-python"
-                )
-            
-            # 从环境变量或kwargs获取MySQL配置
-            mysql_config = {
-                'host': kwargs.get('host') or os.getenv("MYSQL_HOST", "localhost"),
-                'port': int(kwargs.get('port') or os.getenv("MYSQL_PORT", 3306)),
-                'user': kwargs.get('user') or os.getenv("MYSQL_USER", "cloudlens"),
-                'password': kwargs.get('password') or os.getenv("MYSQL_PASSWORD", ""),
-                'database': kwargs.get('database') or os.getenv("MYSQL_DATABASE", "cloudlens"),
-                'charset': kwargs.get('charset') or os.getenv("MYSQL_CHARSET", "utf8mb4"),
-                'pool_size': int(kwargs.get('pool_size') or os.getenv("MYSQL_POOL_SIZE", 20)),
-            }
-            
-            return MySQLAdapter(mysql_config)
-        
-        elif db_type == "sqlite":
-            # 从环境变量或kwargs获取SQLite配置
-            db_path = kwargs.get('db_path') or os.getenv("SQLITE_DB_PATH")
-            if not db_path:
-                # 默认路径
-                db_dir = Path.home() / ".cloudlens"
-                db_name = kwargs.get('db_name', 'cloudlens.db')
-                db_path = str(db_dir / db_name)
-            
-            return SQLiteAdapter(db_path)
-        
-        else:
-            raise ValueError(f"不支持的数据库类型: {db_type}，支持的类型: sqlite, mysql")
+
+        if db_type != "mysql":
+            raise ValueError(f"不支持的数据库类型: {db_type}，仅支持MySQL")
+
+        if not MYSQL_AVAILABLE:
+            raise ImportError(
+                "mysql-connector-python未安装，请运行: pip install mysql-connector-python"
+            )
+
+        # 从环境变量或kwargs获取MySQL配置
+        mysql_config = {
+            'host': kwargs.get('host') or os.getenv("MYSQL_HOST", "localhost"),
+            'port': int(kwargs.get('port') or os.getenv("MYSQL_PORT", 3306)),
+            'user': kwargs.get('user') or os.getenv("MYSQL_USER", "cloudlens"),
+            'password': kwargs.get('password') or os.getenv("MYSQL_PASSWORD", ""),
+            'database': kwargs.get('database') or os.getenv("MYSQL_DATABASE", "cloudlens"),
+            'charset': kwargs.get('charset') or os.getenv("MYSQL_CHARSET", "utf8mb4"),
+            'pool_size': int(kwargs.get('pool_size') or os.getenv("MYSQL_POOL_SIZE", 20)),
+        }
+
+        return MySQLAdapter(mysql_config)
 
 
 def get_database_adapter(db_type: Optional[str] = None, **kwargs) -> DatabaseAdapter:

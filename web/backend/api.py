@@ -2925,14 +2925,76 @@ def generate_report(report_data: Dict[str, Any]):
                 }
             }
         elif format_type == "excel":
-            # TODO: 实现Excel生成
-            return {
-                "success": True,
-                "data": {
-                    "format": "excel",
-                    "message": "Excel报告生成功能开发中",
-                }
-            }
+            # 实现Excel生成
+            import io
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment
+            from fastapi.responses import StreamingResponse
+
+            wb = Workbook()
+
+            # 资源概览Sheet
+            ws_overview = wb.active
+            ws_overview.title = "资源概览"
+
+            # 标题行样式
+            header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            header_font = Font(color="FFFFFF", bold=True)
+
+            # ECS概览
+            ws_overview['A1'] = "CloudLens 云资源报告"
+            ws_overview['A1'].font = Font(size=16, bold=True)
+            ws_overview.merge_cells('A1:E1')
+
+            ws_overview['A3'] = "账号"
+            ws_overview['B3'] = account_name
+
+            # ECS实例列表
+            ecs_start_row = 5
+            headers = ['实例ID', '名称', '规格', '状态', '区域']
+            for col_idx, header in enumerate(headers, 1):
+                cell = ws_overview.cell(row=ecs_start_row, column=col_idx, value=header)
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal='center')
+
+            # 填充ECS数据
+            for row_idx, instance in enumerate(instances, ecs_start_row + 1):
+                ws_overview.cell(row=row_idx, column=1, value=instance.id)
+                ws_overview.cell(row=row_idx, column=2, value=instance.name)
+                ws_overview.cell(row=row_idx, column=3, value=instance.spec)
+                ws_overview.cell(row=row_idx, column=4, value=instance.status.value)
+                ws_overview.cell(row=row_idx, column=5, value=instance.region)
+
+            # RDS实例Sheet
+            if rds_list:
+                ws_rds = wb.create_sheet("RDS实例")
+                rds_headers = ['实例ID', '名称', '引擎', '版本', '状态', '区域']
+                for col_idx, header in enumerate(rds_headers, 1):
+                    cell = ws_rds.cell(row=1, column=col_idx, value=header)
+                    cell.fill = header_fill
+                    cell.font = header_font
+
+                for row_idx, rds in enumerate(rds_list, 2):
+                    ws_rds.cell(row=row_idx, column=1, value=rds.id)
+                    ws_rds.cell(row=row_idx, column=2, value=rds.name)
+                    ws_rds.cell(row=row_idx, column=3, value=rds.spec)
+                    ws_rds.cell(row=row_idx, column=4, value=getattr(rds, 'version', 'N/A'))
+                    ws_rds.cell(row=row_idx, column=5, value=rds.status.value)
+                    ws_rds.cell(row=row_idx, column=6, value=rds.region)
+
+            # 保存到BytesIO
+            excel_file = io.BytesIO()
+            wb.save(excel_file)
+            excel_file.seek(0)
+
+            # 返回文件流
+            filename = f"cloudlens_report_{account_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            return StreamingResponse(
+                excel_file,
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": f"attachment; filename={filename}"}
+            )
         else:
             raise HTTPException(status_code=400, detail=f"不支持的格式: {format_type}")
             

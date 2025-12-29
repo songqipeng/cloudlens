@@ -70,48 +70,83 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# 导入并注册路由
+# 注册健康检查路由（优先级高，用于监控和K8s探针）
 try:
-    from web.backend.api import router as api_router
-    app.include_router(api_router)
-    logger.info("API router registered")
+    from web.backend.health import router as health_router
+    app.include_router(health_router)
+    logger.info("Health check router registered")
 except Exception as e:
-    logger.error(f"Failed to register API router: {e}")
+    logger.warning(f"Failed to register health router: {e}")
 
+# 导入并注册模块化API路由（新架构）
+# 核心业务API模块
+api_modules = [
+    ("api_config", "配置和账号管理"),
+    ("api_cost", "成本分析"),
+    ("api_billing", "账单查询"),
+    ("api_discounts", "折扣分析"),
+    ("api_resources", "资源管理"),
+    ("api_budgets", "预算管理"),
+    ("api_tags", "虚拟标签"),
+    ("api_dashboards", "仪表盘"),
+    ("api_security", "安全检查"),
+    ("api_optimization", "优化建议"),
+    ("api_reports", "报告生成"),
+]
+
+for module_name, module_desc in api_modules:
+    try:
+        module = __import__(f"web.backend.{module_name}", fromlist=["router"])
+        router = getattr(module, "router")
+        app.include_router(router)
+        logger.info(f"✓ {module_desc} router registered ({module_name})")
+    except Exception as e:
+        logger.warning(f"✗ Failed to register {module_desc} router ({module_name}): {e}")
+
+# 扩展功能API模块
 try:
     from web.backend.api_alerts import router as alerts_router
     app.include_router(alerts_router)
-    logger.info("Alerts router registered")
+    logger.info("✓ Alerts router registered")
 except Exception as e:
-    logger.warning(f"Failed to register alerts router: {e}")
+    logger.warning(f"✗ Failed to register alerts router: {e}")
 
 try:
     from web.backend.api_cost_allocation import router as cost_allocation_router
     app.include_router(cost_allocation_router)
-    logger.info("Cost allocation router registered")
+    logger.info("✓ Cost allocation router registered")
 except Exception as e:
-    logger.warning(f"Failed to register cost allocation router: {e}")
+    logger.warning(f"✗ Failed to register cost allocation router: {e}")
 
 try:
     from web.backend.api_ai_optimizer import router as ai_optimizer_router
     app.include_router(ai_optimizer_router)
-    logger.info("AI optimizer router registered")
+    logger.info("✓ AI optimizer router registered")
 except Exception as e:
-    logger.warning(f"Failed to register AI optimizer router: {e}")
+    logger.warning(f"✗ Failed to register AI optimizer router: {e}")
 
 try:
     from web.backend.api_auth import router as auth_router
     app.include_router(auth_router)
-    logger.info("Auth router registered")
+    logger.info("✓ Auth router registered")
 except Exception as e:
-    logger.warning(f"Failed to register auth router: {e}")
+    logger.warning(f"✗ Failed to register auth router: {e}")
 
 try:
     from web.backend.api_backup import router as backup_router
     app.include_router(backup_router)
-    logger.info("Backup router registered")
+    logger.info("✓ Backup router registered")
 except Exception as e:
-    logger.warning(f"Failed to register backup router: {e}")
+    logger.warning(f"✗ Failed to register backup router: {e}")
+
+# 保留原api.py作为后备（在所有模块化路由之后注册，优先级最低）
+# 注意：这是临时方案，待所有端点迁移完成后应移除
+try:
+    from web.backend.api import router as legacy_api_router
+    app.include_router(legacy_api_router, tags=["Legacy"])
+    logger.info("⚠️  Legacy API router registered (fallback)")
+except Exception as e:
+    logger.warning(f"✗ Failed to register legacy API router: {e}")
 
 # OpenAPI 自定义配置
 def custom_openapi():
@@ -133,15 +168,15 @@ async def root():
     """API 根路径"""
     return {
         "name": "CloudLens API",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "docs": "/docs",
-        "redoc": "/redoc"
+        "redoc": "/redoc",
+        "health": "/health",
+        "ready": "/ready"
     }
 
-@app.get("/health")
-async def health_check():
-    """健康检查端点"""
-    return {"status": "healthy"}
+# 注意：/health 和 /ready 端点已在 health.py 中定义
+# 如需额外的根级别健康检查，可以在这里添加
 
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):
