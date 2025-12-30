@@ -108,7 +108,7 @@ export default function DiscountsPage() {
     loadingStartTime.current = Date.now()
     setElapsedSec(0)
     setError(null)
-    setStatusText(force ? t.discounts.forceRefreshing : t.discounts.loadingCache)
+    setStatusText(force ? t.discounts.forceRefreshing || "正在强制刷新..." : t.common.loading || "正在加载...")
     try {
       const timeoutMs = force ? 60000 : 15000
       const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
@@ -224,7 +224,7 @@ export default function DiscountsPage() {
 
         {loading && loadingStartTime.current && (
           <SmartLoadingProgress
-            message={statusText || t.discounts.loading || "正在加载折扣数据..."}
+            message={statusText || t.common.loading || "正在加载折扣数据..."}
             loading={loading}
             startTime={loadingStartTime.current}
           />

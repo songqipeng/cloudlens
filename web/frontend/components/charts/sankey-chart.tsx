@@ -43,61 +43,59 @@ export function SankeyChart({
   }))
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <svg width={width} height={height} className="overflow-visible">
-        {/* 绘制连接线 */}
-        {links.map((link, index) => {
-          const source = nodePositions[link.source]
-          const target = nodePositions[link.target]
-          if (!source || !target) return null
+    <svg width={width} height={height} className="overflow-visible w-full h-full">
+      {/* 绘制连接线 */}
+      {links.map((link, index) => {
+        const source = nodePositions[link.source]
+        const target = nodePositions[link.target]
+        if (!source || !target) return null
 
-          const midX = (source.x + target.x) / 2
-          const path = `M ${source.x + nodeWidth} ${source.y} 
-                       C ${midX} ${source.y}, ${midX} ${target.y}, ${target.x} ${target.y}`
+        const midX = (source.x + target.x) / 2
+        const path = `M ${source.x + nodeWidth} ${source.y} 
+                     C ${midX} ${source.y}, ${midX} ${target.y}, ${target.x} ${target.y}`
 
-          return (
-            <path
-              key={index}
-              d={path}
-              stroke="hsl(var(--primary))"
-              strokeWidth={Math.max(2, Math.min(link.value / 10, 20))}
-              fill="none"
-              opacity={0.6}
+        return (
+          <path
+            key={index}
+            d={path}
+            stroke="hsl(var(--primary))"
+            strokeWidth={Math.max(2, Math.min(link.value / 10, 20))}
+            fill="none"
+            opacity={0.6}
+          />
+        )
+      })}
+
+      {/* 绘制节点 */}
+      {nodes.map((node, index) => {
+        const pos = nodePositions[index]
+        if (!pos) return null
+
+        return (
+          <g key={index}>
+            <rect
+              x={pos.x}
+              y={pos.y}
+              width={nodeWidth}
+              height={30}
+              fill="hsl(var(--primary))"
+              rx={4}
+              className="hover:opacity-80 transition-opacity"
             />
-          )
-        })}
-
-        {/* 绘制节点 */}
-        {nodes.map((node, index) => {
-          const pos = nodePositions[index]
-          if (!pos) return null
-
-          return (
-            <g key={index}>
-              <rect
-                x={pos.x}
-                y={pos.y}
-                width={nodeWidth}
-                height={30}
-                fill="hsl(var(--primary))"
-                rx={4}
-                className="hover:opacity-80 transition-opacity"
-              />
-              <text
-                x={pos.x + nodeWidth / 2}
-                y={pos.y + 20}
-                textAnchor="middle"
-                fill="white"
-                fontSize={12}
-                fontWeight="medium"
-              >
-                {node.name}
-              </text>
-            </g>
-          )
-        })}
-      </svg>
-    </ResponsiveContainer>
+            <text
+              x={pos.x + nodeWidth / 2}
+              y={pos.y + 20}
+              textAnchor="middle"
+              fill="white"
+              fontSize={12}
+              fontWeight="medium"
+            >
+              {node.name}
+            </text>
+          </g>
+        )
+      })}
+    </svg>
   )
 }
 

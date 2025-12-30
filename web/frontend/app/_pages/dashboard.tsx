@@ -8,9 +8,9 @@ import { IdleTable } from "@/components/idle-table"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
-import { apiGet } from "@/lib/api"
-import { toastError } from "@/components/ui/toast"
-import { SmartLoadingProgress } from "@/components/loading-progress"
+import { apiGet, apiPost, ApiError } from "@/lib/api"
+import { toastError, toastSuccess, toastInfo } from "@/components/ui/toast"
+import { SmartLoadingProgress, LoadingProgress } from "@/components/loading-progress"
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
@@ -21,9 +21,136 @@ export default function DashboardPage() {
   const [scanning, setScanning] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState<string>("")
   const loadingStartTime = useRef<number | null>(null)
+  const [scanProgress, setScanProgress] = useState<{
+    current: number
+    total: number
+    percent: number
+    message: string
+    stage: string
+    status: string
+  } | null>(null)
+  const progressPollInterval = useRef<NodeJS.Timeout | null>(null)
   const { currentAccount } = useAccount()
 
   const { t } = useLocale()
+
+  // 轮询获取扫描进度
+  async function pollScanProgress(account: string) {
+    try {
+      const progress = await apiGet("/analyze/progress", { account }, { timeout: 5000 })
+      
+      if (!progress) {
+        // 如果还没有进度，继续轮询
+        progressPollInterval.current = setTimeout(() => {
+          pollScanProgress(account)
+        }, 1000)
+        return
+      }
+      
+      if (progress?.status === "running" || progress?.status === "initializing") {
+        setScanProgress({
+          current: progress.current || 0,
+          total: progress.total || 100,
+          percent: progress.percent || 0,
+          message: progress.message || "正在扫描...",
+          stage: progress.stage || "",
+          status: progress.status || "running"
+        })
+        
+        // 继续轮询
+        progressPollInterval.current = setTimeout(() => {
+          pollScanProgress(account)
+        }, 1000) // 每秒轮询一次
+      } else if (progress?.status === "completed") {
+        // 扫描完成 - 立即停止扫描状态，清除进度条
+        setScanning(false)
+        setScanProgress(null)
+        
+        // 清除轮询
+        if (progressPollInterval.current) {
+          clearTimeout(progressPollInterval.current)
+          progressPollInterval.current = null
+        }
+        
+        // 显示成功消息
+        const count = progress?.result?.count ?? 0
+        const message = count > 0 
+          ? `扫描完成！发现 ${count} 个闲置资源`
+          : `扫描完成！当前账号下暂无闲置资源`
+        toastSuccess(message, 2000)
+        
+        // 立即刷新数据（不延迟）
+          async function refreshData() {
+            try {
+              const apiOptions = { timeout: 60000, retries: 2 } as any
+            
+            // 重新获取闲置资源数据
+            const idleD = await apiGet("/dashboard/idle", { account: currentAccount }, apiOptions)
+            console.log("[Dashboard] ✅ 扫描完成后的 Idle 数据:", idleD)
+            
+            // 处理不同的数据格式
+            let idleArray: any[] = []
+            if (idleD && typeof idleD === 'object') {
+              if (Array.isArray(idleD)) {
+                idleArray = idleD
+              } else if (idleD.data && Array.isArray(idleD.data)) {
+                idleArray = idleD.data
+              } else if (idleD.success && idleD.data && Array.isArray(idleD.data)) {
+                idleArray = idleD.data
+              }
+            }
+            
+            console.log(`[Dashboard] ✅ 设置 Idle 数据: ${idleArray.length} 条`)
+            setIdleData(idleArray)
+            
+            // 重新获取摘要数据
+            const sumData = await apiGet("/dashboard/summary", { account: currentAccount }, apiOptions)
+            console.log("[Dashboard] ✅ 扫描完成后的 Summary 数据:", sumData)
+            
+            // 处理不同的数据格式
+            if (sumData && typeof sumData === 'object') {
+              if (sumData.success && sumData.data) {
+                setSummary(sumData.data)
+                console.log("[Dashboard] ✅ 设置 Summary 数据 (从 success.data)")
+              } else {
+                setSummary(sumData)
+                console.log("[Dashboard] ✅ 设置 Summary 数据 (直接对象)")
+              }
+            }
+          } catch (e) {
+            console.error("[Dashboard] ❌ 刷新数据失败:", e)
+            // 如果刷新失败，则刷新整个页面
+            setTimeout(() => {
+              window.location.reload()
+            }, 1000)
+          }
+        }
+        
+        // 立即刷新数据
+        refreshData()
+      } else if (progress?.status === "failed") {
+        // 扫描失败
+        setScanning(false)
+        setScanProgress(null)
+        if (progressPollInterval.current) {
+          clearTimeout(progressPollInterval.current)
+          progressPollInterval.current = null
+        }
+        toastError(progress?.error || "扫描失败")
+      } else if (progress?.status === "not_found") {
+        // 任务不存在，可能是刚启动，继续轮询
+        progressPollInterval.current = setTimeout(() => {
+          pollScanProgress(account)
+        }, 1000)
+      }
+    } catch (e) {
+      console.warn("[Dashboard] 获取进度失败:", e)
+      // 继续轮询，不中断（可能是网络问题或后端还没准备好）
+      progressPollInterval.current = setTimeout(() => {
+        pollScanProgress(account)
+      }, 2000) // 失败后2秒再试
+    }
+  }
 
   async function handleScan() {
     if (!currentAccount) {
@@ -32,25 +159,125 @@ export default function DashboardPage() {
     }
 
     setScanning(true)
+    // 立即显示初始进度条
+    setScanProgress({
+      current: 0,
+      total: 100,
+      percent: 0,
+      message: "正在启动扫描任务...",
+      stage: "initializing",
+      status: "running"
+    })
+    
+    // 清除之前的轮询
+    if (progressPollInterval.current) {
+      clearTimeout(progressPollInterval.current)
+      progressPollInterval.current = null
+    }
+    
+    // 立即开始轮询（不等待 API 响应）
+    setTimeout(() => {
+      pollScanProgress(currentAccount)
+    }, 500) // 500ms 后开始轮询，给后端一点时间初始化
+    
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/analyze/trigger", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // 启动扫描任务（前台执行）
+      const result = await apiPost(
+        "/analyze/trigger",
+        {
           account: currentAccount,
           days: 7,
           force: true,
-        }),
-      })
-      if (!res.ok) throw new Error("Scan failed")
-      // Reload data
-      window.location.reload()
+        },
+        { account: currentAccount },
+        {
+          timeout: 300000, // 300秒超时（5分钟）
+          retries: 1,
+        }
+      )
+
+      console.log("[Dashboard] 扫描请求响应:", result)
+      
+      // 如果立即返回成功（可能是缓存）
+      if (result?.status === "success") {
+        const count = result?.count ?? 0
+        const message = count > 0 
+          ? `扫描完成！发现 ${count} 个闲置资源`
+          : `扫描完成！当前账号下暂无闲置资源`
+        
+        toastSuccess(message, 2000)
+        setTimeout(() => {
+          window.location.reload()
+        }, 1000)
+        setScanning(false)
+        setScanProgress(null)
+        return
+      }
+      
+      // 如果返回 processing，继续轮询（已经在上面开始了）
+      if (result?.status === "processing") {
+        console.log("[Dashboard] 扫描任务已在后台启动，继续轮询进度...")
+      }
+      
     } catch (e) {
-      console.error(e)
-      toastError(t.dashboard.scanFailed + ": " + String(e))
+      console.error("[Dashboard] 扫描失败:", e)
+      
+      // 清除轮询
+      if (progressPollInterval.current) {
+        clearTimeout(progressPollInterval.current)
+        progressPollInterval.current = null
+      }
+      
+      // 处理不同类型的错误
+      let errorMessage = t.dashboard.scanFailed || "扫描失败"
+      let showInstallHint = false
+      
+      if (e instanceof ApiError) {
+        const detail = e.detail?.detail || e.detail?.error || e.message
+        
+        if (e.status === 408 || detail?.includes("超时") || detail?.includes("Timeout")) {
+          errorMessage = detail || "请求超时，请稍后重试"
+        } else if (e.status === 503 && (detail?.includes("aliyunsdkcore") || detail?.includes("缺少必要的依赖"))) {
+          errorMessage = "分析服务不可用：缺少必要的依赖包"
+          showInstallHint = true
+        } else {
+          errorMessage = `${errorMessage}: ${detail}`
+        }
+      } else if (e instanceof Error) {
+        errorMessage = `${errorMessage}: ${e.message}`
+      } else {
+        errorMessage = `${errorMessage}: ${String(e)}`
+      }
+      
+      toastError(errorMessage)
+      
+      if (showInstallHint) {
+        console.error(`
+[CloudLens] 缺少必要的依赖包，请运行以下命令安装：
+
+pip install aliyun-python-sdk-core>=2.16.0
+
+或者安装所有依赖：
+
+pip install -r requirements.txt
+
+安装完成后，请重启后端服务。
+        `)
+      }
+      
       setScanning(false)
     }
   }
+  
+  // 组件卸载时清除轮询
+  useEffect(() => {
+    return () => {
+      if (progressPollInterval.current) {
+        clearTimeout(progressPollInterval.current)
+        progressPollInterval.current = null
+      }
+    }
+  }, [])
 
   useEffect(() => {
     async function fetchData() {
@@ -71,13 +298,27 @@ export default function DashboardPage() {
       console.log("[Dashboard] 当前账号:", currentAccount)
 
       try {
-        // dashboard API 可能需要较长时间，增加超时时间到 120 秒
-        const apiOptions = { timeout: 120000, retries: 3 } as any
+        // dashboard API 可能需要较长时间，增加超时时间到 180 秒（3分钟）
+        // Idle API 从缓存读取，应该很快，但为了保险起见，设置较长的超时
+        const apiOptions = { timeout: 180000, retries: 2 } as any
         
         setLoadingMessage(t.dashboard.loadingSummary || "正在加载摘要数据...")
         const sumData = await apiGet("/dashboard/summary", { account: currentAccount }, apiOptions)
-        console.log("[Dashboard] Summary 数据:", sumData)
-        setSummary(sumData)
+        console.log("[Dashboard] ✅ 初始加载 Summary 数据:", sumData)
+        
+        // 处理不同的数据格式：可能是 {success: true, data: {...}} 或直接是对象
+        if (sumData && typeof sumData === 'object') {
+          if (sumData.success && sumData.data) {
+            console.log("[Dashboard] ✅ 设置 Summary 数据 (从 success.data)")
+            setSummary(sumData.data)
+          } else {
+            console.log("[Dashboard] ✅ 设置 Summary 数据 (直接对象)")
+            setSummary(sumData)
+          }
+        } else {
+          console.warn("[Dashboard] ⚠️  Summary 数据格式错误:", sumData)
+          setSummary(null)
+        }
         
         // 如果返回的是加载中的状态，等待一段时间后自动刷新
         if (sumData?.loading) {
@@ -98,10 +339,27 @@ export default function DashboardPage() {
         setLoadingMessage(t.dashboard.loadingIdle || "正在加载闲置资源...")
         try {
           const idleD = await apiGet("/dashboard/idle", { account: currentAccount }, apiOptions)
-          console.log("[Dashboard] Idle 数据:", idleD)
-          setIdleData(idleD.data || idleD || [])
+          console.log("[Dashboard] ✅ 初始加载 Idle 数据:", idleD)
+          
+          // 处理不同的数据格式：可能是 {success: true, data: []} 或直接是数组
+          let idleArray: any[] = []
+          if (idleD && typeof idleD === 'object') {
+            if (Array.isArray(idleD)) {
+              idleArray = idleD
+            } else if (idleD.data && Array.isArray(idleD.data)) {
+              idleArray = idleD.data
+            } else if (idleD.success && idleD.data && Array.isArray(idleD.data)) {
+              idleArray = idleD.data
+            } else {
+              console.warn("[Dashboard] ⚠️  Idle 数据格式异常:", idleD)
+            }
+          }
+          
+          console.log(`[Dashboard] ✅ 设置 Idle 数据: ${idleArray.length} 条`)
+          setIdleData(idleArray)
         } catch (e) {
-          console.error("Failed to fetch idle data:", e)
+          console.error("[Dashboard] ❌ 获取 Idle 数据失败:", e)
+          setIdleData([])
         }
 
         setLoadingMessage(t.dashboard.loadingTrend || "正在加载成本趋势...")
@@ -258,24 +516,28 @@ export default function DashboardPage() {
         {/* Summary Cards */}
         {summary && (
           <SummaryCards
-            totalCost={summary.total_cost}
-            idleCount={summary.idle_count}
-            trend={summary.cost_trend}
-            trendPct={summary.trend_pct}
-            totalResources={summary.total_resources || 0}
-            resourceBreakdown={summary.resource_breakdown || { ecs: 0, rds: 0, redis: 0 }}
-            alertCount={summary.alert_count || 0}
-            tagCoverage={summary.tag_coverage || 0}
-            savingsPotential={summary.savings_potential || 0}
+            totalCost={summary.total_cost ?? 0}
+            idleCount={summary.idle_count ?? 0}
+            trend={summary.cost_trend ?? "N/A"}
+            trendPct={summary.trend_pct ?? 0}
+            totalResources={summary.total_resources ?? 0}
+            resourceBreakdown={summary.resource_breakdown ?? { ecs: 0, rds: 0, redis: 0 }}
+            alertCount={summary.alert_count ?? 0}
+            tagCoverage={summary.tag_coverage ?? 0}
+            savingsPotential={summary.savings_potential ?? 0}
           />
         )}
 
         {/* 成本趋势图表 - 全宽 */}
         <div className="w-full">{chartData && <CostChart data={chartData} account={currentAccount} />}</div>
 
-        {/* 闲置资源表格 */}
+        {/* 闲置资源表格 - 扫描时显示进度条 */}
         <div className="w-full">
-          <IdleTable data={idleData} />
+          <IdleTable 
+            data={idleData} 
+            scanning={scanning}
+            scanProgress={scanProgress}
+          />
         </div>
       </div>
     </DashboardLayout>

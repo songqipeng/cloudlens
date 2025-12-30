@@ -109,7 +109,7 @@ export async function apiGet<T = any>(
     }
     
     const retries = options?.retries ?? 3
-    const timeout = options?.timeout ?? 90000  // 默认超时时间增加到90秒（dashboard API 需要更长时间）
+    const timeout = options?.timeout ?? 120000  // 默认超时时间增加到120秒（dashboard API 需要更长时间）
     
     const requestPromise = (async () => {
         for (let i = 0; i < retries; i++) {
@@ -224,13 +224,29 @@ export async function apiPost<T = any>(
             
             return await res.json()
         } catch (error) {
-            if (i === retries - 1) {
+            // 如果是 AbortError（超时），提供更友好的错误信息
+            if (error instanceof Error && error.name === 'AbortError') {
+                if (i === retries - 1) {
+                    const locale = getCurrentLocale() as Locale
+                    const endpointName = endpoint.split('?')[0].split('/').pop() || endpoint
+                    const timeoutMessage = locale === 'zh' 
+                        ? `请求超时 (${endpointName})，已等待 ${Math.round(timeout / 1000)} 秒`
+                        : `Request Timeout (${endpointName}), waited ${Math.round(timeout / 1000)}s`
+                    console.warn(`[API] 请求超时: ${endpoint}`, { timeout, retries })
+                    throw new ApiError(408, { error: timeoutMessage, endpoint, timeout }, timeoutMessage)
+                }
+                // 超时错误也进行重试，但增加等待时间
+                console.warn(`[API] 请求超时，正在重试 (${i + 1}/${retries}): ${endpoint}`)
+                await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, i)))
+                continue
+            } else if (i === retries - 1) {
                 if (error instanceof ApiError) {
                     throw error
                 }
                 throw new ApiError(500, { error: String(error) })
             }
-            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)))
+            // 指数退避重试
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)))
         }
     }
     throw new ApiError(500, { error: "Request failed after retries" })

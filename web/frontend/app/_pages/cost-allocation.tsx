@@ -92,10 +92,10 @@ export default function CostAllocationPage() {
           const response = await apiDelete(`/cost-allocation/rules/${ruleId}`)
           if (response.success) {
             await fetchData()
-            toastSuccess(t.costAllocation.deleteSuccess || "成本分配规则已删除")
+            toastSuccess(t.common.success || "成本分配规则已删除")
           }
         } catch (e) {
-          toastError(t.costAllocation.deleteFailed)
+          toastError(t.common.error || "删除失败")
           console.error("Failed to delete rule:", e)
         }
       },

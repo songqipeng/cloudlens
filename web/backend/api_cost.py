@@ -612,22 +612,108 @@ def get_cost_breakdown(
 @router.get("/cost/budget")
 def get_budget(account: Optional[str] = None):
     """获取预算信息"""
-    # TODO: 实现预算存储和查询
+    from core.budget_manager import BudgetStorage
+    from core.bill_storage import BillStorageManager
+    
+    provider, account_name = _get_provider_for_account(account)
+    cm = ConfigManager()
+    account_config = cm.get_account(account_name)
+    
+    # 构造正确的 account_id 格式：{access_key_id[:10]}-{account_name}
+    account_id = f"{account_config.access_key_id[:10]}-{account_config.name}"
+    
+    storage = BudgetStorage()
+    budgets = storage.list_budgets(account_id=account_id)
+    
+    bill_storage = BillStorageManager()
+    
+    results = []
+    total_monthly_budget = 0.0
+    total_spent = 0.0
+    
+    for b in budgets:
+        status = storage.calculate_budget_status(b, account_id, bill_storage)
+        results.append({
+            "budget": b.to_dict(),
+            "status": status.to_dict()
+        })
+        if b.period == "monthly":
+            total_monthly_budget += b.amount
+            total_spent += status.spent
+
     return {
         "success": True,
         "data": {
-            "monthly_budget": 0,
-            "annual_budget": 0,
-            "current_month_spent": 0,
-            "usage_rate": 0,
+            "budgets": results,
+            "monthly_budget": round(total_monthly_budget, 2),
+            "current_month_spent": round(total_spent, 2),
+            "usage_rate": round((total_spent / total_monthly_budget * 100) if total_monthly_budget > 0 else 0, 2),
         }
     }
 
 
 @router.post("/cost/budget")
-def set_budget(budget_data: Dict[str, Any]):
-    """设置预算"""
-    # TODO: 实现预算保存
+def set_budget(budget_data: Dict[str, Any], account: Optional[str] = None):
+    """设置或更新预算"""
+    from core.budget_manager import BudgetStorage, Budget, AlertThreshold
+    from datetime import datetime
+    
+    provider, account_name = _get_provider_for_account(account)
+    cm = ConfigManager()
+    account_config = cm.get_account(account_name)
+    account_id = f"{account_config.access_key_id[:10]}-{account_config.name}"
+    
+    storage = BudgetStorage()
+    
+    # 简单的默认逻辑：如果是设置总预算
+    name = budget_data.get("name", "Default Monthly Budget")
+    amount = float(budget_data.get("amount", 0))
+    period = budget_data.get("period", "monthly")
+    
+    # 构建预算对象
+    now = datetime.now()
+    if period == "monthly":
+        start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if now.month == 12:
+            end_date = datetime(now.year + 1, 1, 1)
+        else:
+            end_date = datetime(now.year, now.month + 1, 1)
+    else:
+        # 简化处理
+        start_date = now
+        end_date = now + timedelta(days=30)
+
+    # 检查是否已存在同名预算以决定是更新还是创建
+    existing = storage.list_budgets(account_id=account_id)
+    target_budget = None
+    for b in existing:
+        if b.name == name:
+            target_budget = b
+            break
+            
+    if target_budget:
+        target_budget.amount = amount
+        target_budget.period = period
+        target_budget.start_date = start_date
+        target_budget.end_date = end_date
+        storage.update_budget(target_budget)
+    else:
+        new_budget = Budget(
+            id=str(uuid.uuid4()),
+            name=name,
+            amount=amount,
+            period=period,
+            type="total",
+            start_date=start_date,
+            end_date=end_date,
+            account_id=account_id,
+            alerts=[
+                AlertThreshold(percentage=80),
+                AlertThreshold(percentage=100)
+            ]
+        )
+        storage.create_budget(new_budget)
+    
     return {
         "success": True,
         "message": "预算设置成功"

@@ -5,26 +5,32 @@ import { ArrowUpRight, ArrowDownRight, Activity, DollarSign, CloudOff, Server, A
 import { useLocale } from "@/contexts/locale-context"
 
 interface SummaryProps {
-    totalCost: number
-    idleCount: number
-    trend: string
-    trendPct: number
-    totalResources?: number
+    totalCost?: number | null
+    idleCount?: number | null
+    trend?: string
+    trendPct?: number | null
+    totalResources?: number | null
     resourceBreakdown?: {
         ecs: number
         rds: number
         redis: number
     }
-    alertCount?: number
-    tagCoverage?: number
-    savingsPotential?: number
+    alertCount?: number | null
+    tagCoverage?: number | null
+    savingsPotential?: number | null
 }
 
 // 数字格式化（支持动画）- Finout 风格：等宽字体
-function AnimatedNumber({ value, decimals = 2, useWan = false }: { value: number; decimals?: number; useWan?: boolean }) {
-    if (useWan && value >= 10000) {
+function AnimatedNumber({ value, decimals = 2, useWan = false }: { value: number | undefined | null; decimals?: number; useWan?: boolean }) {
+    // 处理 undefined/null 的情况，默认为 0
+    const safeValue = value ?? 0
+    
+    // 确保 safeValue 是数字类型
+    const numValue = typeof safeValue === 'number' ? safeValue : Number(safeValue) || 0
+    
+    if (useWan && numValue >= 10000) {
         // 以万为单位，保留一位小数，使用w代替万避免换行
-        const wanValue = value / 10000
+        const wanValue = numValue / 10000
         return (
             <span className="animate-count-up font-mono tabular-nums">
                 ¥{wanValue.toLocaleString(undefined, { 
@@ -36,7 +42,7 @@ function AnimatedNumber({ value, decimals = 2, useWan = false }: { value: number
     }
     return (
         <span className="animate-count-up font-mono tabular-nums">
-            ¥{value.toLocaleString(undefined, { 
+            ¥{numValue.toLocaleString(undefined, { 
                 minimumFractionDigits: decimals, 
                 maximumFractionDigits: decimals 
             })}
@@ -55,10 +61,20 @@ export function SummaryCards({
     tagCoverage = 0,
     savingsPotential = 0,
 }: SummaryProps) {
+    // 确保所有数值都有安全的默认值
+    const safeTotalCost = totalCost ?? 0
+    const safeIdleCount = idleCount ?? 0
+    const safeTrendPct = trendPct ?? 0
+    const safeTotalResources = totalResources ?? 0
+    const safeAlertCount = alertCount ?? 0
+    const safeTagCoverage = tagCoverage ?? 0
+    const safeSavingsPotential = savingsPotential ?? 0
+    const safeTrend = trend ?? "N/A"
     const { t } = useLocale()
     
     // 转换趋势文本
-    const getTrendText = (trend: string) => {
+    const getTrendText = (trend: string | undefined) => {
+        if (!trend) return t.trend.insufficientData
         if (trend === "上升" || trend === "Up") return t.trend.up
         if (trend === "下降" || trend === "Down") return t.trend.down
         if (trend === "平稳" || trend === "Stable") return t.trend.stable
@@ -78,7 +94,7 @@ export function SummaryCards({
                 <CardContent>
                     {/* Finout 风格：大数字显示（48px），等宽字体，超过1万以万为单位 */}
                     <div className="text-[48px] font-bold tracking-tight mb-2 font-mono tabular-nums leading-none">
-                        <AnimatedNumber value={totalCost} useWan={true} />
+                        <AnimatedNumber value={safeTotalCost} useWan={true} />
                     </div>
                     <p className="text-xs text-muted-foreground">
                         {t.dashboard.monthlyEstimate}
@@ -95,15 +111,15 @@ export function SummaryCards({
                 </CardHeader>
                 <CardContent>
                     {/* Finout 风格：趋势指示器 */}
-                    <div className="text-3xl font-bold tracking-tight mb-2">{getTrendText(trend)}</div>
+                    <div className="text-3xl font-bold tracking-tight mb-2">{getTrendText(safeTrend)}</div>
                     <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                        {trendPct > 0 ? (
+                        {safeTrendPct > 0 ? (
                             <span className="text-[#ef4444] flex items-center gap-1 font-semibold">
-                                <ArrowUpRight className="h-3.5 w-3.5" /> {trendPct.toFixed(1)}%
+                                <ArrowUpRight className="h-3.5 w-3.5" /> {safeTrendPct.toFixed(1)}%
                             </span>
-                        ) : trendPct < 0 ? (
+                        ) : safeTrendPct < 0 ? (
                             <span className="text-[#10b981] flex items-center gap-1 font-semibold">
-                                <ArrowDownRight className="h-3.5 w-3.5" /> {Math.abs(trendPct).toFixed(1)}%
+                                <ArrowDownRight className="h-3.5 w-3.5" /> {Math.abs(safeTrendPct).toFixed(1)}%
                             </span>
                         ) : (
                             <span className="text-muted-foreground">—</span>
@@ -122,7 +138,7 @@ export function SummaryCards({
                 </CardHeader>
                 <CardContent>
                     {/* Finout 风格：大数字，等宽字体 */}
-                    <div className="text-[48px] font-bold tracking-tight text-[#f59e0b] mb-2 font-mono tabular-nums leading-none animate-count-up">{idleCount}</div>
+                    <div className="text-[48px] font-bold tracking-tight text-[#f59e0b] mb-2 font-mono tabular-nums leading-none animate-count-up">{safeIdleCount}</div>
                     <p className="text-xs text-muted-foreground">
                         {t.dashboard.suggestHandle}
                     </p>
@@ -137,7 +153,7 @@ export function SummaryCards({
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="text-[48px] font-bold tracking-tight mb-2 font-mono tabular-nums leading-none animate-count-up">{totalResources}</div>
+                    <div className="text-[48px] font-bold tracking-tight mb-2 font-mono tabular-nums leading-none animate-count-up">{safeTotalResources}</div>
                     <p className="text-xs text-muted-foreground">
                         ECS: {resourceBreakdown.ecs} | RDS: {resourceBreakdown.rds} | Redis: {resourceBreakdown.redis}
                     </p>
@@ -152,7 +168,7 @@ export function SummaryCards({
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="text-[48px] font-bold tracking-tight text-[#ef4444] mb-2 font-mono tabular-nums leading-none animate-count-up">{alertCount}</div>
+                    <div className="text-[48px] font-bold tracking-tight text-[#ef4444] mb-2 font-mono tabular-nums leading-none animate-count-up">{safeAlertCount}</div>
                     <p className="text-xs text-muted-foreground">
                         {t.dashboard.needAttention}
                     </p>
@@ -167,7 +183,7 @@ export function SummaryCards({
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="text-[48px] font-bold tracking-tight mb-2 font-mono tabular-nums leading-none animate-count-up">{tagCoverage.toFixed(1)}%</div>
+                    <div className="text-[48px] font-bold tracking-tight mb-2 font-mono tabular-nums leading-none animate-count-up">{safeTagCoverage.toFixed(1)}%</div>
                     <p className="text-xs text-muted-foreground">
                         {t.dashboard.resourceTagCompleteness}
                     </p>
@@ -183,7 +199,7 @@ export function SummaryCards({
                 </CardHeader>
                 <CardContent>
                     <div className="text-[48px] font-bold tracking-tight text-[#10b981] mb-2 font-mono tabular-nums leading-none">
-                        <AnimatedNumber value={savingsPotential} useWan={true} />
+                        <AnimatedNumber value={safeSavingsPotential} useWan={true} />
                     </div>
                     <p className="text-xs text-muted-foreground">
                         {t.dashboard.monthlySavingsPotential}

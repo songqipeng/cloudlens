@@ -237,7 +237,7 @@ export default function AccountsPage() {
 
         {loading && loadingStartTime.current && (
           <SmartLoadingProgress
-            message={t.accounts.loading || "正在加载账号列表..."}
+            message={t.common.loading || "正在加载账号列表..."}
             loading={loading}
             startTime={loadingStartTime.current}
           />

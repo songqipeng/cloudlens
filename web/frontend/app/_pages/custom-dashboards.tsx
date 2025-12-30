@@ -71,10 +71,10 @@ export default function CustomDashboardsPage() {
           const response = await apiDelete(`/dashboards/${dashboardId}`)
           if (response.success) {
             setDashboards(dashboards.filter(d => d.id !== dashboardId))
-            toastSuccess(t.customDashboards.deleteSuccess || "仪表盘已删除")
+            toastSuccess(t.common.success || "仪表盘已删除")
           }
         } catch (e) {
-          toastError(t.customDashboards.deleteFailed)
+          toastError(t.common.error || "删除失败")
           console.error("Failed to delete dashboard:", e)
         }
       },

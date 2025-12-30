@@ -28,6 +28,7 @@ from web.backend.api_base import (
 from core.config import ConfigManager, CloudAccount
 from core.rules_manager import RulesManager
 from core.cache import CacheManager
+from core.progress_manager import ProgressManager
 
 logger = logging.getLogger(__name__)
 
@@ -326,37 +327,89 @@ def set_notification_config(config: Dict[str, Any]):
 
 @router.post("/analyze/trigger")
 def trigger_analysis(req: TriggerAnalysisRequest, background_tasks: BackgroundTasks):
-    """触发闲置资源分析"""
+    """触发闲置资源分析（后台执行，支持进度查询）"""
     if not ANALYSIS_SERVICE_AVAILABLE:
         raise HTTPException(
             status_code=503,
-            detail="分析服务不可用：缺少必要的依赖（aliyunsdkcore）"
+            detail="分析服务不可用：缺少必要的依赖（aliyunsdkcore）。请运行 'pip install aliyun-python-sdk-core>=2.16.0' 安装依赖，然后重启后端服务。"
         )
 
     try:
-        data, cached = AnalysisService.analyze_idle_resources(
-            req.account,
-            req.days,
-            req.force
+        logger.info(f"收到分析请求: 账号={req.account}, days={req.days}, force={req.force}")
+        
+        # 初始化进度管理器
+        progress_manager = ProgressManager()
+        task_id = req.account
+        
+        # 立即初始化进度，让前端可以立即开始轮询
+        progress_manager.set_progress(
+            task_id, 
+            0, 
+            100, 
+            "正在初始化扫描任务...", 
+            "initializing"
         )
-
-        # 清除并更新缓存
-        cache_manager = CacheManager(ttl_seconds=86400)
-        cache_manager.clear(resource_type="dashboard_idle", account_name=req.account)
-        cache_manager.set(
-            resource_type="dashboard_idle",
-            account_name=req.account,
-            data=data
-        )
-
+        
+        # 定义进度回调函数
+        def progress_callback(current: int, total: int, message: str, stage: str):
+            progress_manager.set_progress(task_id, current, total, message, stage)
+        
+        # 定义后台任务函数
+        def _run_analysis_background():
+            try:
+                data, cached = AnalysisService.analyze_idle_resources(
+                    req.account,
+                    req.days,
+                    req.force,
+                    progress_callback=progress_callback
+                )
+                
+                # 标记任务完成
+                progress_manager.set_completed(task_id, {
+                    "count": len(data),
+                    "cached": cached
+                })
+                
+                logger.info(f"分析完成: 找到 {len(data)} 个闲置资源")
+            except Exception as e:
+                import traceback
+                error_trace = traceback.format_exc()
+                logger.error(f"分析失败: {str(e)}\n{error_trace}")
+                progress_manager.set_failed(task_id, str(e))
+        
+        # 将分析任务放到后台执行
+        background_tasks.add_task(_run_analysis_background)
+        
+        # 立即返回，让前端开始轮询进度
         return {
-            "status": "success",
-            "count": len(data),
-            "cached": cached,
-            "data": data
+            "status": "processing",
+            "message": "扫描任务已启动，请通过 /api/analyze/progress 查询进度",
+            "task_id": task_id
         }
+        
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
         logger.error(f"触发分析失败: {str(e)}\n{error_trace}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"分析失败: {str(e)}")
+
+
+@router.get("/analyze/progress")
+def get_analysis_progress(account: str):
+    """获取分析进度"""
+    try:
+        progress_manager = ProgressManager()
+        progress = progress_manager.get_progress(account)
+        
+        if not progress:
+            return {
+                "status": "not_found",
+                "message": "未找到该任务"
+            }
+        
+        return progress
+    except Exception as e:
+        logger.error(f"获取进度失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"获取进度失败: {str(e)}")

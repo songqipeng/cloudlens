@@ -79,18 +79,67 @@ export function LoadingProgress({
 
           {/* 进度条（可选） */}
           {showProgress && (
-            <div className="w-full max-w-md space-y-2">
-              <div className="h-2 bg-muted/30 rounded-full overflow-hidden">
+            <div className="w-full max-w-2xl space-y-3 animate-fade-in">
+              <div className="h-4 bg-muted/30 rounded-full overflow-hidden shadow-inner relative border border-border/20">
+                {/* 背景动画 - 脉冲效果 */}
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-primary/15 to-primary/5 animate-pulse"></div>
+                
+                {/* 进度条主体 */}
                 <div
-                  className="h-full bg-gradient-to-r from-primary via-primary/80 to-primary rounded-full transition-all duration-300 ease-out relative"
+                  className="h-full bg-gradient-to-r from-primary via-blue-500 to-primary rounded-full transition-all duration-500 ease-out relative overflow-hidden"
                   style={{ width: `${Math.min(100, Math.max(0, progressPercent))}%` }}
                 >
-                  {/* 进度条光效 */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent" style={{ animation: "shimmer 2s infinite" }}></div>
+                  {/* 进度条光效动画 - 从左到右扫过（增强版） */}
+                  <div 
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent"
+                    style={{
+                      width: "40%",
+                      transform: "skewX(-20deg) translateX(-200%)",
+                      animation: "shimmer 2s infinite",
+                    }}
+                  ></div>
+                  
+                  {/* 进度条内部高光 - 顶部渐变 */}
+                  <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/50 via-white/30 to-transparent rounded-t-full"></div>
+                  
+                  {/* 进度条边缘光效 - 右侧发光 */}
+                  <div className="absolute right-0 top-0 bottom-0 w-3 bg-gradient-to-l from-primary via-blue-400 to-transparent opacity-70 blur-sm"></div>
+                  
+                  {/* 进度条内部粒子效果 */}
+                  <div className="absolute inset-0">
+                    {[0, 1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className="absolute top-1/2 w-1 h-1 rounded-full bg-white/80 animate-pulse"
+                        style={{
+                          left: `${20 + i * 30}%`,
+                          animationDelay: `${i * 0.3}s`,
+                          animationDuration: "1.5s",
+                          transform: "translateY(-50%)",
+                        }}
+                      />
+                    ))}
+                  </div>
                 </div>
+                
+                {/* 进度条边缘发光效果 */}
+                <div 
+                  className="absolute top-0 bottom-0 bg-primary/30 blur-md transition-all duration-500"
+                  style={{ 
+                    width: `${Math.min(100, Math.max(0, progressPercent))}%`,
+                    right: 0,
+                  }}
+                ></div>
               </div>
-              <div className="text-center text-xs text-muted-foreground">
-                {Math.round(progressPercent)}%
+              
+              {/* 进度百分比显示 */}
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground font-medium">
+                  {subMessage || "处理中..."}
+                </span>
+                <span className="text-primary font-bold tabular-nums transition-all duration-300">
+                  {Math.round(progressPercent)}%
+                </span>
               </div>
             </div>
           )}

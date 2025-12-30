@@ -210,10 +210,19 @@ body {
 
 @keyframes shimmer {
     0% {
-        transform: translateX(-100%);
+        transform: translateX(-200%) skewX(-20deg);
     }
     100% {
-        transform: translateX(100%);
+        transform: translateX(400%) skewX(-20deg);
+    }
+}
+
+@keyframes bounce {
+    0%, 100% {
+        transform: translateY(-50%) translateY(0);
+    }
+    50% {
+        transform: translateY(-50%) translateY(-8px);
     }
 }
 

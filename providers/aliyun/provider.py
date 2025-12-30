@@ -54,6 +54,26 @@ class AliyunProvider(BaseProvider):
 
     @monitor_api_call
     @handle_provider_errors
+    def check_instances_count(self) -> int:
+        """
+        快速检查当前区域是否有ECS实例（只查询第一页获取总数，不获取详细数据）
+        
+        Returns:
+            实例总数，如果没有则返回0
+        """
+        try:
+            request = DescribeInstancesRequest()
+            request.set_PageSize(1)  # 只查询1条，快速获取总数
+            request.set_PageNumber(1)
+            data = self._do_request(request)
+            total_count = data.get("TotalCount", 0)
+            return total_count
+        except Exception as e:
+            logger.warning(f"快速检查区域 {self.region} 的实例数量失败: {e}")
+            return 0
+
+    @monitor_api_call
+    @handle_provider_errors
     def list_instances(self):
         """列出ECS实例（支持分页）"""
         resources = []

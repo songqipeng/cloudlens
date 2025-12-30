@@ -122,8 +122,8 @@ class MySQLAdapter(DatabaseAdapter):
             'autocommit': False,
         }
         
-        # 创建连接池（增加连接池大小，避免连接耗尽）
-        pool_size = config.get('pool_size', 20)  # 从10增加到20
+        # 创建连接池（优化：减少连接池大小，避免连接数过多）
+        pool_size = config.get('pool_size', 10)  # 减少到10，因为会复用连接池
         try:
             self.pool = pooling.MySQLConnectionPool(
                 pool_name="cloudlens_pool",
@@ -255,7 +255,9 @@ class MySQLAdapter(DatabaseAdapter):
 
 
 class DatabaseFactory:
-    """数据库工厂类"""
+    """数据库工厂类（单例模式，复用连接池）"""
+    
+    _adapters = {}  # 缓存已创建的适配器实例
     
     @staticmethod
     def create_adapter(db_type: Optional[str] = None, **kwargs) -> DatabaseAdapter:
@@ -297,8 +299,21 @@ class DatabaseFactory:
             'charset': kwargs.get('charset') or os.getenv("MYSQL_CHARSET", "utf8mb4"),
             'pool_size': int(kwargs.get('pool_size') or os.getenv("MYSQL_POOL_SIZE", 20)),
         }
-
-        return MySQLAdapter(mysql_config)
+        
+        # 生成缓存键（基于配置）
+        cache_key = f"{db_type}:{mysql_config['host']}:{mysql_config['port']}:{mysql_config['database']}"
+        
+        # 如果已存在相同配置的适配器，直接返回（复用连接池）
+        if cache_key in DatabaseFactory._adapters:
+            logger.debug(f"复用已存在的数据库适配器: {cache_key}")
+            return DatabaseFactory._adapters[cache_key]
+        
+        # 创建新的适配器并缓存
+        adapter = MySQLAdapter(mysql_config)
+        DatabaseFactory._adapters[cache_key] = adapter
+        logger.debug(f"创建新的数据库适配器: {cache_key}")
+        
+        return adapter
 
 
 def get_database_adapter(db_type: Optional[str] = None, **kwargs) -> DatabaseAdapter:

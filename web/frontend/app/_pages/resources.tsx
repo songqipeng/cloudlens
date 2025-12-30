@@ -71,9 +71,22 @@ export default function ResourcesPage() {
       const data = await apiGet("/resources", params)
 
       if (data.success) {
-        setResources(data.data)
-        setTotal(data.pagination.total)
-        setTotalPages(data.pagination.totalPages)
+        setResources(data.data || [])
+        // 安全地访问分页信息，提供默认值
+        if (data.pagination) {
+          setTotal(data.pagination.total ?? 0)
+          setTotalPages(data.pagination.totalPages ?? 0)
+        } else {
+          // 如果没有分页信息，使用数据长度作为总数
+          const resourceCount = data.data?.length ?? 0
+          setTotal(resourceCount)
+          setTotalPages(Math.ceil(resourceCount / pageSize) || 1)
+        }
+      } else {
+        // 如果请求失败，设置默认值
+        setResources([])
+        setTotal(0)
+        setTotalPages(0)
       }
     } catch (e) {
       console.error("Failed to fetch resources:", e)
@@ -147,7 +160,10 @@ export default function ResourcesPage() {
       key: "cost",
       label: t.resources.monthlyCost,
       sortable: true,
-      render: (value) => `¥${value.toLocaleString()}`,
+      render: (value) => {
+        const numValue = typeof value === 'number' ? value : (Number(value) || 0)
+        return `¥${numValue.toLocaleString()}`
+      },
     },
     {
       key: "created_time",
@@ -172,7 +188,7 @@ export default function ResourcesPage() {
 
         {loading && loadingStartTime.current && (
           <SmartLoadingProgress
-            message={t.resources.loading || "正在加载资源列表..."}
+            message={t.common.loading || "正在加载资源列表..."}
             loading={loading}
             startTime={loadingStartTime.current}
           />
@@ -241,22 +257,26 @@ export default function ResourcesPage() {
 
                 <div className="flex items-center justify-between mt-4">
                   <div className="text-sm text-muted-foreground">
-                    {t.resources.totalResources.replace('{total}', String(total)).replace('{page}', String(page)).replace('{totalPages}', String(totalPages))}
+                    {t.resources.totalResources
+                      ?.replace('{total}', String(total))
+                      ?.replace('{page}', String(page))
+                      ?.replace('{totalPages}', String(totalPages)) || 
+                      `共 ${total} 条，第 ${page}/${totalPages} 页`}
                   </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1}
+                      disabled={page === 1 || totalPages === 0}
                       className="px-4 py-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                      {t.resources.previousPage}
+                      {t.resources.previousPage || "上一页"}
                     </button>
                     <button
-                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={page === totalPages}
+                      onClick={() => setPage((p) => Math.min(totalPages || 1, p + 1))}
+                      disabled={page >= (totalPages || 1) || totalPages === 0}
                       className="px-4 py-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                      {t.resources.nextPage}
+                      {t.resources.nextPage || "下一页"}
                     </button>
                   </div>
                 </div>

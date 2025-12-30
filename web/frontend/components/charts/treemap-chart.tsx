@@ -26,33 +26,31 @@ export function TreemapChart({
   }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <Treemap
-        data={data}
-        dataKey={dataKey}
-        nameKey={nameKey}
-        stroke="#fff"
-        fill="#8884d8"
-      >
-        <Tooltip
-          formatter={(value: any, name: string) => [
-            typeof value === "number" ? value.toLocaleString() : value,
-            name
-          ]}
-          contentStyle={{
-            backgroundColor: "hsl(var(--card))",
-            border: "1px solid hsl(var(--border))",
-            borderRadius: "8px"
-          }}
+    <Treemap
+      data={data}
+      dataKey={dataKey}
+      nameKey={nameKey}
+      stroke="#fff"
+      fill="#8884d8"
+    >
+      <Tooltip
+        formatter={(value: any, name: string) => [
+          typeof value === "number" ? value.toLocaleString() : value,
+          name
+        ]}
+        contentStyle={{
+          backgroundColor: "hsl(var(--card))",
+          border: "1px solid hsl(var(--border))",
+          borderRadius: "8px"
+        }}
+      />
+      {data.map((entry, index) => (
+        <Cell
+          key={`cell-${index}`}
+          fill={colors[index % colors.length]}
         />
-        {data.map((entry, index) => (
-          <Cell
-            key={`cell-${index}`}
-            fill={colors[index % colors.length]}
-          />
-        ))}
-      </Treemap>
-    </ResponsiveContainer>
+      ))}
+    </Treemap>
   )
 }
 

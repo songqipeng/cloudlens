@@ -72,10 +72,10 @@ export default function VirtualTagsPage() {
           const response = await apiDelete(`/virtual-tags/${tagId}`)
           if (response.success) {
             await fetchTags()
-            toastSuccess(t.virtualTags.deleteSuccess || "虚拟标签已删除")
+            toastSuccess(t.common.success || "虚拟标签已删除")
           }
         } catch (e) {
-          toastError(t.virtualTags.deleteFailed)
+          toastError(t.common.error || "删除失败")
         }
       },
       {
@@ -147,7 +147,7 @@ export default function VirtualTagsPage() {
 
         {loading && loadingStartTime.current && (
           <SmartLoadingProgress
-            message={t.virtualTags.loading || "正在加载虚拟标签..."}
+            message={t.common.loading || "正在加载虚拟标签..."}
             loading={loading}
             startTime={loadingStartTime.current}
           />

@@ -138,10 +138,10 @@ export default function BudgetsPage() {
             const newTrend = { ...trendData }
             delete newTrend[budgetId]
             setTrendData(newTrend)
-            toastSuccess(t.budget.deleteSuccess || "预算已删除")
+            toastSuccess(t.common.success || "预算已删除")
           }
         } catch (e) {
-          toastError(t.budget.deleteFailed)
+          toastError(t.common.error || "删除失败")
           console.error("Failed to delete budget:", e)
         } finally {
           setDeleteTarget(null)
@@ -265,7 +265,7 @@ export default function BudgetsPage() {
 
         {loading && loadingStartTime.current && (
           <SmartLoadingProgress
-            message={t.budget.loading || "正在加载预算列表..."}
+            message={t.common.loading || "正在加载预算列表..."}
             loading={loading}
             startTime={loadingStartTime.current}
           />

@@ -37,6 +37,8 @@ export interface Translations {
     maximum: string
     minimum: string
     to: string
+    timeout: string
+    timeoutTitle: string
   }
   
   // Navigation
@@ -865,7 +867,6 @@ export interface Translations {
     lessThanOrEqual: string
     notificationChannelsLabel: string
     noChannelsWarning: string
-    disable: string
   }
 }
 
@@ -1068,6 +1069,9 @@ const en: Translations = {
     note: 'Note: PayAsYouGo may have unpaid amounts (PaymentAmount=0), please refer to "Unpaid" and "Discounted (Pre-tax)" for understanding.',
     all: 'All',
     waited: 'Waited {seconds}s',
+    discountUnit: 'Discount Unit',
+    discountOff: 'Discount Off',
+    selectAccountFirst: 'Please select account first',
   },
   discountAdvanced: {
     title: 'Advanced Discount Analysis',

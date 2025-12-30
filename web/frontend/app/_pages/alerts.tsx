@@ -97,10 +97,10 @@ export default function AlertsPage() {
           const response = await apiDelete(`/alerts/rules/${ruleId}`)
           if (response.success) {
             await fetchData()
-            toastSuccess(t.alerts.deleteSuccess || "告警规则已删除")
+            toastSuccess(t.common.success || "告警规则已删除")
           }
         } catch (e) {
-          toastError(t.alerts.deleteFailed)
+          toastError(t.common.error || "删除失败")
           console.error("Failed to delete rule:", e)
         }
       },
@@ -232,7 +232,7 @@ export default function AlertsPage() {
 
         {loading && loadingStartTime.current && (
           <SmartLoadingProgress
-            message={t.alerts.loading || "正在加载告警数据..."}
+            message={t.common.loading || "正在加载告警数据..."}
             loading={loading}
             startTime={loadingStartTime.current}
           />
