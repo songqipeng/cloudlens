@@ -62,12 +62,12 @@ export default function ResourcesPage() {
         page: page.toString(),
         pageSize: pageSize.toString(),
       }
-      
+
       // 对于VPC资源类型，或者强制刷新时，传递force_refresh参数
       if (forceRefresh || resourceType === "vpc") {
         params.force_refresh = "true"
       }
-      
+
       const data = await apiGet("/resources", params)
 
       if (data.success) {
@@ -172,9 +172,14 @@ export default function ResourcesPage() {
     },
   ]
 
-  const filteredResources = search
-    ? resources.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()) || r.id.toLowerCase().includes(search.toLowerCase()))
-    : resources
+  const filteredResources = useMemo(() => {
+    if (!resources || !Array.isArray(resources)) return []
+    if (!search) return resources
+    const s = search.toLowerCase()
+    return resources.filter((r) =>
+      (r.name?.toLowerCase().includes(s)) || (r.id?.toLowerCase().includes(s))
+    )
+  }, [resources, search])
 
   return (
     <DashboardLayout>
@@ -217,11 +222,10 @@ export default function ResourcesPage() {
                       setResourceType(t.key)
                       setPage(1)
                     }}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      resourceType === t.key
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${resourceType === t.key
                         ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
                         : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    }`}
+                      }`}
                   >
                     {t.label}
                   </button>
@@ -260,7 +264,7 @@ export default function ResourcesPage() {
                     {t.resources.totalResources
                       ?.replace('{total}', String(total))
                       ?.replace('{page}', String(page))
-                      ?.replace('{totalPages}', String(totalPages)) || 
+                      ?.replace('{totalPages}', String(totalPages)) ||
                       `共 ${total} 条，第 ${page}/${totalPages} 页`}
                   </div>
                   <div className="flex gap-2">

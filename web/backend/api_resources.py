@@ -246,14 +246,20 @@ def list_resources(
     
     if not force_refresh:
         cached = cache_manager.get(resource_type=type, account_name=account_name)
-        if cached: return {
-            "success": True,
-            "data": cached[(page-1)*pageSize : page*pageSize],
-            "total": len(cached),
-            "page": page,
-            "pageSize": pageSize,
-            "cached": True
-        }
+        if cached:
+            total_count = len(cached)
+            total_pages = (total_count + pageSize - 1) // pageSize
+            return {
+                "success": True,
+                "data": cached[(page-1)*pageSize : page*pageSize],
+                "pagination": {
+                    "total": total_count,
+                    "page": page,
+                    "pageSize": pageSize,
+                    "totalPages": total_pages
+                },
+                "cached": True
+            }
     
     cm = ConfigManager()
     account_config = cm.get_account(account_name)
@@ -308,12 +314,18 @@ def list_resources(
     
     start = (page - 1) * pageSize
     end = start + pageSize
+    total_count = len(result)
+    total_pages = (total_count + pageSize - 1) // pageSize
+    
     return {
         "success": True,
         "data": result[start:end],
-        "total": len(result),
-        "page": page,
-        "pageSize": pageSize
+        "pagination": {
+            "total": total_count,
+            "page": page,
+            "pageSize": pageSize,
+            "totalPages": total_pages
+        }
     }
 
 @router.get("/resources/{resource_id}")
