@@ -1,0 +1,11 @@
+Defaulting to user installation because normal site-packages is not writeable
+Collecting aliyun-python-sdk-ram
+  Downloading aliyun_python_sdk_ram-3.3.1-py2.py3-none-any.whl (69 kB)
+Requirement already satisfied: aliyun-python-sdk-core>=2.11.5 in /Users/mac/Library/Python/3.9/lib/python/site-packages (from aliyun-python-sdk-ram) (2.16.0)
+Requirement already satisfied: jmespath<1.0.0,>=0.9.3 in /Users/mac/Library/Python/3.9/lib/python/site-packages (from aliyun-python-sdk-core>=2.11.5->aliyun-python-sdk-ram) (0.10.0)
+Requirement already satisfied: cryptography>=3.0.0 in /Users/mac/Library/Python/3.9/lib/python/site-packages (from aliyun-python-sdk-core>=2.11.5->aliyun-python-sdk-ram) (46.0.3)
+Requirement already satisfied: cffi>=2.0.0 in /Users/mac/Library/Python/3.9/lib/python/site-packages (from cryptography>=3.0.0->aliyun-python-sdk-core>=2.11.5->aliyun-python-sdk-ram) (2.0.0)
+Requirement already satisfied: typing-extensions>=4.13.2 in /Users/mac/Library/Python/3.9/lib/python/site-packages (from cryptography>=3.0.0->aliyun-python-sdk-core>=2.11.5->aliyun-python-sdk-ram) (4.15.0)
+Requirement already satisfied: pycparser in /Users/mac/Library/Python/3.9/lib/python/site-packages (from cffi>=2.0.0->cryptography>=3.0.0->aliyun-python-sdk-core>=2.11.5->aliyun-python-sdk-ram) (2.23)
+Installing collected packages: aliyun-python-sdk-ram
+Successfully installed aliyun-python-sdk-ram-3.3.1

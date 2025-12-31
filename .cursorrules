@@ -1,0 +1,473 @@
+# ============================================
+# CloudLens 项目开发规则
+# 适用于: Cursor, Antigravity, Claude Code
+# ============================================
+
+# ---------- 用户核心需求 ----------
+
+## 1. 语言要求 ⭐
+- **所有回复必须使用中文**
+- 代码注释使用中文
+- 文档使用中文
+
+## 2. 交付标准 ⭐⭐⭐
+**关键要求：任何代码必须完整测试后才能交付**
+
+### CLI 测试清单
+- 运行 CLI 命令验证功能
+- 测试错误处理（无效参数、网络错误等）
+- 检查日志输出清晰度
+- 确认帮助文档完整
+
+### Web 测试清单
+- 启动开发服务器
+- 在浏览器打开并测试所有交互
+- 检查浏览器控制台无错误
+- 测试响应式布局
+- 截图验证 UI 正确性
+
+### 交付报告格式
+```
+✅ 功能实现完成
+✅ CLI 测试通过: [具体测试内容和结果]
+✅ Web 测试通过: [具体测试功能点]
+📸 截图: [如有 UI 改动]
+
+代码已就绪，可以查看。
+```
+
+# ---------- 项目上下文 ----------
+
+## 项目简介
+CloudLens 是云资源管理工具，包含：
+- **CLI**: Python 命令行工具（查询阿里云/腾讯云资源）
+- **Web**: React 可视化仪表板（展示云资源和成本分析）
+
+## 技术栈
+- **后端/CLI**: Python 3.9+, Click, 阿里云/腾讯云 SDK, Pandas
+- **前端/Web**: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS, Recharts
+- **后端 API**: FastAPI (web/backend)
+
+# ---------- 代码风格指南（业界最佳实践）---------- 
+
+## Python 代码规范
+
+### 类型提示（必须）
+```python
+from typing import List, Optional, Dict
+
+def get_instances(region: str, filters: Optional[Dict] = None) -> List[Dict]:
+    """获取实例列表"""
+    pass
+```
+
+### 日志记录（必须）
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+# ✅ 使用 logging
+logger.info("正在查询实例")
+logger.error(f"查询失败: {error}")
+
+# ❌ 不使用 print（生产代码中）
+# print("debug info")  # 禁止
+```
+
+### Docstrings（Google 风格）
+```python
+def process_data(data: List[Dict], region: str) -> Dict:
+    """处理云资源数据
+    
+    Args:
+        data: 原始数据列表
+        region: 区域代码
+        
+    Returns:
+        处理后的数据字典
+        
+    Raises:
+        ValueError: 数据格式错误时
+    """
+    pass
+```
+
+### 错误处理
+```python
+# ✅ 具体的异常类型
+try:
+    result = api_call()
+except ConnectionError as e:
+    logger.error(f"网络错误: {e}")
+    raise
+except ValueError as e:
+    logger.error(f"数据错误: {e}")
+    raise
+
+# ❌ 不要用裸露的 except
+# except:  # 禁止
+#     pass
+```
+
+### 命名规范
+- 文件: `snake_case.py`
+- 函数/变量: `snake_case`
+- 类: `PascalCase`
+- 常量: `UPPER_CASE`
+
+## TypeScript/React 代码规范
+
+### 组件定义（Next.js App Router + 函数式组件）
+```typescript
+// ✅ 推荐：函数式组件 + TypeScript + Next.js
+"use client"  // 客户端组件需要此指令
+
+import { useState } from 'react';
+
+interface InstanceCardProps {
+  instanceId: string;
+  status: 'running' | 'stopped' | 'starting';
+  region: string;
+  onAction: (action: string) => void;
+}
+
+export const InstanceCard: React.FC<InstanceCardProps> = ({
+  instanceId,
+  status,
+  region,
+  onAction,
+}) => {
+  const [loading, setLoading] = useState(false);
+
+  return (
+    <div className="rounded-lg border bg-white p-4 shadow-sm">
+      <h3 className="text-lg font-semibold">{instanceId}</h3>
+      <p className="text-sm text-gray-600">{region}</p>
+      <StatusBadge status={status} />
+    </div>
+  );
+};
+
+// ❌ 不使用 Class 组件
+// class InstanceCard extends React.Component { ... }
+
+// 注意：
+// - 使用 "use client" 标记客户端组件（需要交互、状态、Hooks）
+// - Server Components 默认不需要 "use client"（用于数据获取、静态内容）
+```
+
+### TypeScript 严格模式
+```typescript
+// ✅ 明确的类型定义
+interface ApiResponse<T> {
+  data: T;
+  error?: string;
+  status: number;
+}
+
+async function fetchInstances(region: string): Promise<ApiResponse<Instance[]>> {
+  // 实现
+}
+
+// ❌ 避免 any
+// function fetchData(): any { ... }  // 禁止
+```
+
+### 样式（Tailwind CSS）
+```typescript
+// ✅ 使用 Tailwind 工具类
+<div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4">
+  <span className="text-sm font-medium text-gray-700">实例数量</span>
+  <span className="text-2xl font-bold text-blue-600">{count}</span>
+</div>
+
+// ❌ 避免内联样式
+// <div style={{ padding: '16px' }}>  // 尽量避免
+```
+
+### 命名规范
+- 组件文件: `PascalCase.tsx` 或 `kebab-case.tsx`（Next.js 路由文件）
+- Next.js 路由: `page.tsx`, `layout.tsx`, `loading.tsx`（小写）
+- 工具文件: `camelCase.ts`
+- 组件: `PascalCase`
+- 函数/变量: `camelCase`
+- 常量: `UPPER_CASE`
+- API 路由: `route.ts`（Next.js App Router）或 `api_*.py`（FastAPI）
+
+## 项目结构（重要）
+
+```
+cloudlens/
+├── cli/
+│   ├── commands/          # 每个命令独立文件
+│   │   ├── query_cmd.py
+│   │   ├── analyze_cmd.py
+│   │   ├── config_cmd.py
+│   │   └── ...
+│   ├── utils.py           # 工具函数
+│   └── main.py            # CLI 入口（仅路由，保持简洁）
+├── web/
+│   ├── backend/           # FastAPI 后端
+│   │   ├── api_*.py       # API 路由模块
+│   │   ├── main.py        # FastAPI 应用入口
+│   │   └── ...
+│   └── frontend/          # Next.js 前端
+│       ├── app/           # Next.js App Router
+│       │   ├── _pages/    # 页面组件（客户端）
+│       │   ├── layout.tsx # 根布局
+│       │   └── page.tsx   # 首页
+│       ├── components/    # 可复用组件
+│       │   ├── ui/        # UI 基础组件
+│       │   ├── layout/    # 布局组件
+│       │   └── ...
+│       ├── contexts/      # React Context
+│       ├── lib/           # 工具函数和 API 客户端
+│       └── types/         # TypeScript 类型定义
+├── core/                  # 核心业务逻辑
+│   ├── provider.py        # 云服务提供商抽象
+│   ├── cost_analyzer.py   # 成本分析
+│   └── ...
+└── tests/
+    ├── test_cli/
+    └── test_web/
+```
+
+### 关键原则
+- ✅ **每个功能独立文件**（单一职责）
+- ✅ **主文件只做路由**（不超过 100 行）
+- ✅ **相关代码就近放置**
+- ❌ **不要把所有代码塞在 main.py 或 App.tsx**
+
+# ---------- 开发工作流（最佳实践）---------- 
+
+## 实现新功能流程
+
+### CLI 功能
+1. 在 `cli/commands/` 创建新文件
+2. 实现命令逻辑（包含错误处理）
+3. 添加单元测试
+4. 在 `main.py` 注册命令
+5. 手动测试命令
+6. 验证日志输出
+7. 测试边界情况
+
+### Web 功能（Next.js App Router）
+1. 在 `app/` 目录创建页面路由（`page.tsx`）或使用 `app/_pages/` 存放客户端页面组件
+2. 在 `components/` 创建可复用组件
+3. 定义 TypeScript 接口（在 `types/` 或组件文件内）
+4. 实现组件逻辑（使用 "use client" 指令标记客户端组件）
+5. 添加必要的 Hooks 和 Context
+6. 启动开发服务器：`cd web/frontend && npm run dev`
+7. 检查浏览器控制台无错误
+8. 测试响应式布局
+9. 验证用户交互
+10. 如需要后端 API，在 `web/backend/` 创建对应的 API 路由
+
+### 集成功能（CLI + Web）
+1. 先实现并测试 CLI 命令（数据层）
+2. 再实现 Web 展示（视图层）
+3. 确保数据流正确
+4. 端到端测试完整流程
+
+## 错误处理最佳实践
+
+### CLI 错误处理
+```python
+import sys
+import click
+
+def main():
+    """CLI 主入口"""
+    try:
+        # 业务逻辑
+        result = execute_command()
+        click.echo(f"✅ 成功: {result}")
+        
+    except ConnectionError as e:
+        logger.error(f"网络连接失败: {e}")
+        click.echo(f"❌ 错误: 无法连接到云服务", err=True)
+        sys.exit(1)
+        
+    except PermissionError as e:
+        logger.error(f"权限不足: {e}")
+        click.echo(f"❌ 错误: 没有操作权限，请检查凭证", err=True)
+        sys.exit(1)
+        
+    except Exception as e:
+        logger.exception("未预期的错误")
+        click.echo(f"❌ 发生未知错误，请查看日志文件", err=True)
+        sys.exit(2)
+```
+
+### Web 错误处理（Next.js + FastAPI）
+```typescript
+// 前端：使用 Error Boundaries + Toast 通知
+"use client"
+
+import { toastError, toastSuccess } from '@/components/ui/toast';
+import { apiGet, ApiError } from '@/lib/api';
+
+try {
+  setLoading(true);
+  const data = await apiGet(`/api/resources?region=${region}`);
+  setInstances(data);
+  toastSuccess('数据加载成功');
+} catch (error) {
+  console.error('获取实例失败:', error);
+  
+  if (error instanceof ApiError) {
+    if (error.status === 401) {
+      toastError('认证失败，请重新登录');
+    } else if (error.status >= 500) {
+      toastError('服务器错误，请稍后重试');
+    } else {
+      toastError(error.message || '操作失败，请稍后重试');
+    }
+  } else {
+    toastError('网络连接失败，请检查网络');
+  }
+} finally {
+  setLoading(false);
+}
+```
+
+```python
+# 后端 FastAPI：统一错误处理
+from fastapi import HTTPException
+from web.backend.error_handler import handle_api_error
+
+@router.get("/api/resources")
+async def get_resources(region: str):
+    try:
+        resources = await fetch_resources(region)
+        return {"data": resources}
+    except ConnectionError as e:
+        raise HTTPException(status_code=503, detail=f"无法连接到云服务: {e}")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("获取资源失败")
+        raise HTTPException(status_code=500, detail="内部服务器错误")
+```
+
+# ---------- 性能优化 ----------
+
+## Python 性能
+- 使用生成器处理大数据集
+- 合理使用缓存（`@lru_cache`）
+- 异步 I/O（`asyncio`）处理多个 API 调用
+- 避免不必要的深拷贝
+
+## React/Next.js 性能
+- 使用 `React.memo` 避免不必要的重渲染
+- 使用 `useMemo` 和 `useCallback` 优化计算
+- 虚拟滚动处理长列表（使用 `react-window`）
+- Next.js 自动代码分割和懒加载
+- 使用 Next.js Image 组件优化图片
+- 合理使用 Server Components 和 Client Components
+- 使用 `next/dynamic` 动态导入大组件
+
+# ---------- 安全最佳实践 ----------
+
+- ❌ **禁止硬编码凭证**（API Key, Secret）
+- ✅ 使用环境变量（`.env` 文件，加入 `.gitignore`）
+- ✅ 验证所有用户输入
+- ✅ 使用 HTTPS
+- ✅ 定期更新依赖（`pip`、`npm`）
+- ✅ 最小权限原则
+
+# ---------- Git 提交规范 ----------
+
+使用 Conventional Commits:
+
+```
+feat(cli): 添加 RDS 实例查询命令
+fix(web): 修复成本图表数据显示错误
+docs: 更新 API 文档
+test: 添加实例列表单元测试
+refactor(cli): 重构错误处理逻辑
+perf(web): 优化实例列表渲染性能
+```
+
+# ---------- 测试指南 ----------
+
+## Python 测试（pytest）
+```python
+import pytest
+from cli.commands.list import list_instances
+
+def test_list_instances_success():
+    """测试成功获取实例列表"""
+    result = list_instances(region="cn-beijing")
+    assert len(result) > 0
+    assert "instanceId" in result[0]
+
+def test_list_instances_invalid_region():
+    """测试无效区域错误处理"""
+    with pytest.raises(ValueError):
+        list_instances(region="invalid-region")
+```
+
+## Next.js/React 测试（Jest + Testing Library）
+```typescript
+import { render, screen, fireEvent } from '@testing-library/react';
+import { InstanceCard } from '@/components/InstanceCard';
+
+describe('InstanceCard', () => {
+  it('渲染实例信息', () => {
+    render(
+      <InstanceCard
+        instanceId="i-123456"
+        status="running"
+        region="cn-beijing"
+        onAction={jest.fn()}
+      />
+    );
+    
+    expect(screen.getByText('i-123456')).toBeInTheDocument();
+    expect(screen.getByText('cn-beijing')).toBeInTheDocument();
+  });
+  
+  it('点击操作按钮触发回调', () => {
+    const onAction = jest.fn();
+    render(<InstanceCard {...props} onAction={onAction} />);
+    
+    fireEvent.click(screen.getByRole('button'));
+    expect(onAction).toHaveBeenCalledWith('start');
+  });
+});
+```
+
+**注意**：Next.js 项目建议使用 Jest 或 Vitest，需要配置 `next.config.ts` 和测试环境。
+
+# ---------- 工具特定配置 ----------
+
+## Cursor
+- 自动读取此文件
+- 使用 Cmd+K (Mac) / Ctrl+K (Win) 触发 AI
+- 使用 Composer 进行多文件编辑
+
+## Antigravity
+- 自动读取此文件
+- 使用浏览器扩展自动测试 Web
+- 生成的 artifact 保存到 `artifacts/` 目录
+- 使用 `/` 触发工作流
+
+## Claude Code
+- 启动时说："请读取 .cursorrules 文件，严格遵守所有规则"
+- 支持多轮对话上下文
+- 可以直接运行命令测试
+
+# ---------- 重要提醒 ----------
+
+1. ⭐ **所有回复使用中文**
+2. ⭐⭐⭐ **完整测试后才交付代码**（CLI + Web）
+3. 代码清晰，注释充分
+4. 遵循单一职责原则
+5. 优先考虑可维护性
+6. 及时记录日志
+7. 友好的错误提示
+8. 安全第一
+
+# ---------- 结束 ----------

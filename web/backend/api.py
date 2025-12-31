@@ -565,50 +565,50 @@ def _update_dashboard_summary_cache(account: str, account_config):
                     logger.warning(f"获取Redis列表失败: {str(e)}")
                     return []
             
-        # 并行查询资源（优化性能）
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            instances_future = executor.submit(get_instances)
-            rds_future = executor.submit(get_rds)
-            redis_future = executor.submit(get_redis)
-            
-            try:
-                # 调大超时时间或容忍部分失败
-                instances = instances_future.result(timeout=90) or []
-                rds_list = rds_future.result(timeout=30) or []
-                redis_list = redis_future.result(timeout=30) or []
+            # 并行查询资源（优化性能）
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                instances_future = executor.submit(get_instances)
+                rds_future = executor.submit(get_rds)
+                redis_future = executor.submit(get_redis)
                 
-                # 如果查询结果为空，尝试从之前的缓存中恢复（避免显示0资源）
-                if not instances and not rds_list and not redis_list:
+                try:
+                    # 调大超时时间或容忍部分失败
+                    instances = instances_future.result(timeout=90) or []
+                    rds_list = rds_future.result(timeout=30) or []
+                    redis_list = redis_future.result(timeout=30) or []
+                    
+                    # 如果查询结果为空，尝试从之前的缓存中恢复（避免显示0资源）
+                    if not instances and not rds_list and not redis_list:
+                        resource_cache_key = f"resource_list_{account}"
+                        cached_resources_retry = cache_manager.get(resource_type=resource_cache_key, account_name=account)
+                        if cached_resources_retry:
+                            instances = cached_resources_retry.get("instances", []) or []
+                            rds_list = cached_resources_retry.get("rds", []) or []
+                            redis_list = cached_resources_retry.get("redis", []) or []
+                            logger.info(f"⚠️ 实时查询资源为空，从缓存中恢复了 {len(instances)} 个实例")
+                    else:
+                        # 只有在非空时才更新长期资源列表缓存
+                        cache_manager_short = CacheManager(ttl_seconds=1800) # 30分钟
+                        
+                        # Convert items to dict for JSON serialization
+                        instances_dict = [inst.to_dict() if hasattr(inst, "to_dict") else inst for inst in instances]
+                        rds_dict = [r.to_dict() if hasattr(r, "to_dict") else r for r in rds_list]
+                        redis_dict = [r.to_dict() if hasattr(r, "to_dict") else r for r in redis_list]
+                        
+                        cache_manager_short.set(
+                            resource_type=f"resource_list_{account}",
+                            account_name=account,
+                            data={"instances": instances_dict, "rds": rds_dict, "redis": redis_dict}
+                        )
+                except Exception as e:
+                    logger.warning(f"查询资源列表发生异常: {str(e)}")
+                    # 发生异常时也尝试从缓存恢复
                     resource_cache_key = f"resource_list_{account}"
-                    cached_resources = cache_manager.get(resource_type=resource_cache_key, account_name=account)
-                    if cached_resources:
-                        instances = cached_resources.get("instances", []) or []
-                        rds_list = cached_resources.get("rds", []) or []
-                        redis_list = cached_resources.get("redis", []) or []
-                        logger.info(f"⚠️ 实时查询资源为空，从缓存中恢复了 {len(instances)} 个实例")
-                else:
-                    # 只有在非空时才更新长期资源列表缓存
-                    cache_manager_short = CacheManager(ttl_seconds=1800) # 30分钟
-                    
-                    # Convert items to dict for JSON serialization
-                    instances_dict = [inst.to_dict() if hasattr(inst, "to_dict") else inst for inst in instances]
-                    rds_dict = [r.to_dict() if hasattr(r, "to_dict") else r for r in rds_list]
-                    redis_dict = [r.to_dict() if hasattr(r, "to_dict") else r for r in redis_list]
-                    
-                    cache_manager_short.set(
-                        resource_type=f"resource_list_{account}",
-                        account_name=account,
-                        data={"instances": instances_dict, "rds": rds_dict, "redis": redis_dict}
-                    )
-            except Exception as e:
-                logger.warning(f"查询资源列表发生异常: {str(e)}")
-                # 发生异常时也尝试从缓存恢复
-                resource_cache_key = f"resource_list_{account}"
-                cached_resources = cache_manager.get(resource_type=resource_cache_key, account_name=account)
-                if cached_resources:
-                    instances = cached_resources.get("instances", []) or []
-                    rds_list = cached_resources.get("rds", []) or []
-                    redis_list = cached_resources.get("redis", []) or []
+                    cached_resources_err = cache_manager.get(resource_type=resource_cache_key, account_name=account)
+                    if cached_resources_err:
+                        instances = cached_resources_err.get("instances", []) or []
+                        rds_list = cached_resources_err.get("rds", []) or []
+                        redis_list = cached_resources_err.get("redis", []) or []
         
         # 确保变量存在（处理作用域问题）
         try:

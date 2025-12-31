@@ -1,0 +1,17 @@
+{
+  // Cursor 特定设置 - 自动同意操作
+  "cursor.ai.autoApprove": true,
+  "cursor.ai.autoApproveFileEdits": true,
+  "cursor.ai.autoApproveTerminalCommands": true,
+  "cursor.ai.autoApproveCodeActions": true,
+  
+  // 工作区信任
+  "security.workspace.trust.enabled": true,
+  "security.workspace.trust.untrustedFiles": "open",
+  
+  // 自动保存
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 1000
+}
+
+

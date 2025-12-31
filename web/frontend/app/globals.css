@@ -287,3 +287,38 @@ html {
     background: rgba(59, 130, 246, 0.3);
     color: inherit;
 }
+
+/* 兔子跑动动画 */
+@keyframes rabbit-hop {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-10px) rotate(-5deg); }
+  50% { transform: translateY(0) rotate(0deg); }
+  75% { transform: translateY(-5px) rotate(5deg); }
+}
+
+@keyframes rabbit-ear-flap {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-15deg); }
+}
+
+@keyframes rabbit-leg-run {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
+}
+
+@keyframes motion-line {
+  0% { transform: translateX(0) scaleX(1); opacity: 0.8; }
+  100% { transform: translateX(-40px) scaleX(0.5); opacity: 0; }
+}
+
+.animate-rabbit-hop {
+  animation: rabbit-hop 0.6s infinite ease-in-out;
+}
+
+.animate-rabbit-ear {
+  animation: rabbit-ear-flap 0.3s infinite ease-in-out;
+}
+
+.animate-motion-line {
+  animation: motion-line 0.8s infinite linear;
+}

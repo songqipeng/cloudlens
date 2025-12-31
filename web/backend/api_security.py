@@ -53,6 +53,8 @@ def get_security_overview(
     
     try:
         provider, account_name = _get_provider_for_account(account)
+        cm = ConfigManager()
+        account_config = cm.get_account(account_name)
         
         # 初始化缓存管理器，TTL设置为24小时（86400秒）
         cache_manager = CacheManager(ttl_seconds=86400)
@@ -74,11 +76,50 @@ def get_security_overview(
                 }
         
         from core.security_compliance import SecurityComplianceAnalyzer
+        from core.services.analysis_service import AnalysisService
+        from providers.aliyun.provider import AliyunProvider
         
-        instances = provider.list_instances()
-        rds_list = provider.list_rds()
-        redis_list = provider.list_redis()
-        all_resources = instances + rds_list + redis_list
+        # 获取所有活跃区域
+        all_regions = AnalysisService._get_all_regions(
+            account_config.access_key_id,
+            account_config.access_key_secret
+        )
+        
+        all_instances = []
+        all_rds = []
+        all_redis = []
+        all_slb = []
+        all_nat = []
+        
+        # 遍历所有区域获取资源
+        for region in all_regions:
+            try:
+                region_provider = AliyunProvider(
+                    account_name=account_name,
+                    access_key=account_config.access_key_id,
+                    secret_key=account_config.access_key_secret,
+                    region=region,
+                )
+                
+                # 快速检查是否有 ECS 实例，避免无谓的详细查询
+                count = region_provider.check_instances_count()
+                if count > 0:
+                    all_instances.extend(region_provider.list_instances())
+                
+                # RDS/Redis/SLB/NAT 目前通常在特定区域，但为了安全起见也遍历 (或者可以根据需要优化)
+                # 这里我们主要关注有公网暴露风险的资源
+                all_rds.extend(region_provider.list_rds())
+                all_redis.extend(region_provider.list_redis())
+                
+                if hasattr(region_provider, 'list_slb'):
+                    all_slb.extend(region_provider.list_slb())
+                if hasattr(region_provider, 'list_nat_gateways'):
+                    all_nat.extend(region_provider.list_nat_gateways())
+            except Exception as e:
+                logger.warning(f"Error scanning region {region} in security overview: {e}")
+                continue
+
+        all_resources = all_instances + all_rds + all_redis + all_slb + all_nat
         
         analyzer = SecurityComplianceAnalyzer()
         
@@ -86,23 +127,33 @@ def get_security_overview(
         exposed = analyzer.detect_public_exposure(all_resources)
         
         # 安全检查
-        stopped = analyzer.check_stopped_instances(instances)
+        stopped = analyzer.check_stopped_instances(all_instances)
         tag_coverage, no_tags = analyzer.check_missing_tags(all_resources)
         
-        # 磁盘加密检查
-        encryption_info = analyzer.check_disk_encryption(instances)
+        # 磁盘加密检查 (主要针对 ECS)
+        encryption_info = analyzer.check_disk_encryption(all_instances)
         
         # 抢占式实例检查
-        preemptible = analyzer.check_preemptible_instances(instances)
+        preemptible = analyzer.check_preemptible_instances(all_instances)
         
-        # EIP使用情况
+        # EIP使用情况 (汇总所有区域)
+        total_eips = []
+        for region in all_regions:
+            try:
+                region_provider = AliyunProvider(
+                    account_name=account_name,
+                    access_key=account_config.access_key_id,
+                    secret_key=account_config.access_key_secret,
+                    region=region,
+                )
+                eips = region_provider.list_eip() if hasattr(region_provider, 'list_eip') else []
+                total_eips.extend(eips)
+            except:
+                pass
+        
         eip_info = {"total": 0, "bound": 0, "unbound": 0, "unbound_rate": 0}
-        try:
-            eips = provider.list_eip() if hasattr(provider, 'list_eip') else (provider.list_eips() if hasattr(provider, 'list_eips') else [])
-            if eips:
-                eip_info = analyzer.analyze_eip_usage(eips)
-        except:
-            pass
+        if total_eips:
+            eip_info = analyzer.analyze_eip_usage(total_eips)
         
         # 计算安全评分
         security_score = 100
@@ -232,6 +283,8 @@ def get_security_checks(
     
     try:
         provider, account_name = _get_provider_for_account(account)
+        cm = ConfigManager()
+        account_config = cm.get_account(account_name)
         cache_manager = CacheManager(ttl_seconds=86400)
         
         cached_result = None
@@ -246,27 +299,73 @@ def get_security_checks(
             }
         
         from core.security_compliance import SecurityComplianceAnalyzer
+        from core.services.analysis_service import AnalysisService
+        from providers.aliyun.provider import AliyunProvider
         
-        instances = provider.list_instances()
-        rds_list = provider.list_rds()
-        redis_list = provider.list_redis()
-        all_resources = instances + rds_list + redis_list
+        # 获取所有活跃区域
+        all_regions = AnalysisService._get_all_regions(
+            account_config.access_key_id,
+            account_config.access_key_secret
+        )
+        
+        all_instances = []
+        all_rds = []
+        all_redis = []
+        all_slb = []
+        all_nat = []
+        
+        for region in all_regions:
+            try:
+                region_provider = AliyunProvider(
+                    account_name=account_name,
+                    access_key=account_config.access_key_id,
+                    secret_key=account_config.access_key_secret,
+                    region=region,
+                )
+                
+                count = region_provider.check_instances_count()
+                if count > 0:
+                    all_instances.extend(region_provider.list_instances())
+                
+                all_rds.extend(region_provider.list_rds())
+                all_redis.extend(region_provider.list_redis())
+                
+                if hasattr(region_provider, 'list_slb'):
+                    all_slb.extend(region_provider.list_slb())
+                if hasattr(region_provider, 'list_nat_gateways'):
+                    all_nat.extend(region_provider.list_nat_gateways())
+            except Exception as e:
+                logger.warning(f"Error scanning region {region} in security checks: {e}")
+                continue
+
+        all_resources = all_instances + all_rds + all_redis + all_slb + all_nat
         
         analyzer = SecurityComplianceAnalyzer()
         
         exposed = analyzer.detect_public_exposure(all_resources)
-        stopped = analyzer.check_stopped_instances(instances)
+        stopped = analyzer.check_stopped_instances(all_instances)
         tag_coverage, no_tags = analyzer.check_missing_tags(all_resources)
-        encryption_info = analyzer.check_disk_encryption(instances)
-        preemptible = analyzer.check_preemptible_instances(instances)
+        encryption_info = analyzer.check_disk_encryption(all_instances)
+        preemptible = analyzer.check_preemptible_instances(all_instances)
         
+        # EIP 汇总
+        total_eips = []
+        for region in all_regions:
+            try:
+                region_provider = AliyunProvider(
+                    account_name=account_name,
+                    access_key=account_config.access_key_id,
+                    secret_key=account_config.access_key_secret,
+                    region=region,
+                )
+                eips = region_provider.list_eip() if hasattr(region_provider, 'list_eip') else []
+                total_eips.extend(eips)
+            except:
+                pass
+
         eip_info = {"total": 0, "bound": 0, "unbound": 0, "unbound_eips": []}
-        try:
-            eips = provider.list_eip() if hasattr(provider, 'list_eip') else (provider.list_eips() if hasattr(provider, 'list_eips') else [])
-            if eips:
-                eip_info = analyzer.analyze_eip_usage(eips)
-        except:
-            pass
+        if total_eips:
+            eip_info = analyzer.analyze_eip_usage(total_eips)
         
         checks = []
         
@@ -383,18 +482,54 @@ def trigger_deep_scan(account: Optional[str] = None):
     """手动触发公网安全扫描"""
     try:
         provider, account_name = _get_provider_for_account(account)
+        cm = ConfigManager()
+        account_config = cm.get_account(account_name)
         from core.security_compliance import SecurityComplianceAnalyzer
         from core.security_scanner import PublicIPScanner
+        from core.services.analysis_service import AnalysisService
+        from providers.aliyun.provider import AliyunProvider
         
-        instances = provider.list_instances()
-        analyzer = SecurityComplianceAnalyzer()
-        exposed = analyzer.detect_public_exposure(instances)
+        # 获取所有区域
+        all_regions = AnalysisService._get_all_regions(
+            account_config.access_key_id,
+            account_config.access_key_secret
+        )
+        
+        all_exposed = []
+        
+        for region in all_regions:
+            try:
+                region_provider = AliyunProvider(
+                    account_name=account_name,
+                    access_key=account_config.access_key_id,
+                    secret_key=account_config.access_key_secret,
+                    region=region,
+                )
+                
+                # 获取该区域的所有资源
+                instances = region_provider.list_instances()
+                rds_list = region_provider.list_rds()
+                redis_list = region_provider.list_redis()
+                slb_list = region_provider.list_slb() if hasattr(region_provider, 'list_slb') else []
+                nat_list = region_provider.list_nat_gateways() if hasattr(region_provider, 'list_nat_gateways') else []
+                
+                regional_resources = instances + rds_list + redis_list + slb_list + nat_list
+                
+                analyzer = SecurityComplianceAnalyzer()
+                exposed = analyzer.detect_public_exposure(regional_resources)
+                all_exposed.extend(exposed)
+            except Exception as e:
+                logger.warning(f"Error scanning region {region} in deep scan: {e}")
+                continue
         
         public_ips = []
-        for res in exposed:
-            ip = res.get("public_ip")
-            if ip:
-                public_ips.append(ip)
+        for res in all_exposed:
+            ips = res.get("public_ips")
+            if ips:
+                if isinstance(ips, list):
+                    public_ips.extend(ips)
+                else:
+                    public_ips.append(ips)
         
         if not public_ips:
             return {

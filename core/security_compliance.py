@@ -67,20 +67,45 @@ class SecurityComplianceAnalyzer:
         stopped = []
 
         for inst in instances:
-            if inst.status == ResourceStatus.STOPPED:
-                # 注意：阿里云API不直接返回停止时间，无法准确计算停止天数
-                # 只能通过实例的最后修改时间或其他方式间接推断
+            # Handle both dict and object
+            if isinstance(inst, dict):
+                 status = inst.get("status")
+                 inst_id = inst.get("id")
+                 name = inst.get("name")
+                 region = inst.get("region")
+                 created_time = inst.get("created_time")
+            else:
+                 status = inst.status
+                 inst_id = inst.id
+                 name = inst.name
+                 region = inst.region
+                 created_time = inst.created_time
+
+            # Check for stopped status (handle Enum or string)
+            is_stopped = False
+            if hasattr(status, "value"): # ResourceStatus enum
+                is_stopped = (status == ResourceStatus.STOPPED)
+            else:
+                is_stopped = (str(status).lower() == "stopped")
+
+            if is_stopped:
+                # Format created_time
+                created_time_str = "N/A"
+                if created_time:
+                    if isinstance(created_time, str):
+                        created_time_str = created_time
+                    elif hasattr(created_time, "strftime"):
+                        created_time_str = created_time.strftime("%Y-%m-%d")
+
                 stopped.append(
                     {
-                        "id": inst.id,
-                        "name": inst.name,
-                        "region": inst.region,
-                        "status": inst.status.value,
-                        "created_time": (
-                            inst.created_time.strftime("%Y-%m-%d") if inst.created_time else "N/A"
-                        ),
+                        "id": inst_id,
+                        "name": name,
+                        "region": region,
+                        "status": "Stopped",
+                        "created_time": created_time_str,
                     }
-                )
+                )    
         return stopped
 
     @staticmethod

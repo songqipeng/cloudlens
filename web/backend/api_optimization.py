@@ -87,11 +87,30 @@ def get_optimization_suggestions(
             if instances_cache:
                 instances = instances_cache
             else:
-                instances = provider.list_instances()
+                from core.services.analysis_service import AnalysisService
+                all_regions = AnalysisService._get_all_regions(account_config.access_key_id, account_config.access_key_secret)
+                
+                from providers.aliyun.provider import AliyunProvider
+                import concurrent.futures
+                
+                def fetch_region_instances(region):
+                    try:
+                        rp = AliyunProvider(account_config.name, account_config.access_key_id, account_config.access_key_secret, region)
+                        if rp.check_instances_count() > 0:
+                            return rp.list_instances()
+                    except: pass
+                    return []
+                
+                with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                    futures = [executor.submit(fetch_region_instances, r) for r in all_regions]
+                    for f in concurrent.futures.as_completed(futures):
+                        instances.extend(f.result())
+                
                 if instances:
-                    # Convert to dict for cache
                     instances_dict = [inst.to_dict() if hasattr(inst, "to_dict") else inst for inst in instances]
-                    cache_manager.set(resource_type="ecs_instances", account_name=account_name, data=instances_dict, ttl_seconds=300)
+                    # Create a new CacheManager with 1 hour TTL for this data
+                    cm_hour = CacheManager(ttl_seconds=3600)
+                    cm_hour.set(resource_type="ecs_instances", account_name=account_name, data=instances_dict)
                     instances = instances_dict
         except Exception as e:
             logger.warning(f"获取实例列表失败: {e}")
@@ -128,11 +147,30 @@ def get_optimization_suggestions(
             if eips_cache:
                 eips = eips_cache
             else:
-                eips = provider.list_eip() if hasattr(provider, 'list_eip') else []
+                from core.services.analysis_service import AnalysisService
+                all_regions = AnalysisService._get_all_regions(account_config.access_key_id, account_config.access_key_secret)
+                
+                from providers.aliyun.provider import AliyunProvider
+                import concurrent.futures
+                
+                def fetch_region_eips(region):
+                    try:
+                        rp = AliyunProvider(account_config.name, account_config.access_key_id, account_config.access_key_secret, region)
+                        return rp.list_eip()
+                    except: pass
+                    return []
+                
+                eips = []
+                with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                    futures = [executor.submit(fetch_region_eips, r) for r in all_regions]
+                    for f in concurrent.futures.as_completed(futures):
+                        eips.extend(f.result())
+                
                 if eips:
-                    # Need to handle EIP serialization if they are objects
                     eips_dict = [e.to_dict() if hasattr(e, "to_dict") else e for e in eips]
-                    cache_manager.set(resource_type="eip_list", account_name=account_name, data=eips_dict, ttl_seconds=300)
+                    # Create a new CacheManager with 1 hour TTL for this data
+                    cm_hour = CacheManager(ttl_seconds=3600)
+                    cm_hour.set(resource_type="eip_list", account_name=account_name, data=eips_dict)
                     eips = eips_dict
             
             if eips:

@@ -9,6 +9,7 @@ import { AlertTriangle, Shield, Lock, Tag, Server, Globe, Zap, Network } from "l
 import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
+import { RabbitLoading } from "@/components/loading"
 
 export default function SecurityPage() {
   const router = useRouter()
@@ -114,8 +115,8 @@ export default function SecurityPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center h-40">
-            <div className="animate-pulse">{t.common.loading}</div>
+          <div className="flex items-center justify-center h-64">
+            <RabbitLoading delay={3000} />
           </div>
         ) : (
           <>
@@ -215,13 +216,12 @@ export default function SecurityPage() {
                   {checks.map((check, idx) => (
                     <div
                       key={idx}
-                      className={`border rounded-xl overflow-hidden transition-all ${
-                        check.status === "failed"
+                      className={`border rounded-xl overflow-hidden transition-all ${check.status === "failed"
                           ? "border-red-500/30 bg-red-500/5"
                           : check.status === "warning"
                             ? "border-yellow-500/30 bg-yellow-500/5"
                             : "border-green-500/30 bg-green-500/5"
-                      }`}
+                        }`}
                     >
                       <div className="p-4 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => toggleCheck(check.type)}>
                         <div className="flex items-center justify-between">

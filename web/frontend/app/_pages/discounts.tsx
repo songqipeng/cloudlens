@@ -7,6 +7,7 @@ import { Table, TableColumn } from "@/components/ui/table"
 import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
+import { RabbitLoading } from "@/components/loading"
 import { SmartLoadingProgress } from "@/components/loading-progress"
 
 type SubscriptionType = "Subscription" | "PayAsYouGo" | "Unknown"
@@ -51,7 +52,7 @@ const fmtCny = (n: number) => `¥${(Number.isFinite(n) ? n : 0).toLocaleString()
 export default function DiscountsPage() {
   const { currentAccount } = useAccount()
   const { t } = useLocale()
-  
+
   const fmtZhe = (z: number | null | undefined, free?: boolean) => {
     if (free) return t.discounts.free
     if (z === null || z === undefined || !Number.isFinite(z)) return "-"
@@ -291,11 +292,10 @@ export default function DiscountsPage() {
                     <button
                       key={t.k}
                       onClick={() => setMode(t.k)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                        mode === t.k
-                          ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-                          : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      }`}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${mode === t.k
+                        ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                        : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        }`}
                     >
                       {t.label}
                     </button>
@@ -324,9 +324,10 @@ export default function DiscountsPage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="flex items-center justify-center h-40">
+              <div className="flex flex-col items-center justify-center h-64 space-y-4">
+                <RabbitLoading delay={3000} showText={false} />
                 <div className="text-center space-y-2">
-                  <div className="animate-pulse text-sm">{statusText || t.common.loading}</div>
+                  <div className="animate-pulse text-sm text-muted-foreground">{statusText || t.common.loading}</div>
                   <div className="text-xs text-muted-foreground">{t.discounts.waited.replace('{seconds}', String(elapsedSec))}</div>
                   <button
                     onClick={() => abortRef.current?.abort()}

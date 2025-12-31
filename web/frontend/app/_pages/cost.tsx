@@ -8,6 +8,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
+import { RabbitLoading } from "@/components/loading"
 
 export default function CostPage() {
   const { currentAccount } = useAccount()
@@ -106,10 +107,10 @@ export default function CostPage() {
     })) ||
     (breakdown?.by_type
       ? Object.entries(breakdown.by_type).map(([code, amount]) => ({
-          code,
-          name: "",
-          amount: Number(amount || 0),
-        }))
+        code,
+        name: "",
+        amount: Number(amount || 0),
+      }))
       : [])
 
   const normalized = rawCategories
@@ -140,8 +141,8 @@ export default function CostPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center h-40">
-            <div className="animate-pulse">{t.common.loading}</div>
+          <div className="flex items-center justify-center h-64">
+            <RabbitLoading delay={3000} />
           </div>
         ) : (
           <>

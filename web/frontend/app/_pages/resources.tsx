@@ -9,6 +9,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
+import { RabbitLoading } from "@/components/loading"
 import { SmartLoadingProgress } from "@/components/loading-progress"
 
 interface Resource {
@@ -223,8 +224,8 @@ export default function ResourcesPage() {
                       setPage(1)
                     }}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${resourceType === t.key
-                        ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-                        : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                      : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
                       }`}
                   >
                     {t.label}
@@ -245,8 +246,8 @@ export default function ResourcesPage() {
             </div>
 
             {loading ? (
-              <div className="flex items-center justify-center h-40">
-                <div className="animate-pulse">{t.common.loading}</div>
+              <div className="flex items-center justify-center h-64">
+                <RabbitLoading delay={3000} />
               </div>
             ) : (
               <>

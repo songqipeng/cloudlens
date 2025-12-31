@@ -813,6 +813,7 @@ def analyze_discount(bill_dir, months, export, format):
 def analyze_security(account, cis, export):
     """安全合规 - 检查公网暴露、安全组、CIS Benchmark等"""
     from core.cis_compliance import CISBenchmark
+    from core.services.analysis_service import AnalysisService
     from providers.aliyun.provider import AliyunProvider
     from rich.table import Table
     from rich.panel import Panel
@@ -839,17 +840,46 @@ def analyze_security(account, cis, export):
         region=account_config.region,
     )
 
+    # 获取所有区域
+    all_regions = AnalysisService._get_all_regions(
+        account_config.access_key_id,
+        account_config.access_key_secret
+    )
+    
+    all_instances = []
+    all_rds = []
+    all_redis = []
+    all_slb = []
+    all_nat = []
+
     # 获取资源
     with Progress() as progress:
-        task = progress.add_task("[cyan]查询资源...", total=3)
-        instances = provider.list_instances()
-        progress.update(task, advance=1)
-        rds_list = provider.list_rds()
-        progress.update(task, advance=1)
-        redis_list = provider.list_redis()
-        progress.update(task, advance=1)
+        task = progress.add_task("[cyan]全区域资源扫描...", total=len(all_regions))
+        for region in all_regions:
+            try:
+                region_provider = AliyunProvider(
+                    account_name=account_config.name,
+                    access_key=account_config.access_key_id,
+                    secret_key=account_config.access_key_secret,
+                    region=region,
+                )
+                
+                # 快速检查
+                if region_provider.check_instances_count() > 0:
+                    all_instances.extend(region_provider.list_instances())
+                
+                all_rds.extend(region_provider.list_rds())
+                all_redis.extend(region_provider.list_redis())
+                
+                if hasattr(region_provider, 'list_slb'):
+                    all_slb.extend(region_provider.list_slb())
+                if hasattr(region_provider, 'list_nat_gateways'):
+                    all_nat.extend(region_provider.list_nat_gateways())
+            except:
+                pass
+            progress.update(task, advance=1)
 
-    all_resources = instances + rds_list + redis_list
+    all_resources = all_instances + all_rds + all_redis + all_slb + all_nat
     
     # 基础安全检查
     public_exposed = []

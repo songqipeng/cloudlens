@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/ui/badge"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
+import { RabbitLoading } from "@/components/loading"
 
 export default function CISPage() {
   const [cisData, setCisData] = useState<any>(null)
@@ -32,8 +33,8 @@ export default function CISPage() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-pulse">{t.cis.loading}</div>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <RabbitLoading delay={3000} />
         </div>
       </DashboardLayout>
     )
@@ -77,8 +78,8 @@ export default function CISPage() {
                       {check.description && <div className="text-sm text-muted-foreground mt-2">{check.description}</div>}
                     </div>
                   )) || (
-                    <div className="text-center py-8 text-muted-foreground">{t.cis.noChecks}</div>
-                  )}
+                      <div className="text-center py-8 text-muted-foreground">{t.cis.noChecks}</div>
+                    )}
                 </div>
               </CardContent>
             </Card>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
+import { RabbitLoading } from "@/components/loading"
 
 interface LoadingProgressProps {
   message?: string
@@ -46,19 +47,8 @@ export function LoadingProgress({
     <Card className="glass border border-border/50">
       <CardContent className="py-16">
         <div className="flex flex-col items-center justify-center space-y-6">
-          {/* 主加载动画 - 脉冲圆环 */}
-          <div className="relative">
-            {/* 外圈脉冲动画 */}
-            <div className="absolute inset-0 rounded-full border-4 border-primary/20 animate-ping"></div>
-            {/* 中圈旋转动画 */}
-            <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-primary/40 animate-spin" style={{ animationDuration: "1.5s" }}></div>
-            {/* 内圈旋转动画 */}
-            <div className="relative w-20 h-20 rounded-full border-4 border-transparent border-t-primary border-r-primary/50 animate-spin" style={{ animationDuration: "1s" }}></div>
-            {/* 中心点 */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-3 h-3 rounded-full bg-primary animate-pulse"></div>
-            </div>
-          </div>
+          {/* 主加载动画 - 活泼的小兔子 */}
+          <RabbitLoading showText={false} delay={3000} />
 
           {/* 文字提示 */}
           <div className="text-center space-y-2">
@@ -83,14 +73,14 @@ export function LoadingProgress({
               <div className="h-4 bg-muted/30 rounded-full overflow-hidden shadow-inner relative border border-border/20">
                 {/* 背景动画 - 脉冲效果 */}
                 <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-primary/15 to-primary/5 animate-pulse"></div>
-                
+
                 {/* 进度条主体 */}
                 <div
                   className="h-full bg-gradient-to-r from-primary via-blue-500 to-primary rounded-full transition-all duration-500 ease-out relative overflow-hidden"
                   style={{ width: `${Math.min(100, Math.max(0, progressPercent))}%` }}
                 >
                   {/* 进度条光效动画 - 从左到右扫过（增强版） */}
-                  <div 
+                  <div
                     className="absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent"
                     style={{
                       width: "40%",
@@ -98,13 +88,13 @@ export function LoadingProgress({
                       animation: "shimmer 2s infinite",
                     }}
                   ></div>
-                  
+
                   {/* 进度条内部高光 - 顶部渐变 */}
                   <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/50 via-white/30 to-transparent rounded-t-full"></div>
-                  
+
                   {/* 进度条边缘光效 - 右侧发光 */}
                   <div className="absolute right-0 top-0 bottom-0 w-3 bg-gradient-to-l from-primary via-blue-400 to-transparent opacity-70 blur-sm"></div>
-                  
+
                   {/* 进度条内部粒子效果 */}
                   <div className="absolute inset-0">
                     {[0, 1, 2].map((i) => (
@@ -121,17 +111,17 @@ export function LoadingProgress({
                     ))}
                   </div>
                 </div>
-                
+
                 {/* 进度条边缘发光效果 */}
-                <div 
+                <div
                   className="absolute top-0 bottom-0 bg-primary/30 blur-md transition-all duration-500"
-                  style={{ 
+                  style={{
                     width: `${Math.min(100, Math.max(0, progressPercent))}%`,
                     right: 0,
                   }}
                 ></div>
               </div>
-              
+
               {/* 进度百分比显示 */}
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground font-medium">
@@ -199,7 +189,7 @@ export function SmartLoadingProgress({
     // 更新进度
     const progressInterval = setInterval(() => {
       const elapsed = (Date.now() - startTime) / 1000
-      
+
       if (estimatedDuration) {
         const percent = Math.min(95, (elapsed / estimatedDuration) * 100)
         setProgressPercent(percent)
