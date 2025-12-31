@@ -6,13 +6,16 @@ from enum import Enum
 class ResourceType(Enum):
     ECS = "ecs"
     RDS = "rds"
-    REDIS = "redis"
+    NAT_GATEWAY = "nat_gateway"
     MONGODB = "mongodb"
+    OSS_BUCKET = "oss_bucket"
     SLB = "slb"
     NAT = "nat"
     OSS = "oss"
     VPC = "vpc"
     EIP = "eip"
+    K8S = "k8s"  # Kubernetes/ACK 集群
+    REDIS = "redis"
     UNKNOWN = "unknown"
 
 class ResourceStatus(Enum):

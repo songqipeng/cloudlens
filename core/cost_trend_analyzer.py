@@ -471,6 +471,14 @@ class CostTrendAnalyzer:
                             logger.warning(f"API按天查询返回数据不足（{len(api_daily_data) if api_daily_data else 0}天），尝试从数据库查询")
                     else:
                         logger.warning(f"未找到账号配置，无法通过API获取按天数据")
+                except (ImportError, ModuleNotFoundError) as e:
+                    # 依赖缺失错误，需要明确提示用户
+                    logger.error(f"\n{'='*60}")
+                    logger.error(f"❌ 账单数据获取失败：缺少依赖包")
+                    logger.error(f"{str(e)}")
+                    logger.error(f"{'='*60}")
+                    # 不再继续尝试，而是向用户说明问题
+                    raise
                 except Exception as e:
                     logger.warning(f"通过API按天获取数据失败: {str(e)}，尝试从数据库查询")
             

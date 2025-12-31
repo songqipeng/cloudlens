@@ -8,6 +8,7 @@ aliyun-python-sdk-rds>=2.3.0
 aliyun-python-sdk-r-kvstore>=2.20.0
 aliyun-python-sdk-dds>=2.0.0
 aliyun-python-sdk-nas>=3.0.0
+aliyun-python-sdk-bssopenapi>=2.0.0
 
 aliyun-python-sdk-slb>=3.0.0
 aliyun-python-sdk-vpc>=3.0.0

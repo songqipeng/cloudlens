@@ -83,66 +83,36 @@ class IdleDetector:
     @staticmethod
     def fetch_ecs_metrics(provider, instance_id: str, days: int = 14) -> Dict[str, float]:
         """
-        获取ECS实例的监控指标平均值
-
+        获取ECS实例的监控指标 (使用 CloudMonitor)
+        
         Args:
             provider: AliyunProvider实例
             instance_id: 实例ID
             days: 查询天数
-
+            
         Returns:
-            监控指标平均值字典
+            监控指标字典 (Max值)
         """
         metrics_result = {}
-        end_time = int(round(time.time() * 1000))
-        start_time = end_time - (days * 24 * 60 * 60 * 1000)
-
-        # ECS关键监控指标
-        metric_names = {
-            "CPUUtilization": "CPU利用率",
-            "memory_usedutilization": "内存利用率",
-            "InternetInRate": "公网入流量",
-            "InternetOutRate": "公网出流量",
-            "disk_readiops": "磁盘读IOPS",
-            "disk_writeiops": "磁盘写IOPS",
-        }
-
-        for metric_key, metric_display in metric_names.items():
-            try:
-                datapoints = provider.get_metric(instance_id, metric_key, start_time, end_time)
-
-                if datapoints and isinstance(datapoints, list):
-                    values = []
-                    for dp in datapoints:
-                        # 确保 dp 是字典类型
-                        if isinstance(dp, dict):
-                            # 尝试获取 Average 值
-                            if "Average" in dp:
-                                try:
-                                    values.append(float(dp.get("Average", 0)))
-                                except (ValueError, TypeError):
-                                    pass
-                            # 如果没有 Average，尝试获取 value
-                            elif "value" in dp or "Value" in dp:
-                                try:
-                                    val = dp.get("value") or dp.get("Value", 0)
-                                    values.append(float(val))
-                                except (ValueError, TypeError):
-                                    pass
-                        elif isinstance(dp, (int, float)):
-                            # 如果直接是数值
-                            values.append(float(dp))
-                    
-                    if values:
-                        metrics_result[metric_display] = sum(values) / len(values)
-                    else:
-                        metrics_result[metric_display] = 0
-                else:
-                    metrics_result[metric_display] = 0
-
-                time.sleep(0.1)  # 避免API限流
-            except Exception as e:
-                logger.warning(f"Failed to fetch metric {metric_key} for {instance_id}: {e}")
-                metrics_result[metric_display] = 0
-
+        try:
+            # 尝试使用 get_monitor_client (如果 provider 支持)
+            if hasattr(provider, 'get_monitor_client'):
+                monitor = provider.get_monitor_client()
+                # CloudMonitor.get_ecs_metrics 返回的是 Max 值
+                raw_metrics = monitor.get_ecs_metrics(instance_id, days)
+                
+                # 映射到 IdleDetector 使用的中文键
+                metrics_result["CPU利用率"] = raw_metrics.get("max_cpu", 0)
+                metrics_result["公网入流量"] = raw_metrics.get("max_internet_in", 0)
+                metrics_result["公网出流量"] = raw_metrics.get("max_internet_out", 0)
+                # 内存和磁盘暂时没有在 CloudMonitor.get_ecs_metrics 中实现，置为安全值(100)避免误判，或者保留0
+                metrics_result["内存利用率"] = 100 # 暂不作为判断依据
+                metrics_result["磁盘读IOPS"] = 100
+                metrics_result["磁盘写IOPS"] = 100
+            else:
+                # Fallback to old logic or return empty
+                logger.warning("Provider does not support get_monitor_client, skipping metrics.")
+        except Exception as e:
+            logger.warning(f"Failed to fetch metrics via CloudMonitor for {instance_id}: {e}")
+            
         return metrics_result

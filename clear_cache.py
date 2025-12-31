@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """清除缓存脚本"""
 import sys
+import os
 sys.path.insert(0, '.')
 
 from core.cache import CacheManager
@@ -14,22 +15,19 @@ print(f'清除账号 {account} 的缓存...')
 # 清除各种缓存
 cache_types = [
     'ecs',
-    'dashboard_summary',
-    'dashboard_idle',
-    'idle_result',
+    'dashboard_summary', # 仪表盘缓存
+    'dashboard_idle',    # 闲置资源缓存
+    'idle_result',       # 优化建议缓存
+    'cost_overview',     # 成本分析概览缓存 (24h)
     'resource_list_ydzn',
 ]
 
 for cache_type in cache_types:
     try:
-        # 尝试删除缓存
-        result = cm.get(resource_type=cache_type, account_name=account)
-        if result is not None:
-            print(f'  找到缓存: {cache_type}')
-            # 注意：CacheManager 可能没有直接的 delete 方法
-            # 我们可以通过设置过期时间很短的缓存来"清除"
-    except:
-        pass
+        # 清除缓存
+        cm.clear(resource_type=cache_type, account_name=account)
+        print(f'  ✅ 已清除缓存: {cache_type}')
+    except Exception as e:
+        print(f'  ❌ 清除失败 {cache_type}: {e}')
 
-print('✅ 缓存清除完成（注意：某些缓存可能需要等待 TTL 过期）')
-print('\n建议：重启后端服务以确保所有缓存清除')
+print('\n✅ 所有指定缓存已清理完成。请刷新前端页面查看最新数据。')

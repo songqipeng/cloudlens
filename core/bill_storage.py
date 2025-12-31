@@ -241,33 +241,80 @@ class BillStorageManager:
                 logger.warning(f"Invalid limit value: {limit}, ignoring")
 
         return self.db.query(sql, tuple(params) if params else None)
-    
+
+    def get_billing_cycles(self, account_id: str) -> List[Dict]:
+        """
+        获取指定账号的所有账期及统计信息
+
+        Args:
+            account_id: 账号ID
+
+        Returns:
+            账期列表，每个元素包含billing_cycle和record_count
+        """
+        placeholder = self._get_placeholder()
+
+        try:
+            sql = f"""
+                SELECT
+                    billing_cycle,
+                    COUNT(*) as record_count
+                FROM bill_items
+                WHERE account_id = {placeholder}
+                GROUP BY billing_cycle
+                ORDER BY billing_cycle DESC
+            """
+
+            results = self.db.query(sql, (account_id,))
+            return results if results else []
+        except Exception as e:
+            logger.error(f"获取账期列表失败: {str(e)}")
+            return []
+
     def get_storage_stats(self) -> Dict:
         """获取存储统计信息"""
         placeholder = self._get_placeholder()
-        
+
         # 总记录数
         total_result = self.db.query_one(f"SELECT COUNT(*) as count FROM bill_items")
         total_records = total_result['count'] if total_result else 0
-        
+
         # 账号数
         account_result = self.db.query_one(f"SELECT COUNT(DISTINCT account_id) as count FROM bill_items")
         account_count = account_result['count'] if account_result else 0
-        
+
         # 账期数
         cycle_result = self.db.query_one(f"SELECT COUNT(DISTINCT billing_cycle) as count FROM bill_items")
         cycle_count = cycle_result['count'] if cycle_result else 0
-        
+
         # 时间范围
         min_result = self.db.query_one(f"SELECT MIN(billing_cycle) as min_cycle FROM bill_items")
         max_result = self.db.query_one(f"SELECT MAX(billing_cycle) as max_cycle FROM bill_items")
-        
+
+        # 数据库大小（MySQL）
+        db_size_mb = 0.0
+        try:
+            if self.db_type == "mysql":
+                # 查询MySQL数据库大小
+                size_result = self.db.query_one("""
+                    SELECT
+                        ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) as size_mb
+                    FROM information_schema.tables
+                    WHERE table_schema = DATABASE()
+                    AND table_name = 'bill_items'
+                """)
+                db_size_mb = float(size_result.get('size_mb', 0) or 0) if size_result else 0.0
+        except Exception as e:
+            logger.warning(f"获取数据库大小失败: {str(e)}")
+            db_size_mb = 0.0
+
         return {
             'total_records': total_records,
             'account_count': account_count,
             'cycle_count': cycle_count,
             'min_cycle': min_result.get('min_cycle') if min_result else None,
             'max_cycle': max_result.get('max_cycle') if max_result else None,
+            'db_size_mb': db_size_mb,
             'db_path': self.db_path or "MySQL",
             'db_type': self.db_type
         }

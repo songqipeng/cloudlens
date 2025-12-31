@@ -125,12 +125,12 @@ def fetch_bills(account, start, end, output_dir, use_db, db_path, max_records):
                 from core.bill_storage import BillStorageManager
                 storage = BillStorageManager(db_path)
                 stats = storage.get_storage_stats()
-                
+
                 console.print(f"\n[cyan]📊 数据库统计:[/cyan]")
-                console.print(f"  总记录数: [green]{stats['total_records']:,}[/green]")
-                console.print(f"  账期范围: [cyan]{stats['min_cycle']} 至 {stats['max_cycle']}[/cyan]")
-                console.print(f"  数据库大小: [yellow]{stats['db_size_mb']:.2f} MB[/yellow]")
-                console.print(f"  数据库路径: {stats['db_path']}")
+                console.print(f"  总记录数: [green]{stats.get('total_records', 0):,}[/green]")
+                console.print(f"  账期范围: [cyan]{stats.get('min_cycle', 'N/A')} 至 {stats.get('max_cycle', 'N/A')}[/cyan]")
+                console.print(f"  数据库大小: [yellow]{stats.get('db_size_mb', 0.0):.2f} MB[/yellow]")
+                console.print(f"  数据库类型: {stats.get('db_path', 'MySQL')}")
             
             else:
                 # CSV模式
@@ -316,12 +316,12 @@ def fetch_all_bills(account, earliest_year, db_path):
         from core.bill_storage import BillStorageManager
         storage = BillStorageManager(db_path)
         stats = storage.get_storage_stats()
-        
+
         console.print(f"\n[cyan]📊 数据库统计:[/cyan]")
-        console.print(f"  总记录数: [green]{stats['total_records']:,}[/green]")
-        console.print(f"  账期范围: [cyan]{stats['min_cycle']} 至 {stats['max_cycle']}[/cyan]")
-        console.print(f"  数据库大小: [yellow]{stats['db_size_mb']:.2f} MB[/yellow]")
-        console.print(f"  数据库路径: {stats['db_path']}")
+        console.print(f"  总记录数: [green]{stats.get('total_records', 0):,}[/green]")
+        console.print(f"  账期范围: [cyan]{stats.get('min_cycle', 'N/A')} 至 {stats.get('max_cycle', 'N/A')}[/cyan]")
+        console.print(f"  数据库大小: [yellow]{stats.get('db_size_mb', 0.0):.2f} MB[/yellow]")
+        console.print(f"  数据库类型: {stats.get('db_path', 'MySQL')}")
         
         console.print(f"\n[cyan]💡 下一步:[/cyan]")
         console.print(f"  运行折扣分析: [yellow]./cl analyze discount --use-db --months 12[/yellow]")
@@ -344,45 +344,71 @@ def fetch_all_bills(account, earliest_year, db_path):
 def show_stats(db_path):
     """
     显示账单数据库统计信息
-    
+
     示例：
       ./cl bill stats
     """
     from core.bill_storage import BillStorageManager
-    
+
     try:
         storage = BillStorageManager(db_path)
         stats = storage.get_storage_stats()
-        
+
+        # 安全获取字段值（防止KeyError）
+        total_records = stats.get('total_records', 0)
+        account_count = stats.get('account_count', 0)
+        cycle_count = stats.get('cycle_count', 0)
+        min_cycle = stats.get('min_cycle') or 'N/A'
+        max_cycle = stats.get('max_cycle') or 'N/A'
+        db_size_mb = stats.get('db_size_mb', 0.0)
+        db_path_str = stats.get('db_path', 'MySQL')
+
         console.print(Panel.fit(
-            f"[cyan]总记录数:[/cyan] {stats['total_records']:,}\n"
-            f"[cyan]账号数:[/cyan] {stats['account_count']}\n"
-            f"[cyan]账期数:[/cyan] {stats['cycle_count']}\n"
-            f"[cyan]账期范围:[/cyan] {stats['min_cycle'] or 'N/A'} 至 {stats['max_cycle'] or 'N/A'}\n"
-            f"[cyan]数据库大小:[/cyan] {stats['db_size_mb']:.2f} MB\n"
-            f"[cyan]数据库路径:[/cyan] {stats['db_path']}",
+            f"[cyan]总记录数:[/cyan] {total_records:,}\n"
+            f"[cyan]账号数:[/cyan] {account_count}\n"
+            f"[cyan]账期数:[/cyan] {cycle_count}\n"
+            f"[cyan]账期范围:[/cyan] {min_cycle} 至 {max_cycle}\n"
+            f"[cyan]数据库大小:[/cyan] {db_size_mb:.2f} MB\n"
+            f"[cyan]数据库类型:[/cyan] {db_path_str}",
             title="📊 账单数据库统计",
             border_style="cyan"
         ))
-        
+
+        # 如果没有数据，显示提示信息
+        if total_records == 0:
+            console.print("\n[yellow]💡 数据库为空，请先获取账单数据:[/yellow]")
+            console.print("  [cyan]./cl bill fetch --account <账号名> --use-db[/cyan]")
+            return
+
         # 显示各账号的账期列表
-        accounts_result = storage.db.query("SELECT DISTINCT account_id FROM bill_items")
-        accounts = [row.get("account_id") if isinstance(row, dict) else row[0] for row in accounts_result]
-        
-        if accounts:
-            console.print("\n[cyan]📅 各账号账期统计:[/cyan]\n")
-            
-            for account_id in accounts:
-                cycles = storage.get_billing_cycles(account_id)
-                if cycles:
-                    console.print(f"  [green]{account_id}[/green]:")
-                    console.print(f"    账期范围: {cycles[-1]['billing_cycle']} 至 {cycles[0]['billing_cycle']}")
-                    console.print(f"    账期数: {len(cycles)}")
-                    console.print(f"    总记录数: {sum(c['record_count'] for c in cycles):,}")
-                    console.print()
-    
+        try:
+            accounts_result = storage.db.query("SELECT DISTINCT account_id FROM bill_items")
+            accounts = [row.get("account_id") if isinstance(row, dict) else row[0] for row in accounts_result]
+
+            if accounts:
+                console.print("\n[cyan]📅 各账号账期统计:[/cyan]\n")
+
+                for account_id in accounts:
+                    cycles = storage.get_billing_cycles(account_id)
+                    if cycles:
+                        console.print(f"  [green]{account_id}[/green]:")
+                        console.print(f"    账期范围: {cycles[-1]['billing_cycle']} 至 {cycles[0]['billing_cycle']}")
+                        console.print(f"    账期数: {len(cycles)}")
+                        console.print(f"    总记录数: {sum(c['record_count'] for c in cycles):,}")
+                        console.print()
+        except Exception as e:
+            logger.warning(f"查询账号详情失败: {str(e)}")
+            # 不影响主要统计信息的显示
+
+    except ImportError as e:
+        console.print(f"[red]❌ 导入模块失败: {str(e)}[/red]")
+        console.print("\n[yellow]提示: 请确保 core.bill_storage 模块存在[/yellow]")
     except Exception as e:
         console.print(f"[red]❌ 查询失败: {str(e)}[/red]")
+        import traceback
+        if console.is_terminal:
+            console.print("\n[dim]详细错误信息:[/dim]")
+            traceback.print_exc()
 
 
 

@@ -6,6 +6,45 @@ from typing import Dict, List
 
 from models.resource import ResourceStatus, ResourceType, UnifiedResource
 
+def oss_bucket_to_unified_resource(bucket_data: dict, region_id: str) -> UnifiedResource:
+    """
+    将OSS Bucket转换为UnifiedResource
+    """
+    # 提取基本信息
+    name = bucket_data.get("Name", "unknown-bucket")
+    creation_date = bucket_data.get("CreationDate", "")
+    storage_class = bucket_data.get("StorageClass", "Standard")
+    location = bucket_data.get("Location", region_id)
+    
+    # 提取额外信息 (ACL, Owner)
+    acl = bucket_data.get("AccessControlList", {}).get("Grant", "private") # 默认private较为安全
+    owner = bucket_data.get("Owner", {}).get("DisplayName", "")
+    
+    # Merge extra info into raw_data
+    raw_data = bucket_data.copy()
+    raw_data.update({
+        "acl": acl,
+        "owner": owner,
+        "endpoint": bucket_data.get("ExtranetEndpoint", "")
+    })
+
+    return UnifiedResource(
+        id=name, # Bucket Name is unique globally
+        name=name,
+        provider="aliyun",
+        resource_type=ResourceType.OSS_BUCKET,
+        status=status,
+        region=location,
+        zone="", # OSS is regional
+        created_time=creation_date,
+        tags={}, 
+        spec=storage_class,
+        public_ips=[],
+        private_ips=[],
+        vpc_id="",
+        raw_data=raw_data
+    )
+
 
 def slb_to_unified_resource(slb: Dict, provider_name: str) -> UnifiedResource:
     """Convert SLB dict to UnifiedResource"""

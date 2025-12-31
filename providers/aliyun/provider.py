@@ -12,12 +12,14 @@ from aliyunsdkrds.request.v20140815.DescribeDBInstancesRequest import DescribeDB
 from aliyunsdksts.request.v20150401 import GetCallerIdentityRequest
 from aliyunsdkvpc.request.v20160428.DescribeVpcsRequest import DescribeVpcsRequest
 from aliyunsdkvpc.request.v20160428.DescribeVSwitchesRequest import DescribeVSwitchesRequest
+import oss2
 
 from core.provider import BaseProvider
 from core.resource_converter import (
     mongodb_to_unified_resource,
     nat_gateway_to_unified_resource,
     slb_to_unified_resource,
+    oss_bucket_to_unified_resource,
 )
 from core.security import PermissionGuard
 from core.error_handler import handle_provider_errors
@@ -71,6 +73,55 @@ class AliyunProvider(BaseProvider):
         except Exception as e:
             logger.warning(f"快速检查区域 {self.region} 的实例数量失败: {e}")
             return 0
+
+    @monitor_api_call
+    @handle_provider_errors
+    def list_buckets(self) -> List[UnifiedResource]:
+        """
+        列出OSS存储桶 (全局只需调用一次，但为了兼容性，建议只在指定Region调用)
+        """
+        resources = []
+        try:
+            # OSS Auth
+            auth = oss2.Auth(self.access_key, self.secret_key)
+            # Use a generic endpoint to list buckets, e.g., cn-hangzhou
+            # Note: list_buckets can be called on any region endpoint to get all buckets.
+            endpoint = f"https://oss-{self.region}.aliyuncs.com"
+            service = oss2.Service(auth, endpoint)
+            
+            # List buckets
+            for bucket in oss2.BucketIterator(service):
+                # Basic Info
+                bucket_data = {
+                    "Name": bucket.name,
+                    "Location": bucket.location,
+                    "CreationDate": str(bucket.creation_date),
+                    "StorageClass": bucket.storage_class,
+                    "ExtranetEndpoint": bucket.extranet_endpoint,
+                    "IntranetEndpoint": bucket.intranet_endpoint
+                }
+                
+                # Fetch ACL (Optional, adds N calls)
+                # To minimize calls, we can skip or do it concurrently. 
+                # For Phase 1 deep visibility, we SHOULD fetch it.
+                try:
+                     # Use extranet_endpoint directly to avoid location prefix issues
+                     endpoint_domain = bucket.extranet_endpoint or f"oss-{bucket.location}.aliyuncs.com"
+                     if not endpoint_domain.startswith("http"):
+                         endpoint_domain = f"https://{endpoint_domain}"
+                         
+                     bucket_client = oss2.Bucket(auth, endpoint_domain, bucket.name)
+                     acl_obj = bucket_client.get_bucket_acl()
+                     bucket_data["AccessControlList"] = {"Grant": acl_obj.acl}
+                except Exception as e:
+                     logger.warning(f"Failed to get ACL for bucket {bucket.name}: {e}")
+                
+                resources.append(oss_bucket_to_unified_resource(bucket_data, self.region))
+                
+        except Exception as e:
+            logger.error(f"Failed to list OSS buckets for {self.region}: {e}")
+            
+        return resources
 
     @monitor_api_call
     @handle_provider_errors
@@ -263,6 +314,21 @@ class AliyunProvider(BaseProvider):
         except Exception as e:
             logger.error(f"Failed to list VPCs: {e}")
         return vpcs
+
+    def get_monitor_client(self):
+        """获取 CloudMonitor 客户端实例"""
+        from core.monitor import CloudMonitor
+        from core.config import CloudAccount
+
+        # 临时构建 CloudAccount 对象以复用 CloudMonitor 逻辑
+        account_config = CloudAccount(
+            name=self.account_name,
+            access_key_id=self.access_key,
+            access_key_secret=self.secret_key,
+            provider="aliyun",
+            region=self.region
+        )
+        return CloudMonitor(account_config)
 
     def get_metric(
         self,

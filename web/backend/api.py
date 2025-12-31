@@ -1398,8 +1398,36 @@ def list_resources(
 
 
 @router.get("/resources/{resource_id}")
-def get_resource(resource_id: str, account: Optional[str] = None):
-    """获取资源详情"""
+def get_resource(
+    resource_id: str,
+    account: Optional[str] = None,
+    resource_type: Optional[str] = Query(None, description="资源类型，用于加速查找")
+):
+    """获取资源详情（Legacy API，建议使用 api_resources 模块）"""
+    # 添加调试日志
+    logger.info(f"[Legacy API] 收到请求: resource_id={resource_id}, type={resource_type}, account={account}")
+
+    # 如果提供了 resource_type，直接使用新的 API 逻辑（优先）
+    if resource_type:
+        logger.info(f"[Legacy API] 检测到 resource_type={resource_type}，尝试转发到新 API")
+        try:
+            from web.backend.api_resources import get_resource_detail
+            logger.info(f"[Legacy API] 调用新 API: get_resource_detail({resource_id}, {account}, {resource_type})")
+            result = get_resource_detail(resource_id, account, resource_type)
+            logger.info(f"[Legacy API] 新 API 返回: success={result.get('success')}, has_data={bool(result.get('data'))}")
+
+            if result.get('success') and result.get('data'):
+                logger.info(f"[Legacy API] ✅ 转发成功，返回新 API 结果")
+                # 对于 ACK 资源，记录是否包含 ack_details
+                if resource_type == "ack" and result.get('data'):
+                    has_ack_details = 'ack_details' in result.get('data', {})
+                    logger.info(f"[Legacy API] ACK 资源返回数据包含 ack_details: {has_ack_details}")
+                return result
+            else:
+                logger.warning(f"[Legacy API] 新 API 返回失败或无数据，使用旧逻辑")
+        except Exception as e:
+            logger.error(f"[Legacy API] 转发到新 API 失败: {e}, 使用旧逻辑", exc_info=True)
+    
     provider, account_name = _get_provider_for_account(account)
     
     # 获取账号配置用于成本查询

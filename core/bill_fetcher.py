@@ -67,7 +67,7 @@ class BillFetcher:
         return self._client
     
     def fetch_instance_bill(
-        self, 
+        self,
         billing_cycle: str,
         max_records: Optional[int] = None,
         page_size: int = 300,
@@ -76,18 +76,25 @@ class BillFetcher:
     ) -> List[Dict]:
         """
         获取实例账单明细（最详细的数据，类似CSV）
-        
+
         Args:
             billing_cycle: 账期，格式：YYYY-MM（如：2025-12）
             max_records: 最大记录数，None表示获取所有
             page_size: 每页记录数，最大300
             billing_date: 账单日期，格式：YYYY-MM-DD（可选，用于按天查询）
             granularity: 查询粒度，可选值：DAILY（按天）、MONTHLY（按月，默认）
-            
+
         Returns:
             账单明细列表
         """
-        from aliyunsdkbssopenapi.request.v20171214 import QueryInstanceBillRequest
+        try:
+            from aliyunsdkbssopenapi.request.v20171214 import QueryInstanceBillRequest
+        except (ImportError, ModuleNotFoundError) as e:
+            raise ImportError(
+                "\n\n❌ 缺少阿里云账单API依赖包！\n"
+                "   请运行以下命令安装：\n"
+                "   pip install aliyun-python-sdk-bssopenapi\n"
+            ) from e
         import json
         
         all_records = []
@@ -189,7 +196,7 @@ class BillFetcher:
             billing_cycle = current_date.strftime("%Y-%m")
             
             logger.info(f"获取日期 {date_str} 的账单数据...")
-            
+
             try:
                 bills = self.fetch_instance_bill(
                     billing_cycle=billing_cycle,
@@ -199,6 +206,10 @@ class BillFetcher:
                 )
                 daily_bills[date_str] = bills
                 logger.info(f"日期 {date_str} 获取到 {len(bills)} 条记录")
+            except (ImportError, ModuleNotFoundError) as e:
+                # 依赖缺失错误，直接抛出，不要静默处理
+                logger.error(f"获取日期 {date_str} 的账单失败: {str(e)}")
+                raise
             except Exception as e:
                 logger.warning(f"获取日期 {date_str} 的账单失败: {str(e)}")
                 daily_bills[date_str] = []
@@ -213,14 +224,21 @@ class BillFetcher:
     def fetch_bill_overview(self, billing_cycle: str) -> List[Dict]:
         """
         获取账单概览（按产品+计费方式聚合）
-        
+
         Args:
             billing_cycle: 账期，格式：YYYY-MM
-            
+
         Returns:
             账单概览列表
         """
-        from aliyunsdkbssopenapi.request.v20171214 import QueryBillOverviewRequest
+        try:
+            from aliyunsdkbssopenapi.request.v20171214 import QueryBillOverviewRequest
+        except (ImportError, ModuleNotFoundError) as e:
+            raise ImportError(
+                "\n\n❌ 缺少阿里云账单API依赖包！\n"
+                "   请运行以下命令安装：\n"
+                "   pip install aliyun-python-sdk-bssopenapi\n"
+            ) from e
         import json
         
         request = QueryBillOverviewRequest.QueryBillOverviewRequest()

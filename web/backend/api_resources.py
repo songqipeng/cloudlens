@@ -220,11 +220,107 @@ def _fetch_resources_for_region(account_config: CloudAccount, region: str, resou
                     ))
             return unified_vpcs
         elif resource_type == "oss":
-            return region_provider.list_oss() if hasattr(region_provider, "list_oss") else []
+            # OSS is a global service, but list_buckets returns all buckets regardless of region endpoint.
+            # To avoid N times duplication (where N is number of regions), we only fetch when region is "cn-hangzhou".
+            if region == "cn-hangzhou":
+                 return region_provider.list_buckets() if hasattr(region_provider, "list_buckets") else []
+            return []
         elif resource_type == "disk":
             return region_provider.list_disks() if hasattr(region_provider, "list_disks") else []
         elif resource_type == "snapshot":
             return region_provider.list_snapshots() if hasattr(region_provider, "list_snapshots") else []
+        elif resource_type == "mongodb":
+            return region_provider.list_mongodb() if hasattr(region_provider, "list_mongodb") else []
+        elif resource_type == "ack":
+            # ACK 集群查询需要特殊处理（直接调用 API，不依赖数据库）
+            try:
+                from aliyunsdkcore.client import AcsClient
+                from aliyunsdkcore.request import CommonRequest
+                import json
+
+                # 直接调用阿里云 API，不依赖 ACKAnalyzer（避免数据库初始化问题）
+                client = AcsClient(account_config.access_key_id, account_config.access_key_secret, region)
+                request = CommonRequest()
+                request.set_domain(f"cs.{region}.aliyuncs.com")
+                request.set_method("GET")  # 修复：使用 GET 方法
+                request.set_version("2015-12-15")
+                request.set_uri_pattern("/clusters")  # 修复：使用 URI 路径而不是 Action
+
+                response = client.do_action_with_exception(request)
+                data = json.loads(response)
+
+                # 修复：API 返回的是直接的列表，不是包含 "clusters" 键的字典
+                clusters = []
+                if isinstance(data, list):
+                    cluster_list = data
+                elif isinstance(data, dict) and "clusters" in data:
+                    cluster_list = data["clusters"]
+                    if not isinstance(cluster_list, list):
+                        cluster_list = [cluster_list]
+                else:
+                    cluster_list = []
+
+                for cluster in cluster_list:
+                    # 获取集群的实际区域（从 cluster.region_id 获取，如果没有则使用查询的区域）
+                    cluster_region = cluster.get("region_id") or region
+                    
+                    # 只添加属于当前查询区域的集群（避免重复）
+                    if cluster_region == region:
+                        clusters.append({
+                            "ClusterId": cluster.get("cluster_id", ""),
+                            "Name": cluster.get("name", ""),
+                            "ClusterType": cluster.get("cluster_type", ""),
+                            "State": cluster.get("state", ""),
+                            "RegionId": cluster_region,
+                            "KubernetesVersion": cluster.get("current_version", ""),
+                            "InitVersion": cluster.get("init_version", ""),
+                            "NodeCount": cluster.get("size", 0),
+                            "Created": cluster.get("created", ""),
+                            "Updated": cluster.get("updated", ""),
+                            "VpcId": cluster.get("vpc_id", ""),
+                            "VSwitchId": cluster.get("vswitch_id", ""),
+                            "SecurityGroupId": cluster.get("security_group_id", ""),
+                            "ServiceDomainName": cluster.get("service_domain_name", ""),
+                            "ExternalLoadBalancerId": cluster.get("external_loadbalancer_id", ""),
+                            "ResourceGroupId": cluster.get("resource_group_id", ""),
+                            "MasterUrl": cluster.get("master_url", ""),
+                            "Tags": cluster.get("tags", []),
+                            "Profile": cluster.get("profile", ""),
+                            "MetaData": cluster.get("meta_data", ""),  # 包含插件、网络配置等详细信息
+                            "RawData": cluster,  # 保存完整原始数据
+                        })
+
+                # 转换为 UnifiedResource
+                # 转换为 UnifiedResource
+                unified_clusters = []
+                for cluster in clusters:
+                    if isinstance(cluster, dict):
+                        # ACKAnalyzer 返回的键是大写的：ClusterId, Name, State, ClusterType
+                        cluster_id = cluster.get("ClusterId") or cluster.get("cluster_id") or cluster.get("id", "")
+                        cluster_name = cluster.get("Name") or cluster.get("name") or cluster_id
+                        cluster_state = cluster.get("State") or cluster.get("state", "")
+                        cluster_type = cluster.get("ClusterType") or cluster.get("cluster_type", "-")
+
+                        if cluster_id:  # 只有有效的 cluster_id 才添加
+                            # 保存完整的 ACK 集群数据到 raw_data
+                            raw_data = cluster.get("RawData", cluster)
+                            unified_clusters.append(UnifiedResource(
+                                id=cluster_id,
+                                name=cluster_name,
+                                resource_type=ResourceType.K8S,
+                                status=ResourceStatus.RUNNING if cluster_state.lower() == "running" else ResourceStatus.STOPPED,
+                                provider="aliyun",
+                                region=region,
+                                spec=cluster_type,
+                                raw_data=raw_data,  # 保存完整原始数据
+                                tags={tag.get("key", ""): tag.get("value", "") for tag in cluster.get("Tags", []) if isinstance(tag, dict)} if cluster.get("Tags") else {}
+                            ))
+                return unified_clusters
+            except Exception as e:
+                logger.warning(f"Failed to fetch ACK clusters in region {region}: {e}")
+                import traceback
+                logger.debug(f"ACK query error details: {traceback.format_exc()}")
+                return []
             
     except Exception as e:
         logger.warning(f"Failed to fetch {resource_type} in region {region}: {e}")
@@ -237,7 +333,7 @@ def list_resources(
     pageSize: int = Query(20, ge=1, le=100),
     account: Optional[str] = None,
     sortBy: Optional[str] = None,
-    sortOrder: Optional[str] = Query("asc", regex="^(asc|desc)$"),
+    sortOrder: Optional[str] = Query("asc", pattern="^(asc|desc)$"),
     filter: Optional[str] = None,
     force_refresh: bool = Query(False),
 ):
@@ -274,7 +370,16 @@ def list_resources(
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         futures = {executor.submit(_fetch_resources_for_region, account_config, region, type): region for region in all_regions}
         for future in concurrent.futures.as_completed(futures):
-            all_resources.extend(future.result())
+            try:
+                region_resources = future.result()
+                if region_resources:
+                    logger.info(f"区域 {futures[future]} 找到 {len(region_resources)} 个 {type} 资源")
+                all_resources.extend(region_resources)
+            except Exception as e:
+                region = futures.get(future, "unknown")
+                logger.warning(f"查询区域 {region} 的 {type} 资源失败: {e}")
+    
+    logger.info(f"总共获取到 {len(all_resources)} 个 {type} 资源")
 
     cost_map = _get_cost_map(type, account_config) if type != "vpc" else {}
     result = []
@@ -329,9 +434,357 @@ def list_resources(
     }
 
 @router.get("/resources/{resource_id}")
-def get_resource_detail(resource_id: str):
-    return {"success": True, "data": {"id": resource_id}}
+def get_resource_detail(
+    resource_id: str,
+    account: Optional[str] = None,
+    resource_type: Optional[str] = None
+):
+    """获取资源详情"""
+    logger.info(f"[api_resources] 收到请求: resource_id={resource_id}, type={resource_type}, account={account}")
+    try:
+        provider, account_name = _get_provider_for_account(account)
+        cm = ConfigManager()
+        account_config = cm.get_account(account_name)
+        
+        # 如果提供了 resource_type，直接查询该类型
+        if resource_type:
+            from core.services.analysis_service import AnalysisService
+            all_regions = AnalysisService._get_all_regions(
+                account_config.access_key_id,
+                account_config.access_key_secret
+            )
+            
+            # 在所有区域中查找资源
+            resource = None
+            found_region = None
+            for region in all_regions:
+                resources = _fetch_resources_for_region(account_config, region, resource_type)
+                found = next((r for r in resources if (r.id if hasattr(r, 'id') else r.get('id', '')) == resource_id), None)
+                if found:
+                    resource = found
+                    found_region = region
+                    logger.info(f"找到资源 {resource_id} 在区域 {region}, 类型: {resource_type}, has raw_data: {hasattr(resource, 'raw_data')}")
+                    break
+            
+            if resource:
+                # 转换为字典格式
+                if hasattr(resource, 'id'):
+                    cost_map = _get_cost_map(resource_type, account_config) if resource_type != "vpc" else {}
+                    cost = cost_map.get(resource.id) or _estimate_monthly_cost(resource)
+                    
+                    # 基础数据
+                    result_data = {
+                        "id": resource.id,
+                        "name": resource.name or resource.id,
+                        "type": resource_type,
+                        "status": resource.status.value if hasattr(resource.status, "value") else str(resource.status),
+                        "region": resource.region,
+                        "spec": resource.spec or "-",
+                        "cost": float(cost or 0),
+                        "tags": resource.tags if hasattr(resource, "tags") else {},
+                        "created_time": resource.created_time.isoformat() if hasattr(resource, "created_time") and resource.created_time else None,
+                        "public_ips": resource.public_ips if hasattr(resource, "public_ips") else [],
+                        "private_ips": resource.private_ips if hasattr(resource, "private_ips") else [],
+                        "vpc_id": resource.vpc_id if hasattr(resource, "vpc_id") else None
+                    }
+                    
+                    # 如果是 ACK 资源，添加详细信息
+                    if resource_type == "ack":
+                        logger.info(f"处理 ACK 资源详情: {resource.id}, has raw_data: {hasattr(resource, 'raw_data')}")
+                        if hasattr(resource, "raw_data") and resource.raw_data:
+                            raw_data = resource.raw_data
+                            logger.info(f"raw_data 类型: {type(raw_data)}, 是否为空: {not raw_data}")
+                        else:
+                            logger.warning(f"ACK 资源 {resource.id} 没有 raw_data 或 raw_data 为空")
+                            raw_data = None
+                        
+                        if raw_data:
+                            import json as json_lib
+                            
+                            # 解析 meta_data（包含插件、网络配置等）
+                            meta_data = {}
+                            if isinstance(raw_data.get("meta_data"), str):
+                                try:
+                                    meta_data = json_lib.loads(raw_data.get("meta_data", "{}"))
+                                except:
+                                    pass
+                            elif isinstance(raw_data.get("meta_data"), dict):
+                                meta_data = raw_data.get("meta_data", {})
+                            
+                            # 解析 master_url
+                            master_url = {}
+                            if isinstance(raw_data.get("master_url"), str):
+                                try:
+                                    master_url = json_lib.loads(raw_data.get("master_url", "{}"))
+                                except:
+                                    pass
+                            elif isinstance(raw_data.get("master_url"), dict):
+                                master_url = raw_data.get("master_url", {})
+                            
+                            # 提取插件信息
+                            addons = []
+                            if "Addons" in meta_data:
+                                addons = meta_data.get("Addons", [])
+                            
+                            # 提取网络配置
+                            network_info = {}
+                            if "Capabilities" in meta_data:
+                                caps = meta_data.get("Capabilities", {})
+                                network_info = {
+                                    "network": caps.get("Network", ""),
+                                    "proxy_mode": caps.get("ProxyMode", ""),
+                                    "node_cidr_mask": caps.get("NodeCIDRMask", ""),
+                                }
+                            
+                            # 添加 ACK 特定信息
+                            result_data.update({
+                                "ack_details": {
+                                    "cluster_id": raw_data.get("cluster_id", ""),
+                                    "cluster_type": raw_data.get("cluster_type", ""),
+                                    "cluster_spec": raw_data.get("cluster_spec", ""),
+                                    "kubernetes_version": raw_data.get("current_version", ""),
+                                    "init_version": raw_data.get("init_version", ""),
+                                    "node_count": raw_data.get("size", 0),
+                                    "created": raw_data.get("created", ""),
+                                    "updated": raw_data.get("updated", ""),
+                                    "cluster_domain": raw_data.get("cluster_domain", ""),
+                                    "timezone": raw_data.get("timezone", ""),
+                                    "deletion_protection": raw_data.get("deletion_protection", False),
+                                    "network_mode": raw_data.get("network_mode", ""),
+                                    "proxy_mode": raw_data.get("proxy_mode", ""),
+                                    "vpc_id": raw_data.get("vpc_id", ""),
+                                    "vswitch_id": raw_data.get("vswitch_id", ""),
+                                    "vswitch_ids": raw_data.get("vswitch_ids", []),
+                                    "security_group_id": raw_data.get("security_group_id", ""),
+                                    "external_loadbalancer_id": raw_data.get("external_loadbalancer_id", ""),
+                                    "service_domain_name": raw_data.get("service_domain_name", ""),
+                                    "service_cidr": raw_data.get("service_cidr", ""),
+                                    "master_url": master_url,
+                                    "resource_group_id": raw_data.get("resource_group_id", ""),
+                                    "profile": raw_data.get("profile", ""),
+                                    "addons": addons,
+                                    "network_info": network_info,
+                                }
+                            })
+                    
+                    return {
+                        "success": True,
+                        "data": result_data
+                    }
+        
+        # 如果没有提供 resource_type，尝试从所有类型中查找
+        resource_types = ["ecs", "rds", "redis", "slb", "nat", "eip", "oss", "disk", "snapshot", "vpc", "mongodb", "ack"]
+        for rt in resource_types:
+            try:
+                from core.services.analysis_service import AnalysisService
+                all_regions = AnalysisService._get_all_regions(
+                    account_config.access_key_id,
+                    account_config.access_key_secret
+                )
+                for region in all_regions:
+                    resources = _fetch_resources_for_region(account_config, region, rt)
+                    resource = next((r for r in resources if (r.id if hasattr(r, 'id') else r.get('id', '')) == resource_id), None)
+                    if resource:
+                        if hasattr(resource, 'id'):
+                            cost_map = _get_cost_map(rt, account_config) if rt != "vpc" else {}
+                            cost = cost_map.get(resource.id) or _estimate_monthly_cost(resource)
+                            return {
+                                "success": True,
+                                "data": {
+                                    "id": resource.id,
+                                    "name": resource.name or resource.id,
+                                    "type": rt,
+                                    "status": resource.status.value if hasattr(resource.status, "value") else str(resource.status),
+                                    "region": resource.region,
+                                    "spec": resource.spec or "-",
+                                    "cost": float(cost or 0),
+                                    "tags": resource.tags if hasattr(resource, "tags") else {},
+                                    "created_time": resource.created_time.isoformat() if hasattr(resource, "created_time") and resource.created_time else None,
+                                    "public_ips": resource.public_ips if hasattr(resource, "public_ips") else [],
+                                    "private_ips": resource.private_ips if hasattr(resource, "private_ips") else [],
+                                    "vpc_id": resource.vpc_id if hasattr(resource, "vpc_id") else None
+                                }
+                            }
+            except Exception as e:
+                logger.debug(f"查询 {rt} 类型资源失败: {e}")
+                continue
+        
+        # 如果找不到资源，返回基本信息
+        return {
+            "success": True,
+            "data": {
+                "id": resource_id,
+                "name": resource_id,
+                "type": resource_type or "unknown",
+                "status": "Unknown",
+                "region": "",
+                "spec": "-",
+                "cost": 0.0,
+                "tags": {},
+                "created_time": None,
+                "public_ips": [],
+                "private_ips": [],
+                "vpc_id": None
+            }
+        }
+    except Exception as e:
+        logger.error(f"获取资源详情失败: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "data": {
+                "id": resource_id,
+                "name": resource_id,
+                "type": resource_type or "unknown",
+                "status": "Unknown",
+                "region": "",
+                "spec": "-",
+                "cost": 0.0,
+                "tags": {},
+                "created_time": None,
+                "public_ips": [],
+                "private_ips": [],
+                "vpc_id": None
+            }
+        }
 
 @router.get("/resources/{resource_id}/metrics")
-def get_resource_metrics(resource_id: str):
-    return {"success": True, "data": {}}
+def get_resource_metrics(
+    resource_id: str,
+    resource_type: str = Query("ecs"),
+    days: int = Query(7, ge=1, le=30),
+    account: Optional[str] = None
+):
+    """获取资源的监控指标"""
+    try:
+        provider, account_name = _get_provider_for_account(account)
+        cm = ConfigManager()
+        account_config = cm.get_account(account_name)
+        
+        from core.monitor import CloudMonitor
+        monitor = CloudMonitor(account_config)
+        
+        if resource_type == "ecs":
+            metrics = monitor.get_ecs_metrics(resource_id, days)
+        elif resource_type == "rds":
+            metrics = monitor.get_rds_metrics(resource_id, days)
+        elif resource_type == "slb":
+            metrics = monitor.get_slb_metrics(resource_id, days)
+        else:
+            return {"success": False, "error": f"不支持的资源类型: {resource_type}"}
+        
+        return {"success": True, "data": metrics}
+    except Exception as e:
+        logger.error(f"获取资源 {resource_id} 的监控指标失败: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.get("/resources/export")
+def export_resources(
+    type: str = Query("ecs"),
+    format: str = Query("csv", pattern="^(csv|excel)$"),
+    account: Optional[str] = None,
+    filter: Optional[str] = None,
+):
+    """导出资源列表"""
+    try:
+        provider, account_name = _get_provider_for_account(account)
+        cm = ConfigManager()
+        account_config = cm.get_account(account_name)
+        
+        # 获取所有资源（不分页）
+        from core.services.analysis_service import AnalysisService
+        all_regions = AnalysisService._get_all_regions(account_config.access_key_id, account_config.access_key_secret)
+        
+        all_resources = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(_fetch_resources_for_region, account_config, region, type): region for region in all_regions}
+            for future in concurrent.futures.as_completed(futures):
+                all_resources.extend(future.result())
+        
+        # 应用筛选
+        if filter:
+            # 简单的筛选逻辑，可以根据需要扩展
+            filtered = []
+            for r in all_resources:
+                if isinstance(r, dict):
+                    if filter.lower() in str(r.get("name", "")).lower() or filter.lower() in str(r.get("id", "")).lower():
+                        filtered.append(r)
+                else:
+                    if filter.lower() in str(r.name or "").lower() or filter.lower() in str(r.id or "").lower():
+                        filtered.append(r)
+            all_resources = filtered
+        
+        # 转换为导出格式
+        cost_map = _get_cost_map(type, account_config) if type != "vpc" else {}
+        export_data = []
+        
+        for r in all_resources:
+            if isinstance(r, dict):
+                rid = r.get("id") or r.get("ResourceId") or r.get("name")
+                if not rid:
+                    continue
+                cost = cost_map.get(rid, 0.0)
+                export_data.append({
+                    "ID": rid,
+                    "名称": r.get("name") or rid,
+                    "类型": type.upper(),
+                    "状态": str(r.get("status") or "Running"),
+                    "区域": str(r.get("region") or r.get("RegionId") or ""),
+                    "规格": str(r.get("spec") or "-"),
+                    "月成本(¥)": float(cost),
+                    "创建时间": r.get("created_time") or "-",
+                })
+            else:
+                cost = cost_map.get(r.id) or _estimate_monthly_cost(r)
+                export_data.append({
+                    "ID": r.id,
+                    "名称": r.name or r.id,
+                    "类型": type.upper(),
+                    "状态": r.status.value if hasattr(r.status, "value") else str(r.status),
+                    "区域": r.region,
+                    "规格": r.spec or "-",
+                    "月成本(¥)": float(cost),
+                    "创建时间": r.created_time.isoformat() if hasattr(r, "created_time") and r.created_time else "-",
+                })
+        
+        # 生成导出文件
+        if format == "csv":
+            import csv
+            import io
+            from fastapi.responses import StreamingResponse
+            
+            output = io.StringIO()
+            if export_data:
+                writer = csv.DictWriter(output, fieldnames=export_data[0].keys())
+                writer.writeheader()
+                writer.writerows(export_data)
+            
+            return StreamingResponse(
+                iter([output.getvalue()]),
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename=resources_{type}_{datetime.now().strftime('%Y%m%d')}.csv"}
+            )
+        elif format == "excel":
+            try:
+                import pandas as pd
+                import io
+                from fastapi.responses import StreamingResponse
+                
+                df = pd.DataFrame(export_data)
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df.to_excel(writer, index=False, sheet_name='资源列表')
+                
+                output.seek(0)
+                return StreamingResponse(
+                    iter([output.read()]),
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f"attachment; filename=resources_{type}_{datetime.now().strftime('%Y%m%d')}.xlsx"}
+                )
+            except ImportError:
+                logger.error("pandas 或 openpyxl 未安装，无法导出 Excel")
+                raise HTTPException(status_code=500, detail="Excel 导出功能需要安装 pandas 和 openpyxl")
+        
+    except Exception as e:
+        logger.error(f"导出资源列表失败: {e}")
+        raise HTTPException(status_code=500, detail=f"导出失败: {str(e)}")

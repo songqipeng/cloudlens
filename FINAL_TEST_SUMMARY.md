@@ -85,3 +85,4 @@ curl "http://127.0.0.1:8000/api/resources?account=ydzn&type=ecs&force_refresh=tr
 **测试状态**: ✅ CLI 测试通过，⚠️ Web API 需要等待查询完成
 
 
+
