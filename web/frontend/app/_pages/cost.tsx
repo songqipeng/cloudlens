@@ -13,7 +13,7 @@ import { RabbitLoading } from "@/components/loading"
 
 export default function CostPage() {
   const { currentAccount } = useAccount()
-  const { t } = useLocale()
+  const { t, locale } = useLocale()
   const [overview, setOverview] = useState<any>(null)
   const [trend, setTrend] = useState<any>(null)
   const [breakdown, setBreakdown] = useState<any>(null)
