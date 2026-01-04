@@ -574,11 +574,15 @@ def _update_dashboard_summary_cache(account: str, account_config):
                                 region=region,
                             )
                             region_rds = region_provider.list_rds()
-                            if region_rds:
+                            if region_rds and len(region_rds) > 0:
                                 all_rds.extend(region_rds)
                                 logger.info(f"区域 {region}: 找到 {len(region_rds)} 个RDS实例")
+                            else:
+                                logger.debug(f"区域 {region}: 没有RDS实例")
                         except Exception as e:
                             logger.warning(f"查询区域 {region} 的RDS实例失败: {str(e)}")
+                            import traceback
+                            logger.debug(f"RDS查询异常详情: {traceback.format_exc()}")
                             continue
                     
                     logger.info(f"总共找到 {len(all_rds)} 个RDS实例（从 {len(all_regions)} 个区域）")
@@ -612,11 +616,15 @@ def _update_dashboard_summary_cache(account: str, account_config):
                                 region=region,
                             )
                             region_redis = region_provider.list_redis()
-                            if region_redis:
+                            if region_redis and len(region_redis) > 0:
                                 all_redis.extend(region_redis)
                                 logger.info(f"区域 {region}: 找到 {len(region_redis)} 个Redis实例")
+                            else:
+                                logger.debug(f"区域 {region}: 没有Redis实例")
                         except Exception as e:
                             logger.warning(f"查询区域 {region} 的Redis实例失败: {str(e)}")
+                            import traceback
+                            logger.debug(f"Redis查询异常详情: {traceback.format_exc()}")
                             continue
                     
                     logger.info(f"总共找到 {len(all_redis)} 个Redis实例（从 {len(all_regions)} 个区域）")
