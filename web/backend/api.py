@@ -512,6 +512,31 @@ def _update_dashboard_summary_cache(account: str, account_config):
             redis_list = cached_resources.get("redis", []) or []
             logger.info(f"从缓存获取资源列表 (账号: {account}): ECS={len(instances)}, RDS={len(rds_list)}, Redis={len(redis_list)}")
         else:
+            # 如果缓存中没有，尝试从资源API的缓存中获取（避免重复查询）
+            # 资源API使用不同的缓存键：resource_type=ecs/rds/redis
+            logger.info(f"资源列表缓存未命中，尝试从资源API缓存获取 (账号: {account})")
+            try:
+                # 尝试从资源API的缓存获取
+                ecs_cached = cache_manager.get(resource_type="ecs", account_name=account)
+                rds_cached = cache_manager.get(resource_type="rds", account_name=account)
+                redis_cached = cache_manager.get(resource_type="redis", account_name=account)
+                
+                if ecs_cached or rds_cached or redis_cached:
+                    instances = ecs_cached if ecs_cached else []
+                    rds_list = rds_cached if rds_cached else []
+                    redis_list = redis_cached if redis_cached else []
+                    logger.info(f"从资源API缓存获取 (账号: {account}): ECS={len(instances)}, RDS={len(rds_list)}, Redis={len(redis_list)}")
+                else:
+                    logger.info(f"资源API缓存也未命中，开始查询所有区域 (账号: {account})")
+                    # 缓存都没有，继续执行查询逻辑
+                    pass
+            except Exception as e:
+                logger.warning(f"从资源API缓存获取失败: {str(e)}")
+                # 继续执行查询逻辑
+                pass
+            
+            # 如果从缓存获取失败，执行查询逻辑
+            if not instances and not rds_list and not redis_list:
             # 查询资源（查询所有区域，而不是只查询配置的 region）
             def get_instances():
                 try:
