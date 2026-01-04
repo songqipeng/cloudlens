@@ -547,7 +547,7 @@ def _update_dashboard_summary_cache(account: str, account_config):
                 # 查询资源（查询所有区域，而不是只查询配置的 region）
                 def get_instances():
                     try:
-                    from core.services.analysis_service import AnalysisService
+                        from core.services.analysis_service import AnalysisService
                     from providers.aliyun.provider import AliyunProvider
                     
                     # 获取所有区域
@@ -585,47 +585,47 @@ def _update_dashboard_summary_cache(account: str, account_config):
                     except:
                         return []
             
-            def get_rds():
-                try:
-                    from core.services.analysis_service import AnalysisService
-                    from providers.aliyun.provider import AliyunProvider
-                    
-                    # 获取所有区域
-                    all_regions = AnalysisService._get_all_regions(
-                        account_config.access_key_id,
-                        account_config.access_key_secret
-                    )
-                    
-                    all_rds = []
-                    for region in all_regions:
-                        try:
-                            region_provider = AliyunProvider(
-                                account_name=account_config.name,
-                                access_key=account_config.access_key_id,
-                                secret_key=account_config.access_key_secret,
-                                region=region,
-                            )
-                            region_rds = region_provider.list_rds()
-                            if region_rds and len(region_rds) > 0:
-                                all_rds.extend(region_rds)
-                                logger.info(f"区域 {region}: 找到 {len(region_rds)} 个RDS实例")
-                            else:
-                                logger.debug(f"区域 {region}: 没有RDS实例")
-                        except Exception as e:
-                            logger.warning(f"查询区域 {region} 的RDS实例失败: {str(e)}")
-                            import traceback
-                            logger.debug(f"RDS查询异常详情: {traceback.format_exc()}")
-                            continue
-                    
-                    logger.info(f"总共找到 {len(all_rds)} 个RDS实例（从 {len(all_regions)} 个区域）")
-                    return all_rds
-                except Exception as e:
-                    logger.warning(f"获取RDS列表失败: {str(e)}")
-                    # 如果查询所有区域失败，回退到只查询配置的 region
+                def get_rds():
                     try:
-                        return provider.list_rds()
-                    except:
-                        return []
+                        from core.services.analysis_service import AnalysisService
+                        from providers.aliyun.provider import AliyunProvider
+                        
+                        # 获取所有区域
+                        all_regions = AnalysisService._get_all_regions(
+                            account_config.access_key_id,
+                            account_config.access_key_secret
+                        )
+                        
+                        all_rds = []
+                        for region in all_regions:
+                            try:
+                                region_provider = AliyunProvider(
+                                    account_name=account_config.name,
+                                    access_key=account_config.access_key_id,
+                                    secret_key=account_config.access_key_secret,
+                                    region=region,
+                                )
+                                region_rds = region_provider.list_rds()
+                                if region_rds and len(region_rds) > 0:
+                                    all_rds.extend(region_rds)
+                                    logger.info(f"区域 {region}: 找到 {len(region_rds)} 个RDS实例")
+                                else:
+                                    logger.debug(f"区域 {region}: 没有RDS实例")
+                            except Exception as e:
+                                logger.warning(f"查询区域 {region} 的RDS实例失败: {str(e)}")
+                                import traceback
+                                logger.debug(f"RDS查询异常详情: {traceback.format_exc()}")
+                                continue
+                        
+                        logger.info(f"总共找到 {len(all_rds)} 个RDS实例（从 {len(all_regions)} 个区域）")
+                        return all_rds
+                    except Exception as e:
+                        logger.warning(f"获取RDS列表失败: {str(e)}")
+                        # 如果查询所有区域失败，回退到只查询配置的 region
+                        try:
+                            return provider.list_rds()
+                        except:
+                            return []
             
                 def get_redis():
                     try:
@@ -669,8 +669,8 @@ def _update_dashboard_summary_cache(account: str, account_config):
                     except:
                         return []
             
-            # 并行查询资源（优化性能）
-            with ThreadPoolExecutor(max_workers=5) as executor:
+                # 并行查询资源（优化性能）
+                with ThreadPoolExecutor(max_workers=5) as executor:
                 instances_future = executor.submit(get_instances)
                 rds_future = executor.submit(get_rds)
                 redis_future = executor.submit(get_redis)
