@@ -578,12 +578,12 @@ def _update_dashboard_summary_cache(account: str, account_config):
                         logger.info(f"总共找到 {len(all_instances)} 个ECS实例（从 {len(all_regions)} 个区域）")
                         return all_instances
                     except Exception as e:
-                    logger.warning(f"获取ECS列表失败: {str(e)}")
-                    # 如果查询所有区域失败，回退到只查询配置的 region
-                    try:
-                        return provider.list_instances()
-                    except:
-                        return []
+                        logger.warning(f"获取ECS列表失败: {str(e)}")
+                        # 如果查询所有区域失败，回退到只查询配置的 region
+                        try:
+                            return provider.list_instances()
+                        except:
+                            return []
             
                 def get_rds():
                     try:
