@@ -369,23 +369,27 @@ pip install -r requirements.txt
           
           // 处理新的数据格式：chart_data 可能是数组格式 [{date, total_cost, ...}] 或旧格式 {dates, costs}
           if (trendD?.chart_data) {
-            if (Array.isArray(trendD.chart_data)) {
+            if (Array.isArray(trendD.chart_data) && trendD.chart_data.length > 0) {
               // 新格式：转换为旧格式以兼容 CostChart 组件
-              const dates = trendD.chart_data.map((item: any) => item.date || item.date)
-              const costs = trendD.chart_data.map((item: any) => item.total_cost || item.cost || 0)
-              setChartData({ dates, costs })
+              const dates = trendD.chart_data.map((item: any) => item.date || '')
+              const costs = trendD.chart_data.map((item: any) => Number(item.total_cost) || Number(item.cost) || 0)
+              const convertedData = { dates, costs }
+              console.log("[Dashboard] ✅ 转换后的图表数据:", convertedData)
+              setChartData(convertedData)
             } else if (trendD.chart_data.dates && trendD.chart_data.costs) {
               // 旧格式：直接使用
+              console.log("[Dashboard] ✅ 使用旧格式数据")
               setChartData(trendD.chart_data)
             } else {
               console.warn("[Dashboard] ⚠️  Trend 数据格式异常:", trendD.chart_data)
               setChartData(null)
             }
           } else {
+            console.warn("[Dashboard] ⚠️  没有 chart_data 字段")
             setChartData(null)
           }
         } catch (e) {
-          console.error("Failed to fetch trend data:", e)
+          console.error("[Dashboard] ❌ Failed to fetch trend data:", e)
           setChartData(null)
         }
 
