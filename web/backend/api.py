@@ -899,9 +899,25 @@ def get_idle_resources(account: Optional[str] = None, force_refresh: bool = Quer
     # 尝试从缓存获取数据（优先使用缓存，避免耗时操作）
     cached_result = None
     try:
+        # 优先从 dashboard_idle 缓存获取
         cached_result = cache_manager.get(resource_type="dashboard_idle", account_name=account)
         if cached_result:
-            logger.info(f"[get_idle_resources] ✅ 从缓存返回: {len(cached_result) if isinstance(cached_result, list) else 'N/A'} 条数据")
+            logger.info(f"[get_idle_resources] ✅ 从 dashboard_idle 缓存返回: {len(cached_result) if isinstance(cached_result, list) else 'N/A'} 条数据")
+            return {
+                "success": True,
+                "data": cached_result,
+                "cached": True,
+            }
+        
+        # 如果 dashboard_idle 缓存为空，尝试从 idle_result 缓存获取（与 summary 逻辑保持一致）
+        cached_result = cache_manager.get(resource_type="idle_result", account_name=account)
+        if cached_result:
+            logger.info(f"[get_idle_resources] ✅ 从 idle_result 缓存返回: {len(cached_result) if isinstance(cached_result, list) else 'N/A'} 条数据")
+            # 同时更新 dashboard_idle 缓存，保持一致性
+            try:
+                cache_manager.set(resource_type="dashboard_idle", account_name=account, data=cached_result)
+            except Exception as e:
+                logger.warning(f"更新 dashboard_idle 缓存失败: {e}")
             return {
                 "success": True,
                 "data": cached_result,
