@@ -498,15 +498,19 @@ def _update_dashboard_summary_cache(account: str, account_config):
         provider = get_provider(account_config)
         
         # 尝试从缓存获取资源列表（避免重复查询）
+        # 如果force_refresh为True，跳过缓存，强制重新查询
         cache_manager = CacheManager(ttl_seconds=86400)
         resource_cache_key = f"resource_list_{account}"
-        cached_resources = cache_manager.get(resource_type=resource_cache_key, account_name=account)
+        cached_resources = None
+        
+        if not force_refresh:
+            cached_resources = cache_manager.get(resource_type=resource_cache_key, account_name=account)
         
         if cached_resources:
             instances = cached_resources.get("instances", []) or []
             rds_list = cached_resources.get("rds", []) or []
             redis_list = cached_resources.get("redis", []) or []
-            logger.debug(f"从缓存获取资源列表 (账号: {account})")
+            logger.info(f"从缓存获取资源列表 (账号: {account}): ECS={len(instances)}, RDS={len(rds_list)}, Redis={len(redis_list)}")
         else:
             # 查询资源（查询所有区域，而不是只查询配置的 region）
             def get_instances():
