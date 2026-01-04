@@ -559,7 +559,7 @@ def _update_dashboard_summary_cache(account: str, account_config):
                         all_instances = []
                         for region in all_regions:
                             try:
-                            region_provider = AliyunProvider(
+                                region_provider = AliyunProvider(
                                 account_name=account_config.name,
                                 access_key=account_config.access_key_id,
                                 secret_key=account_config.access_key_secret,
@@ -713,21 +713,21 @@ def _update_dashboard_summary_cache(account: str, account_config):
                             instances = cached_resources_err.get("instances", []) or []
                             rds_list = cached_resources_err.get("rds", []) or []
                             redis_list = cached_resources_err.get("redis", []) or []
-        
-        # 确保变量存在（处理作用域问题）
-        try:
-            _ = instances
-        except NameError:
-            instances = []
-        try:
-            _ = rds_list
-        except NameError:
-            rds_list = []
-        try:
-            _ = redis_list
-        except NameError:
-            redis_list = []
-        
+            
+            # 确保变量存在（处理作用域问题）
+            try:
+                _ = instances
+            except NameError:
+                instances = []
+            try:
+                _ = rds_list
+            except NameError:
+                rds_list = []
+            try:
+                _ = redis_list
+            except NameError:
+                redis_list = []
+            
             resource_breakdown = {
                 "ecs": len(instances) if instances else 0,
                 "rds": len(rds_list) if rds_list else 0,
