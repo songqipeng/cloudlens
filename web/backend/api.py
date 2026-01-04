@@ -560,20 +560,20 @@ def _update_dashboard_summary_cache(account: str, account_config):
                         for region in all_regions:
                             try:
                                 region_provider = AliyunProvider(
-                                account_name=account_config.name,
-                                access_key=account_config.access_key_id,
-                                secret_key=account_config.access_key_secret,
-                                region=region,
-                            )
-                            # 快速检查是否有资源
-                            count = region_provider.check_instances_count()
-                            if count > 0:
-                                region_instances = region_provider.list_instances()
-                                all_instances.extend(region_instances)
-                                logger.info(f"区域 {region}: 找到 {len(region_instances)} 个ECS实例")
-                        except Exception as e:
-                            logger.warning(f"查询区域 {region} 的ECS实例失败: {str(e)}")
-                            continue
+                                    account_name=account_config.name,
+                                    access_key=account_config.access_key_id,
+                                    secret_key=account_config.access_key_secret,
+                                    region=region,
+                                )
+                                # 快速检查是否有资源
+                                count = region_provider.check_instances_count()
+                                if count > 0:
+                                    region_instances = region_provider.list_instances()
+                                    all_instances.extend(region_instances)
+                                    logger.info(f"区域 {region}: 找到 {len(region_instances)} 个ECS实例")
+                            except Exception as e:
+                                logger.warning(f"查询区域 {region} 的ECS实例失败: {str(e)}")
+                                continue
                     
                     logger.info(f"总共找到 {len(all_instances)} 个ECS实例（从 {len(all_regions)} 个区域）")
                     return all_instances
@@ -779,34 +779,34 @@ def _update_dashboard_summary_cache(account: str, account_config):
             # Alert Count (simplified - TODO: implement actual alert system)
             alert_count = 0
         
-        # Savings Potential: Calculate based on actual cost of idle resources
-        savings_potential = 0.0
-        if idle_data and account_config:
-            # Get cost map for ECS resources (idle_data typically contains ECS instances)
-            cost_map = _get_cost_map("ecs", account_config)
-            
-            # Calculate total cost of idle resources
-            for idle_item in idle_data:
-                instance_id = idle_item.get("instance_id") or idle_item.get("id")
-                if instance_id:
-                    # Try to get real cost from cost_map
-                    cost = cost_map.get(instance_id)
-                    if cost is None:
-                        # If not found, try to estimate from resource spec
-                        spec = idle_item.get("spec", "")
-                        if spec:
-                            cost = _estimate_monthly_cost_from_spec(spec, "ecs")
-                        else:
-                            # Default fallback estimate
-                            cost = 300  # Average ECS cost
-                    savings_potential += cost
-            
-            # Ensure savings potential doesn't exceed total cost
-            if total_cost is not None:
-                savings_potential = min(savings_potential, float(total_cost) * 0.95)  # Cap at 95% of total cost
+            # Savings Potential: Calculate based on actual cost of idle resources
+            savings_potential = 0.0
+            if idle_data and account_config:
+                # Get cost map for ECS resources (idle_data typically contains ECS instances)
+                cost_map = _get_cost_map("ecs", account_config)
+                
+                # Calculate total cost of idle resources
+                for idle_item in idle_data:
+                    instance_id = idle_item.get("instance_id") or idle_item.get("id")
+                    if instance_id:
+                        # Try to get real cost from cost_map
+                        cost = cost_map.get(instance_id)
+                        if cost is None:
+                            # If not found, try to estimate from resource spec
+                            spec = idle_item.get("spec", "")
+                            if spec:
+                                cost = _estimate_monthly_cost_from_spec(spec, "ecs")
+                            else:
+                                # Default fallback estimate
+                                cost = 300  # Average ECS cost
+                        savings_potential += cost
+                
+                # Ensure savings potential doesn't exceed total cost
+                if total_cost is not None:
+                    savings_potential = min(savings_potential, float(total_cost) * 0.95)  # Cap at 95% of total cost
 
-        # 如果成本趋势没有历史数据，则用“当前资源月度成本（折后优先）”作为统一口径的 total_cost
-        if total_cost is None and account_config:
+            # 如果成本趋势没有历史数据，则用"当前资源月度成本（折后优先）"作为统一口径的 total_cost
+            if total_cost is None and account_config:
             ecs_cost_map = _get_cost_map("ecs", account_config)
             rds_cost_map = _get_cost_map("rds", account_config)
             redis_cost_map = _get_cost_map("redis", account_config)
