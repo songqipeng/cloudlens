@@ -366,9 +366,27 @@ pip install -r requirements.txt
         try {
           const trendD = await apiGet("/dashboard/trend", { account: currentAccount, days: 30 }, apiOptions)
           console.log("[Dashboard] Trend 数据:", trendD)
-          setChartData(trendD.chart_data)
+          
+          // 处理新的数据格式：chart_data 可能是数组格式 [{date, total_cost, ...}] 或旧格式 {dates, costs}
+          if (trendD?.chart_data) {
+            if (Array.isArray(trendD.chart_data)) {
+              // 新格式：转换为旧格式以兼容 CostChart 组件
+              const dates = trendD.chart_data.map((item: any) => item.date || item.date)
+              const costs = trendD.chart_data.map((item: any) => item.total_cost || item.cost || 0)
+              setChartData({ dates, costs })
+            } else if (trendD.chart_data.dates && trendD.chart_data.costs) {
+              // 旧格式：直接使用
+              setChartData(trendD.chart_data)
+            } else {
+              console.warn("[Dashboard] ⚠️  Trend 数据格式异常:", trendD.chart_data)
+              setChartData(null)
+            }
+          } else {
+            setChartData(null)
+          }
         } catch (e) {
           console.error("Failed to fetch trend data:", e)
+          setChartData(null)
         }
 
         setLoadingMessage("")
