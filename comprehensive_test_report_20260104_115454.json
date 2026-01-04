@@ -1,0 +1,97 @@
+{
+  "timestamp": "2026-01-04 11:54:54",
+  "test_account": "ydzn",
+  "summary": {
+    "total_types": 12,
+    "success_count": 12,
+    "failed_count": 0,
+    "total_resources": 203,
+    "issues": []
+  },
+  "details": {
+    "ecs": {
+      "success": true,
+      "count": 20,
+      "error": null,
+      "issues": [],
+      "has_data": true
+    },
+    "rds": {
+      "success": true,
+      "count": 20,
+      "error": null,
+      "issues": [],
+      "has_data": true
+    },
+    "redis": {
+      "success": true,
+      "count": 20,
+      "error": null,
+      "issues": [],
+      "has_data": true
+    },
+    "slb": {
+      "success": true,
+      "count": 20,
+      "error": null,
+      "issues": [],
+      "has_data": true
+    },
+    "nat": {
+      "success": true,
+      "count": 10,
+      "error": null,
+      "issues": [],
+      "has_data": true
+    },
+    "eip": {
+      "success": true,
+      "count": 20,
+      "error": null,
+      "issues": [],
+      "has_data": true
+    },
+    "oss": {
+      "success": true,
+      "count": 20,
+      "error": null,
+      "issues": [],
+      "has_data": true
+    },
+    "disk": {
+      "success": true,
+      "count": 20,
+      "error": null,
+      "issues": [],
+      "has_data": true
+    },
+    "snapshot": {
+      "success": true,
+      "count": 20,
+      "error": null,
+      "issues": [],
+      "has_data": true
+    },
+    "vpc": {
+      "success": true,
+      "count": 20,
+      "error": null,
+      "issues": [],
+      "has_data": true
+    },
+    "mongodb": {
+      "success": true,
+      "count": 8,
+      "error": null,
+      "issues": [],
+      "has_data": true
+    },
+    "ack": {
+      "success": true,
+      "count": 5,
+      "error": null,
+      "issues": [],
+      "has_data": true
+    }
+  }
+}
