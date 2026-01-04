@@ -33,7 +33,7 @@ def oss_bucket_to_unified_resource(bucket_data: dict, region_id: str) -> Unified
         name=name,
         provider="aliyun",
         resource_type=ResourceType.OSS_BUCKET,
-        status=status,
+        status=ResourceStatus.RUNNING,  # OSS bucket 默认状态为运行中
         region=location,
         zone="", # OSS is regional
         created_time=creation_date,

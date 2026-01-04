@@ -400,12 +400,22 @@ def list_resources(
             })
         else:
             cost = cost_map.get(r.id) or _estimate_monthly_cost(r)
+            # 处理 created_time：可能是 datetime 对象或字符串
+            created_time = None
+            if hasattr(r, "created_time") and r.created_time:
+                if isinstance(r.created_time, str):
+                    created_time = r.created_time
+                elif hasattr(r.created_time, "isoformat"):
+                    created_time = r.created_time.isoformat()
+                else:
+                    created_time = str(r.created_time)
+            
             result.append({
                 "id": r.id, "name": r.name or r.id, "type": type, 
                 "status": r.status.value if hasattr(r.status, "value") else str(r.status),
                 "region": r.region, "spec": r.spec or "-", "cost": float(cost), 
                 "tags": r.tags if hasattr(r, "tags") else {},
-                "created_time": r.created_time.isoformat() if hasattr(r, "created_time") and r.created_time else None,
+                "created_time": created_time,
                 "public_ips": r.public_ips if hasattr(r, "public_ips") else [],
                 "private_ips": r.private_ips if hasattr(r, "private_ips") else [],
                 "vpc_id": r.vpc_id if hasattr(r, "vpc_id") else None
@@ -437,17 +447,21 @@ def list_resources(
 def get_resource_detail(
     resource_id: str,
     account: Optional[str] = None,
-    resource_type: Optional[str] = None
+    resource_type: Optional[str] = Query(None, alias="type"),  # 同时支持 type 和 resource_type
+    type: Optional[str] = None  # 兼容前端传递的 type 参数
 ):
     """获取资源详情"""
-    logger.info(f"[api_resources] 收到请求: resource_id={resource_id}, type={resource_type}, account={account}")
+    # 优先使用 resource_type，如果没有则使用 type
+    final_type = resource_type or type
+    logger.info(f"[api_resources] 收到请求: resource_id={resource_id}, type={final_type}, account={account}")
+
     try:
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
-        
+
         # 如果提供了 resource_type，直接查询该类型
-        if resource_type:
+        if final_type:
             from core.services.analysis_service import AnalysisService
             all_regions = AnalysisService._get_all_regions(
                 account_config.access_key_id,
@@ -458,25 +472,25 @@ def get_resource_detail(
             resource = None
             found_region = None
             for region in all_regions:
-                resources = _fetch_resources_for_region(account_config, region, resource_type)
+                resources = _fetch_resources_for_region(account_config, region, final_type)
                 found = next((r for r in resources if (r.id if hasattr(r, 'id') else r.get('id', '')) == resource_id), None)
                 if found:
                     resource = found
                     found_region = region
-                    logger.info(f"找到资源 {resource_id} 在区域 {region}, 类型: {resource_type}, has raw_data: {hasattr(resource, 'raw_data')}")
+                    logger.info(f"找到资源 {resource_id} 在区域 {region}, 类型: {final_type}, has raw_data: {hasattr(resource, 'raw_data')}")
                     break
-            
+
             if resource:
                 # 转换为字典格式
                 if hasattr(resource, 'id'):
-                    cost_map = _get_cost_map(resource_type, account_config) if resource_type != "vpc" else {}
+                    cost_map = _get_cost_map(final_type, account_config) if final_type != "vpc" else {}
                     cost = cost_map.get(resource.id) or _estimate_monthly_cost(resource)
-                    
+
                     # 基础数据
                     result_data = {
                         "id": resource.id,
                         "name": resource.name or resource.id,
-                        "type": resource_type,
+                        "type": final_type,
                         "status": resource.status.value if hasattr(resource.status, "value") else str(resource.status),
                         "region": resource.region,
                         "spec": resource.spec or "-",
@@ -489,15 +503,27 @@ def get_resource_detail(
                     }
                     
                     # 如果是 ACK 资源，添加详细信息
-                    if resource_type == "ack":
+                    if final_type == "ack":
                         logger.info(f"处理 ACK 资源详情: {resource.id}, has raw_data: {hasattr(resource, 'raw_data')}")
                         if hasattr(resource, "raw_data") and resource.raw_data:
                             raw_data = resource.raw_data
-                            logger.info(f"raw_data 类型: {type(raw_data)}, 是否为空: {not raw_data}")
+                            # 注意：不能使用 type() 因为参数名为 type，会覆盖内置函数
+                            logger.info(f"raw_data 类型: {raw_data.__class__.__name__}, 是字典: {isinstance(raw_data, dict)}")
+
+                            # 如果 raw_data 是字符串，尝试解析为 JSON
+                            if isinstance(raw_data, str):
+                                logger.warning(f"raw_data 是字符串类型，尝试解析为 JSON")
+                                try:
+                                    import json as json_lib
+                                    raw_data = json_lib.loads(raw_data)
+                                    logger.info(f"成功解析 raw_data 为字典")
+                                except Exception as parse_error:
+                                    logger.error(f"解析 raw_data 失败: {parse_error}")
+                                    raw_data = None
                         else:
                             logger.warning(f"ACK 资源 {resource.id} 没有 raw_data 或 raw_data 为空")
                             raw_data = None
-                        
+
                         if raw_data:
                             import json as json_lib
                             
@@ -628,7 +654,9 @@ def get_resource_detail(
             }
         }
     except Exception as e:
+        import traceback
         logger.error(f"获取资源详情失败: {e}")
+        logger.error(f"完整错误堆栈:\n{traceback.format_exc()}")
         return {
             "success": False,
             "error": str(e),
