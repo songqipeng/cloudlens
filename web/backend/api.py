@@ -546,7 +546,7 @@ def _update_dashboard_summary_cache(account: str, account_config):
                 logger.info(f"缓存未命中，开始查询所有区域 (账号: {account})")
                 # 查询资源（查询所有区域，而不是只查询配置的 region）
                 def get_instances():
-                try:
+                    try:
                     from core.services.analysis_service import AnalysisService
                     from providers.aliyun.provider import AliyunProvider
                     
@@ -627,8 +627,8 @@ def _update_dashboard_summary_cache(account: str, account_config):
                     except:
                         return []
             
-            def get_redis():
-                try:
+                def get_redis():
+                    try:
                     from core.services.analysis_service import AnalysisService
                     from providers.aliyun.provider import AliyunProvider
                     
