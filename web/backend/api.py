@@ -570,14 +570,14 @@ def _update_dashboard_summary_cache(account: str, account_config):
                                 if count > 0:
                                     region_instances = region_provider.list_instances()
                                     all_instances.extend(region_instances)
-                                    logger.info(f"区域 {region}: 找到 {len(region_instances)} 个ECS实例")
+                                logger.info(f"区域 {region}: 找到 {len(region_instances)} 个ECS实例")
                             except Exception as e:
                                 logger.warning(f"查询区域 {region} 的ECS实例失败: {str(e)}")
                                 continue
-                    
-                    logger.info(f"总共找到 {len(all_instances)} 个ECS实例（从 {len(all_regions)} 个区域）")
-                    return all_instances
-                except Exception as e:
+                        
+                        logger.info(f"总共找到 {len(all_instances)} 个ECS实例（从 {len(all_regions)} 个区域）")
+                        return all_instances
+                    except Exception as e:
                     logger.warning(f"获取ECS列表失败: {str(e)}")
                     # 如果查询所有区域失败，回退到只查询配置的 region
                     try:
@@ -828,14 +828,14 @@ def _update_dashboard_summary_cache(account: str, account_config):
                     cost = _estimate_monthly_cost(r)
                 estimated_total += float(cost or 0)
 
-            total_cost = round(float(estimated_total), 2)
-            # 再做一次 savings cap（此时 total_cost 已可用）
-            savings_potential = min(float(savings_potential), float(total_cost) * 0.95) if total_cost else 0.0
+                total_cost = round(float(estimated_total), 2)
+                # 再做一次 savings cap（此时 total_cost 已可用）
+                savings_potential = min(float(savings_potential), float(total_cost) * 0.95) if total_cost else 0.0
 
-        # 用账单全量口径覆盖 total_cost（更贴近真实账单）
-        if billing_total_cost is not None:
-            total_cost = round(float(billing_total_cost), 2)
-            savings_potential = min(float(savings_potential), float(total_cost) * 0.95) if total_cost else 0.0
+            # 用账单全量口径覆盖 total_cost（更贴近真实账单）
+            if billing_total_cost is not None:
+                total_cost = round(float(billing_total_cost), 2)
+                savings_potential = min(float(savings_potential), float(total_cost) * 0.95) if total_cost else 0.0
         
     except Exception as e:
         # Fallback if resource query fails
