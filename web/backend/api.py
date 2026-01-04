@@ -326,8 +326,8 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
         def update_cache_in_background():
             """后台更新缓存"""
             try:
-                logger.info(f"后台开始更新 dashboard summary 缓存: {account}")
-                _update_dashboard_summary_cache(account, account_config)
+                logger.info(f"后台开始更新 dashboard summary 缓存: {account}, force_refresh={force_refresh}")
+                _update_dashboard_summary_cache(account, account_config, force_refresh=force_refresh)
                 logger.info(f"后台完成更新 dashboard summary 缓存: {account}")
             except Exception as e:
                 logger.error(f"后台更新缓存失败: {str(e)}")
