@@ -558,7 +558,7 @@ def _update_dashboard_summary_cache(account: str, account_config):
                         
                         all_instances = []
                         for region in all_regions:
-                        try:
+                            try:
                             region_provider = AliyunProvider(
                                 account_name=account_config.name,
                                 access_key=account_config.access_key_id,
