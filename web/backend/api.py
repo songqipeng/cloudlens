@@ -551,19 +551,79 @@ def _update_dashboard_summary_cache(account: str, account_config):
             
             def get_rds():
                 try:
-                    # RDS 暂时只查询配置的 region（RDS 通常较少）
-                    return provider.list_rds()
+                    from core.services.analysis_service import AnalysisService
+                    from providers.aliyun.provider import AliyunProvider
+                    
+                    # 获取所有区域
+                    all_regions = AnalysisService._get_all_regions(
+                        account_config.access_key_id,
+                        account_config.access_key_secret
+                    )
+                    
+                    all_rds = []
+                    for region in all_regions:
+                        try:
+                            region_provider = AliyunProvider(
+                                account_name=account_config.name,
+                                access_key=account_config.access_key_id,
+                                secret_key=account_config.access_key_secret,
+                                region=region,
+                            )
+                            region_rds = region_provider.list_rds()
+                            if region_rds:
+                                all_rds.extend(region_rds)
+                                logger.info(f"区域 {region}: 找到 {len(region_rds)} 个RDS实例")
+                        except Exception as e:
+                            logger.warning(f"查询区域 {region} 的RDS实例失败: {str(e)}")
+                            continue
+                    
+                    logger.info(f"总共找到 {len(all_rds)} 个RDS实例（从 {len(all_regions)} 个区域）")
+                    return all_rds
                 except Exception as e:
                     logger.warning(f"获取RDS列表失败: {str(e)}")
-                    return []
+                    # 如果查询所有区域失败，回退到只查询配置的 region
+                    try:
+                        return provider.list_rds()
+                    except:
+                        return []
             
             def get_redis():
                 try:
-                    # Redis 暂时只查询配置的 region（Redis 通常较少）
-                    return provider.list_redis()
+                    from core.services.analysis_service import AnalysisService
+                    from providers.aliyun.provider import AliyunProvider
+                    
+                    # 获取所有区域
+                    all_regions = AnalysisService._get_all_regions(
+                        account_config.access_key_id,
+                        account_config.access_key_secret
+                    )
+                    
+                    all_redis = []
+                    for region in all_regions:
+                        try:
+                            region_provider = AliyunProvider(
+                                account_name=account_config.name,
+                                access_key=account_config.access_key_id,
+                                secret_key=account_config.access_key_secret,
+                                region=region,
+                            )
+                            region_redis = region_provider.list_redis()
+                            if region_redis:
+                                all_redis.extend(region_redis)
+                                logger.info(f"区域 {region}: 找到 {len(region_redis)} 个Redis实例")
+                        except Exception as e:
+                            logger.warning(f"查询区域 {region} 的Redis实例失败: {str(e)}")
+                            continue
+                    
+                    logger.info(f"总共找到 {len(all_redis)} 个Redis实例（从 {len(all_regions)} 个区域）")
+                    return all_redis
                 except Exception as e:
                     logger.warning(f"获取Redis列表失败: {str(e)}")
-                    return []
+                    # 如果查询所有区域失败，回退到只查询配置的 region
+                    try:
+                        return provider.list_redis()
+                    except:
+                        return []
             
             # 并行查询资源（优化性能）
             with ThreadPoolExecutor(max_workers=5) as executor:
