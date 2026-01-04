@@ -548,16 +548,16 @@ def _update_dashboard_summary_cache(account: str, account_config):
                 def get_instances():
                     try:
                         from core.services.analysis_service import AnalysisService
-                    from providers.aliyun.provider import AliyunProvider
-                    
-                    # 获取所有区域
-                    all_regions = AnalysisService._get_all_regions(
-                        account_config.access_key_id,
-                        account_config.access_key_secret
-                    )
-                    
-                    all_instances = []
-                    for region in all_regions:
+                        from providers.aliyun.provider import AliyunProvider
+                        
+                        # 获取所有区域
+                        all_regions = AnalysisService._get_all_regions(
+                            account_config.access_key_id,
+                            account_config.access_key_secret
+                        )
+                        
+                        all_instances = []
+                        for region in all_regions:
                         try:
                             region_provider = AliyunProvider(
                                 account_name=account_config.name,
@@ -629,49 +629,49 @@ def _update_dashboard_summary_cache(account: str, account_config):
             
                 def get_redis():
                     try:
-                    from core.services.analysis_service import AnalysisService
-                    from providers.aliyun.provider import AliyunProvider
-                    
-                    # 获取所有区域
-                    all_regions = AnalysisService._get_all_regions(
-                        account_config.access_key_id,
-                        account_config.access_key_secret
-                    )
-                    
-                    all_redis = []
-                    for region in all_regions:
+                        from core.services.analysis_service import AnalysisService
+                        from providers.aliyun.provider import AliyunProvider
+                        
+                        # 获取所有区域
+                        all_regions = AnalysisService._get_all_regions(
+                            account_config.access_key_id,
+                            account_config.access_key_secret
+                        )
+                        
+                        all_redis = []
+                        for region in all_regions:
+                            try:
+                                region_provider = AliyunProvider(
+                                    account_name=account_config.name,
+                                    access_key=account_config.access_key_id,
+                                    secret_key=account_config.access_key_secret,
+                                    region=region,
+                                )
+                                region_redis = region_provider.list_redis()
+                                if region_redis and len(region_redis) > 0:
+                                    all_redis.extend(region_redis)
+                                    logger.info(f"区域 {region}: 找到 {len(region_redis)} 个Redis实例")
+                                else:
+                                    logger.debug(f"区域 {region}: 没有Redis实例")
+                            except Exception as e:
+                                logger.warning(f"查询区域 {region} 的Redis实例失败: {str(e)}")
+                                import traceback
+                                logger.debug(f"Redis查询异常详情: {traceback.format_exc()}")
+                                continue
+                        
+                        logger.info(f"总共找到 {len(all_redis)} 个Redis实例（从 {len(all_regions)} 个区域）")
+                        return all_redis
+                    except Exception as e:
+                        logger.warning(f"获取Redis列表失败: {str(e)}")
+                        # 如果查询所有区域失败，回退到只查询配置的 region
                         try:
-                            region_provider = AliyunProvider(
-                                account_name=account_config.name,
-                                access_key=account_config.access_key_id,
-                                secret_key=account_config.access_key_secret,
-                                region=region,
-                            )
-                            region_redis = region_provider.list_redis()
-                            if region_redis and len(region_redis) > 0:
-                                all_redis.extend(region_redis)
-                                logger.info(f"区域 {region}: 找到 {len(region_redis)} 个Redis实例")
-                            else:
-                                logger.debug(f"区域 {region}: 没有Redis实例")
-                        except Exception as e:
-                            logger.warning(f"查询区域 {region} 的Redis实例失败: {str(e)}")
-                            import traceback
-                            logger.debug(f"Redis查询异常详情: {traceback.format_exc()}")
-                            continue
-                    
-                    logger.info(f"总共找到 {len(all_redis)} 个Redis实例（从 {len(all_regions)} 个区域）")
-                    return all_redis
-                except Exception as e:
-                    logger.warning(f"获取Redis列表失败: {str(e)}")
-                    # 如果查询所有区域失败，回退到只查询配置的 region
-                    try:
-                        return provider.list_redis()
-                    except:
-                        return []
+                            return provider.list_redis()
+                        except:
+                            return []
             
                 # 并行查询资源（优化性能）
                 with ThreadPoolExecutor(max_workers=5) as executor:
-                instances_future = executor.submit(get_instances)
+                    instances_future = executor.submit(get_instances)
                 rds_future = executor.submit(get_rds)
                 redis_future = executor.submit(get_redis)
                 
@@ -681,38 +681,38 @@ def _update_dashboard_summary_cache(account: str, account_config):
                     rds_list = rds_future.result(timeout=30) or []
                     redis_list = redis_future.result(timeout=30) or []
                     
-                    # 如果查询结果为空，尝试从之前的缓存中恢复（避免显示0资源）
-                    if not instances and not rds_list and not redis_list:
+                        # 如果查询结果为空，尝试从之前的缓存中恢复（避免显示0资源）
+                        if not instances and not rds_list and not redis_list:
+                            resource_cache_key = f"resource_list_{account}"
+                            cached_resources_retry = cache_manager.get(resource_type=resource_cache_key, account_name=account)
+                            if cached_resources_retry:
+                                instances = cached_resources_retry.get("instances", []) or []
+                                rds_list = cached_resources_retry.get("rds", []) or []
+                                redis_list = cached_resources_retry.get("redis", []) or []
+                                logger.info(f"⚠️ 实时查询资源为空，从缓存中恢复了 {len(instances)} 个实例")
+                        else:
+                            # 只有在非空时才更新长期资源列表缓存
+                            cache_manager_short = CacheManager(ttl_seconds=1800) # 30分钟
+                            
+                            # Convert items to dict for JSON serialization
+                            instances_dict = [inst.to_dict() if hasattr(inst, "to_dict") else inst for inst in instances]
+                            rds_dict = [r.to_dict() if hasattr(r, "to_dict") else r for r in rds_list]
+                            redis_dict = [r.to_dict() if hasattr(r, "to_dict") else r for r in redis_list]
+                            
+                            cache_manager_short.set(
+                                resource_type=f"resource_list_{account}",
+                                account_name=account,
+                                data={"instances": instances_dict, "rds": rds_dict, "redis": redis_dict}
+                            )
+                    except Exception as e:
+                        logger.warning(f"查询资源列表发生异常: {str(e)}")
+                        # 发生异常时也尝试从缓存恢复
                         resource_cache_key = f"resource_list_{account}"
-                        cached_resources_retry = cache_manager.get(resource_type=resource_cache_key, account_name=account)
-                        if cached_resources_retry:
-                            instances = cached_resources_retry.get("instances", []) or []
-                            rds_list = cached_resources_retry.get("rds", []) or []
-                            redis_list = cached_resources_retry.get("redis", []) or []
-                            logger.info(f"⚠️ 实时查询资源为空，从缓存中恢复了 {len(instances)} 个实例")
-                    else:
-                        # 只有在非空时才更新长期资源列表缓存
-                        cache_manager_short = CacheManager(ttl_seconds=1800) # 30分钟
-                        
-                        # Convert items to dict for JSON serialization
-                        instances_dict = [inst.to_dict() if hasattr(inst, "to_dict") else inst for inst in instances]
-                        rds_dict = [r.to_dict() if hasattr(r, "to_dict") else r for r in rds_list]
-                        redis_dict = [r.to_dict() if hasattr(r, "to_dict") else r for r in redis_list]
-                        
-                        cache_manager_short.set(
-                            resource_type=f"resource_list_{account}",
-                            account_name=account,
-                            data={"instances": instances_dict, "rds": rds_dict, "redis": redis_dict}
-                        )
-                except Exception as e:
-                    logger.warning(f"查询资源列表发生异常: {str(e)}")
-                    # 发生异常时也尝试从缓存恢复
-                    resource_cache_key = f"resource_list_{account}"
-                    cached_resources_err = cache_manager.get(resource_type=resource_cache_key, account_name=account)
-                    if cached_resources_err:
-                        instances = cached_resources_err.get("instances", []) or []
-                        rds_list = cached_resources_err.get("rds", []) or []
-                        redis_list = cached_resources_err.get("redis", []) or []
+                        cached_resources_err = cache_manager.get(resource_type=resource_cache_key, account_name=account)
+                        if cached_resources_err:
+                            instances = cached_resources_err.get("instances", []) or []
+                            rds_list = cached_resources_err.get("rds", []) or []
+                            redis_list = cached_resources_err.get("redis", []) or []
         
         # 确保变量存在（处理作用域问题）
         try:
@@ -728,56 +728,56 @@ def _update_dashboard_summary_cache(account: str, account_config):
         except NameError:
             redis_list = []
         
-        resource_breakdown = {
-            "ecs": len(instances) if instances else 0,
-            "rds": len(rds_list) if rds_list else 0,
-            "redis": len(redis_list) if redis_list else 0,
-        }
-        total_resources = sum(resource_breakdown.values())
-        
-        # 详细日志输出，便于调试
-        logger.info(f"资源统计结果 (账号: {account}):")
-        logger.info(f"  ECS: {resource_breakdown['ecs']} (instances类型: {type(instances).__name__}, 长度: {len(instances) if instances else 0})")
-        logger.info(f"  RDS: {resource_breakdown['rds']} (rds_list类型: {type(rds_list).__name__}, 长度: {len(rds_list) if rds_list else 0})")
-        logger.info(f"  Redis: {resource_breakdown['redis']} (redis_list类型: {type(redis_list).__name__}, 长度: {len(redis_list) if redis_list else 0})")
-        logger.info(f"  总数: {total_resources}")
-        
-        # Tag Coverage - 统计所有资源（ECS + RDS + Redis）的标签覆盖率
-        all_resources = list(instances) + list(rds_list) + list(redis_list)
-        tagged_count = 0
-        for resource in all_resources:
-            has_tags = False
-            # 检查资源是否有tags属性且tags不为空
-            if hasattr(resource, 'tags'):
-                # UnifiedResource对象，tags是字典
-                if resource.tags and isinstance(resource.tags, dict) and len(resource.tags) > 0:
-                    has_tags = True
-            elif isinstance(resource, dict):
-                # 字典格式的资源，检查tags字段
-                tags = resource.get('tags') or resource.get('Tags') or {}
-                if tags and isinstance(tags, dict) and len(tags) > 0:
-                    has_tags = True
+            resource_breakdown = {
+                "ecs": len(instances) if instances else 0,
+                "rds": len(rds_list) if rds_list else 0,
+                "redis": len(redis_list) if redis_list else 0,
+            }
+            total_resources = sum(resource_breakdown.values())
             
-            # 如果tags为空，尝试从raw_data中提取
-            if not has_tags and hasattr(resource, 'raw_data') and resource.raw_data:
-                raw_tags = resource.raw_data.get('Tags') or resource.raw_data.get('tags') or {}
-                if raw_tags:
-                    # 处理阿里云API返回的Tags格式: {'Tag': [{'TagKey': '...', 'TagValue': '...'}]}
-                    if isinstance(raw_tags, dict) and 'Tag' in raw_tags:
-                        tag_list = raw_tags['Tag']
-                        if isinstance(tag_list, list) and len(tag_list) > 0:
-                            has_tags = True
-                    elif isinstance(raw_tags, dict) and len(raw_tags) > 0:
+            # 详细日志输出，便于调试
+            logger.info(f"资源统计结果 (账号: {account}):")
+            logger.info(f"  ECS: {resource_breakdown['ecs']} (instances类型: {type(instances).__name__}, 长度: {len(instances) if instances else 0})")
+            logger.info(f"  RDS: {resource_breakdown['rds']} (rds_list类型: {type(rds_list).__name__}, 长度: {len(rds_list) if rds_list else 0})")
+            logger.info(f"  Redis: {resource_breakdown['redis']} (redis_list类型: {type(redis_list).__name__}, 长度: {len(redis_list) if redis_list else 0})")
+            logger.info(f"  总数: {total_resources}")
+            
+            # Tag Coverage - 统计所有资源（ECS + RDS + Redis）的标签覆盖率
+            all_resources = list(instances) + list(rds_list) + list(redis_list)
+            tagged_count = 0
+            for resource in all_resources:
+                has_tags = False
+                # 检查资源是否有tags属性且tags不为空
+                if hasattr(resource, 'tags'):
+                    # UnifiedResource对象，tags是字典
+                    if resource.tags and isinstance(resource.tags, dict) and len(resource.tags) > 0:
                         has_tags = True
+                elif isinstance(resource, dict):
+                    # 字典格式的资源，检查tags字段
+                    tags = resource.get('tags') or resource.get('Tags') or {}
+                    if tags and isinstance(tags, dict) and len(tags) > 0:
+                        has_tags = True
+                
+                # 如果tags为空，尝试从raw_data中提取
+                if not has_tags and hasattr(resource, 'raw_data') and resource.raw_data:
+                    raw_tags = resource.raw_data.get('Tags') or resource.raw_data.get('tags') or {}
+                    if raw_tags:
+                        # 处理阿里云API返回的Tags格式: {'Tag': [{'TagKey': '...', 'TagValue': '...'}]}
+                        if isinstance(raw_tags, dict) and 'Tag' in raw_tags:
+                            tag_list = raw_tags['Tag']
+                            if isinstance(tag_list, list) and len(tag_list) > 0:
+                                has_tags = True
+                        elif isinstance(raw_tags, dict) and len(raw_tags) > 0:
+                            has_tags = True
+                
+                if has_tags:
+                    tagged_count += 1
             
-            if has_tags:
-                tagged_count += 1
-        
-        tag_coverage = (tagged_count / total_resources * 100) if total_resources > 0 else 0
-        logger.info(f"标签覆盖率计算: 总资源数={total_resources}, 有标签资源数={tagged_count}, 覆盖率={tag_coverage:.2f}%")
-        
-        # Alert Count (simplified - TODO: implement actual alert system)
-        alert_count = 0
+            tag_coverage = (tagged_count / total_resources * 100) if total_resources > 0 else 0
+            logger.info(f"标签覆盖率计算: 总资源数={total_resources}, 有标签资源数={tagged_count}, 覆盖率={tag_coverage:.2f}%")
+            
+            # Alert Count (simplified - TODO: implement actual alert system)
+            alert_count = 0
         
         # Savings Potential: Calculate based on actual cost of idle resources
         savings_potential = 0.0
