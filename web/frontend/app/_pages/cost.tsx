@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CostChart } from "@/components/cost-chart"
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts"
@@ -135,9 +136,17 @@ export default function CostPage() {
   return (
     <DashboardLayout>
       <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">{t.costAnalysis.title}</h2>
-          <p className="text-muted-foreground mt-1">{t.costAnalysis.description}</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">{t.costAnalysis.title}</h2>
+            <p className="text-muted-foreground mt-1">{t.costAnalysis.description}</p>
+          </div>
+          <Link
+            href={currentAccount ? `/a/${encodeURIComponent(currentAccount)}/cost-trend` : '/cost-trend'}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all text-sm font-medium"
+          >
+            📊 {locale === 'zh' ? '成本趋势分析' : 'Cost Trend Analysis'}
+          </Link>
         </div>
 
         {loading ? (

@@ -803,6 +803,7 @@ async def get_trend(
     days: int = 30, 
     start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
     end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
+    granularity: Optional[str] = Query("daily", description="数据粒度: daily(按天) 或 monthly(按月)"),
     force_refresh: bool = Query(False, description="强制刷新缓存")
 ):
     """Get cost trend chart data（带24小时缓存）
@@ -812,18 +813,23 @@ async def get_trend(
         days: 查询天数，0表示获取所有历史数据（当start_date和end_date都提供时，此参数被忽略）
         start_date: 开始日期 YYYY-MM-DD格式
         end_date: 结束日期 YYYY-MM-DD格式
+        granularity: 数据粒度，daily(按天) 或 monthly(按月)，默认daily
         force_refresh: 是否强制刷新缓存
     """
     if not account:
         raise HTTPException(status_code=400, detail="账号参数是必需的")
     
+    # 验证granularity参数
+    if granularity not in ["daily", "monthly"]:
+        granularity = "daily"
+    
     # 如果提供了日期范围，使用日期范围；否则使用days参数
     if start_date and end_date:
-        logger.debug(f"收到账号参数: {account}, 日期范围: {start_date} 至 {end_date}")
-        cache_key = f"dashboard_trend_{start_date}_{end_date}"
+        logger.debug(f"收到账号参数: {account}, 日期范围: {start_date} 至 {end_date}, 粒度: {granularity}")
+        cache_key = f"dashboard_trend_{granularity}_{start_date}_{end_date}"
     else:
-        logger.debug(f"收到账号参数: {account}, days: {days} ({'全部历史' if days == 0 else f'最近{days}天'})")
-        cache_key = f"dashboard_trend_{days}"
+        logger.debug(f"收到账号参数: {account}, days: {days} ({'全部历史' if days == 0 else f'最近{days}天'}), 粒度: {granularity}")
+        cache_key = f"dashboard_trend_{granularity}_{days}"
     
     # 初始化缓存管理器，TTL设置为24小时（86400秒）
     cache_manager = CacheManager(ttl_seconds=86400)
@@ -852,34 +858,119 @@ async def get_trend(
             report = analyzer.generate_trend_report(account, calculated_days, start_date=start_date, end_date=end_date)
         else:
             report = analyzer.generate_trend_report(account, days)
+        
         if "error" in report:
-            # 趋势图常见的“无数据/数据不足”不应该作为服务端错误；
-            # 返回 200 + 空 chart_data，前端可自然降级为“不展示趋势图”。
+            # 趋势图常见的"无数据/数据不足"不应该作为服务端错误；
+            # 返回 200 + 空 chart_data，前端可自然降级为"不展示趋势图"。
             err = report.get("error") or "No trend data"
             if err in ("No cost history available", "Insufficient data for trend analysis"):
                 return {
                     "account": account,
                     "period_days": days,
+                    "granularity": granularity,
                     "analysis": {"error": err},
                     "chart_data": None,
                     "cost_by_type": {},
                     "cost_by_region": {},
                     "snapshots_count": 0,
+                    "summary": None,
                     "cached": False,
                 }
             raise HTTPException(status_code=404, detail=err)
         
-        # 保存到缓存（24小时有效）
-        cache_manager.set(resource_type=cache_key, account_name=account, data=report)
+        # 转换数据格式以支持新的前端需求
+        chart_data = report.get("chart_data", {})
+        dates = chart_data.get("dates", [])
+        costs = chart_data.get("costs", [])
         
-        return {
-            **report,
+        # 根据granularity转换数据格式
+        if granularity == "monthly":
+            # 按月聚合数据
+            monthly_data = {}
+            for i, date in enumerate(dates):
+                month_key = date[:7]  # YYYY-MM
+                if month_key not in monthly_data:
+                    monthly_data[month_key] = {
+                        "date": month_key,
+                        "total_cost": 0,
+                        "breakdown": {}
+                    }
+                monthly_data[month_key]["total_cost"] += costs[i] if i < len(costs) else 0
+                
+                # 如果有资源类型分解，也聚合
+                cost_by_type = report.get("cost_by_type", {})
+                if cost_by_type and isinstance(cost_by_type, dict):
+                    for type_name, type_cost in cost_by_type.items():
+                        if type_name not in monthly_data[month_key]["breakdown"]:
+                            monthly_data[month_key]["breakdown"][type_name] = 0
+                        # 简化：平均分配（实际应该按日期计算）
+                        monthly_data[month_key]["breakdown"][type_name] += type_cost / len(dates) if dates else 0
+            
+            # 转换为列表格式
+            chart_data_list = list(monthly_data.values())
+            
+            # 计算月度统计
+            monthly_costs = [item["total_cost"] for item in chart_data_list]
+            summary = {
+                "total_cost": sum(monthly_costs) if monthly_costs else 0,
+                "avg_monthly_cost": sum(monthly_costs) / len(monthly_costs) if monthly_costs else 0,
+                "max_monthly_cost": max(monthly_costs) if monthly_costs else 0,
+                "min_monthly_cost": min(monthly_costs) if monthly_costs else 0,
+                "trend": report.get("analysis", {}).get("trend", "平稳"),
+                "trend_pct": report.get("analysis", {}).get("total_change_pct", 0.0)
+            }
+        else:
+            # 按天数据（保持原有格式，但转换为新格式）
+            chart_data_list = []
+            for i, date in enumerate(dates):
+                item = {
+                    "date": date,
+                    "total_cost": costs[i] if i < len(costs) else 0,
+                    "breakdown": {}
+                }
+                
+                # 如果有资源类型分解，添加到breakdown
+                cost_by_type = report.get("cost_by_type", {})
+                if cost_by_type and isinstance(cost_by_type, dict):
+                    # 简化：平均分配（实际应该从快照数据中提取）
+                    for type_name, type_cost in cost_by_type.items():
+                        item["breakdown"][type_name] = type_cost / len(dates) if dates else 0
+                
+                chart_data_list.append(item)
+            
+            # 计算日统计
+            daily_costs = [item["total_cost"] for item in chart_data_list]
+            summary = {
+                "total_cost": sum(daily_costs) if daily_costs else 0,
+                "avg_daily_cost": sum(daily_costs) / len(daily_costs) if daily_costs else 0,
+                "max_daily_cost": max(daily_costs) if daily_costs else 0,
+                "min_daily_cost": min(daily_costs) if daily_costs else 0,
+                "trend": report.get("analysis", {}).get("trend", "平稳"),
+                "trend_pct": report.get("analysis", {}).get("total_change_pct", 0.0)
+            }
+        
+        # 构建新的响应格式
+        result = {
+            "account": account,
+            "period_days": days,
+            "granularity": granularity,
+            "chart_data": chart_data_list,
+            "summary": summary,
+            "cost_by_type": report.get("cost_by_type", {}),
+            "cost_by_region": report.get("cost_by_region", {}),
+            "snapshots_count": report.get("snapshots_count", 0),
             "cached": False,
         }
+        
+        # 保存到缓存（24小时有效）
+        cache_manager.set(resource_type=cache_key, account_name=account, data=result)
+        
+        return result
     except HTTPException:
-        # 不要把 4xx 再包装成 500，否则前端只能看到 “Internal Server Error”
+        # 不要把 4xx 再包装成 500，否则前端只能看到 "Internal Server Error"
         raise
     except Exception as e:
+        logger.exception(f"获取成本趋势失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/dashboard/idle")
