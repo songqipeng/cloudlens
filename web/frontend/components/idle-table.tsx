@@ -5,11 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { useLocale } from "@/contexts/locale-context"
 
 interface IdleInstance {
-    instance_id: string
+    id?: string  // 后端返回的字段
+    instance_id?: string  // 兼容旧格式
     name: string
     region: string
     spec: string
-    reasons: string[]
+    reason?: string  // 后端返回的字段（字符串）
+    reasons?: string[]  // 兼容旧格式（数组）
 }
 
 interface IdleTableProps {
@@ -40,11 +42,14 @@ export function IdleTable({ data, scanning = false, scanProgress = null }: IdleT
         }
     }
     
-    let filtered = data.filter(item => 
-        item.name.toLowerCase().includes(search.toLowerCase()) ||
-        item.instance_id.toLowerCase().includes(search.toLowerCase()) ||
-        item.region.toLowerCase().includes(search.toLowerCase())
-    )
+    let filtered = data.filter(item => {
+        const instanceId = item.id || item.instance_id || ""
+        const name = item.name || ""
+        const region = item.region || ""
+        return name.toLowerCase().includes(search.toLowerCase()) ||
+               instanceId.toLowerCase().includes(search.toLowerCase()) ||
+               region.toLowerCase().includes(search.toLowerCase())
+    })
     
     if (sortBy) {
         filtered = [...filtered].sort((a, b) => {
@@ -242,25 +247,29 @@ export function IdleTable({ data, scanning = false, scanProgress = null }: IdleT
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border/20">
-                            {filtered.map((item) => (
-                                <tr key={item.instance_id} className="hover:bg-primary/8 transition-all duration-200 group border-b border-border/10">
-                                    <td className="px-6 py-4">
-                                        <div className="font-semibold text-foreground group-hover:text-primary transition-colors duration-200">{item.name || (locale === 'zh' ? '未命名' : 'Unnamed')}</div>
-                                        <div className="text-xs text-muted-foreground font-mono mt-1.5 opacity-75">{item.instance_id}</div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="text-sm text-muted-foreground font-mono bg-muted/30 px-2 py-1 rounded">{item.spec}</span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="text-sm text-muted-foreground">{item.region}</span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-yellow-500/15 text-yellow-500 border border-yellow-500/30 shadow-sm">
-                                            {item.reasons[0] || (locale === 'zh' ? '未知原因' : 'Unknown')}
-                                        </span>
-                                    </td>
-                                </tr>
-                            ))}
+                            {filtered.map((item) => {
+                                const instanceId = item.id || item.instance_id || ""
+                                const reason = item.reason || (item.reasons && item.reasons[0]) || (locale === 'zh' ? '未知原因' : 'Unknown')
+                                return (
+                                    <tr key={instanceId} className="hover:bg-primary/8 transition-all duration-200 group border-b border-border/10">
+                                        <td className="px-6 py-4">
+                                            <div className="font-semibold text-foreground group-hover:text-primary transition-colors duration-200">{item.name || (locale === 'zh' ? '未命名' : 'Unnamed')}</div>
+                                            <div className="text-xs text-muted-foreground font-mono mt-1.5 opacity-75">{instanceId}</div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="text-sm text-muted-foreground font-mono bg-muted/30 px-2 py-1 rounded">{item.spec}</span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="text-sm text-muted-foreground">{item.region}</span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-yellow-500/15 text-yellow-500 border border-yellow-500/30 shadow-sm">
+                                                {reason}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                )
+                            })}
                         </tbody>
                     </table>
                 </div>
