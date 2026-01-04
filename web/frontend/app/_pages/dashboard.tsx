@@ -6,6 +6,7 @@ import { SummaryCards } from "@/components/summary-cards"
 import { CostChart } from "@/components/cost-chart"
 import { IdleTable } from "@/components/idle-table"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
+import { Card, CardContent } from "@/components/ui/card"
 import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
 import { apiGet, apiPost, ApiError } from "@/lib/api"
@@ -550,8 +551,102 @@ pip install -r requirements.txt
           />
         )}
 
-        {/* 成本趋势图表 - 全宽 */}
-        <div className="w-full">{chartData && <CostChart data={chartData} account={currentAccount} />}</div>
+        {/* 成本趋势图表区域 - 按照设计文档 */}
+        {chartData && (
+          <div className="w-full space-y-4">
+            {/* 成本趋势统计摘要卡片 */}
+            {(() => {
+              // 从chartData计算统计信息
+              const costs = chartData.costs || []
+              const dates = chartData.dates || []
+              if (costs.length === 0) return null
+              
+              const totalCost = costs.reduce((sum: number, cost: number) => sum + cost, 0)
+              const avgDailyCost = costs.length > 0 ? totalCost / costs.length : 0
+              const maxDailyCost = Math.max(...costs)
+              const minDailyCost = Math.min(...costs)
+              
+              // 计算趋势（对比前一个周期）
+              let trendPct = 0
+              let trend = "平稳"
+              if (costs.length >= 2) {
+                const firstHalf = costs.slice(0, Math.floor(costs.length / 2))
+                const secondHalf = costs.slice(Math.floor(costs.length / 2))
+                const firstAvg = firstHalf.reduce((sum: number, cost: number) => sum + cost, 0) / firstHalf.length
+                const secondAvg = secondHalf.reduce((sum: number, cost: number) => sum + cost, 0) / secondHalf.length
+                if (firstAvg > 0) {
+                  trendPct = ((secondAvg - firstAvg) / firstAvg) * 100
+                  trend = trendPct > 0 ? "上升" : trendPct < 0 ? "下降" : "平稳"
+                }
+              }
+              
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  <Card className="glass border border-border/50 shadow-xl">
+                    <CardContent className="pt-6">
+                      <div className="text-sm text-muted-foreground mb-2">
+                        {t.dashboard.totalCost || "总成本"}
+                      </div>
+                      <div className="text-2xl font-bold">
+                        ¥{totalCost.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="glass border border-border/50 shadow-xl">
+                    <CardContent className="pt-6">
+                      <div className="text-sm text-muted-foreground mb-2">
+                        {t.dashboard.avgDailyCost || "日均成本"}
+                      </div>
+                      <div className="text-2xl font-bold">
+                        ¥{avgDailyCost.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="glass border border-border/50 shadow-xl">
+                    <CardContent className="pt-6">
+                      <div className="text-sm text-muted-foreground mb-2">
+                        {t.dashboard.maxDailyCost || "最高日成本"}
+                      </div>
+                      <div className="text-2xl font-bold">
+                        ¥{maxDailyCost.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="glass border border-border/50 shadow-xl">
+                    <CardContent className="pt-6">
+                      <div className="text-sm text-muted-foreground mb-2">
+                        {t.dashboard.minDailyCost || "最低日成本"}
+                      </div>
+                      <div className="text-2xl font-bold">
+                        ¥{minDailyCost.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="glass border border-border/50 shadow-xl">
+                    <CardContent className="pt-6">
+                      <div className="text-sm text-muted-foreground mb-2">
+                        {t.dashboard.trend || "趋势"}
+                      </div>
+                      <div className={`text-2xl font-bold flex items-center gap-2 ${
+                        trend === "上升" ? "text-red-500" : trend === "下降" ? "text-green-500" : "text-muted-foreground"
+                      }`}>
+                        {trend === "上升" ? "↑" : trend === "下降" ? "↓" : "→"} {Math.abs(trendPct).toFixed(1)}%
+                      </div>
+                      <div className={`text-xs mt-1 ${
+                        trend === "上升" ? "text-red-500" : trend === "下降" ? "text-green-500" : "text-muted-foreground"
+                      }`}>
+                        {trend}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )
+            })()}
+            
+            {/* 成本趋势图表 */}
+            <CostChart data={chartData} account={currentAccount} />
+          </div>
+        )}
 
         {/* 闲置资源表格 - 扫描时显示进度条 */}
         <div className="w-full">
