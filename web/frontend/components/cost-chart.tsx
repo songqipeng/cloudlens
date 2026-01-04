@@ -56,7 +56,18 @@ export function CostChart({ data, account }: CostChartProps) {
                 
                 const result = await apiGet('/dashboard/trend', params)
                 if (!cancelled && result?.chart_data) {
-                    setChartData(result.chart_data)
+                    // 处理新格式：chart_data 可能是数组格式 [{date, total_cost, ...}] 或旧格式 {dates, costs}
+                    if (Array.isArray(result.chart_data) && result.chart_data.length > 0) {
+                        // 新格式：转换为旧格式
+                        const dates = result.chart_data.map((item: any) => item.date || '')
+                        const costs = result.chart_data.map((item: any) => Number(item.total_cost) || Number(item.cost) || 0)
+                        setChartData({ dates, costs })
+                    } else if (result.chart_data.dates && result.chart_data.costs) {
+                        // 旧格式：直接使用
+                        setChartData(result.chart_data)
+                    } else {
+                        console.warn("[CostChart] ⚠️ 数据格式异常:", result.chart_data)
+                    }
                 }
             } catch (e) {
                 if (!cancelled) console.error("Failed to fetch trend:", e)
