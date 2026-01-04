@@ -274,21 +274,56 @@ export default function SecurityPage() {
                             <div>
                               <div className="text-sm font-medium mb-2">{t.security.problemResources} ({check.resources.length}):</div>
                               <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-                                {check.resources.map((resource: any, rIdx: number) => (
-                                  <div
-                                    key={rIdx}
-                                    className="p-2 bg-muted/30 rounded-lg text-xs hover:bg-muted/50 transition-colors cursor-pointer"
-                                    onClick={() => {
-                                      if (!base) return
-                                      if (resource.id) router.push(`${base}/resources/${resource.id}`)
-                                    }}
-                                  >
-                                    <div className="font-medium truncate">{resource.name || resource.id}</div>
-                                    <div className="text-muted-foreground truncate">{resource.id}</div>
-                                    {resource.public_ips && <div className="text-muted-foreground mt-1">{t.security.ip}: {resource.public_ips.join(", ")}</div>}
-                                    {resource.region && <div className="text-muted-foreground">{t.security.region}: {resource.region}</div>}
-                                  </div>
-                                ))}
+                                {check.resources.map((resource: any, rIdx: number) => {
+                                  // 推断资源类型：从ID或type字段
+                                  const getResourceType = (res: any): string => {
+                                    if (res.type) return res.type
+                                    if (res.id) {
+                                      // ECS实例ID通常以i-开头
+                                      if (res.id.startsWith('i-')) return 'ecs'
+                                      // RDS实例ID通常以rm-开头
+                                      if (res.id.startsWith('rm-')) return 'rds'
+                                      // Redis实例ID通常以r-开头
+                                      if (res.id.startsWith('r-')) return 'redis'
+                                      // OSS bucket名称通常不含特殊前缀
+                                      if (res.id.includes('oss') || res.id.includes('bucket')) return 'oss'
+                                    }
+                                    return 'ecs' // 默认类型
+                                  }
+                                  
+                                  const resourceType = getResourceType(resource)
+                                  
+                                  return (
+                                    <div
+                                      key={rIdx}
+                                      className="p-2 bg-muted/30 rounded-lg text-xs hover:bg-muted/50 transition-colors cursor-pointer group"
+                                      onClick={() => {
+                                        if (!base || !resource.id) return
+                                        // 保存资源类型到localStorage，以便详情页使用
+                                        localStorage.setItem('lastResourceType', resourceType)
+                                        router.push(`${base}/resources/${resource.id}?type=${resourceType}`)
+                                      }}
+                                    >
+                                      <div className="font-medium truncate group-hover:text-primary transition-colors">
+                                        {resource.name || resource.id}
+                                      </div>
+                                      <div className="text-muted-foreground truncate text-[10px]">{resource.id}</div>
+                                      {resource.public_ips && resource.public_ips.length > 0 && (
+                                        <div className="text-muted-foreground mt-1 text-[10px]">
+                                          {t.security.ip}: {resource.public_ips.join(", ")}
+                                        </div>
+                                      )}
+                                      {resource.region && (
+                                        <div className="text-muted-foreground text-[10px]">
+                                          {t.security.region}: {resource.region}
+                                        </div>
+                                      )}
+                                      <div className="text-muted-foreground text-[10px] mt-1 opacity-60">
+                                        {t.security.clickToView || '点击查看详情'}
+                                      </div>
+                                    </div>
+                                  )
+                                })}
                               </div>
                             </div>
                           )}
