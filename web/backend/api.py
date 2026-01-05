@@ -713,28 +713,29 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
                             instances = cached_resources_err.get("instances", []) or []
                             rds_list = cached_resources_err.get("rds", []) or []
                             redis_list = cached_resources_err.get("redis", []) or []
-            
-            # 确保变量存在（处理作用域问题）
-            try:
-                _ = instances
-            except NameError:
-                instances = []
-            try:
-                _ = rds_list
-            except NameError:
-                rds_list = []
-            try:
-                _ = redis_list
-            except NameError:
-                redis_list = []
-            
-            resource_breakdown = {
-                "ecs": len(instances) if instances else 0,
-                "rds": len(rds_list) if rds_list else 0,
-                "redis": len(redis_list) if redis_list else 0,
-            }
-            total_resources = sum(resource_breakdown.values())
-            
+        
+        # 确保变量存在（处理作用域问题）- 移到try块外，确保在所有情况下都能执行
+        try:
+            _ = instances
+        except NameError:
+            instances = []
+        try:
+            _ = rds_list
+        except NameError:
+            rds_list = []
+        try:
+            _ = redis_list
+        except NameError:
+            redis_list = []
+        
+        # 计算资源统计（确保在所有情况下都能执行）
+        resource_breakdown = {
+            "ecs": len(instances) if instances else 0,
+            "rds": len(rds_list) if rds_list else 0,
+            "redis": len(redis_list) if redis_list else 0,
+        }
+        total_resources = sum(resource_breakdown.values())
+        
         # 详细日志输出，便于调试
         logger.info(f"资源统计结果 (账号: {account}):")
         logger.info(f"  ECS: {resource_breakdown['ecs']} (instances类型: {type(instances).__name__}, 长度: {len(instances) if instances else 0})")
