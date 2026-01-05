@@ -672,8 +672,8 @@ def _update_dashboard_summary_cache(account: str, account_config):
                 # 并行查询资源（优化性能）
                 with ThreadPoolExecutor(max_workers=5) as executor:
                     instances_future = executor.submit(get_instances)
-                rds_future = executor.submit(get_rds)
-                redis_future = executor.submit(get_redis)
+                    rds_future = executor.submit(get_rds)
+                    redis_future = executor.submit(get_redis)
                 
                 try:
                     # 调大超时时间或容忍部分失败
@@ -735,15 +735,15 @@ def _update_dashboard_summary_cache(account: str, account_config):
             }
             total_resources = sum(resource_breakdown.values())
             
-            # 详细日志输出，便于调试
-            logger.info(f"资源统计结果 (账号: {account}):")
-            logger.info(f"  ECS: {resource_breakdown['ecs']} (instances类型: {type(instances).__name__}, 长度: {len(instances) if instances else 0})")
-            logger.info(f"  RDS: {resource_breakdown['rds']} (rds_list类型: {type(rds_list).__name__}, 长度: {len(rds_list) if rds_list else 0})")
-            logger.info(f"  Redis: {resource_breakdown['redis']} (redis_list类型: {type(redis_list).__name__}, 长度: {len(redis_list) if redis_list else 0})")
-            logger.info(f"  总数: {total_resources}")
-            
-            # Tag Coverage - 统计所有资源（ECS + RDS + Redis）的标签覆盖率
-            all_resources = list(instances) + list(rds_list) + list(redis_list)
+        # 详细日志输出，便于调试
+        logger.info(f"资源统计结果 (账号: {account}):")
+        logger.info(f"  ECS: {resource_breakdown['ecs']} (instances类型: {type(instances).__name__}, 长度: {len(instances) if instances else 0})")
+        logger.info(f"  RDS: {resource_breakdown['rds']} (rds_list类型: {type(rds_list).__name__}, 长度: {len(rds_list) if rds_list else 0})")
+        logger.info(f"  Redis: {resource_breakdown['redis']} (redis_list类型: {type(redis_list).__name__}, 长度: {len(redis_list) if redis_list else 0})")
+        logger.info(f"  总数: {total_resources}")
+        
+        # Tag Coverage - 统计所有资源（ECS + RDS + Redis）的标签覆盖率
+        all_resources = list(instances) + list(rds_list) + list(redis_list)
             tagged_count = 0
             for resource in all_resources:
                 has_tags = False
