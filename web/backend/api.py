@@ -681,8 +681,8 @@ def _update_dashboard_summary_cache(account: str, account_config):
                     rds_list = rds_future.result(timeout=30) or []
                     redis_list = redis_future.result(timeout=30) or []
                     
-                        # 如果查询结果为空，尝试从之前的缓存中恢复（避免显示0资源）
-                        if not instances and not rds_list and not redis_list:
+                    # 如果查询结果为空，尝试从之前的缓存中恢复（避免显示0资源）
+                    if not instances and not rds_list and not redis_list:
                             resource_cache_key = f"resource_list_{account}"
                             cached_resources_retry = cache_manager.get(resource_type=resource_cache_key, account_name=account)
                             if cached_resources_retry:
