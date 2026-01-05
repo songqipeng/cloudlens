@@ -781,61 +781,61 @@ def _update_dashboard_summary_cache(account: str, account_config):
     
         # Savings Potential: Calculate based on actual cost of idle resources
         savings_potential = 0.0
-            if idle_data and account_config:
-                # Get cost map for ECS resources (idle_data typically contains ECS instances)
-                cost_map = _get_cost_map("ecs", account_config)
-                
-                # Calculate total cost of idle resources
-                for idle_item in idle_data:
-                    instance_id = idle_item.get("instance_id") or idle_item.get("id")
-                    if instance_id:
-                        # Try to get real cost from cost_map
-                        cost = cost_map.get(instance_id)
-                        if cost is None:
-                            # If not found, try to estimate from resource spec
-                            spec = idle_item.get("spec", "")
-                            if spec:
-                                cost = _estimate_monthly_cost_from_spec(spec, "ecs")
-                            else:
-                                # Default fallback estimate
-                                cost = 300  # Average ECS cost
-                        savings_potential += cost
-                
-                # Ensure savings potential doesn't exceed total cost
-                if total_cost is not None:
-                    savings_potential = min(savings_potential, float(total_cost) * 0.95)  # Cap at 95% of total cost
-
-            # 如果成本趋势没有历史数据，则用"当前资源月度成本（折后优先）"作为统一口径的 total_cost
-            if total_cost is None and account_config:
-                ecs_cost_map = _get_cost_map("ecs", account_config)
-                rds_cost_map = _get_cost_map("rds", account_config)
-                redis_cost_map = _get_cost_map("redis", account_config)
-
-                estimated_total = 0.0
-                for inst in instances:
-                    cost = ecs_cost_map.get(inst.id)
+        if idle_data and account_config:
+            # Get cost map for ECS resources (idle_data typically contains ECS instances)
+            cost_map = _get_cost_map("ecs", account_config)
+            
+            # Calculate total cost of idle resources
+            for idle_item in idle_data:
+                instance_id = idle_item.get("instance_id") or idle_item.get("id")
+                if instance_id:
+                    # Try to get real cost from cost_map
+                    cost = cost_map.get(instance_id)
                     if cost is None:
-                        cost = _estimate_monthly_cost(inst)
-                    estimated_total += float(cost or 0)
-                for rds in rds_list:
-                    cost = rds_cost_map.get(rds.id)
-                    if cost is None:
-                        cost = _estimate_monthly_cost(rds)
-                    estimated_total += float(cost or 0)
-                for r in redis_list:
-                    cost = redis_cost_map.get(r.id)
-                    if cost is None:
-                        cost = _estimate_monthly_cost(r)
-                    estimated_total += float(cost or 0)
+                        # If not found, try to estimate from resource spec
+                        spec = idle_item.get("spec", "")
+                        if spec:
+                            cost = _estimate_monthly_cost_from_spec(spec, "ecs")
+                        else:
+                            # Default fallback estimate
+                            cost = 300  # Average ECS cost
+                    savings_potential += cost
+            
+            # Ensure savings potential doesn't exceed total cost
+            if total_cost is not None:
+                savings_potential = min(savings_potential, float(total_cost) * 0.95)  # Cap at 95% of total cost
 
-                total_cost = round(float(estimated_total), 2)
-                # 再做一次 savings cap（此时 total_cost 已可用）
-                savings_potential = min(float(savings_potential), float(total_cost) * 0.95) if total_cost else 0.0
+        # 如果成本趋势没有历史数据，则用"当前资源月度成本（折后优先）"作为统一口径的 total_cost
+        if total_cost is None and account_config:
+            ecs_cost_map = _get_cost_map("ecs", account_config)
+            rds_cost_map = _get_cost_map("rds", account_config)
+            redis_cost_map = _get_cost_map("redis", account_config)
 
-            # 用账单全量口径覆盖 total_cost（更贴近真实账单）
-            if billing_total_cost is not None:
-                total_cost = round(float(billing_total_cost), 2)
-                savings_potential = min(float(savings_potential), float(total_cost) * 0.95) if total_cost else 0.0
+            estimated_total = 0.0
+            for inst in instances:
+                cost = ecs_cost_map.get(inst.id)
+                if cost is None:
+                    cost = _estimate_monthly_cost(inst)
+                estimated_total += float(cost or 0)
+            for rds in rds_list:
+                cost = rds_cost_map.get(rds.id)
+                if cost is None:
+                    cost = _estimate_monthly_cost(rds)
+                estimated_total += float(cost or 0)
+            for r in redis_list:
+                cost = redis_cost_map.get(r.id)
+                if cost is None:
+                    cost = _estimate_monthly_cost(r)
+                estimated_total += float(cost or 0)
+
+            total_cost = round(float(estimated_total), 2)
+            # 再做一次 savings cap（此时 total_cost 已可用）
+            savings_potential = min(float(savings_potential), float(total_cost) * 0.95) if total_cost else 0.0
+
+        # 用账单全量口径覆盖 total_cost（更贴近真实账单）
+        if billing_total_cost is not None:
+            total_cost = round(float(billing_total_cost), 2)
+            savings_potential = min(float(savings_potential), float(total_cost) * 0.95) if total_cost else 0.0
         
     except Exception as e:
         # Fallback if resource query fails
