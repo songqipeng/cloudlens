@@ -343,7 +343,7 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
     return default_result
 
 
-def _update_dashboard_summary_cache(account: str, account_config):
+def _update_dashboard_summary_cache(account: str, account_config, force_refresh: bool = False):
     """更新 dashboard summary 缓存（后台任务）"""
     import logging
     logger = logging.getLogger(__name__)
