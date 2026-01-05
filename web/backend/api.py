@@ -744,43 +744,43 @@ def _update_dashboard_summary_cache(account: str, account_config):
         
         # Tag Coverage - 统计所有资源（ECS + RDS + Redis）的标签覆盖率
         all_resources = list(instances) + list(rds_list) + list(redis_list)
-            tagged_count = 0
-            for resource in all_resources:
-                has_tags = False
-                # 检查资源是否有tags属性且tags不为空
-                if hasattr(resource, 'tags'):
-                    # UnifiedResource对象，tags是字典
-                    if resource.tags and isinstance(resource.tags, dict) and len(resource.tags) > 0:
-                        has_tags = True
-                elif isinstance(resource, dict):
-                    # 字典格式的资源，检查tags字段
-                    tags = resource.get('tags') or resource.get('Tags') or {}
-                    if tags and isinstance(tags, dict) and len(tags) > 0:
-                        has_tags = True
-                
-                # 如果tags为空，尝试从raw_data中提取
-                if not has_tags and hasattr(resource, 'raw_data') and resource.raw_data:
-                    raw_tags = resource.raw_data.get('Tags') or resource.raw_data.get('tags') or {}
-                    if raw_tags:
-                        # 处理阿里云API返回的Tags格式: {'Tag': [{'TagKey': '...', 'TagValue': '...'}]}
-                        if isinstance(raw_tags, dict) and 'Tag' in raw_tags:
-                            tag_list = raw_tags['Tag']
-                            if isinstance(tag_list, list) and len(tag_list) > 0:
-                                has_tags = True
-                        elif isinstance(raw_tags, dict) and len(raw_tags) > 0:
+        tagged_count = 0
+        for resource in all_resources:
+            has_tags = False
+            # 检查资源是否有tags属性且tags不为空
+            if hasattr(resource, 'tags'):
+                # UnifiedResource对象，tags是字典
+                if resource.tags and isinstance(resource.tags, dict) and len(resource.tags) > 0:
+                    has_tags = True
+            elif isinstance(resource, dict):
+                # 字典格式的资源，检查tags字段
+                tags = resource.get('tags') or resource.get('Tags') or {}
+                if tags and isinstance(tags, dict) and len(tags) > 0:
+                    has_tags = True
+            
+            # 如果tags为空，尝试从raw_data中提取
+            if not has_tags and hasattr(resource, 'raw_data') and resource.raw_data:
+                raw_tags = resource.raw_data.get('Tags') or resource.raw_data.get('tags') or {}
+                if raw_tags:
+                    # 处理阿里云API返回的Tags格式: {'Tag': [{'TagKey': '...', 'TagValue': '...'}]}
+                    if isinstance(raw_tags, dict) and 'Tag' in raw_tags:
+                        tag_list = raw_tags['Tag']
+                        if isinstance(tag_list, list) and len(tag_list) > 0:
                             has_tags = True
-                
-                if has_tags:
-                    tagged_count += 1
+                    elif isinstance(raw_tags, dict) and len(raw_tags) > 0:
+                        has_tags = True
             
-            tag_coverage = (tagged_count / total_resources * 100) if total_resources > 0 else 0
-            logger.info(f"标签覆盖率计算: 总资源数={total_resources}, 有标签资源数={tagged_count}, 覆盖率={tag_coverage:.2f}%")
-            
-            # Alert Count (simplified - TODO: implement actual alert system)
-            alert_count = 0
+            if has_tags:
+                tagged_count += 1
         
-            # Savings Potential: Calculate based on actual cost of idle resources
-            savings_potential = 0.0
+        tag_coverage = (tagged_count / total_resources * 100) if total_resources > 0 else 0
+        logger.info(f"标签覆盖率计算: 总资源数={total_resources}, 有标签资源数={tagged_count}, 覆盖率={tag_coverage:.2f}%")
+        
+        # Alert Count (simplified - TODO: implement actual alert system)
+        alert_count = 0
+    
+        # Savings Potential: Calculate based on actual cost of idle resources
+        savings_potential = 0.0
             if idle_data and account_config:
                 # Get cost map for ECS resources (idle_data typically contains ECS instances)
                 cost_map = _get_cost_map("ecs", account_config)
