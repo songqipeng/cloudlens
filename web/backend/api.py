@@ -704,7 +704,7 @@ def _update_dashboard_summary_cache(account: str, account_config):
                             account_name=account,
                             data={"instances": instances_dict, "rds": rds_dict, "redis": redis_dict}
                         )
-                    except Exception as e:
+                except Exception as e:
                         logger.warning(f"查询资源列表发生异常: {str(e)}")
                         # 发生异常时也尝试从缓存恢复
                         resource_cache_key = f"resource_list_{account}"
