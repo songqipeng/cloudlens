@@ -807,26 +807,26 @@ def _update_dashboard_summary_cache(account: str, account_config):
 
             # 如果成本趋势没有历史数据，则用"当前资源月度成本（折后优先）"作为统一口径的 total_cost
             if total_cost is None and account_config:
-            ecs_cost_map = _get_cost_map("ecs", account_config)
-            rds_cost_map = _get_cost_map("rds", account_config)
-            redis_cost_map = _get_cost_map("redis", account_config)
+                ecs_cost_map = _get_cost_map("ecs", account_config)
+                rds_cost_map = _get_cost_map("rds", account_config)
+                redis_cost_map = _get_cost_map("redis", account_config)
 
-            estimated_total = 0.0
-            for inst in instances:
-                cost = ecs_cost_map.get(inst.id)
-                if cost is None:
-                    cost = _estimate_monthly_cost(inst)
-                estimated_total += float(cost or 0)
-            for rds in rds_list:
-                cost = rds_cost_map.get(rds.id)
-                if cost is None:
-                    cost = _estimate_monthly_cost(rds)
-                estimated_total += float(cost or 0)
-            for r in redis_list:
-                cost = redis_cost_map.get(r.id)
-                if cost is None:
-                    cost = _estimate_monthly_cost(r)
-                estimated_total += float(cost or 0)
+                estimated_total = 0.0
+                for inst in instances:
+                    cost = ecs_cost_map.get(inst.id)
+                    if cost is None:
+                        cost = _estimate_monthly_cost(inst)
+                    estimated_total += float(cost or 0)
+                for rds in rds_list:
+                    cost = rds_cost_map.get(rds.id)
+                    if cost is None:
+                        cost = _estimate_monthly_cost(rds)
+                    estimated_total += float(cost or 0)
+                for r in redis_list:
+                    cost = redis_cost_map.get(r.id)
+                    if cost is None:
+                        cost = _estimate_monthly_cost(r)
+                    estimated_total += float(cost or 0)
 
                 total_cost = round(float(estimated_total), 2)
                 # 再做一次 savings cap（此时 total_cost 已可用）
