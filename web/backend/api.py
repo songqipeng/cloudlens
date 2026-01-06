@@ -628,11 +628,11 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
                         return all_rds
                 except Exception as e:
                     logger.warning(f"获取RDS列表失败: {str(e)}")
-                        # 如果查询所有区域失败，回退到只查询配置的 region
-                        try:
-                            return provider.list_rds()
-                        except:
-                    return []
+                    # 如果查询所有区域失败，回退到只查询配置的 region
+                    try:
+                        return provider.list_rds()
+                    except:
+                        return []
             
             def get_redis():
                 try:
