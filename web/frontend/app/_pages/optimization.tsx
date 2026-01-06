@@ -85,8 +85,18 @@ export default function OptimizationPage() {
       // 如果没有缓存，显示进度提示
       setLoadingProgress(t.optimization.analyzingProgress)
       
-      // optimization API 可能需要较长时间，增加超时时间到120秒
-      const result = await apiGet("/optimization/suggestions", { account: currentAccount, force_refresh: true }, { timeout: 120000 } as any)
+      // optimization API 可能需要较长时间，增加超时时间到180秒，并支持超时回调
+      const result = await apiGet(
+        "/optimization/suggestions", 
+        { account: currentAccount, force_refresh: true }, 
+        { 
+          timeout: 180000, // 3分钟超时
+          retries: 2, // 最多重试2次
+          onTimeout: (attempt, totalRetries) => {
+            setLoadingProgress(`计算中... (${attempt}/${totalRetries}，已等待较长时间，建议使用缓存数据)`)
+          }
+        } as any
+      )
       
       if (result?.error) {
         console.warn("优化建议生成时出现警告:", result.error)
@@ -98,21 +108,35 @@ export default function OptimizationPage() {
     } catch (e: any) {
       console.error("Failed to fetch suggestions:", e)
       // 如果是超时错误，显示友好提示
-      if (e?.status === 408 || e?.message?.includes('超时') || e?.message?.includes('timeout')) {
-        setLoadingProgress(t.optimization.timeoutMessage || "请求超时，请稍后重试")
+      if (e?.status === 408 || e?.message?.includes('超时') || e?.message?.includes('timeout') || e?.message?.includes('Timeout')) {
+        const timeoutMessage = e?.detail?.suggestion || t.optimization.timeoutMessage || "请求超时，请稍后重试"
+        setLoadingProgress(timeoutMessage)
+        // 超时时，尝试使用空数据而不是显示错误
+        setData({ 
+          suggestions: [], 
+          summary: {
+            total_suggestions: 0,
+            total_savings_potential: 0,
+            high_priority_count: 0,
+            medium_priority_count: 0,
+            low_priority_count: 0
+          }
+        })
       } else {
-        setLoadingProgress(t.common.error || "加载失败")
+        // 其他错误
+        const errorMessage = e?.message || e?.detail?.error || t.common.error || "加载失败"
+        setLoadingProgress(errorMessage)
+        setData({ 
+          suggestions: [], 
+          summary: {
+            total_suggestions: 0,
+            total_savings_potential: 0,
+            high_priority_count: 0,
+            medium_priority_count: 0,
+            low_priority_count: 0
+          }
+        })
       }
-      setData({ 
-        suggestions: [], 
-        summary: {
-          total_suggestions: 0,
-          total_savings_potential: 0,
-          high_priority_count: 0,
-          medium_priority_count: 0,
-          low_priority_count: 0
-        }
-      })
     } finally {
       setLoading(false)
       // 延迟清除开始时间，让进度动画完成
