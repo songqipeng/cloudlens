@@ -632,7 +632,7 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
                     try:
                         return provider.list_rds()
                     except:
-                    return []
+                        return []
             
             def get_redis():
                 try:
