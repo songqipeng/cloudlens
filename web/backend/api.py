@@ -670,11 +670,11 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
                         return all_redis
                 except Exception as e:
                     logger.warning(f"获取Redis列表失败: {str(e)}")
-                        # 如果查询所有区域失败，回退到只查询配置的 region
-                        try:
-                            return provider.list_redis()
-                        except:
-                    return []
+                    # 如果查询所有区域失败，回退到只查询配置的 region
+                    try:
+                        return provider.list_redis()
+                    except:
+                        return []
             
             # 并行查询资源（优化性能）
             with ThreadPoolExecutor(max_workers=5) as executor:
