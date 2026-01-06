@@ -2027,7 +2027,7 @@ def get_cost_overview(account: Optional[str] = None, force_refresh: bool = Query
                 logger.warning(f"⚠️  数据库查询失败: {error_msg}，回退到账单概览API")
                 current_totals = _get_billing_overview_totals(account_config, billing_cycle=current_cycle, force_refresh=False) if account_config else None
                 current_month_cost = float((current_totals or {}).get("total_pretax") or 0.0)
-                except Exception as e:
+        except Exception as e:
             logger.warning(f"⚠️  获取本月成本失败，回退到账单概览API: {str(e)}")
             current_totals = _get_billing_overview_totals(account_config, billing_cycle=current_cycle, force_refresh=False) if account_config else None
         current_month_cost = float((current_totals or {}).get("total_pretax") or 0.0)
