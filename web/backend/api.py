@@ -511,7 +511,7 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
         cached_resources = None
         
         if not force_refresh:
-            cached_resources = cache_manager.get(resource_type=resource_cache_key, account_name=account)
+        cached_resources = cache_manager.get(resource_type=resource_cache_key, account_name=account)
         
         if cached_resources:
             instances = cached_resources.get("instances", []) or []
@@ -674,7 +674,7 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
                     try:
                         return provider.list_redis()
                     except:
-                    return []
+                        return []
             
             # 并行查询资源（优化性能）
             with ThreadPoolExecutor(max_workers=5) as executor:
