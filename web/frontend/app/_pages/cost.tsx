@@ -63,7 +63,20 @@ export default function CostPage() {
       }
 
       if (trendData?.chart_data) {
-        setTrend(trendData.chart_data)
+        // 处理新格式：chart_data 可能是数组格式 [{date, total_cost, ...}] 或旧格式 {dates, costs}
+        if (Array.isArray(trendData.chart_data) && trendData.chart_data.length > 0) {
+          // 新格式：转换为旧格式
+          const dates = trendData.chart_data.map((item: any) => item.date || '')
+          const costs = trendData.chart_data.map((item: any) => Number(item.total_cost) || Number(item.cost) || 0)
+          setTrend({ dates, costs })
+        } else if (trendData.chart_data.dates && trendData.chart_data.costs) {
+          // 旧格式：直接使用
+          setTrend(trendData.chart_data)
+        } else {
+          setTrend(null)
+        }
+      } else {
+        setTrend(null)
       }
 
       if (breakdownData?.data) {

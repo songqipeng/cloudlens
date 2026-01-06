@@ -90,21 +90,30 @@ export function CostChart({ data, account }: CostChartProps) {
         return () => { cancelled = true }
     }, [dateRange, account])
     
+    // 如果传入了初始数据且当前没有数据，使用初始数据
+    useEffect(() => {
+        if (!chartData && data && data.dates && data.dates.length > 0) {
+            setChartData(data)
+        }
+    }, [data, chartData])
     
     // 处理日期范围变化
     const handleDateRangeChange = (range: CostDateRange) => {
         setDateRange(range)
     }
     
-    if (!chartData || !chartData.dates) return null;
+    // 使用当前数据或传入的初始数据
+    const displayData = chartData || (data && data.dates && data.dates.length > 0 ? data : null)
+    
+    if (!displayData || !displayData.dates) return null;
 
     // 判断是否为月度数据：
     // 1. 数据量 <= 24（最多2年的月度数据）
     // 2. 所有日期都是月初（YYYY-MM-01格式）或日期格式为YYYY-MM
     const isMonthlyData = (() => {
-        if (chartData.dates.length > 24) return false
+        if (displayData.dates.length > 24) return false
         // 检查是否所有日期都是月初（YYYY-MM-01）或格式为YYYY-MM
-        const allMonthly = chartData.dates.every(d => {
+        const allMonthly = displayData.dates.every(d => {
             if (!d) return false
             // 如果是YYYY-MM格式（7个字符）
             if (d.length === 7 && d.includes('-')) return true
@@ -112,12 +121,12 @@ export function CostChart({ data, account }: CostChartProps) {
             if (d.length === 10 && d.endsWith('-01')) return true
             return false
         })
-        return allMonthly && chartData.dates.length > 0
+        return allMonthly && displayData.dates.length > 0
     })()
     
     // 根据数据量决定日期显示格式
-    const dateFormat = chartData.dates.length > 90 || isMonthlyData ? 'YYYY-MM' : 'MM-DD'
-    const processedData = chartData.dates.map((date, index) => {
+    const dateFormat = displayData.dates.length > 90 || isMonthlyData ? 'YYYY-MM' : 'MM-DD'
+    const processedData = displayData.dates.map((date, index) => {
         let displayDate = date
         if (dateFormat === 'YYYY-MM') {
             // 如果是YYYY-MM-DD格式，提取YYYY-MM部分
@@ -135,7 +144,7 @@ export function CostChart({ data, account }: CostChartProps) {
         return {
             date: displayDate,
             fullDate: date,  // 保存完整日期用于工具提示
-            cost: chartData.costs[index]
+            cost: displayData.costs[index]
         }
     })
 
@@ -232,7 +241,7 @@ export function CostChart({ data, account }: CostChartProps) {
                                     top: 10, 
                                     right: 20, 
                                     left: 0, 
-                                    bottom: chartData.dates.length > 90 ? 60 : 0 
+                                    bottom: displayData.dates.length > 90 ? 60 : 0 
                                 }}
                             >
                                 <defs>
@@ -251,10 +260,10 @@ export function CostChart({ data, account }: CostChartProps) {
                                     fontSize={12}
                                     tickLine={false}
                                     axisLine={false}
-                                    minTickGap={chartData.dates.length > 90 ? 20 : 30}
-                                    angle={chartData.dates.length > 90 ? -45 : 0}
-                                    textAnchor={chartData.dates.length > 90 ? 'end' : 'middle'}
-                                    height={chartData.dates.length > 90 ? 60 : 30}
+                                    minTickGap={displayData.dates.length > 90 ? 20 : 30}
+                                    angle={displayData.dates.length > 90 ? -45 : 0}
+                                    textAnchor={displayData.dates.length > 90 ? 'end' : 'middle'}
+                                    height={displayData.dates.length > 90 ? 60 : 30}
                                     tick={{ fill: '#94a3b8' }}
                                 />
                                 <YAxis
