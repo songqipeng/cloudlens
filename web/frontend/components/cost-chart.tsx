@@ -20,19 +20,18 @@ interface CostChartProps {
 export function CostChart({ data, account }: CostChartProps) {
     const { t, locale } = useLocale()
     
-    // 初始化默认30天
+    // 初始化：默认显示全部历史数据（从有计费数据开始至今的按月柱状图）
     const getDefaultRange = (): CostDateRange => {
-        const now = new Date()
-        const thirtyDaysAgo = new Date(now)
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+        // 不设置日期范围，表示全部历史数据
         return {
-            startDate: thirtyDaysAgo.toISOString().split('T')[0],
-            endDate: now.toISOString().split('T')[0]
+            startDate: null,
+            endDate: null
         }
     }
     
     const [dateRange, setDateRange] = useState<CostDateRange>(getDefaultRange())
-    const [chartData, setChartData] = useState(data)
+    // 初始数据为空，等待useEffect加载
+    const [chartData, setChartData] = useState<ChartData | null>(null)
     
     useEffect(() => {
         let cancelled = false
@@ -81,7 +80,13 @@ export function CostChart({ data, account }: CostChartProps) {
                 if (!cancelled) console.error("Failed to fetch trend:", e)
             }
         }
-        if (account) load()
+        // 总是加载数据，即使传入了初始数据
+        if (account) {
+            load()
+        } else if (data && data.dates && data.dates.length > 0) {
+            // 如果没有账号但有初始数据，使用初始数据
+            setChartData(data)
+        }
         return () => { cancelled = true }
     }, [dateRange, account])
     
