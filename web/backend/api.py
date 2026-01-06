@@ -632,7 +632,7 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
                     try:
                         return provider.list_rds()
                     except:
-                    return []
+                        return []
             
             def get_redis():
                 try:
@@ -674,7 +674,7 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
                     try:
                         return provider.list_redis()
                     except:
-                    return []
+                        return []
             
             # 并行查询资源（优化性能）
             with ThreadPoolExecutor(max_workers=5) as executor:
