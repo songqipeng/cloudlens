@@ -37,7 +37,12 @@ export default function CostPage() {
           console.error("获取成本概览失败:", e)
           return { success: false, data: null, error: String(e) }
         }),
-        apiGet("/dashboard/trend", { account: currentAccount, days: 30 }).catch((e) => {
+        // 默认使用月度粒度和全部历史数据（从有计费数据开始至今）
+        apiGet("/dashboard/trend", { 
+          account: currentAccount, 
+          granularity: 'monthly',
+          days: 0  // 0表示获取所有历史数据
+        }).catch((e) => {
           console.error("获取成本趋势失败:", e)
           return { chart_data: null }
         }),
