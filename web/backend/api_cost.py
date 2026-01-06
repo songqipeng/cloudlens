@@ -565,7 +565,68 @@ def get_cost_overview(
             (current_month_cost - last_month_cost) / last_month_cost * 100
             if last_month_cost > 0 else 0.0
         )
-        yoy = 0.0  # TODO: 支持去年同期对比
+        
+        # 计算同比（去年同期相同天数：2025年1月1日-1月6日 vs 2026年1月1日-1月6日）
+        yoy = 0.0
+        last_year_cost = 0.0
+        try:
+            # 去年同期范围
+            last_year_start = datetime(now.year - 1, now.month, 1)
+            last_year_end = datetime(now.year - 1, now.month, current_day)
+            
+            logger.info(f"📊 计算同比: 去年同期范围 {last_year_start.strftime('%Y-%m-%d')} 至 {last_year_end.strftime('%Y-%m-%d')}")
+            
+            last_year_cost_data = analyzer.get_real_cost_from_bills(
+                account_name=account_name,
+                start_date=last_year_start.strftime("%Y-%m-%d"),
+                end_date=last_year_end.strftime("%Y-%m-%d")
+            )
+            if last_year_cost_data and "error" not in last_year_cost_data:
+                if "chart_data" in last_year_cost_data and "costs" in last_year_cost_data["chart_data"]:
+                    costs = last_year_cost_data["chart_data"]["costs"]
+                    if isinstance(costs, list) and len(costs) > 0:
+                        last_year_cost = float(sum(costs))
+                        logger.info(f"✅ 去年同期成本（从chart_data计算）: {last_year_cost}")
+                    else:
+                        # 如果数据库查询失败，尝试从账单概览API获取（按比例计算）
+                        last_year_cycle = last_year_start.strftime("%Y-%m")
+                        last_year_totals = _get_billing_overview_totals(account_config, billing_cycle=last_year_cycle, force_refresh=False) if account_config else None
+                        if last_year_totals:
+                            last_year_total = float(last_year_totals.get("total_pretax") or 0.0)
+                            # 按比例计算：去年同期总成本 * (已过天数 / 该月总天数)
+                            last_year_month_days = (datetime(last_year_start.year, last_year_start.month + 1, 1) - timedelta(days=1)).day if last_year_start.month < 12 else 31
+                            last_year_cost = last_year_total * (current_day / last_year_month_days) if last_year_month_days > 0 else 0.0
+                            logger.info(f"   去年同期总成本={last_year_total}, 总天数={last_year_month_days}, 已过天数={current_day}, 按比例计算={last_year_cost}")
+                elif "total_cost" in last_year_cost_data:
+                    last_year_cost = float(last_year_cost_data.get("total_cost", 0.0))
+                else:
+                    # 回退到账单概览API（按比例计算）
+                    last_year_cycle = last_year_start.strftime("%Y-%m")
+                    last_year_totals = _get_billing_overview_totals(account_config, billing_cycle=last_year_cycle, force_refresh=False) if account_config else None
+                    if last_year_totals:
+                        last_year_total = float(last_year_totals.get("total_pretax") or 0.0)
+                        last_year_month_days = (datetime(last_year_start.year, last_year_start.month + 1, 1) - timedelta(days=1)).day if last_year_start.month < 12 else 31
+                        last_year_cost = last_year_total * (current_day / last_year_month_days) if last_year_month_days > 0 else 0.0
+        except Exception as e:
+            logger.warning(f"⚠️  获取去年同期成本失败: {str(e)}")
+            # 尝试从账单概览API获取（按比例计算）
+            try:
+                last_year_cycle = datetime(now.year - 1, now.month, 1).strftime("%Y-%m")
+                last_year_totals = _get_billing_overview_totals(account_config, billing_cycle=last_year_cycle, force_refresh=False) if account_config else None
+                if last_year_totals:
+                    last_year_total = float(last_year_totals.get("total_pretax") or 0.0)
+                    last_year_month_days = (datetime(now.year - 1, now.month + 1, 1) - timedelta(days=1)).day if now.month < 12 else 31
+                    last_year_cost = last_year_total * (current_day / last_year_month_days) if last_year_month_days > 0 else 0.0
+            except:
+                last_year_cost = 0.0
+        
+        # 计算同比
+        yoy = (
+            (current_month_cost - last_year_cost) / last_year_cost * 100
+            if last_year_cost > 0 else 0.0
+        )
+        
+        logger.info(f"📊 同比数据: 今年（{current_day}天）={current_month_cost}, 去年（{current_day}天）={last_year_cost}, 同比={yoy:.2f}%")
 
         result_data = {
             "current_month": round(current_month_cost, 2),

@@ -511,7 +511,7 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
         cached_resources = None
         
         if not force_refresh:
-            cached_resources = cache_manager.get(resource_type=resource_cache_key, account_name=account)
+        cached_resources = cache_manager.get(resource_type=resource_cache_key, account_name=account)
         
         if cached_resources:
             instances = cached_resources.get("instances", []) or []
@@ -551,49 +551,49 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
             # 如果从缓存获取失败或数据不完整，执行查询逻辑
             if not instances and not rds_list and not redis_list:
                 logger.info(f"缓存未命中，开始查询所有区域 (账号: {account})")
-                # 查询资源（查询所有区域，而不是只查询配置的 region）
-                def get_instances():
-                    try:
-                        from core.services.analysis_service import AnalysisService
-                        from providers.aliyun.provider import AliyunProvider
-                        
-                        # 获取所有区域
-                        all_regions = AnalysisService._get_all_regions(
-                            account_config.access_key_id,
-                            account_config.access_key_secret
-                        )
-                        
-                        all_instances = []
-                        for region in all_regions:
-                            try:
-                                region_provider = AliyunProvider(
-                                    account_name=account_config.name,
-                                    access_key=account_config.access_key_id,
-                                    secret_key=account_config.access_key_secret,
-                                    region=region,
-                                )
-                                # 快速检查是否有资源
-                                count = region_provider.check_instances_count()
-                                if count > 0:
-                                    region_instances = region_provider.list_instances()
-                                    all_instances.extend(region_instances)
-                                    logger.info(f"区域 {region}: 找到 {len(region_instances)} 个ECS实例")
-                            except Exception as e:
-                                logger.warning(f"查询区域 {region} 的ECS实例失败: {str(e)}")
-                                continue
-                        
-                        logger.info(f"总共找到 {len(all_instances)} 个ECS实例（从 {len(all_regions)} 个区域）")
-                        return all_instances
-                    except Exception as e:
-                        logger.warning(f"获取ECS列表失败: {str(e)}")
-                        # 如果查询所有区域失败，回退到只查询配置的 region
+            # 查询资源（查询所有区域，而不是只查询配置的 region）
+            def get_instances():
+                try:
+                    from core.services.analysis_service import AnalysisService
+                    from providers.aliyun.provider import AliyunProvider
+                    
+                    # 获取所有区域
+                    all_regions = AnalysisService._get_all_regions(
+                        account_config.access_key_id,
+                        account_config.access_key_secret
+                    )
+                    
+                    all_instances = []
+                    for region in all_regions:
                         try:
-                            return provider.list_instances()
-                        except:
-                            return []
-            
-                def get_rds():
+                            region_provider = AliyunProvider(
+                                account_name=account_config.name,
+                                access_key=account_config.access_key_id,
+                                secret_key=account_config.access_key_secret,
+                                region=region,
+                            )
+                            # 快速检查是否有资源
+                            count = region_provider.check_instances_count()
+                            if count > 0:
+                                region_instances = region_provider.list_instances()
+                                all_instances.extend(region_instances)
+                                logger.info(f"区域 {region}: 找到 {len(region_instances)} 个ECS实例")
+                        except Exception as e:
+                            logger.warning(f"查询区域 {region} 的ECS实例失败: {str(e)}")
+                            continue
+                    
+                    logger.info(f"总共找到 {len(all_instances)} 个ECS实例（从 {len(all_regions)} 个区域）")
+                    return all_instances
+                except Exception as e:
+                    logger.warning(f"获取ECS列表失败: {str(e)}")
+                    # 如果查询所有区域失败，回退到只查询配置的 region
                     try:
+                        return provider.list_instances()
+                    except:
+                        return []
+            
+            def get_rds():
+                try:
                         from core.services.analysis_service import AnalysisService
                         from providers.aliyun.provider import AliyunProvider
                         
@@ -626,16 +626,16 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
                         
                         logger.info(f"总共找到 {len(all_rds)} 个RDS实例（从 {len(all_regions)} 个区域）")
                         return all_rds
-                    except Exception as e:
-                        logger.warning(f"获取RDS列表失败: {str(e)}")
+                except Exception as e:
+                    logger.warning(f"获取RDS列表失败: {str(e)}")
                         # 如果查询所有区域失败，回退到只查询配置的 region
                         try:
                             return provider.list_rds()
                         except:
-                            return []
+                    return []
             
-                def get_redis():
-                    try:
+            def get_redis():
+                try:
                         from core.services.analysis_service import AnalysisService
                         from providers.aliyun.provider import AliyunProvider
                         
@@ -668,19 +668,19 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
                         
                         logger.info(f"总共找到 {len(all_redis)} 个Redis实例（从 {len(all_regions)} 个区域）")
                         return all_redis
-                    except Exception as e:
-                        logger.warning(f"获取Redis列表失败: {str(e)}")
+                except Exception as e:
+                    logger.warning(f"获取Redis列表失败: {str(e)}")
                         # 如果查询所有区域失败，回退到只查询配置的 region
                         try:
                             return provider.list_redis()
                         except:
-                            return []
+                    return []
             
-                # 并行查询资源（优化性能）
-                with ThreadPoolExecutor(max_workers=5) as executor:
-                    instances_future = executor.submit(get_instances)
-                    rds_future = executor.submit(get_rds)
-                    redis_future = executor.submit(get_redis)
+            # 并行查询资源（优化性能）
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                instances_future = executor.submit(get_instances)
+                rds_future = executor.submit(get_rds)
+                redis_future = executor.submit(get_redis)
                 
                 try:
                     # 调大超时时间或容忍部分失败
@@ -712,14 +712,14 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
                             data={"instances": instances_dict, "rds": rds_dict, "redis": redis_dict}
                         )
                 except Exception as e:
-                        logger.warning(f"查询资源列表发生异常: {str(e)}")
-                        # 发生异常时也尝试从缓存恢复
-                        resource_cache_key = f"resource_list_{account}"
-                        cached_resources_err = cache_manager.get(resource_type=resource_cache_key, account_name=account)
-                        if cached_resources_err:
-                            instances = cached_resources_err.get("instances", []) or []
-                            rds_list = cached_resources_err.get("rds", []) or []
-                            redis_list = cached_resources_err.get("redis", []) or []
+                    logger.warning(f"查询资源列表发生异常: {str(e)}")
+                    # 发生异常时也尝试从缓存恢复
+                    resource_cache_key = f"resource_list_{account}"
+                    cached_resources_err = cache_manager.get(resource_type=resource_cache_key, account_name=account)
+                    if cached_resources_err:
+                        instances = cached_resources_err.get("instances", []) or []
+                        rds_list = cached_resources_err.get("rds", []) or []
+                        redis_list = cached_resources_err.get("redis", []) or []
         
         # 确保变量存在（处理作用域问题）- 移到try块外，确保在所有情况下都能执行
         try:
@@ -786,7 +786,7 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
         
         # Alert Count (simplified - TODO: implement actual alert system)
         alert_count = 0
-    
+        
         # Savings Potential: Calculate based on actual cost of idle resources
         savings_potential = 0.0
         if idle_data and account_config:
@@ -2027,10 +2027,10 @@ def get_cost_overview(account: Optional[str] = None, force_refresh: bool = Query
                 logger.warning(f"⚠️  数据库查询失败: {error_msg}，回退到账单概览API")
                 current_totals = _get_billing_overview_totals(account_config, billing_cycle=current_cycle, force_refresh=False) if account_config else None
                 current_month_cost = float((current_totals or {}).get("total_pretax") or 0.0)
-        except Exception as e:
+                except Exception as e:
             logger.warning(f"⚠️  获取本月成本失败，回退到账单概览API: {str(e)}")
             current_totals = _get_billing_overview_totals(account_config, billing_cycle=current_cycle, force_refresh=False) if account_config else None
-            current_month_cost = float((current_totals or {}).get("total_pretax") or 0.0)
+        current_month_cost = float((current_totals or {}).get("total_pretax") or 0.0)
         
         # 获取上月相同天数的成本（从12月1日到12月6日）
         last_month_cost = 0.0
@@ -2095,7 +2095,68 @@ def get_cost_overview(account: Optional[str] = None, force_refresh: bool = Query
             logger.warning(f"⚠️  上月相同天数（{last_month_start.strftime('%Y-%m-%d')} 至 {last_month_comparable_end.strftime('%Y-%m-%d')}）成本为0，可能该时间段确实无成本或数据未同步")
         
         mom = ((current_month_cost - last_month_cost) / last_month_cost * 100) if last_month_cost > 0 else 0.0
-        yoy = 0.0  # TODO: 支持去年同期账期对比
+        
+        # 计算同比（去年同期相同天数：2025年1月1日-1月6日 vs 2026年1月1日-1月6日）
+        yoy = 0.0
+        last_year_cost = 0.0
+        try:
+            # 去年同期范围
+            last_year_start = datetime(now.year - 1, now.month, 1)
+            last_year_end = datetime(now.year - 1, now.month, current_day)
+            
+            logger.info(f"📊 计算同比: 去年同期范围 {last_year_start.strftime('%Y-%m-%d')} 至 {last_year_end.strftime('%Y-%m-%d')}")
+            
+            last_year_cost_data = analyzer.get_real_cost_from_bills(
+                account_name=account_name,
+                start_date=last_year_start.strftime("%Y-%m-%d"),
+                end_date=last_year_end.strftime("%Y-%m-%d")
+            )
+            if last_year_cost_data and "error" not in last_year_cost_data:
+                if "chart_data" in last_year_cost_data and "costs" in last_year_cost_data["chart_data"]:
+                    costs = last_year_cost_data["chart_data"]["costs"]
+                    if isinstance(costs, list) and len(costs) > 0:
+                        last_year_cost = float(sum(costs))
+                        logger.info(f"✅ 去年同期成本（从chart_data计算）: {last_year_cost}")
+                    else:
+                        # 如果数据库查询失败，尝试从账单概览API获取（按比例计算）
+                        last_year_cycle = last_year_start.strftime("%Y-%m")
+                        last_year_totals = _get_billing_overview_totals(account_config, billing_cycle=last_year_cycle, force_refresh=False) if account_config else None
+                        if last_year_totals:
+                            last_year_total = float(last_year_totals.get("total_pretax") or 0.0)
+                            # 按比例计算：去年同期总成本 * (已过天数 / 该月总天数)
+                            last_year_month_days = (datetime(last_year_start.year, last_year_start.month + 1, 1) - timedelta(days=1)).day if last_year_start.month < 12 else 31
+                            last_year_cost = last_year_total * (current_day / last_year_month_days) if last_year_month_days > 0 else 0.0
+                            logger.info(f"   去年同期总成本={last_year_total}, 总天数={last_year_month_days}, 已过天数={current_day}, 按比例计算={last_year_cost}")
+                elif "total_cost" in last_year_cost_data:
+                    last_year_cost = float(last_year_cost_data.get("total_cost", 0.0))
+                else:
+                    # 回退到账单概览API（按比例计算）
+                    last_year_cycle = last_year_start.strftime("%Y-%m")
+                    last_year_totals = _get_billing_overview_totals(account_config, billing_cycle=last_year_cycle, force_refresh=False) if account_config else None
+                    if last_year_totals:
+                        last_year_total = float(last_year_totals.get("total_pretax") or 0.0)
+                        last_year_month_days = (datetime(last_year_start.year, last_year_start.month + 1, 1) - timedelta(days=1)).day if last_year_start.month < 12 else 31
+                        last_year_cost = last_year_total * (current_day / last_year_month_days) if last_year_month_days > 0 else 0.0
+        except Exception as e:
+            logger.warning(f"⚠️  获取去年同期成本失败: {str(e)}")
+            # 尝试从账单概览API获取（按比例计算）
+            try:
+                last_year_cycle = datetime(now.year - 1, now.month, 1).strftime("%Y-%m")
+                last_year_totals = _get_billing_overview_totals(account_config, billing_cycle=last_year_cycle, force_refresh=False) if account_config else None
+                if last_year_totals:
+                    last_year_total = float(last_year_totals.get("total_pretax") or 0.0)
+                    last_year_month_days = (datetime(now.year - 1, now.month + 1, 1) - timedelta(days=1)).day if now.month < 12 else 31
+                    last_year_cost = last_year_total * (current_day / last_year_month_days) if last_year_month_days > 0 else 0.0
+            except:
+                last_year_cost = 0.0
+        
+        # 计算同比
+        yoy = (
+            (current_month_cost - last_year_cost) / last_year_cost * 100
+            if last_year_cost > 0 else 0.0
+        )
+        
+        logger.info(f"📊 同比数据: 今年（{current_day}天）={current_month_cost}, 去年（{current_day}天）={last_year_cost}, 同比={yoy:.2f}%")
         
         result_data = {
             "current_month": round(current_month_cost, 2),
