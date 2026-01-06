@@ -2000,12 +2000,31 @@ def get_cost_overview(account: Optional[str] = None, force_refresh: bool = Query
                 start_date=current_month_start.strftime("%Y-%m-%d"),
                 end_date=current_month_end.strftime("%Y-%m-%d")
             )
-            if current_cost_data and "total_cost" in current_cost_data:
-                current_month_cost = float(current_cost_data.get("total_cost", 0.0))
-                logger.info(f"✅ 本月成本（{current_month_start.strftime('%Y-%m-%d')} 至 {current_month_end.strftime('%Y-%m-%d')}）: {current_month_cost}")
+            # 从返回数据中提取总成本（可能是chart_data.costs的总和，或者analysis中的值）
+            if current_cost_data and "error" not in current_cost_data:
+                # 尝试从chart_data中计算总成本
+                if "chart_data" in current_cost_data and "costs" in current_cost_data["chart_data"]:
+                    costs = current_cost_data["chart_data"]["costs"]
+                    if isinstance(costs, list) and len(costs) > 0:
+                        current_month_cost = float(sum(costs))
+                        logger.info(f"✅ 本月成本（从chart_data计算，{current_month_start.strftime('%Y-%m-%d')} 至 {current_month_end.strftime('%Y-%m-%d')}）: {current_month_cost}")
+                    else:
+                        # 如果chart_data为空，回退到账单概览API
+                        logger.warning("⚠️  chart_data为空，回退到账单概览API")
+                        current_totals = _get_billing_overview_totals(account_config, billing_cycle=current_cycle, force_refresh=False) if account_config else None
+                        current_month_cost = float((current_totals or {}).get("total_pretax") or 0.0)
+                elif "total_cost" in current_cost_data:
+                    current_month_cost = float(current_cost_data.get("total_cost", 0.0))
+                    logger.info(f"✅ 本月成本（{current_month_start.strftime('%Y-%m-%d')} 至 {current_month_end.strftime('%Y-%m-%d')}）: {current_month_cost}")
+                else:
+                    # 如果数据格式不符合预期，回退到账单概览API
+                    logger.warning("⚠️  数据库查询返回格式不符合预期，回退到账单概览API")
+                    current_totals = _get_billing_overview_totals(account_config, billing_cycle=current_cycle, force_refresh=False) if account_config else None
+                    current_month_cost = float((current_totals or {}).get("total_pretax") or 0.0)
             else:
                 # 如果数据库查询失败，回退到账单概览API
-                logger.warning("⚠️  数据库查询失败，回退到账单概览API")
+                error_msg = current_cost_data.get("error", "Unknown error") if current_cost_data else "No data returned"
+                logger.warning(f"⚠️  数据库查询失败: {error_msg}，回退到账单概览API")
                 current_totals = _get_billing_overview_totals(account_config, billing_cycle=current_cycle, force_refresh=False) if account_config else None
                 current_month_cost = float((current_totals or {}).get("total_pretax") or 0.0)
         except Exception as e:
@@ -2021,12 +2040,39 @@ def get_cost_overview(account: Optional[str] = None, force_refresh: bool = Query
                 start_date=last_month_start.strftime("%Y-%m-%d"),
                 end_date=last_month_comparable_end.strftime("%Y-%m-%d")
             )
-            if last_cost_data and "total_cost" in last_cost_data:
-                last_month_cost = float(last_cost_data.get("total_cost", 0.0))
-                logger.info(f"✅ 上月成本（{last_month_start.strftime('%Y-%m-%d')} 至 {last_month_comparable_end.strftime('%Y-%m-%d')}）: {last_month_cost}")
+            # 从返回数据中提取总成本（可能是chart_data.costs的总和，或者analysis中的值）
+            if last_cost_data and "error" not in last_cost_data:
+                # 尝试从chart_data中计算总成本
+                if "chart_data" in last_cost_data and "costs" in last_cost_data["chart_data"]:
+                    costs = last_cost_data["chart_data"]["costs"]
+                    if isinstance(costs, list) and len(costs) > 0:
+                        last_month_cost = float(sum(costs))
+                        logger.info(f"✅ 上月成本（从chart_data计算，{last_month_start.strftime('%Y-%m-%d')} 至 {last_month_comparable_end.strftime('%Y-%m-%d')}）: {last_month_cost}")
+                    else:
+                        # 如果chart_data为空，回退到账单概览API（按比例计算）
+                        logger.warning("⚠️  chart_data为空，回退到账单概览API（按比例计算）")
+                        last_totals = _get_billing_overview_totals(account_config, billing_cycle=last_cycle, force_refresh=False) if account_config else None
+                        if last_totals:
+                            last_month_total = float(last_totals.get("total_pretax") or 0.0)
+                            last_month_days = last_month_end.day
+                            last_month_cost = last_month_total * (current_day / last_month_days) if last_month_days > 0 else 0.0
+                            logger.info(f"   上月总成本={last_month_total}, 总天数={last_month_days}, 已过天数={current_day}, 按比例计算={last_month_cost}")
+                elif "total_cost" in last_cost_data:
+                    last_month_cost = float(last_cost_data.get("total_cost", 0.0))
+                    logger.info(f"✅ 上月成本（{last_month_start.strftime('%Y-%m-%d')} 至 {last_month_comparable_end.strftime('%Y-%m-%d')}）: {last_month_cost}")
+                else:
+                    # 如果数据格式不符合预期，回退到账单概览API（按比例计算）
+                    logger.warning("⚠️  数据库查询返回格式不符合预期，回退到账单概览API（按比例计算）")
+                    last_totals = _get_billing_overview_totals(account_config, billing_cycle=last_cycle, force_refresh=False) if account_config else None
+                    if last_totals:
+                        last_month_total = float(last_totals.get("total_pretax") or 0.0)
+                        last_month_days = last_month_end.day
+                        last_month_cost = last_month_total * (current_day / last_month_days) if last_month_days > 0 else 0.0
+                        logger.info(f"   上月总成本={last_month_total}, 总天数={last_month_days}, 已过天数={current_day}, 按比例计算={last_month_cost}")
             else:
-                # 如果数据库查询失败，回退到账单概览API（但需要按比例计算）
-                logger.warning("⚠️  数据库查询失败，回退到账单概览API（按比例计算）")
+                # 如果数据库查询失败，回退到账单概览API（按比例计算）
+                error_msg = last_cost_data.get("error", "Unknown error") if last_cost_data else "No data returned"
+                logger.warning(f"⚠️  数据库查询失败: {error_msg}，回退到账单概览API（按比例计算）")
                 last_totals = _get_billing_overview_totals(account_config, billing_cycle=last_cycle, force_refresh=False) if account_config else None
                 if last_totals:
                     # 按比例计算：上月总成本 * (已过天数 / 上月总天数)
