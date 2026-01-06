@@ -98,6 +98,7 @@ export async function apiGet<T = any>(
         retries?: number
         timeout?: number
         skipDedupe?: boolean
+        onTimeout?: (attempt: number, totalRetries: number) => void
     }
 ): Promise<T> {
     const url = buildUrl(endpoint, params)
@@ -105,6 +106,7 @@ export async function apiGet<T = any>(
     
     // 请求去重
     if (!options?.skipDedupe && pendingRequests.has(requestKey)) {
+        console.log(`[API] 请求去重: ${endpoint}`)
         return pendingRequests.get(requestKey)!
     }
     
@@ -112,10 +114,17 @@ export async function apiGet<T = any>(
     const timeout = options?.timeout ?? 120000  // 默认超时时间增加到120秒（dashboard API 需要更长时间）
     
     const requestPromise = (async () => {
+        let lastError: Error | null = null
+        
         for (let i = 0; i < retries; i++) {
             try {
                 const controller = new AbortController()
-                const timeoutId = setTimeout(() => controller.abort(), timeout)
+                const timeoutId = setTimeout(() => {
+                    controller.abort()
+                    if (options?.onTimeout) {
+                        options.onTimeout(i + 1, retries)
+                    }
+                }, timeout)
                 
                 const res = await fetch(url, { 
                     ...options, 
@@ -126,49 +135,96 @@ export async function apiGet<T = any>(
                 if (!res.ok) {
                     const errorData = await res.json().catch(() => ({}))
                     const locale = getCurrentLocale() as Locale
-                    const t = getTranslations(locale)
                     const defaultMessage = locale === 'zh' 
                         ? `API请求失败: ${res.status} ${res.statusText}` 
                         : `API request failed: ${res.status} ${res.statusText}`
                     const errorMessage = errorData?.detail || errorData?.error || errorData?.message || defaultMessage
                     console.error(`[API Error] ${res.status} ${res.statusText}: ${url}`, errorData)
-                    throw new ApiError(res.status, errorData, `${errorMessage} (${url})`)
+                    
+                    // 对于4xx错误，不重试
+                    if (res.status >= 400 && res.status < 500 && res.status !== 408) {
+                        pendingRequests.delete(requestKey)
+                        throw new ApiError(res.status, errorData, `${errorMessage} (${url})`)
+                    }
+                    
+                    // 对于5xx和408错误，进行重试
+                    lastError = new ApiError(res.status, errorData, `${errorMessage} (${url})`)
+                    if (i === retries - 1) {
+                        pendingRequests.delete(requestKey)
+                        throw lastError
+                    }
+                    // 等待后重试
+                    await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)))
+                    continue
                 }
                 
                 const data = await res.json()
                 pendingRequests.delete(requestKey)
                 return data
             } catch (error) {
-                // 如果是 AbortError（超时），在最后一次重试前不重试
+                // 如果是 AbortError（超时）
                 if (error instanceof Error && error.name === 'AbortError') {
+                    lastError = error
+                    const locale = getCurrentLocale() as Locale
+                    const endpointName = endpoint.split('?')[0].split('/').pop() || endpoint
+                    const waitedSeconds = Math.round(timeout / 1000)
+                    
                     if (i === retries - 1) {
+                        // 最后一次重试失败
                         pendingRequests.delete(requestKey)
-                        const locale = getCurrentLocale() as Locale
-                        // 提供更详细的超时错误信息，包括端点名称
-                        const endpointName = endpoint.split('?')[0].split('/').pop() || endpoint
                         const timeoutMessage = locale === 'zh' 
-                            ? `请求超时 (${endpointName})`
-                            : `Request Timeout (${endpointName})`
-                        // 不抛出错误，而是返回一个包含错误信息的对象，让调用方决定如何处理
-                        console.warn(`[API] 请求超时: ${endpoint}`, { timeout, retries })
-                        throw new ApiError(408, { error: timeoutMessage, endpoint, timeout }, timeoutMessage)
+                            ? `请求超时 (${endpointName})，已等待 ${waitedSeconds} 秒。建议稍后重试或使用缓存数据。`
+                            : `Request Timeout (${endpointName}), waited ${waitedSeconds}s. Please try again later or use cached data.`
+                        console.warn(`[API] 请求超时（最终失败）: ${endpoint}`, { timeout, retries, waitedSeconds })
+                        throw new ApiError(408, { 
+                            error: timeoutMessage, 
+                            endpoint, 
+                            timeout,
+                            waitedSeconds,
+                            suggestion: locale === 'zh' 
+                                ? '可以尝试使用缓存数据或稍后重试'
+                                : 'Try using cached data or retry later'
+                        }, timeoutMessage)
                     }
-                    // 超时错误也进行重试，但增加等待时间
-                    console.warn(`[API] 请求超时，正在重试 (${i + 1}/${retries}): ${endpoint}`)
-                    // 超时重试时增加等待时间
-                    await new Promise(resolve => setTimeout(resolve, 2000 * Math.pow(2, i)))
+                    
+                    // 超时重试，增加等待时间
+                    const waitTime = 2000 * Math.pow(2, i)
+                    console.warn(`[API] 请求超时，正在重试 (${i + 1}/${retries}): ${endpoint}，等待 ${waitTime}ms`)
+                    await new Promise(resolve => setTimeout(resolve, waitTime))
                     continue
-                } else if (i === retries - 1) {
+                } 
+                
+                // 其他错误
+                if (error instanceof ApiError) {
+                    lastError = error
+                    // 对于4xx错误（除了408），不重试
+                    if (error.status >= 400 && error.status < 500 && error.status !== 408) {
+                        pendingRequests.delete(requestKey)
+                        throw error
+                    }
+                } else {
+                    lastError = error instanceof Error ? error : new Error(String(error))
+                }
+                
+                // 最后一次重试失败
+                if (i === retries - 1) {
                     pendingRequests.delete(requestKey)
                     if (error instanceof ApiError) {
                         throw error
                     }
-                    throw new ApiError(500, { error: String(error) })
+                    throw new ApiError(500, { error: String(error) }, `Request failed: ${error}`)
                 }
+                
                 // 指数退避重试
-                await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)))
+                const waitTime = 1000 * Math.pow(2, i)
+                console.warn(`[API] 请求失败，正在重试 (${i + 1}/${retries}): ${endpoint}，等待 ${waitTime}ms`)
+                await new Promise(resolve => setTimeout(resolve, waitTime))
             }
         }
+        
+        // 理论上不会到达这里，但为了类型安全
+        pendingRequests.delete(requestKey)
+        throw lastError || new ApiError(500, { error: "Request failed after retries" })
     })()
     
     if (!options?.skipDedupe) {
