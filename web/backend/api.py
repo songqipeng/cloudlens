@@ -1032,6 +1032,8 @@ async def get_trend(
                         "breakdown": {}
                     })
                 
+                logger.info(f"✅ 生成 {len(monthly_chart_data)} 条月度数据，日期范围: {monthly_chart_data[0]['date']} 至 {monthly_chart_data[-1]['date']}")
+                
                 # 计算统计信息
                 monthly_costs = [item["total_cost"] for item in monthly_chart_data]
                 summary = {
