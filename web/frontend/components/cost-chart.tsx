@@ -15,9 +15,10 @@ interface ChartData {
 interface CostChartProps {
     data: ChartData
     account?: string
+    granularity?: 'daily' | 'monthly'  // 数据粒度提示
 }
 
-export function CostChart({ data, account }: CostChartProps) {
+export function CostChart({ data, account, granularity }: CostChartProps) {
     const { t, locale } = useLocale()
     
     // 初始化：默认显示全部历史数据（从有计费数据开始至今的按月柱状图）
@@ -108,9 +109,14 @@ export function CostChart({ data, account }: CostChartProps) {
     if (!displayData || !displayData.dates) return null;
 
     // 判断是否为月度数据：
-    // 1. 数据量 <= 24（最多2年的月度数据）
-    // 2. 所有日期都是月初（YYYY-MM-01格式）或日期格式为YYYY-MM
+    // 1. 如果明确指定了granularity='monthly'，则认为是月度数据
+    // 2. 或者数据量 <= 24 且所有日期都是月初（YYYY-MM-01格式）或日期格式为YYYY-MM
     const isMonthlyData = (() => {
+        // 如果明确指定了granularity，直接使用
+        if (granularity === 'monthly') return true
+        if (granularity === 'daily') return false
+        
+        // 否则根据数据特征判断
         if (displayData.dates.length > 24) return false
         // 检查是否所有日期都是月初（YYYY-MM-01）或格式为YYYY-MM
         const allMonthly = displayData.dates.every(d => {

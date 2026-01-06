@@ -216,7 +216,7 @@ export default function CostPage() {
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
-              {trend && <CostChart data={trend} account={currentAccount || undefined} />}
+              {trend && <CostChart data={trend} account={currentAccount || undefined} granularity="monthly" />}
 
               <Card className="glass border border-border/50 shadow-xl">
                 <CardHeader>
