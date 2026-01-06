@@ -289,6 +289,7 @@ async def get_dashboard_trend(
     days: int = 30,
     start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
     end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
+    granularity: Optional[str] = Query("daily", description="数据粒度: daily(按天) 或 monthly(按月)"),
     force_refresh: bool = Query(False, description="强制刷新缓存")
 ):
     """获取成本趋势数据"""
@@ -304,7 +305,8 @@ async def get_dashboard_trend(
             account=account, 
             days=days, 
             start_date=start_date, 
-            end_date=end_date, 
+            end_date=end_date,
+            granularity=granularity,
             force_refresh=force_refresh
         )
     except Exception as e:
