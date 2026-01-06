@@ -1958,45 +1958,95 @@ def get_cost_overview(account: Optional[str] = None, force_refresh: bool = Query
     account_config = cm.get_account(account_name)
     
     try:
-        # 账单优先：使用 BSS 账单概览作为“全量成本”口径
+        # 账单优先：使用 BSS 账单概览作为"全量成本"口径
         from datetime import datetime, timedelta
         now = datetime.now()
         current_cycle = now.strftime("%Y-%m")
-        # 计算上月账期：先获取当月第一天，然后减去1天，得到上个月的最后一天，再格式化
+        
+        # 计算本月已过天数（用于环比对比）
+        current_day = now.day  # 今天是几号
         first_day_this_month = now.replace(day=1)
-        last_day_last_month = first_day_this_month - timedelta(days=1)
-        last_cycle = last_day_last_month.strftime("%Y-%m")
         
-        logger.info(f"📊 成本概览查询: 账号={account_name}, 当前账期={current_cycle}, 上月账期={last_cycle}")
+        # 本月成本：1月1日到1月6日（如果今天是6号）
+        current_month_start = first_day_this_month
+        current_month_end = now
+        
+        # 上月相同天数：12月1日到12月6日
+        last_month_end = first_day_this_month - timedelta(days=1)  # 上个月最后一天
+        last_month_start = last_month_end.replace(day=1)  # 上个月第一天
+        
+        # 计算上月相同天数的结束日期（不能超过上个月的最后一天）
+        last_month_comparable_end = last_month_start + timedelta(days=current_day - 1)
+        if last_month_comparable_end > last_month_end:
+            last_month_comparable_end = last_month_end
+        
+        # 计算上月账期（用于显示）
+        last_cycle = last_month_end.strftime("%Y-%m")
+        
+        logger.info(f"📊 成本概览查询: 账号={account_name}")
+        logger.info(f"   当前账期={current_cycle}, 本月已过天数={current_day}")
+        logger.info(f"   本月成本范围: {current_month_start.strftime('%Y-%m-%d')} 至 {current_month_end.strftime('%Y-%m-%d')}")
+        logger.info(f"   上月对比范围: {last_month_start.strftime('%Y-%m-%d')} 至 {last_month_comparable_end.strftime('%Y-%m-%d')}")
 
-        # 先尝试从数据库/缓存获取，如果失败则通过API获取
-        current_totals = _get_billing_overview_totals(account_config, billing_cycle=current_cycle, force_refresh=False) if account_config else None
+        # 使用成本趋势分析器获取指定日期范围的成本（更准确）
+        from core.cost_trend_analyzer import CostTrendAnalyzer
+        analyzer = CostTrendAnalyzer()
         
-        # 对于上月数据，如果数据库没有，强制通过API获取
-        last_totals = None
-        if account_config:
-            # 先尝试从数据库获取
-            last_totals = _get_billing_overview_totals(account_config, billing_cycle=last_cycle, force_refresh=False)
-            # 如果数据库没有数据（返回None或总成本为0），强制通过API获取
-            if last_totals is None or (last_totals.get("total_pretax", 0) == 0 and last_totals.get("data_source") == "local_db"):
-                logger.info(f"🔄 上月数据不可用，强制通过API获取: {last_cycle}")
-                try:
-                    last_totals = _get_billing_overview_totals(account_config, billing_cycle=last_cycle, force_refresh=True)
-                except Exception as e:
-                    logger.error(f"❌ 强制刷新上月数据失败: {str(e)}")
-                    last_totals = None
-
-        current_month_cost = float((current_totals or {}).get("total_pretax") or 0.0)
-        last_month_cost = float((last_totals or {}).get("total_pretax") or 0.0)
+        # 获取本月成本（从1月1日到今天）
+        current_month_cost = 0.0
+        try:
+            current_cost_data = analyzer.get_real_cost_from_bills(
+                account_name=account_name,
+                start_date=current_month_start.strftime("%Y-%m-%d"),
+                end_date=current_month_end.strftime("%Y-%m-%d")
+            )
+            if current_cost_data and "total_cost" in current_cost_data:
+                current_month_cost = float(current_cost_data.get("total_cost", 0.0))
+                logger.info(f"✅ 本月成本（{current_month_start.strftime('%Y-%m-%d')} 至 {current_month_end.strftime('%Y-%m-%d')}）: {current_month_cost}")
+            else:
+                # 如果数据库查询失败，回退到账单概览API
+                logger.warning("⚠️  数据库查询失败，回退到账单概览API")
+                current_totals = _get_billing_overview_totals(account_config, billing_cycle=current_cycle, force_refresh=False) if account_config else None
+                current_month_cost = float((current_totals or {}).get("total_pretax") or 0.0)
+        except Exception as e:
+            logger.warning(f"⚠️  获取本月成本失败，回退到账单概览API: {str(e)}")
+            current_totals = _get_billing_overview_totals(account_config, billing_cycle=current_cycle, force_refresh=False) if account_config else None
+            current_month_cost = float((current_totals or {}).get("total_pretax") or 0.0)
         
-        logger.info(f"💰 成本数据: 本月={current_month_cost}, 上月={last_month_cost}, 本月数据源={current_totals.get('data_source') if current_totals else 'None'}, 上月数据源={last_totals.get('data_source') if last_totals else 'None'}")
+        # 获取上月相同天数的成本（从12月1日到12月6日）
+        last_month_cost = 0.0
+        try:
+            last_cost_data = analyzer.get_real_cost_from_bills(
+                account_name=account_name,
+                start_date=last_month_start.strftime("%Y-%m-%d"),
+                end_date=last_month_comparable_end.strftime("%Y-%m-%d")
+            )
+            if last_cost_data and "total_cost" in last_cost_data:
+                last_month_cost = float(last_cost_data.get("total_cost", 0.0))
+                logger.info(f"✅ 上月成本（{last_month_start.strftime('%Y-%m-%d')} 至 {last_month_comparable_end.strftime('%Y-%m-%d')}）: {last_month_cost}")
+            else:
+                # 如果数据库查询失败，回退到账单概览API（但需要按比例计算）
+                logger.warning("⚠️  数据库查询失败，回退到账单概览API（按比例计算）")
+                last_totals = _get_billing_overview_totals(account_config, billing_cycle=last_cycle, force_refresh=False) if account_config else None
+                if last_totals:
+                    # 按比例计算：上月总成本 * (已过天数 / 上月总天数)
+                    last_month_total = float(last_totals.get("total_pretax") or 0.0)
+                    last_month_days = last_month_end.day  # 上个月总天数
+                    last_month_cost = last_month_total * (current_day / last_month_days) if last_month_days > 0 else 0.0
+                    logger.info(f"   上月总成本={last_month_total}, 总天数={last_month_days}, 已过天数={current_day}, 按比例计算={last_month_cost}")
+        except Exception as e:
+            logger.warning(f"⚠️  获取上月成本失败，回退到账单概览API（按比例计算）: {str(e)}")
+            last_totals = _get_billing_overview_totals(account_config, billing_cycle=last_cycle, force_refresh=False) if account_config else None
+            if last_totals:
+                last_month_total = float(last_totals.get("total_pretax") or 0.0)
+                last_month_days = last_month_end.day
+                last_month_cost = last_month_total * (current_day / last_month_days) if last_month_days > 0 else 0.0
+        
+        logger.info(f"💰 成本数据: 本月（{current_day}天）={current_month_cost}, 上月（{current_day}天）={last_month_cost}")
         
         # 如果上月数据为0，记录警告
         if last_month_cost == 0:
-            if last_totals is None:
-                logger.warning(f"⚠️  上月账期 {last_cycle} 数据不可用（返回None），可能原因：1) 数据库中没有该账期数据 2) API查询失败 3) 该账期确实无成本")
-            else:
-                logger.warning(f"⚠️  上月账期 {last_cycle} 成本为0，可能该账期确实无成本或数据未同步")
+            logger.warning(f"⚠️  上月相同天数（{last_month_start.strftime('%Y-%m-%d')} 至 {last_month_comparable_end.strftime('%Y-%m-%d')}）成本为0，可能该时间段确实无成本或数据未同步")
         
         mom = ((current_month_cost - last_month_cost) / last_month_cost * 100) if last_month_cost > 0 else 0.0
         yoy = 0.0  # TODO: 支持去年同期账期对比
