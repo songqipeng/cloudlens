@@ -2058,6 +2058,8 @@ def get_cost_overview(account: Optional[str] = None, force_refresh: bool = Query
             "mom": round(mom, 2),
             "current_cycle": current_cycle,
             "last_cycle": last_cycle,
+            "current_days": current_day,  # 本月已过天数
+            "comparable_days": current_day,  # 对比天数（相同）
         }
         
         # 保存到缓存（24小时有效）
