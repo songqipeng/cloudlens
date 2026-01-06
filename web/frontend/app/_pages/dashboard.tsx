@@ -321,20 +321,60 @@ pip install -r requirements.txt
           setSummary(null)
         }
         
-        // 如果返回的是加载中的状态，等待一段时间后自动刷新
-        if (sumData?.loading) {
-          console.log("[Dashboard] 数据正在后台加载，3秒后自动刷新...")
-          setTimeout(async () => {
+        // 如果返回的是加载中的状态，轮询等待数据加载完成
+        const currentSummary = sumData?.success && sumData?.data ? sumData.data : sumData
+        if (currentSummary && (currentSummary.loading === true || (currentSummary.total_resources === 0 && currentSummary.resource_breakdown?.ecs === 0 && currentSummary.resource_breakdown?.rds === 0 && currentSummary.resource_breakdown?.redis === 0))) {
+          console.log("[Dashboard] ⏳ Summary 数据正在加载中，开始轮询...")
+          
+          // 轮询等待数据加载完成（最多等待60秒）
+          let pollCount = 0
+          const maxPolls = 30 // 30次 * 2秒 = 60秒
+          
+          const pollSummary = async () => {
+            if (pollCount >= maxPolls) {
+              console.warn("[Dashboard] ⚠️ 轮询超时，停止等待")
+              setLoading(false)
+              return
+            }
+            
+            pollCount++
+            console.log(`[Dashboard] 轮询 Summary (${pollCount}/${maxPolls})...`)
+            
             try {
-              const refreshedData = await apiGet("/dashboard/summary", { account: currentAccount }, apiOptions)
-              if (refreshedData && !refreshedData.loading) {
-                console.log("[Dashboard] 数据已加载完成，更新显示")
-                setSummary(refreshedData)
+              await new Promise(resolve => setTimeout(resolve, 2000)) // 等待2秒
+              const refreshedData = await apiGet("/dashboard/summary", { account: currentAccount }, { timeout: 10000 })
+              
+              const refreshedSummary = refreshedData?.success && refreshedData?.data ? refreshedData.data : refreshedData
+              
+              // 检查数据是否已加载完成
+              if (refreshedSummary && !refreshedSummary.loading && refreshedSummary.total_resources > 0) {
+                console.log("[Dashboard] ✅ Summary 数据已加载完成:", refreshedSummary)
+                setSummary(refreshedSummary)
+                setLoading(false)
+                return
+              }
+              
+              // 如果还在加载中，继续轮询
+              if (refreshedSummary && refreshedSummary.loading === true) {
+                pollSummary()
+              } else {
+                // 数据已返回但可能仍为0，停止轮询
+                console.log("[Dashboard] Summary 数据已返回，停止轮询")
+                setSummary(refreshedSummary)
+                setLoading(false)
               }
             } catch (e) {
-              console.warn("[Dashboard] 自动刷新失败:", e)
+              console.error("[Dashboard] 轮询 Summary 失败:", e)
+              // 继续轮询，不中断
+              pollSummary()
             }
-          }, 3000)
+          }
+          
+          // 开始轮询
+          pollSummary()
+        } else {
+          // 数据已加载完成，正常显示
+          setLoading(false)
         }
 
         setLoadingMessage(t.dashboard.loadingIdle || "正在加载闲置资源...")

@@ -326,17 +326,24 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
         def update_cache_in_background():
             """后台更新缓存"""
             try:
-                logger.info(f"后台开始更新 dashboard summary 缓存: {account}, force_refresh={force_refresh}")
+                import traceback
+                logger.info(f"[后台任务] 开始更新 dashboard summary 缓存: {account}, force_refresh={force_refresh}")
+                print(f"[后台任务] 开始更新 dashboard summary 缓存: {account}, force_refresh={force_refresh}")
                 _update_dashboard_summary_cache(account, account_config, force_refresh=force_refresh)
-                logger.info(f"后台完成更新 dashboard summary 缓存: {account}")
+                logger.info(f"[后台任务] 完成更新 dashboard summary 缓存: {account}")
+                print(f"[后台任务] 完成更新 dashboard summary 缓存: {account}")
             except Exception as e:
-                logger.error(f"后台更新缓存失败: {str(e)}")
+                import traceback
+                error_msg = f"后台更新缓存失败: {str(e)}\n{traceback.format_exc()}"
+                logger.error(error_msg)
+                print(error_msg)
         
         # 启动后台线程更新缓存
         thread = threading.Thread(target=update_cache_in_background, daemon=True)
         thread.start()
         
-        logger.info(f"快速返回默认值，后台更新缓存: {account}")
+        logger.info(f"[get_summary] 快速返回默认值，后台更新缓存已启动: {account}")
+        print(f"[get_summary] 快速返回默认值，后台更新缓存已启动: {account}")
     except Exception as e:
         logger.warning(f"启动后台更新失败: {str(e)}")
     
@@ -570,7 +577,7 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
                                 if count > 0:
                                     region_instances = region_provider.list_instances()
                                     all_instances.extend(region_instances)
-                                logger.info(f"区域 {region}: 找到 {len(region_instances)} 个ECS实例")
+                                    logger.info(f"区域 {region}: 找到 {len(region_instances)} 个ECS实例")
                             except Exception as e:
                                 logger.warning(f"查询区域 {region} 的ECS实例失败: {str(e)}")
                                 continue
