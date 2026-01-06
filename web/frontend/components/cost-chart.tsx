@@ -93,17 +93,46 @@ export function CostChart({ data, account }: CostChartProps) {
     
     if (!chartData || !chartData.dates) return null;
 
-    // 判断是否为月度数据（通过日期格式判断：YYYY-MM 或数据量较少）
-    const isMonthlyData = chartData.dates.length <= 24 && chartData.dates.some(d => d.length === 7 && d.includes('-'))
+    // 判断是否为月度数据：
+    // 1. 数据量 <= 24（最多2年的月度数据）
+    // 2. 所有日期都是月初（YYYY-MM-01格式）或日期格式为YYYY-MM
+    const isMonthlyData = (() => {
+        if (chartData.dates.length > 24) return false
+        // 检查是否所有日期都是月初（YYYY-MM-01）或格式为YYYY-MM
+        const allMonthly = chartData.dates.every(d => {
+            if (!d) return false
+            // 如果是YYYY-MM格式（7个字符）
+            if (d.length === 7 && d.includes('-')) return true
+            // 如果是YYYY-MM-DD格式，检查是否是月初（-01结尾）
+            if (d.length === 10 && d.endsWith('-01')) return true
+            return false
+        })
+        return allMonthly && chartData.dates.length > 0
+    })()
+    
     // 根据数据量决定日期显示格式
     const dateFormat = chartData.dates.length > 90 || isMonthlyData ? 'YYYY-MM' : 'MM-DD'
-    const processedData = chartData.dates.map((date, index) => ({
-        date: dateFormat === 'YYYY-MM' 
-            ? (date.length === 7 ? date : date.substring(0, 7))  // YYYY-MM
-            : date.substring(5),     // MM-DD
-        fullDate: date,  // 保存完整日期用于工具提示
-        cost: chartData.costs[index]
-    }));
+    const processedData = chartData.dates.map((date, index) => {
+        let displayDate = date
+        if (dateFormat === 'YYYY-MM') {
+            // 如果是YYYY-MM-DD格式，提取YYYY-MM部分
+            if (date.length === 10) {
+                displayDate = date.substring(0, 7)
+            } else if (date.length === 7) {
+                displayDate = date
+            }
+        } else {
+            // MM-DD格式
+            if (date.length >= 5) {
+                displayDate = date.substring(5)
+            }
+        }
+        return {
+            date: displayDate,
+            fullDate: date,  // 保存完整日期用于工具提示
+            cost: chartData.costs[index]
+        }
+    })
 
     return (
         <Card className="animate-fade-in">
