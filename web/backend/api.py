@@ -976,7 +976,102 @@ async def get_trend(
             # 使用日期范围生成报告
             report = analyzer.generate_trend_report(account, calculated_days, start_date=start_date, end_date=end_date)
         else:
-            report = analyzer.generate_trend_report(account, days)
+            # 如果granularity是monthly且days=0，直接按账期查询并聚合
+            if granularity == "monthly" and days == 0:
+                # 直接从数据库按账期查询月度数据
+                from core.bill_storage import BillStorageManager
+                from core.config import ConfigManager
+                storage = BillStorageManager()
+                db = storage.db
+                cm = ConfigManager()
+                account_config = cm.get_account(account)
+                if not account_config:
+                    raise HTTPException(status_code=404, detail=f"账号 '{account}' 不存在")
+                
+                account_id = f"{account_config.access_key_id[:10]}-{account}"
+                
+                # 查询所有账期的月度成本
+                rows = db.query("""
+                    SELECT
+                        billing_cycle,
+                        SUM(pretax_amount) as monthly_cost
+                    FROM bill_items
+                    WHERE account_id = ?
+                        AND billing_cycle IS NOT NULL
+                        AND billing_cycle != ''
+                        AND pretax_amount IS NOT NULL
+                    GROUP BY billing_cycle
+                    ORDER BY billing_cycle ASC
+                """, (account_id,))
+                
+                if not rows:
+                    return {
+                        "account": account,
+                        "period_days": 0,
+                        "granularity": granularity,
+                        "analysis": {"error": "No cost history available"},
+                        "chart_data": None,
+                        "cost_by_type": {},
+                        "cost_by_region": {},
+                        "snapshots_count": 0,
+                        "summary": None,
+                        "cached": False,
+                    }
+                
+                # 转换为图表数据格式
+                monthly_chart_data = []
+                for row in rows:
+                    billing_cycle = row['billing_cycle'] if isinstance(row, dict) else row[0]
+                    monthly_cost = float(row['monthly_cost'] or 0) if isinstance(row, dict) else float(row[1] or 0)
+                    # 使用月初日期格式 YYYY-MM-01
+                    year, month = map(int, billing_cycle.split('-'))
+                    date_str = f"{year}-{month:02d}-01"
+                    monthly_chart_data.append({
+                        "date": date_str,
+                        "total_cost": monthly_cost,
+                        "breakdown": {}
+                    })
+                
+                # 计算统计信息
+                monthly_costs = [item["total_cost"] for item in monthly_chart_data]
+                summary = {
+                    "total_cost": sum(monthly_costs) if monthly_costs else 0,
+                    "avg_monthly_cost": sum(monthly_costs) / len(monthly_costs) if monthly_costs else 0,
+                    "max_monthly_cost": max(monthly_costs) if monthly_costs else 0,
+                    "min_monthly_cost": min(monthly_costs) if monthly_costs else 0,
+                    "trend": "平稳",
+                    "trend_pct": 0.0
+                }
+                
+                # 如果有多个月份，计算趋势
+                if len(monthly_costs) >= 2:
+                    latest = monthly_costs[-1]
+                    previous = monthly_costs[-2]
+                    if previous > 0:
+                        trend_pct = ((latest - previous) / previous) * 100
+                        summary["trend_pct"] = round(trend_pct, 2)
+                        if trend_pct > 5:
+                            summary["trend"] = "上升"
+                        elif trend_pct < -5:
+                            summary["trend"] = "下降"
+                
+                result = {
+                    "account": account,
+                    "period_days": 0,
+                    "granularity": granularity,
+                    "chart_data": monthly_chart_data,
+                    "summary": summary,
+                    "cost_by_type": {},
+                    "cost_by_region": {},
+                    "snapshots_count": len(monthly_chart_data),
+                    "cached": False,
+                }
+                
+                # 保存到缓存
+                cache_manager.set(resource_type=cache_key, account_name=account, data=result)
+                return result
+            else:
+                report = analyzer.generate_trend_report(account, days)
         
         if "error" in report:
             # 趋势图常见的"无数据/数据不足"不应该作为服务端错误；
@@ -1007,10 +1102,23 @@ async def get_trend(
             # 按月聚合数据
             monthly_data = {}
             for i, date in enumerate(dates):
-                month_key = date[:7]  # YYYY-MM
+                # 提取月份（YYYY-MM格式）
+                if len(date) >= 7:
+                    month_key = date[:7]  # YYYY-MM
+                elif len(date) == 10:
+                    month_key = date[:7]  # YYYY-MM-DD -> YYYY-MM
+                else:
+                    # 如果日期格式不对，尝试解析
+                    try:
+                        from datetime import datetime
+                        date_obj = datetime.strptime(date, "%Y-%m-%d")
+                        month_key = date_obj.strftime("%Y-%m")
+                    except:
+                        month_key = date[:7] if len(date) >= 7 else date
+                
                 if month_key not in monthly_data:
                     monthly_data[month_key] = {
-                        "date": month_key,
+                        "date": f"{month_key}-01",  # 使用月初日期格式 YYYY-MM-01
                         "total_cost": 0,
                         "breakdown": {}
                     }
@@ -1025,8 +1133,8 @@ async def get_trend(
                         # 简化：平均分配（实际应该按日期计算）
                         monthly_data[month_key]["breakdown"][type_name] += type_cost / len(dates) if dates else 0
             
-            # 转换为列表格式
-            chart_data_list = list(monthly_data.values())
+            # 转换为列表格式，并按日期排序（从早到晚）
+            chart_data_list = sorted(monthly_data.values(), key=lambda x: x["date"])
             
             # 计算月度统计
             monthly_costs = [item["total_cost"] for item in chart_data_list]
