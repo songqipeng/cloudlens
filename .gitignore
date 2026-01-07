@@ -83,3 +83,14 @@ slb.json
 
 # CloudLens本地数据
 ~/.cloudlens/
+test-recordings/
+
+# 测试录制文件（视频和截图）
+test-recordings/**/*.mp4
+test-recordings/**/*.webm
+test-recordings/**/*.png
+test-recordings/**/*.jpg
+test-recordings/**/*.jpeg
+web/frontend/test-recordings/**/*
+web/frontend/playwright-report/**/*
+web/frontend/test-results/**/*
