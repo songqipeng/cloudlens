@@ -1,0 +1,207 @@
+{
+  "test_start_time": "2026-01-07T14:16:42.096488",
+  "test_end_time": "2026-01-07T14:17:59.563210",
+  "total_duration": 77.466773,
+  "total_tests": 14,
+  "results": [
+    {
+      "name": "帮助信息",
+      "command": "--help",
+      "description": "显示CLI帮助信息",
+      "status": "success",
+      "duration": 0.08500003814697266,
+      "output": "Usage: python -m cli.main [OPTIONS] COMMAND [ARGS]...\n\n  CloudLens CLI - 多云资源治理工具\n\n  🌐 统一视图 · 💰 智能分析 · 🔒 安全合规 · 📊 降本增效\n\nOptions:\n  --version  Show the version and exit.\n  --help     Show this message and exit.\n\nCommands:\n  analyze    资源分析 - 闲置资源、成本、安全、续费分析\n  bill       账单管理命令\n  cache      缓存管理命令\n  config     配置管理 - 添加、删除、查看云账号配置\n  dashboard  启动TUI仪表板\n  query      资源查询命令\n  remediate  自动修复 - 批量修复资源问题(支持干运行)\n  repl       启动交互式REPL模式\n  scheduler  启动任务调度器\n",
+      "error": null,
+      "timestamp": "2026-01-07T14:16:42.096499",
+      "return_code": 0,
+      "matched_keywords": [
+        "Usage:",
+        "Commands:"
+      ]
+    },
+    {
+      "name": "版本信息",
+      "command": "--version",
+      "description": "显示CLI版本信息",
+      "status": "success",
+      "duration": 0.12349796295166016,
+      "output": "CloudLens CLI, version 2.1.0\n",
+      "error": null,
+      "timestamp": "2026-01-07T14:16:43.186690",
+      "return_code": 0,
+      "matched_keywords": [
+        "2.1.0"
+      ]
+    },
+    {
+      "name": "配置列表",
+      "command": "config list",
+      "description": "列出所有配置的账号",
+      "status": "success",
+      "duration": 0.16513395309448242,
+      "output": "{\"command\": [\"config\", \"list\"], \"event\": \"cli_started\", \"level\": \"info\", \"logger\": \"cli\", \"timestamp\": \"2026-01-07T06:16:44.445074Z\"}\n               ☁️  云账号配置                \n┏━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━┓\n┃ 账号名称 ┃ 云厂商 ┃ 默认区域    ┃ 状态   ┃\n┡━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━┩\n│ ydzn     │ aliyun │ cn-hangzhou │ ✓ 正常 │\n└──────────┴────────┴─────────────┴────────┘\n\n共 1 个账号\n",
+      "error": null,
+      "timestamp": "2026-01-07T14:16:44.315417",
+      "return_code": 0,
+      "matched_keywords": [
+        "账号",
+        "ydzn"
+      ]
+    },
+    {
+      "name": "配置查看",
+      "command": "config show ydzn",
+      "description": "查看指定账号的配置",
+      "status": "success",
+      "duration": 0.1815650463104248,
+      "output": "{\"command\": [\"config\", \"show\", \"ydzn\"], \"event\": \"cli_started\", \"level\": \"info\", \"logger\": \"cli\", \"timestamp\": \"2026-01-07T06:16:45.623651Z\"}\n",
+      "error": null,
+      "timestamp": "2026-01-07T14:16:45.485762",
+      "return_code": 0,
+      "matched_keywords": [
+        "ydzn"
+      ]
+    },
+    {
+      "name": "查询ECS资源",
+      "command": "query resources ydzn ecs --format table",
+      "description": "查询ECS资源（表格格式）",
+      "status": "warning",
+      "duration": 0.26421117782592773,
+      "output": "{\"command\": [\"query\", \"resources\", \"ydzn\", \"ecs\", \"--format\", \"table\"], \"event\": \"cli_started\", \"level\": \"info\", \"logger\": \"cli\", \"timestamp\": \"2026-01-07T06:16:46.807297Z\"}\nTraceback (most recent call last):\n  File \"/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/runpy.py\", line 197, in _run_module_as_main\n    return _run_code(code, main_globals, None,\n  File \"/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/runpy.py\", line 87, in _run_code\n    exec(code, run_globals)\n  File \"/Users/mac/cloudlens/cli/main.py\", line 77, in <module>\n    cli()\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 1161, in __call__\n    return self.main(*args, **kwargs)\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 1082, in main\n    rv = self.invoke(ctx)\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 1697, in invoke\n    return _process_result(sub_ctx.command.invoke(sub_ctx))\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 1697, in invoke\n    return _process_result(sub_ctx.command.invoke(sub_ctx))\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 1443, in invoke\n    return ctx.invoke(self.callback, **ctx.params)\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 788, in invoke\n    return __callback(*args, **kwargs)\n  File \"/Users/mac/cloudlens/cli/commands/query_cmd.py\", line 44, in resources\n    account_obj = smart_resolve_account(cm, ctx_mgr, account)\n  File \"/Users/mac/cloudlens/cli/utils.py\", line 41, in smart_resolve_account\n    ctx_mgr.set_current_account(account_name)\nAttributeError: 'ContextManager' object has no attribute 'set_current_account'\n",
+      "error": "未找到预期关键词: ['实例', 'instance', 'ID']",
+      "timestamp": "2026-01-07T14:16:46.672515",
+      "return_code": 1
+    },
+    {
+      "name": "查询RDS资源",
+      "command": "query resources ydzn rds --format table",
+      "description": "查询RDS资源（表格格式）",
+      "status": "success",
+      "duration": 0.2582840919494629,
+      "output": "{\"command\": [\"query\", \"resources\", \"ydzn\", \"rds\", \"--format\", \"table\"], \"event\": \"cli_started\", \"level\": \"info\", \"logger\": \"cli\", \"timestamp\": \"2026-01-07T06:16:48.066768Z\"}\nTraceback (most recent call last):\n  File \"/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/runpy.py\", line 197, in _run_module_as_main\n    return _run_code(code, main_globals, None,\n  File \"/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/runpy.py\", line 87, in _run_code\n    exec(code, run_globals)\n  File \"/Users/mac/cloudlens/cli/main.py\", line 77, in <module>\n    cli()\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 1161, in __call__\n    return self.main(*args, **kwargs)\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 1082, in main\n    rv = self.invoke(ctx)\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 1697, in invoke\n    return _process_result(sub_ctx.command.invoke(sub_ctx))\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 1697, in invoke\n    return _process_result(sub_ctx.command.invoke(sub_ctx))\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 1443, in invoke\n    return ctx.invoke(self.callback, **ctx.params)\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 788, in invoke\n    return __callback(*args, **kwargs)\n  File \"/Users/mac/cloudlens/cli/commands/query_cmd.py\", line 44, in resources\n    account_obj = smart_resolve_account(cm, ctx_mgr, account)\n  File \"/Users/mac/cloudlens/cli/utils.py\", line 41, in smart_resolve_account\n    ctx_mgr.set_current_account(account_name)\nAttributeError: 'ContextManager' object has no attribute 'set_current_account'\n",
+      "error": null,
+      "timestamp": "2026-01-07T14:16:47.941922",
+      "return_code": 1,
+      "matched_keywords": [
+        "RDS"
+      ]
+    },
+    {
+      "name": "查询资源JSON格式",
+      "command": "query resources ydzn ecs --format json",
+      "description": "查询ECS资源（JSON格式）",
+      "status": "success",
+      "duration": 0.26294493675231934,
+      "output": "{\"command\": [\"query\", \"resources\", \"ydzn\", \"ecs\", \"--format\", \"json\"], \"event\": \"cli_started\", \"level\": \"info\", \"logger\": \"cli\", \"timestamp\": \"2026-01-07T06:16:49.333938Z\"}\nTraceback (most recent call last):\n  File \"/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/runpy.py\", line 197, in _run_module_as_main\n    return _run_code(code, main_globals, None,\n  File \"/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/runpy.py\", line 87, in _run_code\n    exec(code, run_globals)\n  File \"/Users/mac/cloudlens/cli/main.py\", line 77, in <module>\n    cli()\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 1161, in __call__\n    return self.main(*args, **kwargs)\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 1082, in main\n    rv = self.invoke(ctx)\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 1697, in invoke\n    return _process_result(sub_ctx.command.invoke(sub_ctx))\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 1697, in invoke\n    return _process_result(sub_ctx.command.invoke(sub_ctx))\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 1443, in invoke\n    return ctx.invoke(self.callback, **ctx.params)\n  File \"/Users/mac/Library/Python/3.9/lib/python/site-packages/click/core.py\", line 788, in invoke\n    return __callback(*args, **kwargs)\n  File \"/Users/mac/cloudlens/cli/commands/query_cmd.py\", line 44, in resources\n    account_obj = smart_resolve_account(cm, ctx_mgr, account)\n  File \"/Users/mac/cloudlens/cli/utils.py\", line 41, in smart_resolve_account\n    ctx_mgr.set_current_account(account_name)\nAttributeError: 'ContextManager' object has no attribute 'set_current_account'\n",
+      "error": null,
+      "timestamp": "2026-01-07T14:16:49.205409",
+      "return_code": 1,
+      "matched_keywords": [
+        "[",
+        "{"
+      ]
+    },
+    {
+      "name": "缓存状态",
+      "command": "cache status",
+      "description": "查看缓存状态",
+      "status": "success",
+      "duration": 0.2514989376068115,
+      "output": "{\"command\": [\"cache\", \"status\"], \"event\": \"cli_started\", \"level\": \"info\", \"logger\": \"cli\", \"timestamp\": \"2026-01-07T06:16:50.604006Z\"}\n\n📊 缓存统计\n总条目数: 57\n有效条目: 33\n已过期: 24\n数据库类型: mysql\n\n按类型统计（有效缓存）:\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━┳━━━━━━━━┓\n┃ 资源类型                                    ┃ 账号 ┃ 条目数 ┃\n┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━╇━━━━━━━━┩\n│ billing_overview_totals_2026-01             │ ydzn │ 1      │\n│ cost_breakdown                              │ ydzn │ 1      │\n│ billing_overview_totals_2025-12             │ ydzn │ 1      │\n│ cost_overview                               │ ydzn │ 1      │\n│ billing_cost_map_ecs_2026-01                │ ydzn │ 1      │\n│ ecs                                         │ ydzn │ 1      │\n│ slb                                         │ ydzn │ 1      │\n│ billing_cost_map_slb_2026-01                │ ydzn │ 1      │\n│ billing_cost_map_nat_2026-01                │ ydzn │ 1      │\n│ nat                                         │ ydzn │ 1      │\n│ eip                                         │ ydzn │ 1      │\n│ billing_cost_map_eip_2026-01                │ ydzn │ 1      │\n│ billing_cost_map_oss_2026-01                │ ydzn │ 1      │\n│ oss                                         │ ydzn │ 1      │\n│ billing_cost_map_disk_2026-01               │ ydzn │ 1      │\n│ disk                                        │ ydzn │ 1      │\n│ billing_cost_map_snapshot_2026-01           │ ydzn │ 1      │\n│ snapshot                                    │ ydzn │ 1      │\n│ vpc                                         │ ydzn │ 1      │\n│ mongodb                                     │ ydzn │ 1      │\n│ ack                                         │ ydzn │ 1      │\n│ security_overview                           │ ydzn │ 1      │\n│ security_checks                             │ ydzn │ 1      │\n│ idle_result                                 │ ydzn │ 1      │\n│ optimization_suggestions                    │ ydzn │ 1      │\n│ dashboard_trend_daily_0                     │ ydzn │ 1      │\n│ dashboard_trend_monthly_0                   │ ydzn │ 1      │\n│ dashboard_idle                              │ ydzn │ 1      │\n│ dashboard_summary                           │ ydzn │ 1      │\n│ dashboard_trend_daily_30                    │ ydzn │ 1      │\n│ dashboard_trend_daily_2025-12-08_2026-01-07 │ ydzn │ 1      │\n│ billing_cost_map_rds_2026-01                │ ydzn │ 1      │\n│ rds                                         │ ydzn │ 1      │\n└─────────────────────────────────────────────┴──────┴────────┘\n",
+      "error": null,
+      "timestamp": "2026-01-07T14:16:50.468768",
+      "return_code": 0,
+      "matched_keywords": [
+        "缓存",
+        "cache"
+      ]
+    },
+    {
+      "name": "成本分析",
+      "command": "analyze cost --account ydzn --days 30",
+      "description": "分析最近30天的成本",
+      "status": "success",
+      "duration": 0.9539079666137695,
+      "output": "{\"command\": [\"analyze\", \"cost\", \"--account\", \"ydzn\", \"--days\", \"30\"], \"event\": \"cli_started\", \"level\": \"info\", \"logger\": \"cli\", \"timestamp\": \"2026-01-07T06:16:51.865192Z\"}\n💰 分析资源成本 (过去30天)...\nTotal ECS instances: 0\n查询资源... ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 0:00:00\n\n╭──── 💰 成本概览 ────╮\n│ 总月估算成本: ¥0.00 │\n│ 资源总数: 0         │\n╰─────────────────────╯\n\n💡 优化建议:\n• 运行 'cl analyze idle' 检查闲置资源\n• 考虑使用预留实例降低10-30%成本\n• 定期检查并清理未使用的磁盘和快照\n• 使用标签管理,实现成本分摊\n/Users/mac/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020\n  warnings.warn(\n",
+      "error": null,
+      "timestamp": "2026-01-07T14:16:51.725537",
+      "return_code": 0,
+      "matched_keywords": [
+        "成本",
+        "cost"
+      ]
+    },
+    {
+      "name": "闲置资源分析",
+      "command": "analyze idle --account ydzn",
+      "description": "分析闲置资源",
+      "status": "success",
+      "duration": 0.38110899925231934,
+      "output": "{\"command\": [\"analyze\", \"idle\", \"--account\", \"ydzn\"], \"event\": \"cli_started\", \"level\": \"info\", \"logger\": \"cli\", \"timestamp\": \"2026-01-07T06:16:53.833635Z\"}\n🔍 分析最近 7 天的闲置资源 (CPU < 5%)...\n正在分析资源...     ━━━━━━━━━━          ━━━━━━━━━━         \n\n⚡ 使用缓存数据 (上次分析于24小时内)\n提示: 使用 --no-cache 可强制刷新\n分析失败: 'instance_id'\n/Users/mac/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020\n  warnings.warn(\n",
+      "error": null,
+      "timestamp": "2026-01-07T14:16:53.684682",
+      "return_code": 0,
+      "matched_keywords": [
+        "闲置",
+        "idle",
+        "资源"
+      ]
+    },
+    {
+      "name": "账单查询",
+      "command": "bill fetch --account ydzn --start 2024-12 --end 2024-12",
+      "description": "查询账单信息",
+      "status": "timeout",
+      "duration": 60,
+      "output": "",
+      "error": "命令执行超时（60秒）",
+      "timestamp": "2026-01-07T14:16:55.071002"
+    },
+    {
+      "name": "查询命令帮助",
+      "command": "query --help",
+      "description": "显示查询命令帮助",
+      "status": "success",
+      "duration": 0.14727210998535156,
+      "output": "{\"command\": [\"query\", \"--help\"], \"event\": \"cli_started\", \"level\": \"info\", \"logger\": \"cli\", \"timestamp\": \"2026-01-07T06:17:56.220981Z\"}\nUsage: python -m cli.main query [OPTIONS] COMMAND [ARGS]...\n\n  资源查询命令\n\nOptions:\n  --help  Show this message and exit.\n\nCommands:\n  all        批量查询多种资源\n  resources  查询云资源\n",
+      "error": null,
+      "timestamp": "2026-01-07T14:17:56.088467",
+      "return_code": 0,
+      "matched_keywords": [
+        "query",
+        "资源查询"
+      ]
+    },
+    {
+      "name": "分析命令帮助",
+      "command": "analyze --help",
+      "description": "显示分析命令帮助",
+      "status": "success",
+      "duration": 0.1539011001586914,
+      "output": "{\"command\": [\"analyze\", \"--help\"], \"event\": \"cli_started\", \"level\": \"info\", \"logger\": \"cli\", \"timestamp\": \"2026-01-07T06:17:57.377779Z\"}\nUsage: python -m cli.main analyze [OPTIONS] COMMAND [ARGS]...\n\n  资源分析 - 闲置资源、成本、安全、续费分析\n\nOptions:\n  --help  Show this message and exit.\n\nCommands:\n  cost      成本分析 - 分析资源成本结构和趋势\n  discount  折扣趋势分析 - 基于账单CSV分析最近6个月折扣变化\n  forecast  AI成本预测 - 基于历史数据预测未来成本\n  idle      检测闲置资源 - 基于监控指标分析\n  renewal   续费提醒 - 检查即将到期的包年包月资源\n  security  安全合规 - 检查公网暴露、安全组、CIS Benchmark等\n  tags      标签治理 - 检查资源标签合规性\n",
+      "error": null,
+      "timestamp": "2026-01-07T14:17:57.240934",
+      "return_code": 0,
+      "matched_keywords": [
+        "analyze",
+        "分析"
+      ]
+    },
+    {
+      "name": "配置命令帮助",
+      "command": "config --help",
+      "description": "显示配置命令帮助",
+      "status": "success",
+      "duration": 0.15798616409301758,
+      "output": "{\"command\": [\"config\", \"--help\"], \"event\": \"cli_started\", \"level\": \"info\", \"logger\": \"cli\", \"timestamp\": \"2026-01-07T06:17:58.539919Z\"}\nUsage: python -m cli.main config [OPTIONS] COMMAND [ARGS]...\n\n  配置管理 - 添加、删除、查看云账号配置\n\nOptions:\n  --help  Show this message and exit.\n\nCommands:\n  add     添加新的云账号配置\n  list    查看所有已配置的云账号\n  remove  删除云账号配置\n  rules   配置资源优化规则 (交互式)\n  show    显示账号详细信息\n",
+      "error": null,
+      "timestamp": "2026-01-07T14:17:58.400013",
+      "return_code": 0,
+      "matched_keywords": [
+        "config",
+        "配置"
+      ]
+    }
+  ]
+}

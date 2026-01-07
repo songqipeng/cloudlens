@@ -1,0 +1,929 @@
+{
+  "config": {
+    "configFile": "/Users/mac/cloudlens/web/frontend/playwright.config.ts",
+    "rootDir": "/Users/mac/cloudlens/web/frontend/tests",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report"
+        }
+      ],
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/Users/mac/cloudlens/web/frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/mac/cloudlens/web/frontend/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 300000
+      }
+    ],
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.57.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "web-full-test.spec.ts",
+      "file": "web-full-test.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "CloudLens Web 完整功能测试",
+          "file": "web-full-test.spec.ts",
+          "line": 93,
+          "column": 6,
+          "specs": [
+            {
+              "title": "测试模块: 首页仪表板",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 11375,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "✅ Chrome浏览器已启动\n"
+                        },
+                        {
+                          "text": "📹 视频录制目录: /Users/mac/cloudlens/web/frontend/test-recordings\n"
+                        },
+                        {
+                          "text": "\n============================================================\n"
+                        },
+                        {
+                          "text": "📋 测试模块: 首页仪表板\n"
+                        },
+                        {
+                          "text": "📝 描述: 主仪表板页面\n"
+                        },
+                        {
+                          "text": "🔗 URL: http://localhost:3000/\n"
+                        },
+                        {
+                          "text": "============================================================\n"
+                        },
+                        {
+                          "text": "⏳ 正在加载页面...\n"
+                        },
+                        {
+                          "text": "📄 页面标题: CloudLens - 多云资源治理平台\n"
+                        },
+                        {
+                          "text": "📜 正在滚动页面...\n"
+                        },
+                        {
+                          "text": "⏱️  等待内容加载...\n"
+                        },
+                        {
+                          "text": "📸 截图已保存: /Users/mac/cloudlens/web/frontend/test-recordings/首页仪表板_screenshot.png\n"
+                        },
+                        {
+                          "text": "✅ 测试成功 (耗时: 11.37秒)\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-06T08:29:52.078Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/cloudlens/web/frontend/test-results/web-full-test-CloudLens-Web-完整功能测试-测试模块-首页仪表板-chromium/trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7dd76e4040c67e86af7e-d1d7377bd43dc13a42ed",
+              "file": "web-full-test.spec.ts",
+              "line": 181,
+              "column": 9
+            },
+            {
+              "title": "测试模块: 成本分析",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6177,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "\n============================================================\n"
+                        },
+                        {
+                          "text": "📋 测试模块: 成本分析\n"
+                        },
+                        {
+                          "text": "📝 描述: 成本分析页面，包含成本趋势图\n"
+                        },
+                        {
+                          "text": "🔗 URL: http://localhost:3000/cost\n"
+                        },
+                        {
+                          "text": "============================================================\n"
+                        },
+                        {
+                          "text": "⏳ 正在加载页面...\n"
+                        },
+                        {
+                          "text": "📄 页面标题: CloudLens - 多云资源治理平台\n"
+                        },
+                        {
+                          "text": "❌ 测试失败: 页面包含关键错误信息\n"
+                        },
+                        {
+                          "text": "⏱️  耗时: 6.11秒\n"
+                        },
+                        {
+                          "text": "📸 错误截图已保存: /Users/mac/cloudlens/web/frontend/test-recordings/成本分析_error.png\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-06T08:30:04.306Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/cloudlens/web/frontend/test-results/web-full-test-CloudLens-Web-完整功能测试-测试模块-成本分析-chromium/trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7dd76e4040c67e86af7e-7203649aa96008f9909d",
+              "file": "web-full-test.spec.ts",
+              "line": 181,
+              "column": 9
+            },
+            {
+              "title": "测试模块: 成本趋势",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6139,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "\n============================================================\n"
+                        },
+                        {
+                          "text": "📋 测试模块: 成本趋势\n"
+                        },
+                        {
+                          "text": "📝 描述: 成本趋势分析\n"
+                        },
+                        {
+                          "text": "🔗 URL: http://localhost:3000/cost-trend\n"
+                        },
+                        {
+                          "text": "============================================================\n"
+                        },
+                        {
+                          "text": "⏳ 正在加载页面...\n"
+                        },
+                        {
+                          "text": "📄 页面标题: CloudLens - 多云资源治理平台\n"
+                        },
+                        {
+                          "text": "❌ 测试失败: 页面包含关键错误信息\n"
+                        },
+                        {
+                          "text": "⏱️  耗时: 6.04秒\n"
+                        },
+                        {
+                          "text": "📸 错误截图已保存: /Users/mac/cloudlens/web/frontend/test-recordings/成本趋势_error.png\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-06T08:30:10.660Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/cloudlens/web/frontend/test-results/web-full-test-CloudLens-Web-完整功能测试-测试模块-成本趋势-chromium/trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7dd76e4040c67e86af7e-e501a7a05b4fbfa92798",
+              "file": "web-full-test.spec.ts",
+              "line": 181,
+              "column": 9
+            },
+            {
+              "title": "测试模块: 资源管理",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 13074,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "\n============================================================\n"
+                        },
+                        {
+                          "text": "📋 测试模块: 资源管理\n"
+                        },
+                        {
+                          "text": "📝 描述: 云资源管理页面\n"
+                        },
+                        {
+                          "text": "🔗 URL: http://localhost:3000/resources\n"
+                        },
+                        {
+                          "text": "============================================================\n"
+                        },
+                        {
+                          "text": "⏳ 正在加载页面...\n"
+                        },
+                        {
+                          "text": "📄 页面标题: CloudLens - 多云资源治理平台\n"
+                        },
+                        {
+                          "text": "📜 正在滚动页面...\n"
+                        },
+                        {
+                          "text": "⏱️  等待内容加载...\n"
+                        },
+                        {
+                          "text": "📸 截图已保存: /Users/mac/cloudlens/web/frontend/test-recordings/资源管理_screenshot.png\n"
+                        },
+                        {
+                          "text": "✅ 测试成功 (耗时: 13.07秒)\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-06T08:30:16.966Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/cloudlens/web/frontend/test-results/web-full-test-CloudLens-Web-完整功能测试-测试模块-资源管理-chromium/trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7dd76e4040c67e86af7e-144701afda014bdfc86f",
+              "file": "web-full-test.spec.ts",
+              "line": 181,
+              "column": 9
+            },
+            {
+              "title": "测试模块: 优化建议",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 11039,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "\n============================================================\n"
+                        },
+                        {
+                          "text": "📋 测试模块: 优化建议\n"
+                        },
+                        {
+                          "text": "📝 描述: 成本优化建议\n"
+                        },
+                        {
+                          "text": "🔗 URL: http://localhost:3000/optimization\n"
+                        },
+                        {
+                          "text": "============================================================\n"
+                        },
+                        {
+                          "text": "⏳ 正在加载页面...\n"
+                        },
+                        {
+                          "text": "📄 页面标题: CloudLens - 多云资源治理平台\n"
+                        },
+                        {
+                          "text": "📜 正在滚动页面...\n"
+                        },
+                        {
+                          "text": "⏱️  等待内容加载...\n"
+                        },
+                        {
+                          "text": "📸 截图已保存: /Users/mac/cloudlens/web/frontend/test-recordings/优化建议_screenshot.png\n"
+                        },
+                        {
+                          "text": "✅ 测试成功 (耗时: 11.04秒)\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-06T08:30:30.471Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/cloudlens/web/frontend/test-results/web-full-test-CloudLens-Web-完整功能测试-测试模块-优化建议-chromium/trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7dd76e4040c67e86af7e-a481470be9b987dcef77",
+              "file": "web-full-test.spec.ts",
+              "line": 181,
+              "column": 9
+            },
+            {
+              "title": "测试模块: 预算管理",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 11195,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "\n============================================================\n"
+                        },
+                        {
+                          "text": "📋 测试模块: 预算管理\n"
+                        },
+                        {
+                          "text": "📝 描述: 预算管理页面\n"
+                        },
+                        {
+                          "text": "🔗 URL: http://localhost:3000/budgets\n"
+                        },
+                        {
+                          "text": "============================================================\n"
+                        },
+                        {
+                          "text": "⏳ 正在加载页面...\n"
+                        },
+                        {
+                          "text": "📄 页面标题: CloudLens - 多云资源治理平台\n"
+                        },
+                        {
+                          "text": "📜 正在滚动页面...\n"
+                        },
+                        {
+                          "text": "⏱️  等待内容加载...\n"
+                        },
+                        {
+                          "text": "📸 截图已保存: /Users/mac/cloudlens/web/frontend/test-recordings/预算管理_screenshot.png\n"
+                        },
+                        {
+                          "text": "✅ 测试成功 (耗时: 11.20秒)\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-06T08:30:41.581Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/cloudlens/web/frontend/test-results/web-full-test-CloudLens-Web-完整功能测试-测试模块-预算管理-chromium/trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7dd76e4040c67e86af7e-16f87b524f07bac3996c",
+              "file": "web-full-test.spec.ts",
+              "line": 181,
+              "column": 9
+            },
+            {
+              "title": "测试模块: 折扣分析",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9369,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "\n============================================================\n"
+                        },
+                        {
+                          "text": "📋 测试模块: 折扣分析\n"
+                        },
+                        {
+                          "text": "📝 描述: 折扣趋势分析\n"
+                        },
+                        {
+                          "text": "🔗 URL: http://localhost:3000/discounts\n"
+                        },
+                        {
+                          "text": "============================================================\n"
+                        },
+                        {
+                          "text": "⏳ 正在加载页面...\n"
+                        },
+                        {
+                          "text": "📄 页面标题: CloudLens - 多云资源治理平台\n"
+                        },
+                        {
+                          "text": "❌ 测试失败: 页面包含关键错误信息\n"
+                        },
+                        {
+                          "text": "⏱️  耗时: 9.20秒\n"
+                        },
+                        {
+                          "text": "📸 错误截图已保存: /Users/mac/cloudlens/web/frontend/test-recordings/折扣分析_error.png\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-06T08:30:52.937Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/cloudlens/web/frontend/test-results/web-full-test-CloudLens-Web-完整功能测试-测试模块-折扣分析-chromium/trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7dd76e4040c67e86af7e-f3673306485df62f0b30",
+              "file": "web-full-test.spec.ts",
+              "line": 181,
+              "column": 9
+            },
+            {
+              "title": "测试模块: 安全中心",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 12079,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "\n============================================================\n"
+                        },
+                        {
+                          "text": "📋 测试模块: 安全中心\n"
+                        },
+                        {
+                          "text": "📝 描述: 安全检查页面\n"
+                        },
+                        {
+                          "text": "🔗 URL: http://localhost:3000/security\n"
+                        },
+                        {
+                          "text": "============================================================\n"
+                        },
+                        {
+                          "text": "⏳ 正在加载页面...\n"
+                        },
+                        {
+                          "text": "📄 页面标题: CloudLens - 多云资源治理平台\n"
+                        },
+                        {
+                          "text": "📜 正在滚动页面...\n"
+                        },
+                        {
+                          "text": "⏱️  等待内容加载...\n"
+                        },
+                        {
+                          "text": "📸 截图已保存: /Users/mac/cloudlens/web/frontend/test-recordings/安全中心_screenshot.png\n"
+                        },
+                        {
+                          "text": "✅ 测试成功 (耗时: 12.08秒)\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-06T08:31:02.588Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/cloudlens/web/frontend/test-results/web-full-test-CloudLens-Web-完整功能测试-测试模块-安全中心-chromium/trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7dd76e4040c67e86af7e-6a5a71012fd4f6a81337",
+              "file": "web-full-test.spec.ts",
+              "line": 181,
+              "column": 9
+            },
+            {
+              "title": "测试模块: 报告生成",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 10960,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "\n============================================================\n"
+                        },
+                        {
+                          "text": "📋 测试模块: 报告生成\n"
+                        },
+                        {
+                          "text": "📝 描述: 报告生成页面\n"
+                        },
+                        {
+                          "text": "🔗 URL: http://localhost:3000/reports\n"
+                        },
+                        {
+                          "text": "============================================================\n"
+                        },
+                        {
+                          "text": "⏳ 正在加载页面...\n"
+                        },
+                        {
+                          "text": "📄 页面标题: CloudLens - 多云资源治理平台\n"
+                        },
+                        {
+                          "text": "📜 正在滚动页面...\n"
+                        },
+                        {
+                          "text": "⏱️  等待内容加载...\n"
+                        },
+                        {
+                          "text": "📸 截图已保存: /Users/mac/cloudlens/web/frontend/test-recordings/报告生成_screenshot.png\n"
+                        },
+                        {
+                          "text": "✅ 测试成功 (耗时: 10.96秒)\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-06T08:31:14.884Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/cloudlens/web/frontend/test-results/web-full-test-CloudLens-Web-完整功能测试-测试模块-报告生成-chromium/trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7dd76e4040c67e86af7e-f8997c4271b28b58b5b8",
+              "file": "web-full-test.spec.ts",
+              "line": 181,
+              "column": 9
+            },
+            {
+              "title": "测试模块: 设置",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 11980,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "\n============================================================\n"
+                        },
+                        {
+                          "text": "📋 测试模块: 设置\n"
+                        },
+                        {
+                          "text": "📝 描述: 系统设置页面\n"
+                        },
+                        {
+                          "text": "🔗 URL: http://localhost:3000/settings\n"
+                        },
+                        {
+                          "text": "============================================================\n"
+                        },
+                        {
+                          "text": "⏳ 正在加载页面...\n"
+                        },
+                        {
+                          "text": "📄 页面标题: CloudLens - 多云资源治理平台\n"
+                        },
+                        {
+                          "text": "📜 正在滚动页面...\n"
+                        },
+                        {
+                          "text": "⏱️  等待内容加载...\n"
+                        },
+                        {
+                          "text": "📸 截图已保存: /Users/mac/cloudlens/web/frontend/test-recordings/设置_screenshot.png\n"
+                        },
+                        {
+                          "text": "✅ 测试成功 (耗时: 11.98秒)\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-06T08:31:25.932Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/cloudlens/web/frontend/test-results/web-full-test-CloudLens-Web-完整功能测试-测试模块-设置-chromium/trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7dd76e4040c67e86af7e-d560efc7d4d2d6aedf79",
+              "file": "web-full-test.spec.ts",
+              "line": 181,
+              "column": 9
+            },
+            {
+              "title": "综合测试：成本分析流程",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 11168,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "\n============================================================\n"
+                        },
+                        {
+                          "text": "🔄 综合测试：成本分析流程\n"
+                        },
+                        {
+                          "text": "============================================================\n"
+                        },
+                        {
+                          "text": "1️⃣  访问成本分析页面...\n"
+                        },
+                        {
+                          "text": "2️⃣  检查成本趋势图...\n"
+                        },
+                        {
+                          "text": "3️⃣  检查关键指标...\n"
+                        },
+                        {
+                          "text": "   找到 6 个指标卡片\n"
+                        },
+                        {
+                          "text": "4️⃣  滚动查看完整页面...\n"
+                        },
+                        {
+                          "text": "5️⃣  测试日期范围选择...\n"
+                        },
+                        {
+                          "text": "   ✅ 日期范围选择成功\n"
+                        },
+                        {
+                          "text": "✅ 综合测试完成\n"
+                        },
+                        {
+                          "text": "\n============================================================\n"
+                        },
+                        {
+                          "text": "📊 测试结果摘要\n"
+                        },
+                        {
+                          "text": "============================================================\n"
+                        },
+                        {
+                          "text": "✅ 成功: 7\n"
+                        },
+                        {
+                          "text": "❌ 失败: 3\n"
+                        },
+                        {
+                          "text": "⏭️  跳过: 0\n"
+                        },
+                        {
+                          "text": "📹 视频文件保存在: /Users/mac/cloudlens/web/frontend/test-recordings\n"
+                        },
+                        {
+                          "text": "============================================================\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-06T08:31:38.101Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/mac/cloudlens/web/frontend/test-results/web-full-test-CloudLens-Web-完整功能测试-综合测试：成本分析流程-chromium/trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7dd76e4040c67e86af7e-94d1098d50ff7b59174e",
+              "file": "web-full-test.spec.ts",
+              "line": 286,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-01-06T08:29:51.766Z",
+    "duration": 118173.407,
+    "expected": 11,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}
