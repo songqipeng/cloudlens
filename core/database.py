@@ -122,15 +122,20 @@ class MySQLAdapter(DatabaseAdapter):
             'autocommit': False,
         }
         
-        # 创建连接池（优化：减少连接池大小，避免连接数过多）
-        pool_size = config.get('pool_size', 10)  # 减少到10，因为会复用连接池
+        # 创建连接池（Week 4-5优化：优化连接池参数）
+        pool_size = config.get('pool_size', 20)  # 默认20，可根据实际负载调整
+        pool_reset_session = config.get('pool_reset_session', True)
+        
         try:
             self.pool = pooling.MySQLConnectionPool(
                 pool_name="cloudlens_pool",
                 pool_size=pool_size,
-                pool_reset_session=True,
+                pool_reset_session=pool_reset_session,
+                # 连接池优化参数
+                autocommit=False,  # 手动控制事务
                 **self.config
             )
+            logger.info(f"✅ MySQL连接池已创建: pool_size={pool_size}")
         except MySQLError as e:
             logger.error(f"创建MySQL连接池失败: {e}")
             raise

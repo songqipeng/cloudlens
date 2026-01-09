@@ -878,7 +878,7 @@ class DiscountAnalyzer:
         results_raw = process_concurrently(
             instances,
             process_single_instance,
-            max_workers=10,
+            max_workers=50,
             description="价格查询",
             progress_callback=progress_callback,
         )

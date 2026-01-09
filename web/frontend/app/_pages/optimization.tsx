@@ -92,7 +92,7 @@ export default function OptimizationPage() {
         { 
           timeout: 180000, // 3分钟超时
           retries: 2, // 最多重试2次
-          onTimeout: (attempt, totalRetries) => {
+          onTimeout: (attempt: number, totalRetries: number) => {
             setLoadingProgress(`计算中... (${attempt}/${totalRetries}，已等待较长时间，建议使用缓存数据)`)
           }
         } as any

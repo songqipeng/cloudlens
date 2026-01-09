@@ -294,60 +294,131 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
             "cached": True,
         }
 
-    logger.debug(f"缓存未命中，快速返回默认值并后台更新，账号: {account}")
+    logger.debug(f"缓存未命中，直接获取真实数据，账号: {account}")
     account_config = cm.get_account(account)
     if not account_config:
         print(f"[DEBUG get_summary] 账号 '{account}' 未找到")
         raise HTTPException(status_code=404, detail=f"Account '{account}' not found")
     
-    # 快速返回默认值，避免前端超时
-    # 后台任务会在后台更新数据，下次请求时就能从缓存获取
-    default_result = {
-        "account": account,
-        "total_cost": 0.0,
-        "idle_count": 0,
-        "cost_trend": "数据加载中",
-        "trend_pct": 0.0,
-        "total_resources": 0,
-        "resource_breakdown": {"ecs": 0, "rds": 0, "redis": 0},
-        "alert_count": 0,
-        "tag_coverage": 0.0,
-        "savings_potential": 0.0,
-        "cached": False,
-        "loading": True,  # 标记为加载中
-    }
+    # 直接获取资源统计（不依赖复杂的缓存逻辑）
+    logger.info(f"[get_summary] 直接获取资源数据: {account}")
     
-    # 在后台异步更新数据（不阻塞响应）
+    # 初始化结果
+    total_cost = 0.0
+    trend = "暂无数据"
+    trend_pct = 0.0
+    idle_count = 0
+    total_resources = 0
+    resource_breakdown = {"ecs": 0, "rds": 0, "redis": 0}
+    tag_coverage = 0.0
+    savings_potential = 0.0
+    
     try:
-        from fastapi import BackgroundTasks
-        # 注意：这里需要从请求中获取 BackgroundTasks，但为了简化，我们使用线程
-        import threading
+        # 1. 获取资源统计 - 直接调用list_resources函数
+        from web.backend.api import list_resources as get_resources
         
-        def update_cache_in_background():
-            """后台更新缓存"""
-            try:
-                import traceback
-                logger.info(f"[后台任务] 开始更新 dashboard summary 缓存: {account}, force_refresh={force_refresh}")
-                print(f"[后台任务] 开始更新 dashboard summary 缓存: {account}, force_refresh={force_refresh}")
-                _update_dashboard_summary_cache(account, account_config, force_refresh=force_refresh)
-                logger.info(f"[后台任务] 完成更新 dashboard summary 缓存: {account}")
-                print(f"[后台任务] 完成更新 dashboard summary 缓存: {account}")
-            except Exception as e:
-                import traceback
-                error_msg = f"后台更新缓存失败: {str(e)}\n{traceback.format_exc()}"
-                logger.error(error_msg)
-                print(error_msg)
+        # 获取ECS数量
+        try:
+            ecs_result = await get_resources(type="ecs", page=1, pageSize=1000, account=account, force_refresh=False)
+            if isinstance(ecs_result, dict) and "data" in ecs_result:
+                ecs_count = ecs_result["data"].get("pagination", {}).get("total", 0)
+            else:
+                ecs_count = len(ecs_result) if isinstance(ecs_result, list) else 0
+            resource_breakdown["ecs"] = ecs_count
+            logger.info(f"  ECS数量: {ecs_count}")
+        except Exception as e:
+            logger.warning(f"  获取ECS数量失败: {str(e)}")
         
-        # 启动后台线程更新缓存
-        thread = threading.Thread(target=update_cache_in_background, daemon=True)
-        thread.start()
+        # 获取RDS数量
+        try:
+            rds_result = await get_resources(type="rds", page=1, pageSize=1000, account=account, force_refresh=False)
+            if isinstance(rds_result, dict) and "data" in rds_result:
+                rds_count = rds_result["data"].get("pagination", {}).get("total", 0)
+            else:
+                rds_count = len(rds_result) if isinstance(rds_result, list) else 0
+            resource_breakdown["rds"] = rds_count
+            logger.info(f"  RDS数量: {rds_count}")
+        except Exception as e:
+            logger.warning(f"  获取RDS数量失败: {str(e)}")
         
-        logger.info(f"[get_summary] 快速返回默认值，后台更新缓存已启动: {account}")
-        print(f"[get_summary] 快速返回默认值，后台更新缓存已启动: {account}")
+        # 获取Redis数量
+        try:
+            redis_result = await get_resources(type="redis", page=1, pageSize=1000, account=account, force_refresh=False)
+            if isinstance(redis_result, dict) and "data" in redis_result:
+                redis_count = redis_result["data"].get("pagination", {}).get("total", 0)
+            else:
+                redis_count = len(redis_result) if isinstance(redis_result, list) else 0
+            resource_breakdown["redis"] = redis_count
+            logger.info(f"  Redis数量: {redis_count}")
+        except Exception as e:
+            logger.warning(f"  获取Redis数量失败: {str(e)}")
+        
+        total_resources = sum(resource_breakdown.values())
+        logger.info(f"  资源总数: {total_resources}")
+        
+        # 2. 获取成本数据
+        try:
+            from datetime import datetime, timedelta
+            now = datetime.now()
+            current_cycle = now.strftime("%Y-%m")
+            
+            billing_data = _get_billing_overview_from_db(account_config, billing_cycle=current_cycle)
+            if billing_data:
+                total_cost = float(billing_data.get("total_pretax", 0))
+                logger.info(f"  总成本: {total_cost}")
+        except Exception as e:
+            logger.warning(f"  获取成本数据失败: {str(e)}")
+        
+        # 3. 获取闲置资源数量
+        try:
+            cache_manager = CacheManager(ttl_seconds=86400)
+            idle_data = cache_manager.get(resource_type="dashboard_idle", account_name=account)
+            if not idle_data:
+                idle_data = cache_manager.get(resource_type="idle_result", account_name=account)
+            if idle_data:
+                idle_count = len(idle_data)
+                logger.info(f"  闲置资源: {idle_count}")
+        except Exception as e:
+            logger.warning(f"  获取闲置资源失败: {str(e)}")
+        
+        # 构建返回结果
+        result = {
+            "account": account,
+            "total_cost": total_cost,
+            "idle_count": idle_count,
+            "cost_trend": trend,
+            "trend_pct": trend_pct,
+            "total_resources": total_resources,
+            "resource_breakdown": resource_breakdown,
+            "alert_count": 0,
+            "tag_coverage": tag_coverage,
+            "savings_potential": savings_potential,
+            "cached": False,
+        }
+        
+        logger.info(f"[get_summary] 成功返回数据: total_resources={total_resources}, total_cost={total_cost}")
+        return result
+        
     except Exception as e:
-        logger.warning(f"启动后台更新失败: {str(e)}")
-    
-    return default_result
+        import traceback
+        error_msg = f"获取仪表盘数据失败: {str(e)}\n{traceback.format_exc()}"
+        logger.error(error_msg)
+        print(error_msg)
+        
+        # 发生错误时返回默认值
+        return {
+            "account": account,
+            "total_cost": 0.0,
+            "idle_count": 0,
+            "cost_trend": "获取失败",
+            "trend_pct": 0.0,
+            "total_resources": 0,
+            "resource_breakdown": {"ecs": 0, "rds": 0, "redis": 0},
+            "alert_count": 0,
+            "tag_coverage": 0.0,
+            "savings_potential": 0.0,
+            "cached": False,
+        }
 
 
 def _update_dashboard_summary_cache(account: str, account_config, force_refresh: bool = False):
@@ -548,9 +619,63 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
             except Exception as e:
                 logger.warning(f"从资源API缓存获取失败: {str(e)}")
             
-            # 如果从缓存获取失败或数据不完整，执行查询逻辑
+            # 如果从缓存获取失败或数据不完整，先尝试从数据库读取
             if not instances and not rds_list and not redis_list:
-                logger.info(f"缓存未命中，开始查询所有区域 (账号: {account})")
+                logger.info(f"缓存未命中，尝试从数据库缓存表读取 (账号: {account})")
+                try:
+                    from core.cache_manager import get_db_connection
+                    import json
+                    
+                    conn = get_db_connection()
+                    if conn:
+                        cursor = conn.cursor()
+                        
+                        # 查询ECS缓存
+                        cursor.execute("""
+                            SELECT data FROM cache_data 
+                            WHERE account_name = %s AND resource_type = 'ecs' 
+                            AND expires_at > NOW()
+                            ORDER BY created_at DESC LIMIT 1
+                        """, (account,))
+                        ecs_row = cursor.fetchone()
+                        if ecs_row and ecs_row[0]:
+                            instances = json.loads(ecs_row[0])
+                            logger.info(f"从数据库获取ECS: {len(instances)} 个")
+                        
+                        # 查询RDS缓存
+                        cursor.execute("""
+                            SELECT data FROM cache_data 
+                            WHERE account_name = %s AND resource_type = 'rds' 
+                            AND expires_at > NOW()
+                            ORDER BY created_at DESC LIMIT 1
+                        """, (account,))
+                        rds_row = cursor.fetchone()
+                        if rds_row and rds_row[0]:
+                            rds_list = json.loads(rds_row[0])
+                            logger.info(f"从数据库获取RDS: {len(rds_list)} 个")
+                        
+                        # 查询Redis缓存
+                        cursor.execute("""
+                            SELECT data FROM cache_data 
+                            WHERE account_name = %s AND resource_type = 'redis' 
+                            AND expires_at > NOW()
+                            ORDER BY created_at DESC LIMIT 1
+                        """, (account,))
+                        redis_row = cursor.fetchone()
+                        if redis_row and redis_row[0]:
+                            redis_list = json.loads(redis_row[0])
+                            logger.info(f"从数据库获取Redis: {len(redis_list)} 个")
+                        
+                        cursor.close()
+                        conn.close()
+                        
+                        logger.info(f"从数据库获取资源: ECS={len(instances)}, RDS={len(rds_list)}, Redis={len(redis_list)}")
+                except Exception as e:
+                    logger.warning(f"从数据库读取失败: {str(e)}")
+            
+            # 如果数据库也没有数据，才执行API查询
+            if not instances and not rds_list and not redis_list:
+                logger.info(f"数据库也为空，开始查询所有区域 (账号: {account})")
             # 查询资源（查询所有区域，而不是只查询配置的 region）
             def get_instances():
                 try:
@@ -783,10 +908,48 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
         
         tag_coverage = (tagged_count / total_resources * 100) if total_resources > 0 else 0
         logger.info(f"标签覆盖率计算: 总资源数={total_resources}, 有标签资源数={tagged_count}, 覆盖率={tag_coverage:.2f}%")
+
+        # --- [NEW] 计算安全告警数量 ---
+        try:
+            from core.security_compliance import SecurityComplianceAnalyzer
+            from core.security_scanner import PublicIPScanner
+            
+            analyzer = SecurityComplianceAnalyzer()
+            exposed = analyzer.detect_public_exposure(all_resources)
+            stopped_instances = analyzer.check_stopped_instances(instances)
+            
+            # 获取最近一次扫描的高风险项
+            last_scan = PublicIPScanner.load_last_results()
+            high_risk_count = last_scan.get("summary", {}).get("high_risk_count", 0) if last_scan else 0
+            
+            # 汇总告警数: 公网暴露 + 长期停止 + 扫描漏洞
+            alert_count = len(exposed) + len(stopped_instances) + high_risk_count
+            logger.info(f"安全告警计算: 公网暴露={len(exposed)}, 长期停止={len(stopped_instances)}, 扫描漏洞={high_risk_count}, 总计={alert_count}")
+        except Exception as e:
+            logger.warning(f"计算安全告警失败: {str(e)}")
+            alert_count = 0
+            stopped_instances = []
         
-        # Alert Count (simplified - TODO: implement actual alert system)
-        alert_count = 0
-        
+        # --- [NEW] 中间保存: 资源统计和标签覆盖率已完成,先存入缓存 ---
+        try:
+            interim_result = {
+                "account": account,
+                "total_cost": total_cost or 0.0,
+                "idle_count": len(idle_data) if idle_data else 0,
+                "cost_trend": "计算中...",
+                "trend_pct": 0.0,
+                "total_resources": total_resources,
+                "resource_breakdown": resource_breakdown,
+                "alert_count": alert_count,
+                "tag_coverage": tag_coverage,
+                "savings_potential": 0.0, # 初始为0，后续计算
+                "loading": True  # 标记为还在加载详情
+            }
+            cache_manager.set(resource_type="dashboard_summary", account_name=account, data=interim_result)
+            logger.info(f"✅ 已保存中间缓存 (资源统计已完成)")
+        except Exception as e:
+            logger.warning(f"保存中间缓存失败: {str(e)}")
+        # -------------------------------------------------------------
         # Savings Potential: Calculate based on actual cost of idle resources
         savings_potential = 0.0
         if idle_data and account_config:
@@ -808,6 +971,16 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
                             # Default fallback estimate
                             cost = 300  # Average ECS cost
                     savings_potential += cost
+            
+            # 新增：累加停止实例的潜在节省（假设节省70%的磁盘/预留等费用）
+            if stopped_instances:
+                for stop_item in stopped_instances:
+                    instance_id = stop_item.get("id")
+                    if instance_id:
+                        cost = cost_map.get(instance_id) or 300
+                        savings_potential += (cost * 0.7)
+            
+            logger.info(f"优化潜力计算: 闲置资源贡献={sum(item.get('savings', 0) for item in idle_data)}, 停止实例贡献={len(stopped_instances) * 210} (推估), 总计={savings_potential:.2f}")
             
             # Ensure savings potential doesn't exceed total cost
             if total_cost is not None:

@@ -63,6 +63,10 @@ export interface Translations {
     scanNow: string
     scanning: string
     totalCost: string
+    avgDailyCost: string
+    maxDailyCost: string
+    minDailyCost: string
+    trend: string
     monthlyEstimate: string
     costTrend: string
     comparedToLastMonth: string
@@ -922,6 +926,10 @@ const en: Translations = {
     scanNow: 'Scan Now',
     scanning: 'Scanning...',
     totalCost: 'Total Estimated Cost',
+    avgDailyCost: 'Average Daily Cost',
+    maxDailyCost: 'Maximum Daily Cost',
+    minDailyCost: 'Minimum Daily Cost',
+    trend: 'Trend',
     monthlyEstimate: 'Monthly Estimated Expense',
     costTrend: 'Cost Trend',
     comparedToLastMonth: 'Compared to Last Month',
@@ -1928,6 +1936,10 @@ const zh: Translations = {
     scanNow: '立即扫描',
     scanning: '扫描中...',
     totalCost: '总预估成本',
+    avgDailyCost: '日均成本',
+    maxDailyCost: '最高日成本',
+    minDailyCost: '最低日成本',
+    trend: '趋势',
     monthlyEstimate: '本月预估支出',
     costTrend: '成本趋势',
     comparedToLastMonth: '较上月',
