@@ -2,6 +2,44 @@
 
 All notable changes to CloudLens will be documented in this file.
 
+## [2.1.2] - 2026-01-13
+
+### Added
+- 📹 **视频教程** - 新增 Web 界面使用指南视频
+  - 3分59秒完整功能演示
+  - 覆盖9个核心功能模块
+  - Full HD 1080p，中文专业讲解
+  - 视频文件：`test-recordings/web/cloudlens_web_guide_5min_20260113_155041.mp4`
+  - 文档：[VIDEO_GUIDE.md](./VIDEO_GUIDE.md)
+
+- 📚 **文档中心** - 新增文档索引 [docs/README.md](./README.md)
+  - 按角色分类的文档导航（产品经理/开发者/用户/QA）
+  - 清晰的文档分类结构
+  - 快速查找所需文档
+
+### Changed
+- 📖 **文档重构** - 全面整理和优化文档结构
+  - 重新组织 README.md，添加视频教程入口
+  - 创建文档中心索引，提升文档可发现性
+  - 优化文档分类和导航结构
+
+### Removed
+- 🗑️ **清理过时文档** - 删除临时进度报告和过时文档
+  - API_REFACTORING_*.md (4个文件)
+  - WEEK1-3_*.md (3个文件)
+  - WEEK4-5_COMPLETION_REPORT.md
+  - ROADMAP_EVALUATION_REPORT.md
+  - SYSTEM_REVIEW_AND_FUTURE_PLAN.md
+  - OPTIMIZATION_ROADMAP_V2.md
+
+### Improved
+- 🏗️ **后端架构优化** - Week 1-5 开发计划完成
+  - API 模块化重构（Week 1-3）
+  - 数据库性能优化（Week 4-5）
+  - 慢查询分析工具
+  - 连接池监控
+  - 索引优化
+
 ## [2.1.1] - 2025-12-22
 
 ### Changed

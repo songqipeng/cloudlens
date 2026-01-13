@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/Version-2.1.0-brightgreen.svg)]()
 
-[快速开始](#-快速开始) • [功能特性](#-功能特性) • [使用文档](#-文档) • [产品能力](#-产品能力)
+[快速开始](#-快速开始) • [视频教程](#-视频教程) • [功能特性](#-功能特性) • [使用文档](#-文档) • [产品能力](#-产品能力)
 
 </div>
 
@@ -24,6 +24,22 @@
 - 💰 **智能分析** - AI 成本预测、折扣趋势分析，降低 30%+ 云成本
 - 🔒 **安全合规** - CIS Benchmark、公网暴露检测、权限审计
 - 📊 **降本增效** - 闲置资源识别、自动修复、专业报告生成
+
+---
+
+## 📹 视频教程
+
+**NEW!** 3分59秒 Web 界面完整使用指南视频已发布！
+
+[![CloudLens Web 使用指南](https://img.shields.io/badge/Video-Web%20Guide-red.svg)](./test-recordings/web/cloudlens_web_guide_5min_20260113_155041.mp4)
+
+**视频内容**：
+- ✅ 9个核心功能完整演示（资源查询、成本分析、安全合规等）
+- ✅ 真实操作流程展示（敏感信息已脱敏）
+- ✅ 中文专业讲解，音画同步
+- ✅ Full HD 1080p，无黑屏，页面完整展示
+
+📖 **详细说明**：[视频使用指南](./docs/VIDEO_GUIDE.md)
 
 ---
 
@@ -164,25 +180,41 @@ npm run dev
 
 ## 📖 文档
 
-### 核心文档
-- [项目深度分析](PROJECT_DEEP_ANALYSIS.md) - 🆕 **完整的代码库深度分析、架构剖析、优化建议和发展方向**
-- [产品能力总览](PRODUCT_CAPABILITIES.md) - 完整的产品功能列表
-- [产品介绍](PRODUCT_INTRODUCTION.md) - 详细的产品定位和功能介绍
-- [技术架构](TECHNICAL_ARCHITECTURE.md) - 系统架构和设计理念
-- [项目结构](PROJECT_STRUCTURE.md) - 详细的目录结构和模块说明
-- [用户指南](USER_GUIDE.md) - 完整的使用手册
-- [快速开始](QUICKSTART.md) - 快速上手指南
-- [快速参考](QUICK_REFERENCE.md) - 一页纸命令速查
-- [更新日志](CHANGELOG.md) - 版本更新记录
+### 📚 文档中心
+**完整文档索引**: [docs/README.md](./docs/README.md) - 按角色分类的文档导航
 
-### Web 界面文档
-- [Web 快速开始](docs/WEB_QUICKSTART.md) - Web 界面安装和使用指南
-- [折扣分析指南](docs/DISCOUNT_ANALYSIS_GUIDE.md) - 折扣分析功能详细说明
-- [账单自动获取](docs/BILL_AUTO_FETCH_GUIDE.md) - 账单自动获取功能说明
+### 🎬 视频教程
+- **[视频使用指南](./docs/VIDEO_GUIDE.md)** - 🆕 **Web 界面 3分59秒完整教程视频**
+- [视频技术报告](./docs/WEB_GUIDE_5MIN_REPORT.md) - 视频制作技术细节
 
-### 开发文档
-- [贡献指南](CONTRIBUTING.md) - 如何参与项目开发
-- [插件开发](docs/PLUGIN_DEVELOPMENT.md) - 如何开发自定义插件
+### 📘 快速开始
+- [CLI 快速开始](./docs/QUICKSTART.md) - 命令行工具 5分钟上手
+- [Web 快速开始](./docs/WEB_QUICKSTART.md) - Web 界面快速部署
+- [快速参考](./docs/QUICK_REFERENCE.md) - 常用命令一页速查
+- [Shell 补全](./docs/shell_completion.md) - Bash/Zsh 自动补全配置
+
+### 📖 产品文档
+- [产品介绍](./docs/PRODUCT_INTRODUCTION.md) - 产品定位、核心价值和应用场景
+- [产品能力](./docs/PRODUCT_CAPABILITIES.md) - 完整功能特性列表
+- [用户手册](./docs/USER_GUIDE.md) - 详细使用说明
+
+### 🔧 功能指南
+- [账单自动获取](./docs/BILL_AUTO_FETCH_GUIDE.md) - 配置自动账单获取
+- [折扣分析指南](./docs/DISCOUNT_ANALYSIS_GUIDE.md) - 折扣趋势分析功能
+
+### 🏗️ 开发文档
+- [开发指南](./docs/DEVELOPMENT_GUIDE.md) - 开发环境配置和流程
+- [技术架构](./docs/TECHNICAL_ARCHITECTURE.md) - 系统架构和设计
+- [项目结构](./docs/PROJECT_STRUCTURE.md) - 目录结构说明
+- [API 参考](./docs/API_REFERENCE.md) - 后端 API 文档
+- [贡献指南](./docs/CONTRIBUTING.md) - 如何参与贡献
+- [插件开发](./docs/PLUGIN_DEVELOPMENT.md) - 自定义插件开发
+- [测试指南](./docs/TESTING_GUIDE.md) - 测试策略和方法
+
+### 🗺️ 规划文档
+- [2026 综合路线图](./docs/COMPREHENSIVE_ROADMAP_2026.md) - 产品战略规划
+- [2026 开发计划](./docs/DEVELOPMENT_PLAN_2026.md) - 详细开发计划
+- [更新日志](./docs/CHANGELOG.md) - 版本发布记录
 - [Shell 自动补齐](docs/shell_completion.md) - Shell 自动补齐功能说明
 
 ---
