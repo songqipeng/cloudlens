@@ -1731,7 +1731,7 @@ const en: Translations = {
     service: 'By Service',
   },
 },
-}
+};
 
 // 中文翻译
 const zh: Translations = {
