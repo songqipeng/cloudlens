@@ -1,11 +1,26 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CloudLens Web 使用指南视频 - CloudLens</title>
-    <meta name="description" content="CloudLens Web 界面 3分59秒完整使用指南视频，涵盖9个核心功能模块的详细演示">
+    <title>Video Guide | CloudLens</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
     <style>
+        :root {
+            --bg: #030712;
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.4);
+            --glass: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --text-main: #f3f4f6;
+            --text-dim: #9ca3af;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -13,271 +28,210 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-color: var(--bg);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            color: #333;
+            overflow-x: hidden;
+        }
+
+        .gradient-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(circle at 10% 10%, rgba(59, 130, 246, 0.1), transparent 40%),
+                radial-gradient(circle at 90% 90%, rgba(147, 51, 234, 0.08), transparent 40%);
+            z-index: -1;
         }
 
         .container {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            max-width: 1200px;
-            width: 100%;
-            overflow: hidden;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 40px;
-            text-align: center;
-        }
-
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            font-weight: 700;
-        }
-
-        .header p {
-            font-size: 1.2em;
-            opacity: 0.95;
-        }
-
-        .content {
-            padding: 40px;
-        }
-
-        .video-wrapper {
-            position: relative;
-            width: 100%;
             max-width: 1000px;
-            margin: 0 auto 40px;
-            background: #000;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin: 0 auto;
+            padding: 4rem 2rem;
         }
 
-        .video-wrapper video {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-
-        .info-section {
-            background: #f8f9fa;
-            border-radius: 12px;
-            padding: 30px;
-            margin-bottom: 30px;
-        }
-
-        .info-section h2 {
-            color: #667eea;
-            margin-bottom: 20px;
-            font-size: 1.8em;
-        }
-
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
-        }
-
-        .info-item {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .info-item strong {
-            color: #667eea;
-            display: block;
-            margin-bottom: 8px;
-        }
-
-        .features-list {
-            list-style: none;
-            margin-top: 20px;
-        }
-
-        .features-list li {
-            padding: 12px 0;
-            border-bottom: 1px solid #e9ecef;
-            display: flex;
+        .back-link {
+            display: inline-flex;
             align-items: center;
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+            transition: color 0.3s;
         }
 
-        .features-list li:last-child {
-            border-bottom: none;
+        .back-link:hover {
+            color: var(--accent);
         }
 
-        .features-list li::before {
-            content: "✅";
-            margin-right: 12px;
-            font-size: 1.2em;
+        h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            letter-spacing: -0.05em;
+            margin-bottom: 1rem;
+            background: linear-gradient(to right, #fff, var(--text-dim));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
-        .actions {
+        .subtitle {
+            color: var(--text-dim);
+            font-size: 1.1rem;
+            margin-bottom: 3rem;
+        }
+
+        .video-container {
+            background: #000;
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            overflow: hidden;
+            box-shadow: 0 40px 100px rgba(0, 0, 0, 0.5);
+            margin-bottom: 4rem;
+        }
+
+        video {
+            width: 100%;
+            display: block;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            margin-bottom: 4rem;
+        }
+
+        .card {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            padding: 2rem;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        .card h3 {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            color: var(--accent);
+        }
+
+        .card ul {
+            list-style: none;
+            color: var(--text-dim);
+            font-size: 0.95rem;
+        }
+
+        .card li {
+            margin-bottom: 0.5rem;
+        }
+
+        .card li::before {
+            content: "• ";
+            color: var(--accent);
+        }
+
+        .specs {
             display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-            justify-content: center;
-            margin-top: 30px;
+            gap: 2rem;
+            color: var(--text-dim);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            margin-top: 1rem;
+        }
+
+        .cta-section {
+            text-align: center;
+            padding-top: 4rem;
+            border-top: 1px solid var(--glass-border);
         }
 
         .btn {
             display: inline-block;
-            padding: 14px 28px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 0.8rem 2.5rem;
+            background-color: var(--accent);
             color: white;
-            text-decoration: none;
             border-radius: 8px;
             font-weight: 600;
-            transition: transform 0.2s, box-shadow 0.2s;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            text-decoration: none;
+            transition: all 0.3s;
+            box-shadow: 0 0 20px var(--accent-glow);
         }
 
         .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+            box-shadow: 0 0 30px var(--accent-glow);
         }
 
-        .btn-secondary {
-            background: white;
-            color: #667eea;
-            border: 2px solid #667eea;
-            box-shadow: none;
-        }
-
-        .btn-secondary:hover {
-            background: #f8f9fa;
-        }
-
-        .footer {
-            text-align: center;
-            padding: 30px;
-            background: #f8f9fa;
-            color: #6c757d;
-        }
-
-        .footer a {
-            color: #667eea;
-            text-decoration: none;
-        }
-
-        .footer a:hover {
-            text-decoration: underline;
-        }
-
-        @media (max-width: 768px) {
-            .header h1 {
-                font-size: 1.8em;
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 2rem;
             }
 
-            .header p {
-                font-size: 1em;
-            }
-
-            .content {
-                padding: 20px;
-            }
-
-            .info-grid {
-                grid-template-columns: 1fr;
+            .specs {
+                flex-direction: column;
+                gap: 0.5rem;
             }
         }
     </style>
 </head>
+
 <body>
+    <div class="gradient-bg"></div>
     <div class="container">
-        <div class="header">
-            <h1>🎬 CloudLens Web 使用指南</h1>
-            <p>3分59秒完整功能演示视频</p>
+        <a href="index.html" class="back-link">← 返回首页</a>
+
+        <header>
+            <h1>Web 界面使用指南</h1>
+            <p class="subtitle">3分59秒带你玩转 CloudLens 核心治理能力</p>
+        </header>
+
+        <div class="video-container">
+            <video controls preload="metadata">
+                <source src="web_guide_5min.mp4" type="video/mp4">
+                您的浏览器不支持视频播放。
+            </video>
         </div>
 
-        <div class="content">
-            <div class="video-wrapper">
-                <video controls preload="metadata" poster="">
-                    <source src="web_guide_5min.mp4" type="video/mp4">
-                    您的浏览器不支持视频播放。请 <a href="web_guide_5min.mp4" download>下载视频</a> 到本地观看。
-                </video>
-            </div>
-
-            <div class="info-section">
-                <h2>📹 视频信息</h2>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <strong>时长</strong>
-                        <span>3分59秒</span>
-                    </div>
-                    <div class="info-item">
-                        <strong>文件大小</strong>
-                        <span>8.8 MB</span>
-                    </div>
-                    <div class="info-item">
-                        <strong>分辨率</strong>
-                        <span>1920×1080 (Full HD)</span>
-                    </div>
-                    <div class="info-item">
-                        <strong>格式</strong>
-                        <span>MP4 (H.264)</span>
-                    </div>
+        <div class="grid">
+            <div class="card">
+                <h3>📺 视频详情</h3>
+                <div class="specs">
+                    <div>时长: 03:59</div>
+                    <div>画质: 1080P FHD</div>
+                </div>
+                <div class="specs" style="margin-top: 0.5rem;">
+                    <div>大小: 8.8 MB</div>
+                    <div>配音: 中文专业解说</div>
                 </div>
             </div>
-
-            <div class="info-section">
-                <h2>✨ 视频内容</h2>
-                <p style="margin-bottom: 15px; line-height: 1.6;">
-                    本视频完整演示了 CloudLens Web 界面的 9 个核心功能模块，包括实际操作流程和真实数据展示（敏感信息已脱敏）。
-                </p>
-                <ul class="features-list">
-                    <li>资源查询 - ECS、RDS、Redis 等云资源查询和筛选</li>
-                    <li>成本分析 - 成本趋势、构成分析和总成本统计</li>
-                    <li>闲置资源 - 闲置实例识别和潜在节省金额计算</li>
-                    <li>安全合规 - 安全组检查、权限审计和风险识别</li>
-                    <li>预算管理 - 预算设置、监控和告警配置</li>
-                    <li>折扣分析 - 预留实例折扣和节省计划使用情况</li>
-                    <li>虚拟标签 - 标签规则引擎和成本分配规则</li>
-                    <li>优化建议 - AI 驱动的优化方案和节省预估</li>
-                    <li>报告生成 - 多格式报告导出（Excel、HTML、CSV）</li>
+            <div class="card">
+                <h3>✨ 核心演示</h3>
+                <ul>
+                    <li>多云资源一键查询 (ECS/RDS/Stack)</li>
+                    <li>AI 驱动的成本预测与趋势分析</li>
+                    <li>CIS 安全基线合规扫描</li>
+                    <li>智能闲置资源识别与优化</li>
                 </ul>
             </div>
-
-            <div class="info-section">
-                <h2>🎯 视频特点</h2>
-                <ul class="features-list">
-                    <li>无黑屏 - 视频从第1秒开始就是正常画面</li>
-                    <li>页面完整 - 所有页面都通过滚动展示了完整内容</li>
-                    <li>数据真实 - 基于真实系统数据演示（敏感信息已脱敏）</li>
-                    <li>音画同步 - 专业中文配音，与画面完美同步</li>
-                    <li>操作流畅 - 展示真实的操作流程和交互</li>
+            <div class="card">
+                <h3>🤖 极客特性</h3>
+                <ul>
+                    <li>并发 SDK 高性能数据聚合</li>
+                    <li>MySQL 持久化缓存架构</li>
+                    <li>Next.js 响应式现代化 UI</li>
+                    <li>国际化双语无缝切换</li>
                 </ul>
-            </div>
-
-            <div class="actions">
-                <a href="web_guide_5min.mp4" download class="btn">📥 下载视频</a>
-                <a href="VIDEO_GUIDE.md" class="btn btn-secondary">📖 查看详细说明</a>
-                <a href="https://github.com/songqipeng/cloudlens" class="btn btn-secondary" target="_blank">🔗 访问 GitHub</a>
             </div>
         </div>
 
-        <div class="footer">
-            <p>
-                <strong>CloudLens</strong> - 多云资源治理与分析平台<br>
-                <a href="https://github.com/songqipeng/cloudlens">GitHub 仓库</a> • 
-                <a href="https://github.com/songqipeng/cloudlens/blob/main/README.md">项目主页</a> • 
-                <a href="https://github.com/songqipeng/cloudlens/tree/main/docs">文档中心</a>
-            </p>
+        <div class="cta-section">
+            <a href="https://github.com/songqipeng/cloudlens" class="btn">前往 GitHub 部署项目</a>
         </div>
     </div>
 </body>
+
 </html>
