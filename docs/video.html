@@ -392,12 +392,20 @@
             follower.style.transform = `translate3d(${e.clientX - 16}px, ${e.clientY - 16}px, 0)`;
         });
 
-        // 3D Parallax Prism
+        // 3D Parallax Prism - Refined for subtle movement
         const wrap = document.getElementById('prism-wrap');
+        const prismSection = document.querySelector('.prism-section');
+
         document.addEventListener('mousemove', e => {
-            const x = (window.innerWidth / 2 - e.clientX) / 20;
-            const y = (window.innerHeight / 2 - e.clientY) / 20;
-            wrap.style.transform = `rotateY(${-x}deg) rotateX(${y}deg)`;
+            const rect = prismSection.getBoundingClientRect();
+            // Only apply tilt when mouse is within or near the video section to avoid "dizziness"
+            if (e.clientY > rect.top - 200 && e.clientY < rect.bottom + 200) {
+                const x = (window.innerWidth / 2 - e.clientX) / 60; // Increased divisor for subtler tilt
+                const y = (window.innerHeight / 2 - e.clientY) / 60;
+                wrap.style.transform = `rotateY(${-x}deg) rotateX(${y}deg)`;
+            } else {
+                wrap.style.transform = `rotateY(0deg) rotateX(0deg)`;
+            }
         });
 
         // Data Stream Background
