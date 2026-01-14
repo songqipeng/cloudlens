@@ -4,8 +4,8 @@ import os
 sys.path.append(os.getcwd())
 import logging
 
-from core.cache import CacheManager
-from core.config import ConfigManager
+from cloudlens.core.cache import CacheManager
+from cloudlens.core.config import ConfigManager
 
 logging.basicConfig(level=logging.INFO)
 

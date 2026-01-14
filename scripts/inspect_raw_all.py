@@ -3,8 +3,8 @@ import sys
 import os
 
 sys.path.append(os.getcwd())
-from core.config import ConfigManager
-from cli.utils import get_provider
+from cloudlens.core.config import ConfigManager
+from cloudlens.cli.utils import get_provider
 
 ACCOUNT_NAME = "ydzn"
 

@@ -6,7 +6,7 @@
 import sys
 import time
 import requests
-from core.progress_manager import ProgressManager
+from cloudlens.core.progress_manager import ProgressManager
 
 def test_progress_manager():
     """测试进度管理器"""

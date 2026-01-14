@@ -11,10 +11,10 @@ from pydantic import BaseModel
 from datetime import datetime
 
 from web.backend.api_base import handle_api_error
-from core.budget_manager import BudgetStorage, Budget, BudgetPeriod, BudgetType, AlertThreshold, BudgetCalculator, BudgetStatus
-from core.bill_storage import BillStorageManager
-from core.config import ConfigManager
-from core.context import ContextManager
+from cloudlens.core.budget_manager import BudgetStorage, Budget, BudgetPeriod, BudgetType, AlertThreshold, BudgetCalculator, BudgetStatus
+from cloudlens.core.bill_storage import BillStorageManager
+from cloudlens.core.config import ConfigManager
+from cloudlens.core.context import ContextManager
 
 logger = logging.getLogger(__name__)
 

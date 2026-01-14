@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from core.report_generator import ReportGenerator
+from cloudlens.core.report_generator import ReportGenerator
 
 
 class TestReportGenerator:

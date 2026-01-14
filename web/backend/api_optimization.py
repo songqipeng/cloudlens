@@ -2,8 +2,8 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Dict, List, Optional, Any
 import logging
 from web.backend.api_base import handle_api_error
-from core.config import ConfigManager
-from core.cache import CacheManager
+from cloudlens.core.config import ConfigManager
+from cloudlens.core.cache import CacheManager
 from web.backend.i18n import get_locale_from_request, get_translation, Locale
 from web.backend.api_resources import _get_cost_map, _estimate_monthly_cost_from_spec
 from web.backend.api_dashboards import _get_provider_for_account
@@ -14,8 +14,8 @@ router = APIRouter(prefix="/api")
 
 def _fetch_all_instances(account_config) -> List[Any]:
     """并发获取所有区域的实例"""
-    from core.services.analysis_service import AnalysisService
-    from providers.aliyun.provider import AliyunProvider
+    from cloudlens.core.services.analysis_service import AnalysisService
+    from cloudlens.providers.aliyun.provider import AliyunProvider
     import concurrent.futures
 
     instances = []
@@ -42,7 +42,7 @@ def _fetch_all_instances(account_config) -> List[Any]:
 
 def _analyze_idle_with_metrics(instances, account_config) -> List[Dict]:
     """使用 CloudMonitor 分析闲置实例 (CPU < 5%)"""
-    from providers.aliyun.provider import AliyunProvider
+    from cloudlens.providers.aliyun.provider import AliyunProvider
     import concurrent.futures
     
     idle_instances = []
@@ -136,7 +136,7 @@ def get_optimization_suggestions(
                 "cached": True,
             }
         
-        from core.security_compliance import SecurityComplianceAnalyzer
+        from cloudlens.core.security_compliance import SecurityComplianceAnalyzer
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
         
@@ -213,10 +213,10 @@ def get_optimization_suggestions(
             if eips_cache:
                 eips = eips_cache
             else:
-                from core.services.analysis_service import AnalysisService
+                from cloudlens.core.services.analysis_service import AnalysisService
                 all_regions = AnalysisService._get_all_regions(account_config.access_key_id, account_config.access_key_secret)
                 
-                from providers.aliyun.provider import AliyunProvider
+                from cloudlens.providers.aliyun.provider import AliyunProvider
                 import concurrent.futures
                 
                 def fetch_region_eips(region):

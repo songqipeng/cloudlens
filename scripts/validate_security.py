@@ -6,9 +6,9 @@ import os
 # 确保能导入本地模块
 sys.path.append(os.getcwd())
 
-from core.config import ConfigManager
-from cli.utils import get_provider
-from core.security_compliance import SecurityComplianceAnalyzer
+from cloudlens.core.config import ConfigManager
+from cloudlens.cli.utils import get_provider
+from cloudlens.core.security_compliance import SecurityComplianceAnalyzer
 
 BASE_URL = "http://localhost:8000/api"
 ACCOUNT_NAME = "ydzn"
@@ -42,7 +42,7 @@ def validate_security_data():
     cm = ConfigManager()
     account_config = cm.get_account(ACCOUNT_NAME)
     
-    from core.services.analysis_service import AnalysisService
+    from cloudlens.core.services.analysis_service import AnalysisService
     all_regions = AnalysisService._get_all_regions(
         account_config.access_key_id,
         account_config.access_key_secret
@@ -54,7 +54,7 @@ def validate_security_data():
     for region in all_regions:
         try:
             # Create a localized config copy
-            from core.config import CloudAccount
+            from cloudlens.core.config import CloudAccount
             temp_config = CloudAccount(
                 name=account_config.name,
                 provider=account_config.provider,

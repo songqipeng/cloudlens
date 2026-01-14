@@ -15,7 +15,7 @@ class TestAccountService:
         service = AccountService()
         
         with patch.object(service.config_manager, 'list_accounts') as mock_list:
-            from core.config import CloudAccount
+            from cloudlens.core.config import CloudAccount
             mock_account = CloudAccount(
                 name="test-account",
                 provider="aliyun",
@@ -53,7 +53,7 @@ class TestBillRepository:
         with patch.object(repo.db, 'query_one') as mock_query:
             mock_query.return_value = None
             
-            from core.config import CloudAccount
+            from cloudlens.core.config import CloudAccount
             account = CloudAccount(
                 name="test",
                 provider="aliyun",

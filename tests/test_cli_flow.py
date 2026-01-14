@@ -1,10 +1,10 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from click.testing import CliRunner
-from cli.main import cli
-from cli.utils import get_provider
-from core.config import CloudAccount
-from models.resource import UnifiedResource, ResourceType, ResourceStatus
+from cloudlens.click.testing import CliRunner
+from cloudlens.cli.main from cloudlens import cli
+from cloudlens.cli.utils import get_provider
+from cloudlens.core.config import CloudAccount
+from cloudlens.models.resource import UnifiedResource, ResourceType, ResourceStatus
 from datetime import datetime, timedelta
 
 # Mock Resources

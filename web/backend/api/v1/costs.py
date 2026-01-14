@@ -14,10 +14,10 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
 import logging
 
-from core.config import ConfigManager, CloudAccount
-from core.context import ContextManager
-from core.cache import CacheManager
-from core.database import DatabaseFactory
+from cloudlens.core.config import ConfigManager, CloudAccount
+from cloudlens.core.context import ContextManager
+from cloudlens.core.cache import CacheManager
+from cloudlens.core.database import DatabaseFactory
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ def _get_provider_for_account(account: Optional[str] = None):
     if not account_config:
         raise HTTPException(status_code=404, detail=f"Account '{account}' not found")
 
-    from cli.utils import get_provider
+    from cloudlens.cli.utils import get_provider
     return get_provider(account_config), account
 
 
@@ -482,7 +482,7 @@ def get_cost_overview(
             last_month_comparable_end = last_month_end
         
         # 使用成本趋势分析器获取指定日期范围的成本（更准确）
-        from core.cost_trend_analyzer import CostTrendAnalyzer
+        from cloudlens.core.cost_trend_analyzer import CostTrendAnalyzer
         analyzer = CostTrendAnalyzer()
         
         # 获取本月成本（从1月1日到今天）
@@ -759,8 +759,8 @@ def get_cost_breakdown(
 @router.get("/cost/budget")
 def get_budget(account: Optional[str] = None):
     """获取预算信息"""
-    from core.budget_manager import BudgetStorage
-    from core.bill_storage import BillStorageManager
+    from cloudlens.core.budget_manager import BudgetStorage
+    from cloudlens.core.bill_storage import BillStorageManager
     
     provider, account_name = _get_provider_for_account(account)
     cm = ConfigManager()
@@ -802,7 +802,7 @@ def get_budget(account: Optional[str] = None):
 @router.post("/cost/budget")
 def set_budget(budget_data: Dict[str, Any], account: Optional[str] = None):
     """设置或更新预算"""
-    from core.budget_manager import BudgetStorage, Budget, AlertThreshold
+    from cloudlens.core.budget_manager import BudgetStorage, Budget, AlertThreshold
     from datetime import datetime
     
     provider, account_name = _get_provider_for_account(account)

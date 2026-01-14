@@ -13,9 +13,9 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.config import ConfigManager
-from core.services.analysis_service import AnalysisService
-from providers.aliyun.provider import AliyunProvider
+from cloudlens.core.config import ConfigManager
+from cloudlens.core.services.analysis_service import AnalysisService
+from cloudlens.providers.aliyun.provider import AliyunProvider
 
 def test_account_config(account_name: str):
     """测试账号配置"""

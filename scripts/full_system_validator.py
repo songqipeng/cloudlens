@@ -9,9 +9,9 @@ from datetime import datetime
 # 确保能导入本地模块
 sys.path.append(os.getcwd())
 
-from core.config import ConfigManager
-from cli.utils import get_provider
-from core.services.analysis_service import AnalysisService
+from cloudlens.core.config import ConfigManager
+from cloudlens.cli.utils import get_provider
+from cloudlens.core.services.analysis_service import AnalysisService
 
 # 禁用详细日志以保持输出整洁
 logging.getLogger().setLevel(logging.ERROR)
@@ -38,7 +38,7 @@ def check_dashboard_consistency():
     account_config = cm.get_account(ACCOUNT_NAME)
     
     log("获取所有区域列表...")
-    from providers.aliyun.provider import AliyunProvider
+    from cloudlens.providers.aliyun.provider import AliyunProvider
     # 获取可用的所有区域
     from aliyunsdkcore.client import AcsClient
     from aliyunsdkcore.request import CommonRequest

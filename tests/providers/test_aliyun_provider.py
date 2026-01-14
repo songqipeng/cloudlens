@@ -5,8 +5,8 @@ AliyunProvider单元测试
 
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from providers.aliyun.provider import AliyunProvider
-from models.resource import ResourceType, ResourceStatus
+from cloudlens.providers.aliyun.provider import AliyunProvider
+from cloudlens.models.resource import ResourceType, ResourceStatus
 
 
 class TestAliyunProvider:

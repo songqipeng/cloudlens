@@ -7,13 +7,13 @@
 import pytest
 from decimal import Decimal
 
-from core.billing.data_validator import (
+from cloudlens.core.billing.data_validator import (
     BillingDataValidator,
     ValidationLevel,
     ValidationIssue,
     ValidationResult
 )
-from core.billing.cost_calculator import BillItem, SubscriptionType
+from cloudlens.core.billing.cost_calculator import BillItem, SubscriptionType
 
 
 class TestBillingDataValidator:

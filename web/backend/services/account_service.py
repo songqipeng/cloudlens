@@ -2,8 +2,8 @@
 账号管理Service
 """
 from typing import List, Dict, Optional, Any
-from core.config import ConfigManager, CloudAccount
-from core.rules_manager import RulesManager
+from cloudlens.core.config import ConfigManager, CloudAccount
+from cloudlens.core.rules_manager import RulesManager
 from .base_service import BaseService
 import logging
 import json

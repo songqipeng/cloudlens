@@ -9,7 +9,7 @@ import pytest
 from datetime import datetime
 from decimal import Decimal
 
-from core.billing.cost_calculator import (
+from cloudlens.core.billing.cost_calculator import (
     CostCalculator,
     BillItem,
     SubscriptionType,

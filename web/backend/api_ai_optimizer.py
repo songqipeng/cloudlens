@@ -7,7 +7,7 @@ from typing import Optional, Dict, Any, List
 import logging
 from datetime import datetime
 
-from core.ai_optimizer import AIOptimizer, OptimizationSuggestion
+from cloudlens.core.ai_optimizer import AIOptimizer, OptimizationSuggestion
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def get_optimization_suggestions(
     try:
         account_id = None
         if account:
-            from core.config import ConfigManager
+            from cloudlens.core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
@@ -72,7 +72,7 @@ def predict_cost(
     try:
         account_id = None
         if account:
-            from core.config import ConfigManager
+            from cloudlens.core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
@@ -105,7 +105,7 @@ def analyze_resource(
     try:
         account_id = None
         if account:
-            from core.config import ConfigManager
+            from cloudlens.core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:

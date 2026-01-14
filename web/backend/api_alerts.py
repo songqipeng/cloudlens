@@ -8,10 +8,10 @@ from pydantic import BaseModel
 from datetime import datetime
 import logging
 
-from core.alert_manager import AlertStorage, AlertRule, Alert, AlertType, AlertSeverity, AlertCondition
-from core.alert_engine import AlertEngine
-from core.notification_service import NotificationService
-from core.bill_storage import BillStorageManager
+from cloudlens.core.alert_manager import AlertStorage, AlertRule, Alert, AlertType, AlertSeverity, AlertCondition
+from cloudlens.core.alert_engine import AlertEngine
+from cloudlens.core.notification_service import NotificationService
+from cloudlens.core.bill_storage import BillStorageManager
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +107,7 @@ def list_alert_rules(
     try:
         account_id = None
         if account:
-            from core.config import ConfigManager
+            from cloudlens.core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
@@ -185,7 +185,7 @@ def create_alert_rule(req: AlertRuleRequest, account: Optional[str] = None) -> D
     try:
         account_id = req.account_id
         if not account_id and account:
-            from core.config import ConfigManager
+            from cloudlens.core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
@@ -323,7 +323,7 @@ def list_alerts(
     try:
         account_id = None
         if account:
-            from core.config import ConfigManager
+            from cloudlens.core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
@@ -367,7 +367,7 @@ def check_alert_rule(rule_id: str, account: Optional[str] = None) -> Dict[str, A
     try:
         account_id = None
         if account:
-            from core.config import ConfigManager
+            from cloudlens.core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
@@ -408,7 +408,7 @@ def check_all_rules(account: Optional[str] = None) -> Dict[str, Any]:
     try:
         account_id = None
         if account:
-            from core.config import ConfigManager
+            from cloudlens.core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:

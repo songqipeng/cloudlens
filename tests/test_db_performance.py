@@ -7,9 +7,9 @@
 
 import pytest
 import time
-from core.database import DatabaseFactory
-from core.db_performance import DatabasePerformanceAnalyzer
-from core.bill_storage import BillStorageManager
+from cloudlens.core.database import DatabaseFactory
+from cloudlens.core.db_performance import DatabasePerformanceAnalyzer
+from cloudlens.core.bill_storage import BillStorageManager
 
 
 class TestDatabasePerformance:

@@ -193,7 +193,7 @@ def test_cli():
     # 测试模块导入
     print("\n1. CLI 模块导入...")
     try:
-        from cli.main import cli
+        from cloudlens.cli.main from cloudlens import cli
         print("   ✅ CLI 主模块导入成功")
         results['cli_import'] = True
     except Exception as e:
@@ -229,7 +229,7 @@ def test_cli():
     # 测试核心功能
     print("\n3. 核心功能...")
     try:
-        from core.config import ConfigManager
+        from cloudlens.core.config import ConfigManager
         cm = ConfigManager()
         accounts = cm.list_accounts()
         print(f"   ✅ 配置管理: {len(accounts)} 个账号")
@@ -239,7 +239,7 @@ def test_cli():
         results['config'] = False
     
     try:
-        from core.cache import CacheManager
+        from cloudlens.core.cache import CacheManager
         cache = CacheManager()
         print("   ✅ 缓存管理: 正常")
         results['cache'] = True
@@ -248,7 +248,7 @@ def test_cli():
         results['cache'] = False
     
     try:
-        from core.services.analysis_service import AnalysisService
+        from cloudlens.core.services.analysis_service import AnalysisService
         print("   ✅ 分析服务: 正常")
         results['analysis'] = True
     except Exception as e:
@@ -256,7 +256,7 @@ def test_cli():
         results['analysis'] = False
     
     try:
-        from providers.aliyun.provider import AliyunProvider
+        from cloudlens.providers.aliyun.provider import AliyunProvider
         print("   ✅ 阿里云 Provider: 正常")
         results['provider'] = True
     except Exception as e:

@@ -5,7 +5,7 @@ import json
 import logging
 sys.path.append(os.getcwd())
 
-from core.config import ConfigManager
+from cloudlens.core.config import ConfigManager
 from aliyunsdkcore.client import AcsClient
 from aliyunsdkcore.request import CommonRequest
 

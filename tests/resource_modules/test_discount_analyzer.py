@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from resource_modules.discount_analyzer import DiscountAnalyzer
+from cloudlens.resource_modules.discount_analyzer import DiscountAnalyzer
 
 
 class TestDiscountAnalyzer:

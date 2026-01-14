@@ -110,7 +110,7 @@ async def readiness_check() -> Response:
 async def _check_database() -> tuple[bool, Dict[str, Any]]:
     """检查数据库连接"""
     try:
-        from core.database import DatabaseFactory
+        from cloudlens.core.database import DatabaseFactory
 
         start = time.time()
         db = DatabaseFactory.create()
@@ -145,7 +145,7 @@ async def _check_database() -> tuple[bool, Dict[str, Any]]:
 async def _check_cache() -> tuple[bool, Dict[str, Any]]:
     """检查缓存系统"""
     try:
-        from core.cache import CacheManager
+        from cloudlens.core.cache import CacheManager
 
         start = time.time()
         cache = CacheManager()
@@ -192,7 +192,7 @@ async def _check_cache() -> tuple[bool, Dict[str, Any]]:
 async def _check_config() -> tuple[bool, Dict[str, Any]]:
     """检查配置管理"""
     try:
-        from core.config_manager import ConfigManager
+        from cloudlens.core.config_manager import ConfigManager
 
         start = time.time()
         cm = ConfigManager()

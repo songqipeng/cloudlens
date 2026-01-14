@@ -6,9 +6,9 @@ import os
 # 确保能导入本地模块
 sys.path.append(os.getcwd())
 
-from core.config import ConfigManager
-from cli.utils import get_provider
-from core.services.analysis_service import AnalysisService
+from cloudlens.core.config import ConfigManager
+from cloudlens.cli.utils import get_provider
+from cloudlens.core.services.analysis_service import AnalysisService
 
 BASE_URL = "http://localhost:8000/api"
 ACCOUNT_NAME = "ydzn"
@@ -49,7 +49,7 @@ def verify_dashboard():
     
     for region in all_regions:
         try:
-            from core.config import CloudAccount
+            from cloudlens.core.config import CloudAccount
             temp_config = CloudAccount(
                 name=account_config.name,
                 provider=account_config.provider,

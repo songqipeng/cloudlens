@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 
-from core.scheduler import TaskScheduler
+from cloudlens.core.scheduler import TaskScheduler
 
 # 确保日志目录存在
 os.makedirs("logs", exist_ok=True)

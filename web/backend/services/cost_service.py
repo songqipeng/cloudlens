@@ -3,9 +3,9 @@
 """
 from typing import Dict, Optional, Any, List
 from datetime import datetime, timedelta
-from core.config import ConfigManager, CloudAccount
-from core.cache import CacheManager
-from core.database import DatabaseFactory
+from cloudlens.core.config import ConfigManager, CloudAccount
+from cloudlens.core.cache import CacheManager
+from cloudlens.core.database import DatabaseFactory
 from web.backend.repositories.bill_repository import BillRepository
 from .base_service import BaseService
 import logging
@@ -80,7 +80,7 @@ class CostService(BaseService):
     def _get_account_config(self, account: Optional[str] = None) -> CloudAccount:
         """获取账号配置"""
         if not account:
-            from core.context import ContextManager
+            from cloudlens.core.context import ContextManager
             ctx = ContextManager()
             account = ctx.get_last_account()
         

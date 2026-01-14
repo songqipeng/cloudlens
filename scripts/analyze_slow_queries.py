@@ -10,7 +10,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import logging
-from core.db_performance import DatabasePerformanceAnalyzer
+from cloudlens.core.db_performance import DatabasePerformanceAnalyzer
 from datetime import datetime
 
 logging.basicConfig(

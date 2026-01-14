@@ -4,9 +4,9 @@ import logging
 from datetime import datetime, timedelta
 
 from web.backend.api_base import handle_api_error
-from core.config import ConfigManager, CloudAccount
-from core.context import ContextManager
-from core.cache import CacheManager
+from cloudlens.core.config import ConfigManager, CloudAccount
+from cloudlens.core.context import ContextManager
+from cloudlens.core.cache import CacheManager
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def _get_provider_for_account(account: Optional[str] = None):
     if not account_config:
         raise HTTPException(status_code=404, detail=f"Account '{account}' not found")
 
-    from cli.utils import get_provider
+    from cloudlens.cli.utils import get_provider
     return get_provider(account_config), account
 
 
@@ -75,7 +75,7 @@ def get_discounts_trend(
     force_refresh: bool = Query(False, description="强制刷新缓存"),
 ):
     """折扣趋势分析"""
-    from core.discount_analyzer_db import DiscountAnalyzerDB
+    from cloudlens.core.discount_analyzer_db import DiscountAnalyzerDB
     try:
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
@@ -127,7 +127,7 @@ def get_discounts_by_products(
     months: int = Query(19, ge=1, le=999, description="分析月数"),
 ):
     """按产品统计折扣"""
-    from core.discount_analyzer_db import DiscountAnalyzerDB
+    from cloudlens.core.discount_analyzer_db import DiscountAnalyzerDB
     try:
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
@@ -151,7 +151,7 @@ def get_discounts_by_products(
 @router.get("/discounts/quarterly")
 def get_discounts_quarterly(account: Optional[str] = None, quarters: int = 8):
     """季度折扣分析"""
-    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
@@ -168,7 +168,7 @@ def get_discounts_quarterly(account: Optional[str] = None, quarters: int = 8):
 @router.get("/discounts/yearly")
 def get_discounts_yearly(account: Optional[str] = None):
     """年度折扣分析"""
-    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
@@ -185,7 +185,7 @@ def get_discounts_yearly(account: Optional[str] = None):
 @router.get("/discounts/product-trends")
 def get_product_discount_trends(account: Optional[str] = None, months: int = 19):
     """产品折扣趋势"""
-    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
@@ -202,7 +202,7 @@ def get_product_discount_trends(account: Optional[str] = None, months: int = 19)
 @router.get("/discounts/regions")
 def get_discounts_by_regions(account: Optional[str] = None, months: int = 19):
     """按地域统计折扣"""
-    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
@@ -219,7 +219,7 @@ def get_discounts_by_regions(account: Optional[str] = None, months: int = 19):
 @router.get("/discounts/subscription-types")
 def get_discounts_by_subscription_types(account: Optional[str] = None, months: int = 19):
     """按订阅类型统计折扣"""
-    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
@@ -236,7 +236,7 @@ def get_discounts_by_subscription_types(account: Optional[str] = None, months: i
 @router.get("/discounts/optimization-suggestions")
 def get_discount_optimization_suggestions(account: Optional[str] = None):
     """折扣优化建议"""
-    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
@@ -253,7 +253,7 @@ def get_discount_optimization_suggestions(account: Optional[str] = None):
 @router.get("/discounts/anomalies")
 def get_discount_anomalies(account: Optional[str] = None, months: int = 19):
     """折扣异常检测"""
-    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
@@ -270,7 +270,7 @@ def get_discount_anomalies(account: Optional[str] = None, months: int = 19):
 @router.get("/discounts/product-region-matrix")
 def get_product_region_discount_matrix(account: Optional[str] = None):
     """产品-地域折扣矩阵"""
-    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
@@ -287,7 +287,7 @@ def get_product_region_discount_matrix(account: Optional[str] = None):
 @router.get("/discounts/moving-average")
 def get_discounts_moving_average(account: Optional[str] = None, windows: str = "3,6,12"):
     """折扣移动平均"""
-    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
@@ -305,7 +305,7 @@ def get_discounts_moving_average(account: Optional[str] = None, windows: str = "
 @router.get("/discounts/cumulative")
 def get_discounts_cumulative(account: Optional[str] = None):
     """折扣累计统计"""
-    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
@@ -322,7 +322,7 @@ def get_discounts_cumulative(account: Optional[str] = None):
 @router.get("/discounts/instance-lifecycle")
 def get_instance_lifecycle_discounts(account: Optional[str] = None):
     """实例生命周期折扣"""
-    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
@@ -339,7 +339,7 @@ def get_instance_lifecycle_discounts(account: Optional[str] = None):
 @router.get("/discounts/insights")
 def get_discount_insights(account: Optional[str] = None):
     """折扣洞察"""
-    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()

@@ -1,7 +1,7 @@
 """高级筛选引擎单元测试"""
 import pytest
-from core.filter_engine import FilterEngine
-from models.resource import UnifiedResource, ResourceType, ResourceStatus
+from cloudlens.core.filter_engine import FilterEngine
+from cloudlens.models.resource import UnifiedResource, ResourceType, ResourceStatus
 
 
 class TestFilterEngine:

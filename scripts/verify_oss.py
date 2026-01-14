@@ -4,8 +4,8 @@ import os
 import logging
 sys.path.append(os.getcwd())
 
-from core.config import ConfigManager
-from providers.aliyun.provider import AliyunProvider
+from cloudlens.core.config import ConfigManager
+from cloudlens.providers.aliyun.provider import AliyunProvider
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("VerifyOSS")

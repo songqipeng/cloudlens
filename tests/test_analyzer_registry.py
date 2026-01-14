@@ -1,5 +1,5 @@
-from core.analyzer_registry import AnalyzerRegistry
-from core.base_analyzer import BaseResourceAnalyzer
+from cloudlens.core.analyzer_registry import AnalyzerRegistry
+from cloudlens.core.base_analyzer import BaseResourceAnalyzer
 
 
 def test_register_analyzer():

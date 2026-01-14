@@ -8,10 +8,10 @@ from pydantic import BaseModel
 import logging
 import json
 
-from core.cost_allocation import (
+from cloudlens.core.cost_allocation import (
     CostAllocationStorage, CostAllocator, AllocationRule, AllocationMethod
 )
-from core.bill_storage import BillStorageManager
+from cloudlens.core.bill_storage import BillStorageManager
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ def list_allocation_rules(
     try:
         account_id = None
         if account:
-            from core.config import ConfigManager
+            from cloudlens.core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
@@ -114,7 +114,7 @@ def create_allocation_rule(req: AllocationRuleRequest, account: Optional[str] = 
     try:
         account_id = req.account_id
         if not account_id and account:
-            from core.config import ConfigManager
+            from cloudlens.core.config import ConfigManager
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:

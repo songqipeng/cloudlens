@@ -8,7 +8,7 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional, Dict, Any
 import logging
 
-from core.auth import get_jwt_auth, get_user_manager
+from cloudlens.core.auth import get_jwt_auth, get_user_manager
 from web.backend.auth_middleware import get_current_user, require_admin
 
 logger = logging.getLogger(__name__)

@@ -20,13 +20,13 @@ def test_cli_command(cmd, description):
             # 转换为 Python 模块调用
             parts = cmd.split()[1:]
             if parts[0] == "config":
-                from cli.commands.config_cmd import config
+                from cloudlens.cli.commands.config_cmd import config
                 print("   ✅ config 命令可用")
             elif parts[0] == "query":
-                from cli.commands.query_cmd import query
+                from cloudlens.cli.commands.query_cmd import query
                 print("   ✅ query 命令可用")
             elif parts[0] == "analyze":
-                from cli.commands.analyze_cmd import analyze
+                from cloudlens.cli.commands.analyze_cmd import analyze
                 print("   ✅ analyze 命令可用")
             else:
                 print(f"   ⚠️  命令 {parts[0]} 需要实际执行测试")
@@ -55,7 +55,7 @@ def main():
     # 测试 CLI 模块导入
     print("\n1. 测试 CLI 模块导入...")
     try:
-        from cli.main import cli
+        from cloudlens.cli.main from cloudlens import cli
         print("   ✅ CLI 主模块导入成功")
     except Exception as e:
         print(f"   ❌ CLI 主模块导入失败: {e}")
@@ -86,7 +86,7 @@ def main():
     # 测试核心功能
     print("\n3. 测试核心功能...")
     try:
-        from core.config import ConfigManager
+        from cloudlens.core.config import ConfigManager
         cm = ConfigManager()
         accounts = cm.list_accounts()
         print(f"   ✅ 配置管理: {len(accounts)} 个账号")
@@ -94,20 +94,20 @@ def main():
         print(f"   ❌ 配置管理失败: {e}")
     
     try:
-        from core.cache import CacheManager
+        from cloudlens.core.cache import CacheManager
         cache = CacheManager()
         print("   ✅ 缓存管理: 正常")
     except Exception as e:
         print(f"   ❌ 缓存管理失败: {e}")
     
     try:
-        from core.services.analysis_service import AnalysisService
+        from cloudlens.core.services.analysis_service import AnalysisService
         print("   ✅ 分析服务: 正常")
     except Exception as e:
         print(f"   ❌ 分析服务失败: {e}")
     
     try:
-        from providers.aliyun.provider import AliyunProvider
+        from cloudlens.providers.aliyun.provider import AliyunProvider
         print("   ✅ 阿里云 Provider: 正常")
     except Exception as e:
         print(f"   ❌ 阿里云 Provider 失败: {e}")

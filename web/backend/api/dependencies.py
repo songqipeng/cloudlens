@@ -3,8 +3,8 @@ API依赖注入
 """
 from typing import Optional
 from fastapi import Depends, HTTPException
-from core.config import ConfigManager, CloudAccount
-from core.context import ContextManager
+from cloudlens.core.config import ConfigManager, CloudAccount
+from cloudlens.core.context import ContextManager
 
 
 def get_config_manager() -> ConfigManager:
@@ -37,5 +37,5 @@ def get_account(account_name: Optional[str] = None) -> CloudAccount:
 def get_provider_for_account(account_name: Optional[str] = None):
     """获取云服务提供商实例"""
     account_config = get_account(account_name)
-    from cli.utils import get_provider
+    from cloudlens.cli.utils import get_provider
     return get_provider(account_config), account_config.name

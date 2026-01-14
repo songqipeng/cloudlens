@@ -40,7 +40,7 @@ export interface Translations {
     timeout: string
     timeoutTitle: string
   }
-  
+
   // Navigation
   nav: {
     dashboard: string
@@ -55,7 +55,7 @@ export interface Translations {
     reports: string
     settings: string
   }
-  
+
   // Dashboard
   dashboard: {
     title: string
@@ -91,7 +91,7 @@ export interface Translations {
     loadingIdle: string
     loadingTrend: string
   }
-  
+
   // Cost
   cost: {
     title: string
@@ -105,7 +105,7 @@ export interface Translations {
     startDate: string
     endDate: string
   }
-  
+
   // Resources
   resources: {
     title: string
@@ -126,7 +126,7 @@ export interface Translations {
     previousPage: string
     nextPage: string
   }
-  
+
   // Dashboard View
   dashboardView: {
     saveFailed: string
@@ -138,7 +138,7 @@ export interface Translations {
     editLayout: string
     editModeHint: string
   }
-  
+
   // CIS
   cis: {
     title: string
@@ -148,7 +148,7 @@ export interface Translations {
     noChecks: string
     loading: string
   }
-  
+
   // Discount Trend
   discountTrend: {
     title: string
@@ -216,7 +216,7 @@ export interface Translations {
     monthsUnit: string
     noData: string
   }
-  
+
   // Cost Allocation
   costAllocation: {
     title: string
@@ -262,7 +262,7 @@ export interface Translations {
       custom: string
     }
   }
-  
+
   // Virtual Tags
   virtualTags: {
     title: string
@@ -324,7 +324,7 @@ export interface Translations {
     noMatchedResources: string
     previewDataEmpty: string
   }
-  
+
   // Custom Dashboards
   customDashboards: {
     title: string
@@ -363,7 +363,7 @@ export interface Translations {
     cancel: string
     save: string
   }
-  
+
   // Budgets (extended)
   budget: {
     title: string
@@ -425,7 +425,7 @@ export interface Translations {
       service: string
     }
   }
-  
+
   // Reports (extended)
   reports: {
     title: string
@@ -482,7 +482,7 @@ export interface Translations {
       }
     }
   }
-  
+
   // Settings
   settings: {
     title: string
@@ -530,7 +530,7 @@ export interface Translations {
       platformName: string
     }
   }
-  
+
   // Date Range
   dateRange: {
     all: string
@@ -542,7 +542,7 @@ export interface Translations {
     endDate: string
     apply: string
   }
-  
+
   // Trend
   trend: {
     up: string
@@ -551,7 +551,7 @@ export interface Translations {
     unknown: string
     insufficientData: string
   }
-  
+
   // Discount Analysis
   discounts: {
     title: string
@@ -586,7 +586,7 @@ export interface Translations {
     discountOff: string
     selectAccountFirst: string
   }
-  
+
   // Advanced Discount Analysis
   discountAdvanced: {
     title: string
@@ -687,7 +687,7 @@ export interface Translations {
       dataInsightsDesc: string
     }
   }
-  
+
   // Cost Analysis (extended)
   costAnalysis: {
     title: string
@@ -701,7 +701,7 @@ export interface Translations {
     viewAndAnalyze: string
     totalCost: string
   }
-  
+
   // Accounts
   accounts: {
     title: string
@@ -743,7 +743,7 @@ export interface Translations {
     aliasNote: string
     accountNameImmutable: string
   }
-  
+
   // Optimization
   optimization: {
     title: string
@@ -774,7 +774,7 @@ export interface Translations {
     unit: string
     perMonth: string
   }
-  
+
   // Security
   security: {
     title: string
@@ -798,7 +798,7 @@ export interface Translations {
     points: string
     ip: string
   }
-  
+
   // Alerts
   alerts: {
     title: string
@@ -1676,61 +1676,61 @@ const en: Translations = {
     monthsUnit: 'months',
     noData: 'No discount trend data available',
   },
-    annualBudget: 'Annual Budget (CNY)',
-    saveBudget: 'Save Budget',
-    saving: 'Saving...',
-    budgetUsage: 'Budget Usage',
-    currentMonthUsed: 'Current Month Used',
-    usageRate: 'Usage Rate',
-    selectAccountFirst: 'Please select account first',
-    saveSuccess: 'Budget settings saved successfully!',
-    saveFailed: 'Save failed',
-    deleteConfirm: 'Are you sure you want to delete this budget?',
-    deleteFailed: 'Delete failed',
-    createBudget: 'Create Budget',
-    searchPlaceholder: 'Search budgets...',
-    noBudgets: 'No budgets yet',
-    noBudgetsDesc: 'Click "Create Budget" above to create your first budget',
-    noMatchBudgets: 'No matching budgets found',
-    tryOtherKeywords: 'Try using other keywords to search',
-    budgetAmount: 'Budget Amount',
-    spent: 'Spent',
-    remaining: 'Remaining',
-    usageProgress: 'Budget Usage Progress',
-    days: 'days',
-    predictedSpend: 'Predicted Spend',
-    predictedOverspend: 'Predicted Overspend',
-    alertTriggered: 'Alert Triggered',
-    editBudget: 'Edit Budget',
-    newBudget: 'New Budget',
-    configureBudget: 'Configure budget information and alert rules',
-    budgetName: 'Budget Name',
-    budgetAmountLabel: 'Budget Amount (CNY)',
-    budgetPeriod: 'Budget Period',
-    budgetType: 'Budget Type',
-    startDate: 'Start Date',
-    alertRules: 'Alert Rules',
-    addAlert: 'Add Alert',
-    enable: 'Enable',
-    noAlertRules: 'No alert rules',
-    noAlertRulesDesc: 'No alert rules yet, click "Add Alert" to add',
-    cancel: 'Cancel',
-    save: 'Save',
-    spendingTrend: 'Spending Trend',
-    date: 'Date:',
-    spending: 'Spending',
-    thresholdTriggered: 'threshold triggered',
-    period: {
-      monthly: 'Monthly',
-      quarterly: 'Quarterly',
-      yearly: 'Yearly',
-    },
-    scope: {
-      total: 'Total Budget',
-      tag: 'By Tag',
-      service: 'By Service',
-    },
+  annualBudget: 'Annual Budget (CNY)',
+  saveBudget: 'Save Budget',
+  saving: 'Saving...',
+  budgetUsage: 'Budget Usage',
+  currentMonthUsed: 'Current Month Used',
+  usageRate: 'Usage Rate',
+  selectAccountFirst: 'Please select account first',
+  saveSuccess: 'Budget settings saved successfully!',
+  saveFailed: 'Save failed',
+  deleteConfirm: 'Are you sure you want to delete this budget?',
+  deleteFailed: 'Delete failed',
+  createBudget: 'Create Budget',
+  searchPlaceholder: 'Search budgets...',
+  noBudgets: 'No budgets yet',
+  noBudgetsDesc: 'Click "Create Budget" above to create your first budget',
+  noMatchBudgets: 'No matching budgets found',
+  tryOtherKeywords: 'Try using other keywords to search',
+  budgetAmount: 'Budget Amount',
+  spent: 'Spent',
+  remaining: 'Remaining',
+  usageProgress: 'Budget Usage Progress',
+  days: 'days',
+  predictedSpend: 'Predicted Spend',
+  predictedOverspend: 'Predicted Overspend',
+  alertTriggered: 'Alert Triggered',
+  editBudget: 'Edit Budget',
+  newBudget: 'New Budget',
+  configureBudget: 'Configure budget information and alert rules',
+  budgetName: 'Budget Name',
+  budgetAmountLabel: 'Budget Amount (CNY)',
+  budgetPeriod: 'Budget Period',
+  budgetType: 'Budget Type',
+  startDate: 'Start Date',
+  alertRules: 'Alert Rules',
+  addAlert: 'Add Alert',
+  enable: 'Enable',
+  noAlertRules: 'No alert rules',
+  noAlertRulesDesc: 'No alert rules yet, click "Add Alert" to add',
+  cancel: 'Cancel',
+  save: 'Save',
+  spendingTrend: 'Spending Trend',
+  date: 'Date:',
+  spending: 'Spending',
+  thresholdTriggered: 'threshold triggered',
+  period: {
+    monthly: 'Monthly',
+    quarterly: 'Quarterly',
+    yearly: 'Yearly',
   },
+  scope: {
+    total: 'Total Budget',
+    tag: 'By Tag',
+    service: 'By Service',
+  },
+},
 }
 
 // 中文翻译
@@ -2520,63 +2520,63 @@ const zh: Translations = {
     monthsUnit: '个月',
     noData: '暂无折扣趋势数据',
   },
-    budgetSettings: '预算设置',
-    monthlyBudget: '月度预算 (CNY)',
-    annualBudget: '年度预算 (CNY)',
-    saveBudget: '保存预算',
-    saving: '保存中...',
-    budgetUsage: '预算使用情况',
-    currentMonthUsed: '本月已使用',
-    usageRate: '使用率',
-    selectAccountFirst: '请先选择账号',
-    saveSuccess: '预算设置成功！',
-    saveFailed: '保存失败',
-    deleteConfirm: '确定要删除这个预算吗？',
-    deleteFailed: '删除失败',
-    createBudget: '新建预算',
-    searchPlaceholder: '搜索预算...',
-    noBudgets: '还没有预算',
-    noBudgetsDesc: '点击上方"新建预算"按钮创建第一个预算',
-    noMatchBudgets: '未找到匹配的预算',
-    tryOtherKeywords: '尝试使用其他关键词搜索',
-    budgetAmount: '预算金额',
-    spent: '已支出',
-    remaining: '剩余预算',
-    usageProgress: '预算使用进度',
-    days: '天',
-    predictedSpend: '预测支出',
-    predictedOverspend: '预计超支',
-    alertTriggered: '已触发告警',
-    editBudget: '编辑预算',
-    newBudget: '新建预算',
-    configureBudget: '配置预算信息和告警规则',
-    budgetName: '预算名称',
-    budgetAmountLabel: '预算金额 (CNY)',
-    budgetPeriod: '预算周期',
-    budgetType: '预算类型',
-    startDate: '开始日期',
-    alertRules: '告警规则',
-    addAlert: '添加告警',
-    enable: '启用',
-    noAlertRules: '暂无告警规则',
-    noAlertRulesDesc: '暂无告警规则，点击"添加告警"添加',
-    cancel: '取消',
-    save: '保存',
-    spendingTrend: '支出趋势',
-    date: '日期:',
-    spending: '支出',
-    thresholdTriggered: '阈值已触发',
-    period: {
-      monthly: '月度',
-      quarterly: '季度',
-      yearly: '年度',
-    },
-    scope: {
-      total: '总预算',
-      tag: '按标签',
-      service: '按服务',
-    },
+  budgetSettings: '预算设置',
+  monthlyBudget: '月度预算 (CNY)',
+  annualBudget: '年度预算 (CNY)',
+  saveBudget: '保存预算',
+  saving: '保存中...',
+  budgetUsage: '预算使用情况',
+  currentMonthUsed: '本月已使用',
+  usageRate: '使用率',
+  selectAccountFirst: '请先选择账号',
+  saveSuccess: '预算设置成功！',
+  saveFailed: '保存失败',
+  deleteConfirm: '确定要删除这个预算吗？',
+  deleteFailed: '删除失败',
+  createBudget: '新建预算',
+  searchPlaceholder: '搜索预算...',
+  noBudgets: '还没有预算',
+  noBudgetsDesc: '点击上方"新建预算"按钮创建第一个预算',
+  noMatchBudgets: '未找到匹配的预算',
+  tryOtherKeywords: '尝试使用其他关键词搜索',
+  budgetAmount: '预算金额',
+  spent: '已支出',
+  remaining: '剩余预算',
+  usageProgress: '预算使用进度',
+  days: '天',
+  predictedSpend: '预测支出',
+  predictedOverspend: '预计超支',
+  alertTriggered: '已触发告警',
+  editBudget: '编辑预算',
+  newBudget: '新建预算',
+  configureBudget: '配置预算信息和告警规则',
+  budgetName: '预算名称',
+  budgetAmountLabel: '预算金额 (CNY)',
+  budgetPeriod: '预算周期',
+  budgetType: '预算类型',
+  startDate: '开始日期',
+  alertRules: '告警规则',
+  addAlert: '添加告警',
+  enable: '启用',
+  noAlertRules: '暂无告警规则',
+  noAlertRulesDesc: '暂无告警规则，点击"添加告警"添加',
+  cancel: '取消',
+  save: '保存',
+  spendingTrend: '支出趋势',
+  date: '日期:',
+  spending: '支出',
+  thresholdTriggered: '阈值已触发',
+  period: {
+    monthly: '月度',
+    quarterly: '季度',
+    yearly: '年度',
   },
+  scope: {
+    total: '总预算',
+    tag: '按标签',
+    service: '按服务',
+  },
+},
 }
 
 const translations: Record<Locale, Translations> = {
@@ -2591,7 +2591,7 @@ export function getTranslations(locale: Locale): Translations {
 export function t(locale: Locale, key: string): string {
   const keys = key.split('.')
   let value: any = translations[locale] || translations[defaultLocale]
-  
+
   for (const k of keys) {
     value = value?.[k]
     if (value === undefined) {
@@ -2603,7 +2603,7 @@ export function t(locale: Locale, key: string): string {
       break
     }
   }
-  
+
   return typeof value === 'string' ? value : key
 }
 

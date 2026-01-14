@@ -4,7 +4,7 @@ RemediationEngine单元测试
 """
 
 import pytest
-from core.remediation import RemediationEngine, RemediationPlan, RemediationAction
+from cloudlens.core.remediation import RemediationEngine, RemediationPlan, RemediationAction
 
 
 class TestRemediationEngine:

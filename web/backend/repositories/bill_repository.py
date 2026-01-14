@@ -3,8 +3,8 @@
 """
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-from core.database import DatabaseFactory
-from core.config import CloudAccount
+from cloudlens.core.database import DatabaseFactory
+from cloudlens.core.config import CloudAccount
 from .base_repository import BaseRepository
 import logging
 

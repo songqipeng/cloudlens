@@ -3,7 +3,7 @@ import pytest
 import tempfile
 import os
 from pathlib import Path
-from core.cache import CacheManager
+from cloudlens.core.cache import CacheManager
 
 
 class TestCacheManager:

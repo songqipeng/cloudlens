@@ -3,10 +3,10 @@ from typing import Dict, List, Optional, Any
 import logging
 
 from web.backend.api_base import handle_api_error
-from core.config import ConfigManager, CloudAccount
+from cloudlens.core.config import ConfigManager, CloudAccount
 from web.backend.i18n import get_translation, get_locale_from_request, Locale
-from core.context import ContextManager
-from core.cache import CacheManager
+from cloudlens.core.context import ContextManager
+from cloudlens.core.cache import CacheManager
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def _get_provider_for_account(account: Optional[str] = None):
     if not account_config:
         raise HTTPException(status_code=404, detail=f"Account '{account}' not found")
 
-    from cli.utils import get_provider
+    from cloudlens.cli.utils import get_provider
     return get_provider(account_config), account
 
 
@@ -75,9 +75,9 @@ def get_security_overview(
                     "cached": True,
                 }
         
-        from core.security_compliance import SecurityComplianceAnalyzer
-        from core.services.analysis_service import AnalysisService
-        from providers.aliyun.provider import AliyunProvider
+        from cloudlens.core.security_compliance import SecurityComplianceAnalyzer
+        from cloudlens.core.services.analysis_service import AnalysisService
+        from cloudlens.providers.aliyun.provider import AliyunProvider
         
         # 获取所有活跃区域
         all_regions = AnalysisService._get_all_regions(
@@ -208,7 +208,7 @@ def get_security_overview(
             })
         
         # 获取最新的公网扫描结果
-        from core.security_scanner import PublicIPScanner
+        from cloudlens.core.security_scanner import PublicIPScanner
         last_scan = PublicIPScanner.load_last_results()
         scan_summary = {
             "last_scan_time": last_scan.get("scan_time") if last_scan else None,
@@ -298,9 +298,9 @@ def get_security_checks(
                 "cached": True,
             }
         
-        from core.security_compliance import SecurityComplianceAnalyzer
-        from core.services.analysis_service import AnalysisService
-        from providers.aliyun.provider import AliyunProvider
+        from cloudlens.core.security_compliance import SecurityComplianceAnalyzer
+        from cloudlens.core.services.analysis_service import AnalysisService
+        from cloudlens.providers.aliyun.provider import AliyunProvider
         
         # 获取所有活跃区域
         all_regions = AnalysisService._get_all_regions(
@@ -446,7 +446,7 @@ def get_cis_benchmarks(account: Optional[str] = None):
     """获取CIS合规检查结果"""
     try:
         provider, account_name = _get_provider_for_account(account)
-        from core.cis_compliance import CISBenchmark
+        from cloudlens.core.cis_compliance import CISBenchmark
         
         instances = provider.list_instances()
         rds_list = provider.list_rds()
@@ -484,10 +484,10 @@ def trigger_deep_scan(account: Optional[str] = None):
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
-        from core.security_compliance import SecurityComplianceAnalyzer
-        from core.security_scanner import PublicIPScanner
-        from core.services.analysis_service import AnalysisService
-        from providers.aliyun.provider import AliyunProvider
+        from cloudlens.core.security_compliance import SecurityComplianceAnalyzer
+        from cloudlens.core.security_scanner import PublicIPScanner
+        from cloudlens.core.services.analysis_service import AnalysisService
+        from cloudlens.providers.aliyun.provider import AliyunProvider
         
         # 获取所有区域
         all_regions = AnalysisService._get_all_regions(

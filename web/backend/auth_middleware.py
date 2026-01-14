@@ -9,7 +9,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict, Any
 import logging
 
-from core.auth import get_jwt_auth, JWTAuth
+from cloudlens.core.auth import get_jwt_auth, JWTAuth
 
 logger = logging.getLogger(__name__)
 

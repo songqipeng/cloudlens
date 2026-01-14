@@ -5,7 +5,7 @@ import sys
 import os
 sys.path.insert(0, '.')
 
-from core.cache import CacheManager
+from cloudlens.core.cache import CacheManager
 
 account = 'ydzn'
 cm = CacheManager()

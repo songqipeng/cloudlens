@@ -25,16 +25,16 @@ from web.backend.api_base import (
     TriggerAnalysisRequest,
     handle_api_error
 )
-from core.config import ConfigManager, CloudAccount
-from core.rules_manager import RulesManager
-from core.cache import CacheManager
-from core.progress_manager import ProgressManager
+from cloudlens.core.config import ConfigManager, CloudAccount
+from cloudlens.core.rules_manager import RulesManager
+from cloudlens.core.cache import CacheManager
+from cloudlens.core.progress_manager import ProgressManager
 
 logger = logging.getLogger(__name__)
 
 # 可选依赖：AnalysisService 需要 aliyunsdkcore
 try:
-    from core.services.analysis_service import AnalysisService
+    from cloudlens.core.services.analysis_service import AnalysisService
     ANALYSIS_SERVICE_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"AnalysisService not available: {e}")

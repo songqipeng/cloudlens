@@ -12,17 +12,17 @@ logger = logging.getLogger(__name__)
 
 # 创建限流器（使用 IP 地址作为 key）
 limiter = Limiter(key_func=get_remote_address)
-from core.config import ConfigManager, CloudAccount
+from cloudlens.core.config import ConfigManager, CloudAccount
 from web.backend.i18n import get_translation, get_locale_from_request, Locale
-from core.context import ContextManager
-from core.cost_trend_analyzer import CostTrendAnalyzer
-from core.cache import CacheManager  # MySQL缓存管理器（统一使用）
-from core.rules_manager import RulesManager
-from core.services.analysis_service import AnalysisService
-from core.virtual_tags import VirtualTagStorage, VirtualTag, TagRule, TagEngine
-from core.bill_storage import BillStorageManager
+from cloudlens.core.context import ContextManager
+from cloudlens.core.cost_trend_analyzer import CostTrendAnalyzer
+from cloudlens.core.cache import CacheManager  # MySQL缓存管理器（统一使用）
+from cloudlens.core.rules_manager import RulesManager
+from cloudlens.core.services.analysis_service import AnalysisService
+from cloudlens.core.virtual_tags import VirtualTagStorage, VirtualTag, TagRule, TagEngine
+from cloudlens.core.bill_storage import BillStorageManager
 from web.backend.api_cost import _get_billing_overview_totals
-from core.dashboard_manager import DashboardStorage, Dashboard, WidgetConfig
+from cloudlens.core.dashboard_manager import DashboardStorage, Dashboard, WidgetConfig
 from web.backend.api_resources import _get_cost_map, _estimate_monthly_cost, _estimate_monthly_cost_from_spec
 from web.backend.error_handler import api_error_handler
 from pydantic import BaseModel
@@ -572,7 +572,7 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
     redis_list = []
     
     try:
-        from cli.utils import get_provider
+        from cloudlens.cli.utils import get_provider
         provider = get_provider(account_config)
         
         # 尝试从缓存获取资源列表（避免重复查询）
@@ -623,7 +623,7 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
             if not instances and not rds_list and not redis_list:
                 logger.info(f"缓存未命中，尝试从数据库缓存表读取 (账号: {account})")
                 try:
-                    from core.cache_manager import get_db_connection
+                    from cloudlens.core.cache_manager import get_db_connection
                     import json
                     
                     conn = get_db_connection()
@@ -679,8 +679,8 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
             # 查询资源（查询所有区域，而不是只查询配置的 region）
             def get_instances():
                 try:
-                    from core.services.analysis_service import AnalysisService
-                    from providers.aliyun.provider import AliyunProvider
+                    from cloudlens.core.services.analysis_service import AnalysisService
+                    from cloudlens.providers.aliyun.provider import AliyunProvider
                     
                     # 获取所有区域
                     all_regions = AnalysisService._get_all_regions(
@@ -719,8 +719,8 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
             
             def get_rds():
                 try:
-                        from core.services.analysis_service import AnalysisService
-                        from providers.aliyun.provider import AliyunProvider
+                        from cloudlens.core.services.analysis_service import AnalysisService
+                        from cloudlens.providers.aliyun.provider import AliyunProvider
                         
                         # 获取所有区域
                         all_regions = AnalysisService._get_all_regions(
@@ -761,8 +761,8 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
             
             def get_redis():
                 try:
-                        from core.services.analysis_service import AnalysisService
-                        from providers.aliyun.provider import AliyunProvider
+                        from cloudlens.core.services.analysis_service import AnalysisService
+                        from cloudlens.providers.aliyun.provider import AliyunProvider
                         
                         # 获取所有区域
                         all_regions = AnalysisService._get_all_regions(
@@ -911,8 +911,8 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
 
         # --- [NEW] 计算安全告警数量 ---
         try:
-            from core.security_compliance import SecurityComplianceAnalyzer
-            from core.security_scanner import PublicIPScanner
+            from cloudlens.core.security_compliance import SecurityComplianceAnalyzer
+            from cloudlens.core.security_scanner import PublicIPScanner
             
             analyzer = SecurityComplianceAnalyzer()
             exposed = analyzer.detect_public_exposure(all_resources)
@@ -1152,8 +1152,8 @@ async def get_trend(
             # 如果granularity是monthly且days=0，直接按账期查询并聚合
             if granularity == "monthly" and days == 0:
                 # 直接从数据库按账期查询月度数据
-                from core.bill_storage import BillStorageManager
-                from core.config import ConfigManager
+                from cloudlens.core.bill_storage import BillStorageManager
+                from cloudlens.core.config import ConfigManager
                 storage = BillStorageManager()
                 db = storage.db
                 cm = ConfigManager()
@@ -1460,7 +1460,7 @@ def _get_billing_overview_from_db(
     """
     import os
     from datetime import datetime
-    from core.database import DatabaseFactory
+    from cloudlens.core.database import DatabaseFactory
     
     # 统一使用 MySQL，不再支持 SQLite
     try:
@@ -1626,8 +1626,8 @@ def list_resources(
         if type == "ecs":
             # ECS 查询所有区域，而不是只查询配置的 region
             try:
-                from core.services.analysis_service import AnalysisService
-                from providers.aliyun.provider import AliyunProvider
+                from cloudlens.core.services.analysis_service import AnalysisService
+                from cloudlens.providers.aliyun.provider import AliyunProvider
                 
                 logger.info(f"开始查询所有区域的ECS实例，账号: {account_name}")
                 
@@ -1696,7 +1696,7 @@ def list_resources(
             # Convert VPC dict to list format
             resources = []
             for vpc in vpcs:
-                from models.resource import UnifiedResource, ResourceType, ResourceStatus
+                from cloudlens.models.resource import UnifiedResource, ResourceType, ResourceStatus
                 
                 # Get VPC ID and name from dict - check both possible key formats
                 vpc_id = vpc.get("id") or vpc.get("VpcId") or ""
@@ -2088,7 +2088,7 @@ def get_resource_metrics(
     
     # 获取监控数据
     try:
-        from core.idle_detector import IdleDetector
+        from cloudlens.core.idle_detector import IdleDetector
         metrics = IdleDetector.fetch_ecs_metrics(provider, resource_id, days)
         
         # 转换为图表数据格式
@@ -2272,7 +2272,7 @@ def get_cost_overview(account: Optional[str] = None, force_refresh: bool = Query
         logger.info(f"   上月对比范围: {last_month_start.strftime('%Y-%m-%d')} 至 {last_month_comparable_end.strftime('%Y-%m-%d')}")
 
         # 使用成本趋势分析器获取指定日期范围的成本（更准确）
-        from core.cost_trend_analyzer import CostTrendAnalyzer
+        from cloudlens.core.cost_trend_analyzer import CostTrendAnalyzer
         analyzer = CostTrendAnalyzer()
         
         # 获取本月成本（从1月1日到今天）
@@ -2608,7 +2608,7 @@ def get_security_overview(
             }
     
     try:
-        from core.security_compliance import SecurityComplianceAnalyzer
+        from cloudlens.core.security_compliance import SecurityComplianceAnalyzer
         
         instances = provider.list_instances()
         rds_list = provider.list_rds()
@@ -2789,7 +2789,7 @@ def get_security_checks(
         }
     
     try:
-        from core.security_compliance import SecurityComplianceAnalyzer
+        from cloudlens.core.security_compliance import SecurityComplianceAnalyzer
         
         instances = provider.list_instances()
         rds_list = provider.list_rds()
@@ -3019,9 +3019,9 @@ def get_optimization_suggestions(
         }
     
     try:
-        from core.optimization_engine import OptimizationEngine
-        from core.security_compliance import SecurityComplianceAnalyzer
-        from core.cost_analyzer import CostAnalyzer
+        from cloudlens.core.optimization_engine import OptimizationEngine
+        from cloudlens.core.security_compliance import SecurityComplianceAnalyzer
+        from cloudlens.core.cost_analyzer import CostAnalyzer
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
         
@@ -3272,7 +3272,7 @@ def generate_report(report_data: Dict[str, Any]):
     format_type = report_data.get("format", "excel")
     
     try:
-        from core.report_generator import ReportGenerator
+        from cloudlens.core.report_generator import ReportGenerator
         
         provider, account_name = _get_provider_for_account(account)
         instances = provider.list_instances()
@@ -3515,7 +3515,7 @@ def get_discount_trend(
     - 按产品/实例/合同维度查看折扣分布
     - 实时更新，无需手动下载CSV
     """
-    from core.discount_analyzer_db import DiscountAnalyzerDB
+    from cloudlens.core.discount_analyzer_db import DiscountAnalyzerDB
     import os
     
     try:
@@ -3662,7 +3662,7 @@ def get_product_discounts(
     """
     产品折扣详情 - 基于数据库查看特定产品的折扣明细
     """
-    from core.discount_analyzer_db import DiscountAnalyzerDB
+    from cloudlens.core.discount_analyzer_db import DiscountAnalyzerDB
     import os
     
     try:
@@ -3903,7 +3903,7 @@ def get_cis_compliance(account: Optional[str] = None):
     provider, account_name = _get_provider_for_account(account)
     
     try:
-        from core.cis_compliance import CISBenchmark
+        from cloudlens.core.cis_compliance import CISBenchmark
         
         # 获取资源
         instances = provider.list_instances()
@@ -3966,7 +3966,7 @@ def get_quarterly_discount_comparison(
     返回季度维度的折扣率、消费金额、环比变化等数据
     """
     import os
-    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     
     cm = ConfigManager()
     
@@ -4016,7 +4016,7 @@ def get_yearly_discount_comparison(
     返回年度维度的折扣率、消费金额、同比变化等数据
     """
     import os
-    from core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+    from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     
     cm = ConfigManager()
     

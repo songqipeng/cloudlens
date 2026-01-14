@@ -11,10 +11,10 @@ import logging
 import concurrent.futures
 
 from web.backend.api_base import handle_api_error
-from core.config import ConfigManager, CloudAccount
-from core.context import ContextManager
-from core.cache import CacheManager
-from models.resource import UnifiedResource, ResourceType, ResourceStatus
+from cloudlens.core.config import ConfigManager, CloudAccount
+from cloudlens.core.context import ContextManager
+from cloudlens.core.cache import CacheManager
+from cloudlens.models.resource import UnifiedResource, ResourceType, ResourceStatus
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ def _get_provider_for_account(account: Optional[str] = None):
     if not account_config:
         raise HTTPException(status_code=404, detail=f"Account '{account}' not found")
     
-    from cli.utils import get_provider
+    from cloudlens.cli.utils import get_provider
     return get_provider(account_config), account
 
 def _get_billing_cycle_default() -> str:
@@ -135,7 +135,7 @@ def _get_cost_map_from_billing(resource_type: str, account_config: CloudAccount,
 def _get_cost_map(resource_type: str, account_config: CloudAccount) -> Dict[str, float]:
     cost_map = {}
     try:
-        from resource_modules.cost_analyzer import CostAnalyzer
+        from cloudlens.resource_modules.cost_analyzer import CostAnalyzer
         cost_analyzer = CostAnalyzer(account_config.name, account_config.access_key_id, account_config.access_key_secret)
         billing_costs = _get_cost_map_from_billing(resource_type, account_config)
         for rid, mc in (billing_costs or {}).items():
@@ -187,7 +187,7 @@ def _estimate_monthly_cost(resource) -> float:
 
 def _fetch_resources_for_region(account_config: CloudAccount, region: str, resource_type: str) -> List[Any]:
     """在新地区中获取特定类型的资源"""
-    from providers.aliyun.provider import AliyunProvider
+    from cloudlens.providers.aliyun.provider import AliyunProvider
     try:
         region_provider = AliyunProvider(account_config.name, account_config.access_key_id, account_config.access_key_secret, region)
         
@@ -361,7 +361,7 @@ def list_resources(
     account_config = cm.get_account(account_name)
     
     # 获取所有区域
-    from core.services.analysis_service import AnalysisService
+    from cloudlens.core.services.analysis_service import AnalysisService
     all_regions = AnalysisService._get_all_regions(account_config.access_key_id, account_config.access_key_secret)
     
     all_resources = []
@@ -462,7 +462,7 @@ def get_resource_detail(
 
         # 如果提供了 resource_type，直接查询该类型
         if final_type:
-            from core.services.analysis_service import AnalysisService
+            from cloudlens.core.services.analysis_service import AnalysisService
             all_regions = AnalysisService._get_all_regions(
                 account_config.access_key_id,
                 account_config.access_key_secret
@@ -602,7 +602,7 @@ def get_resource_detail(
         resource_types = ["ecs", "rds", "redis", "slb", "nat", "eip", "oss", "disk", "snapshot", "vpc", "mongodb", "ack"]
         for rt in resource_types:
             try:
-                from core.services.analysis_service import AnalysisService
+                from cloudlens.core.services.analysis_service import AnalysisService
                 all_regions = AnalysisService._get_all_regions(
                     account_config.access_key_id,
                     account_config.access_key_secret
@@ -689,7 +689,7 @@ def get_resource_metrics(
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
         
-        from core.monitor import CloudMonitor
+        from cloudlens.core.monitor import CloudMonitor
         monitor = CloudMonitor(account_config)
         
         if resource_type == "ecs":
@@ -720,7 +720,7 @@ def export_resources(
         account_config = cm.get_account(account_name)
         
         # 获取所有资源（不分页）
-        from core.services.analysis_service import AnalysisService
+        from cloudlens.core.services.analysis_service import AnalysisService
         all_regions = AnalysisService._get_all_regions(account_config.access_key_id, account_config.access_key_secret)
         
         all_resources = []

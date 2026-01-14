@@ -7,8 +7,8 @@ from datetime import datetime
 # 确保能导入本地模块
 sys.path.append(os.getcwd())
 
-from core.config import ConfigManager
-from providers.aliyun.provider import AliyunProvider
+from cloudlens.core.config import ConfigManager
+from cloudlens.providers.aliyun.provider import AliyunProvider
 from web.backend.api_cost import _get_billing_overview_totals
 
 BASE_URL = "http://localhost:8000/api"

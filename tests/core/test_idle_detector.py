@@ -1,6 +1,6 @@
 """闲置检测器单元测试"""
 import pytest
-from core.idle_detector import IdleDetector
+from cloudlens.core.idle_detector import IdleDetector
 
 
 class TestIdleDetector:

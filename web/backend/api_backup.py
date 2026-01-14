@@ -9,7 +9,7 @@ from typing import Optional, List, Dict, Any
 from pathlib import Path
 import logging
 
-from core.backup_manager import get_backup_manager
+from cloudlens.core.backup_manager import get_backup_manager
 from web.backend.auth_middleware import require_admin
 from slowapi import Limiter
 from slowapi.util import get_remote_address

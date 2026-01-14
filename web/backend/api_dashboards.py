@@ -13,10 +13,10 @@ import logging
 from pydantic import BaseModel
 
 from web.backend.api_base import handle_api_error
-from core.dashboard_manager import DashboardStorage, Dashboard, WidgetConfig
-from core.config import ConfigManager, CloudAccount
-from core.context import ContextManager
-from core.cache import CacheManager
+from cloudlens.core.dashboard_manager import DashboardStorage, Dashboard, WidgetConfig
+from cloudlens.core.config import ConfigManager, CloudAccount
+from cloudlens.core.context import ContextManager
+from cloudlens.core.cache import CacheManager
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ def _get_provider_for_account(account: Optional[str] = None):
     if not account_config:
         raise HTTPException(status_code=404, detail=f"Account '{account}' not found")
 
-    from cli.utils import get_provider
+    from cloudlens.cli.utils import get_provider
     return get_provider(account_config), account
 
 

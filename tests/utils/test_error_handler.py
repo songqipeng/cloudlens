@@ -7,7 +7,7 @@ ErrorHandler 单元测试
 import pytest
 from aliyunsdkcore.acs_exception.exceptions import ClientException, ServerException
 
-from utils.error_handler import BusinessError, ErrorHandler, RetryableError
+from cloudlens.utils.error_handler import BusinessError, ErrorHandler, RetryableError
 
 
 class TestErrorHandler:
