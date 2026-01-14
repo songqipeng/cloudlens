@@ -11,8 +11,8 @@
 ### 2. Clone到本地
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/aliyunidle.git
-cd aliyunidle
+git clone https://github.com/YOUR_USERNAME/cloudlens.git
+cd cloudlens
 ```
 
 ### 3. 设置开发环境

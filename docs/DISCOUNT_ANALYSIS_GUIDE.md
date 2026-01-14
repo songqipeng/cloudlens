@@ -34,7 +34,7 @@ CloudLens 折扣趋势分析功能可以帮助您：
 将账单CSV文件放在以账号ID命名的目录中：
 
 ```
-aliyunidle/
+cloudlens/
 └── 1844634015852583-账号名称/
     ├── 1844634015852583-账号-202507-res_consume_detail_1.csv
     ├── 1844634015852583-账号-202508-res_consume_detail_1.csv
@@ -187,7 +187,7 @@ aliyunidle/
 ```bash
 # 设置定时任务（每月1号执行）
 # crontab -e
-0 9 1 * * cd /path/to/aliyunidle && ./cl analyze discount --export
+0 9 1 * * cd /path/to/cloudlens && ./cl analyze discount --export
 ```
 
 **监控指标**:
@@ -379,7 +379,7 @@ http://localhost:3000/discounts
 # ...
 
 # 运行折扣分析
-cd /path/to/aliyunidle
+cd /path/to/cloudlens
 ./cl analyze discount --export
 
 # 发送报告（邮件/钉钉/企业微信）

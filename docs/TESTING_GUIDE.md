@@ -486,7 +486,7 @@ def test_exceptions(self):
 
 ```bash
 # 确保在项目根目录运行测试
-cd /path/to/aliyunidle
+cd /path/to/cloudlens
 
 # 确保虚拟环境已激活
 source .venv/bin/activate

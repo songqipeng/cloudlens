@@ -281,7 +281,7 @@ cl topology generate --account prod
 #### 1. 安装
 ```bash
 git clone <repository>
-cd aliyunidle
+cd cloudlens
 pip install -r requirements.txt
 # PDF 报告需额外安装 weasyprint，或使用本地 wkhtmltopdf
 ```

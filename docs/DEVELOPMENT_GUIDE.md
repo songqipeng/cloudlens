@@ -39,8 +39,8 @@
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/songqipeng/aliyunidle.git
-cd aliyunidle
+git clone https://github.com/songqipeng/cloudlens.git
+cd cloudlens
 ```
 
 ### 2. Python 环境
@@ -481,7 +481,7 @@ mysql -u root -p cloudlens -e "SELECT * FROM resources LIMIT 10;"
 
 ```bash
 # 确保在项目根目录
-cd /path/to/aliyunidle
+cd /path/to/cloudlens
 
 # 确保虚拟环境已激活
 source .venv/bin/activate
@@ -555,7 +555,7 @@ curl -X POST http://localhost:8000/api/virtual-tags/clear-cache
 ### 核心目录
 
 ```
-aliyunidle/
+cloudlens/
 ├── core/              # 核心业务逻辑
 │   ├── cache.py       # 缓存管理
 │   ├── config.py      # 配置管理
@@ -610,7 +610,7 @@ aliyunidle/
 
 ## 获取帮助
 
-- **GitHub Issues**: [提交问题](https://github.com/songqipeng/aliyunidle/issues)
+- **GitHub Issues**: [提交问题](https://github.com/songqipeng/cloudlens/issues)
 - **文档**: 查看 `docs/` 目录
 - **API 文档**: 访问 `http://localhost:8000/docs`
 

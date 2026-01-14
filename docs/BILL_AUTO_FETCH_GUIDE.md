@@ -187,7 +187,7 @@ pip install aliyun-python-sdk-core aliyun-python-sdk-bssopenapi python-dateutil
 crontab -e
 
 # 添加定时任务（每月1号1点执行）
-0 1 1 * * cd /path/to/aliyunidle && ./cl bill fetch --account my_account >> /var/log/cloudlens_bill.log 2>&1
+0 1 1 * * cd /path/to/cloudlens && ./cl bill fetch --account my_account >> /var/log/cloudlens_bill.log 2>&1
 ```
 
 ### 方式2: Python脚本
@@ -235,7 +235,7 @@ if __name__ == "__main__":
 chmod +x scripts/auto_fetch_bills.py
 
 # Cron
-0 1 1 * * cd /path/to/aliyunidle && python3 scripts/auto_fetch_bills.py
+0 1 1 * * cd /path/to/cloudlens && python3 scripts/auto_fetch_bills.py
 ```
 
 ### 方式3: CloudLens调度器
@@ -302,7 +302,7 @@ bill_dirs = analyzer.find_bill_directories()
 
 **目录结构建议**：
 ```
-aliyunidle/
+cloudlens/
 ├── bills_data/                    # 账单数据根目录
 │   ├── {账号ID}-{账号名}/
 │   │   ├── 2025-01-detail.csv
@@ -497,7 +497,7 @@ with open(csv_path, 'a', encoding='utf-8-sig') as f:
 **步骤2: 混合使用（过渡期）**
 
 ```
-aliyunidle/
+cloudlens/
 ├── 1844634015852583-ydzn/        # 手动下载的历史数据（2025-07至2025-12）
 └── bills_data/
     └── auto/                      # API自动获取（2025-12起）

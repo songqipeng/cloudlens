@@ -18,8 +18,8 @@
 ### 1. 克隆仓库
 
 ```bash
-git clone https://github.com/songqipeng/aliyunidle.git
-cd aliyunidle
+git clone https://github.com/songqipeng/cloudlens.git
+cd cloudlens
 ```
 
 ### 2. 安装 Python 依赖

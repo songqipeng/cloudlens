@@ -115,9 +115,9 @@
 
 ## 🔗 外部资源
 
-- **GitHub 仓库**: https://github.com/songqipeng/aliyunidle
-- **问题反馈**: https://github.com/songqipeng/aliyunidle/issues
-- **讨论区**: https://github.com/songqipeng/aliyunidle/discussions
+- **GitHub 仓库**: https://github.com/songqipeng/cloudlens
+- **问题反馈**: https://github.com/songqipeng/cloudlens/issues
+- **讨论区**: https://github.com/songqipeng/cloudlens/discussions
 
 ---
 
@@ -125,8 +125,8 @@
 
 如果您有任何问题、建议或反馈，欢迎通过以下方式联系我们：
 
-- 提交 Issue: https://github.com/songqipeng/aliyunidle/issues
-- 发起讨论: https://github.com/songqipeng/aliyunidle/discussions
+- 提交 Issue: https://github.com/songqipeng/cloudlens/issues
+- 发起讨论: https://github.com/songqipeng/cloudlens/discussions
 
 ---
 
