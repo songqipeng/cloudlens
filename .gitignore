@@ -31,10 +31,19 @@ ENV/
 # IDE配置
 .vscode/
 .idea/
+.cursor/
+.antigravity/
+.kiro/
 *.swp
 *.swo
 *~
 .DS_Store
+
+# 本地历史和数据文件
+.cloudlens_history
+.coverage
+.coverage.*
+htmlcov/
 
 # 报告文件（太大且可重新生成）
 *_report_*.html
