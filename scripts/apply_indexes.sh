@@ -33,7 +33,7 @@ echo ""
 
 # 执行SQL脚本
 echo "开始应用索引..."
-mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < sql/add_indexes.sql
+mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < migrations/add_indexes.sql
 
 if [ $? -eq 0 ]; then
     echo ""
@@ -48,5 +48,5 @@ else
     echo "❌ 索引应用失败，请检查数据库连接信息"
     echo ""
     echo "也可以手动执行："
-    echo "  mysql -h $DB_HOST -u $DB_USER -p $DB_NAME < sql/add_indexes.sql"
+    echo "  mysql -h $DB_HOST -u $DB_USER -p $DB_NAME < migrations/add_indexes.sql"
 fi

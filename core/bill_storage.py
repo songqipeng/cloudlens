@@ -58,7 +58,7 @@ class BillStorageManager:
             self.db.query("SELECT 1 FROM bill_items LIMIT 1")
             logger.info("MySQL账单表已存在")
         except Exception:
-            logger.warning("MySQL账单表不存在，请先运行sql/init_mysql_schema.sql")
+            logger.warning("MySQL账单表不存在，请先运行migrations/init_mysql_schema.sql")
     
     def insert_bill_items(
         self, 

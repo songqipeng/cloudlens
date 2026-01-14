@@ -106,7 +106,7 @@ class DashboardStorage:
                 self.db.query("SELECT 1 FROM dashboards LIMIT 1")
                 logger.info("MySQL仪表盘表已存在")
             except Exception:
-                logger.warning("MySQL仪表盘表不存在，请先运行sql/init_mysql_schema.sql")
+                logger.warning("MySQL仪表盘表不存在，请先运行migrations/init_mysql_schema.sql")
         else:
             # SQLite表结构
             self.db.execute("""
