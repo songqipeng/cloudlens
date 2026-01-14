@@ -4,339 +4,437 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CloudLens | Cinematic Vision</title>
+    <title>CloudLens | Prism Vision Guide</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@200;400;600;800&family=JetBrains+Mono&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@300;500&family=Inter:wght@300;400;700&display=swap"
         rel="stylesheet">
     <style>
         :root {
-            --bg: #000000;
-            --accent: #0ea5e9;
-            --accent-purple: #8b5cf6;
-            --text: #ffffff;
-            --text-dim: rgba(255, 255, 255, 0.5);
-            --glass: rgba(255, 255, 255, 0.03);
-            --border: rgba(255, 255, 255, 0.1);
+            --bg: #000;
+            --cerulean: #0ea5e9;
+            --purple: #8b5cf6;
+            --glass: rgba(255, 255, 255, 0.02);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-main: #fff;
+            --text-dim: rgba(255, 255, 255, 0.4);
+            --neon-glow: 0 0 20px rgba(14, 165, 233, 0.3);
         }
 
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            cursor: none;
+            /* Custom cursor */
         }
 
         body {
             background-color: var(--bg);
-            color: var(--text);
+            color: var(--text-main);
             font-family: 'Inter', sans-serif;
             overflow-x: hidden;
-            -webkit-font-smoothing: antialiased;
+            background-image:
+                radial-gradient(circle at 2px 2px, rgba(255, 255, 255, 0.05) 1px, transparent 0);
+            background-size: 40px 40px;
         }
 
-        /* Ambient Background */
-        .ambient-light {
+        /* Particles / Data Stream Background */
+        #canvas-bg {
             position: fixed;
-            width: 100vw;
-            height: 100vh;
-            background:
-                radial-gradient(circle at 80% 20%, rgba(14, 165, 233, 0.08) 0%, transparent 40%),
-                radial-gradient(circle at 20% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 40%);
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             z-index: -1;
-            pointer-events: none;
+            opacity: 0.4;
         }
 
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            padding: 4rem 2rem;
-        }
-
-        header {
-            text-align: center;
-            margin-bottom: 5rem;
+            padding: 2rem;
             position: relative;
         }
 
-        .badge {
-            font-family: 'JetBrains Mono', monospace;
-            background: rgba(14, 165, 233, 0.1);
-            color: var(--accent);
-            padding: 0.4rem 1rem;
-            border-radius: 100px;
-            font-size: 0.75rem;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            border: 1px solid rgba(14, 165, 233, 0.2);
-            margin-bottom: 2rem;
-            display: inline-block;
+        /* Custom Cursor */
+        .cursor {
+            position: fixed;
+            width: 8px;
+            height: 8px;
+            background: #fff;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9999;
+            mix-blend-mode: difference;
+            transition: transform 0.1s;
         }
 
-        h1 {
+        .cursor-follower {
+            position: fixed;
+            width: 40px;
+            height: 40px;
+            border: 1px solid var(--cerulean);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9998;
+            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s;
+            opacity: 0.5;
+        }
+
+        /* Header Section */
+        header {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            position: relative;
+        }
+
+        .glitch-nav {
+            position: absolute;
+            top: 2rem;
+            left: 2rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            letter-spacing: 0.2em;
+            text-decoration: none;
+            color: var(--text-dim);
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--glass-border);
+            transition: all 0.3s;
+        }
+
+        .glitch-nav:hover {
+            color: var(--cerulean);
+            border-color: var(--cerulean);
+            box-shadow: var(--neon-glow);
+        }
+
+        .hud-title {
             font-family: 'Orbitron', sans-serif;
-            font-size: clamp(2.5rem, 8vw, 5rem);
+            font-size: clamp(3rem, 10vw, 7rem);
             font-weight: 900;
-            letter-spacing: -0.02em;
-            line-height: 1;
+            line-height: 0.9;
             margin-bottom: 2rem;
-            background: linear-gradient(135deg, #fff 30%, rgba(255, 255, 255, 0.4));
+            position: relative;
+        }
+
+        .hud-title span {
+            display: block;
+            background: linear-gradient(to bottom, #fff, var(--text-dim));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
-        .back-button {
-            position: absolute;
-            left: 0;
-            top: 1rem;
-            color: var(--text-dim);
-            text-decoration: none;
+        .hud-subtitle {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--cerulean);
+            letter-spacing: 0.5em;
             font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            transition: color 0.3s;
+            opacity: 0.8;
+            text-transform: uppercase;
         }
 
-        .back-button:hover {
-            color: var(--accent);
+        /* Prism Player Section */
+        .prism-section {
+            padding: 10rem 0;
+            perspective: 2000px;
         }
 
-        /* Cinematic Player */
-        .player-section {
+        .prism-player-wrap {
+            width: 100%;
+            max-width: 1100px;
+            margin: 0 auto;
             position: relative;
-            margin-bottom: 10rem;
+            transform-style: preserve-3d;
+            transition: transform 0.1s ease-out;
         }
 
-        .player-glow {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 80%;
-            height: 80%;
-            background: var(--accent);
-            filter: blur(120px);
-            opacity: 0.15;
-            z-index: -1;
-            border-radius: 20%;
-        }
-
-        .video-wrapper {
+        .video-prism {
             background: #000;
-            border-radius: 24px;
-            padding: 10px;
-            border: 1px solid var(--border);
-            box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 0.8);
-            position: relative;
-            overflow: hidden;
-            transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .video-wrapper:hover {
-            transform: scale(1.02);
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-
-        video {
-            width: 100%;
-            display: block;
-            border-radius: 16px;
-        }
-
-        /* Info Modules */
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 2rem;
-        }
-
-        .feature-card {
-            background: var(--glass);
-            border: 1px solid var(--border);
-            backdrop-filter: blur(12px);
-            padding: 3rem;
-            border-radius: 24px;
-            transition: all 0.4s;
+            border-radius: 4px;
+            padding: 1px;
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 100px 200px rgba(0, 0, 0, 0.9);
             position: relative;
             overflow: hidden;
         }
 
-        .feature-card::before {
+        .video-prism::after {
             content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 2px;
-            background: linear-gradient(to right, transparent, var(--accent), transparent);
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .feature-card:hover {
-            background: rgba(255, 255, 255, 0.05);
-            transform: translateY(-10px);
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-
-        .feature-card:hover::before {
-            opacity: 1;
-        }
-
-        .feature-card h3 {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 1.25rem;
-            margin-bottom: 1.5rem;
-            color: var(--accent);
-            letter-spacing: 0.1em;
-        }
-
-        .feature-card ul {
-            list-style: none;
-        }
-
-        .feature-card li {
-            color: var(--text-dim);
-            margin-bottom: 1rem;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .feature-card li::before {
-            content: '';
-            width: 4px;
-            height: 4px;
-            background: var(--accent);
-            border-radius: 50%;
-            box-shadow: 0 0 8px var(--accent);
-        }
-
-        /* Footer CTA */
-        .cta-footer {
-            margin-top: 10rem;
-            text-align: center;
-            padding: 6rem 0;
-            border-top: 1px solid var(--border);
-        }
-
-        .btn-modern {
-            padding: 1.2rem 3rem;
-            background: white;
-            color: black;
-            border-radius: 100px;
-            font-weight: 800;
-            text-decoration: none;
-            font-size: 1rem;
-            display: inline-block;
-            transition: all 0.3s;
-            box-shadow: 0 0 40px rgba(255, 255, 255, 0.1);
-        }
-
-        .btn-modern:hover {
-            transform: scale(1.05);
-            box-shadow: 0 0 60px rgba(255, 255, 255, 0.2);
-        }
-
-        @media (max-width: 1024px) {
-            .features-grid {
-                grid-template-columns: 1fr;
-            }
-
-            h1 {
-                font-size: 3rem;
-            }
-
-            .back-button {
-                position: static;
-                margin-bottom: 2rem;
-            }
-        }
-
-        /* UI Elements */
-        .scan-line {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(to bottom, transparent 50%, rgba(14, 165, 233, 0.02) 50%);
-            background-size: 100% 4px;
+            background: linear-gradient(125deg, transparent 40%, rgba(255, 255, 255, 0.05) 45%, transparent 50%);
+            pointer-events: none;
+        }
+
+        video {
+            width: 100%;
+            display: block;
+            filter: contrast(1.1) brightness(1.1);
+        }
+
+        /* HUD Overlays */
+        .hud-overlay {
+            position: absolute;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--cerulean);
+            text-transform: uppercase;
             pointer-events: none;
             z-index: 10;
+        }
+
+        .hud-tl {
+            top: -20px;
+            left: 0;
+        }
+
+        .hud-tr {
+            top: -20px;
+            right: 0;
+        }
+
+        .hud-bl {
+            bottom: -20px;
+            left: 0;
+        }
+
+        .hud-br {
+            bottom: -20px;
+            right: 0;
+        }
+
+        .scanline {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, transparent 50%, rgba(14, 165, 233, 0.03) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+        }
+
+        /* Bento Grid Details */
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            grid-template-rows: repeat(2, 300px);
+            gap: 1.5rem;
+            margin-top: 5rem;
+        }
+
+        .bento-item {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            padding: 2.5rem;
+            border-radius: 32px;
+            backdrop-filter: blur(20px);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .bento-item:hover {
+            border-color: var(--cerulean);
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .bento-1 {
+            grid-column: span 4;
+        }
+
+        .bento-2 {
+            grid-column: span 8;
+        }
+
+        .bento-3 {
+            grid-column: span 7;
+        }
+
+        .bento-4 {
+            grid-column: span 5;
+        }
+
+        .bento-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--cerulean);
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        .bento-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .bento-content {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        footer {
+            text-align: center;
+            padding: 10rem 0 5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            letter-spacing: 0.3em;
+        }
+
+        @media (max-width: 1024px) {
+            .bento-grid {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .bento-item {
+                min-height: 250px;
+            }
+
+            .hud-title {
+                font-size: 3.5rem;
+            }
         }
     </style>
 </head>
 
 <body>
-    <div class="ambient-light"></div>
-    <div class="scan-line"></div>
+    <canvas id="canvas-bg"></canvas>
+
+    <div class="cursor"></div>
+    <div class="cursor-follower"></div>
 
     <div class="container">
         <header>
-            <a href="index.html" class="back-button">← SYSTEM.HOME</a>
-            <div class="badge">Operation: Visual Guide</div>
-            <h1>THE VISION OF <span style="color: var(--accent)">CLOUDLENS</span></h1>
+            <a href="index.html" class="glitch-nav">SYS.ROOT // EXIT</a>
+            <div class="hud-subtitle">Intelligence Access Granted</div>
+            <h1 class="hud-title">
+                <span>CLOUDLENS</span>
+                <span style="font-size: 0.4em; opacity: 0.5; margin-top: 10px;">PRISM PROTOCOL</span>
+            </h1>
+            <div
+                style="width: 1px; height: 100px; background: linear-gradient(to bottom, var(--cerulean), transparent); margin-top: 2rem;">
+            </div>
         </header>
 
-        <section class="player-section">
-            <div class="player-glow"></div>
-            <div class="video-wrapper">
-                <video id="main-video" controls preload="metadata" poster="">
-                    <source src="web_guide_5min.mp4" type="video/mp4">
-                    Browser not supported.
-                </video>
+        <section class="prism-section">
+            <div class="prism-player-wrap" id="prism-wrap">
+                <div class="hud-overlay hud-tl">// STREAM_ACTIVE</div>
+                <div class="hud-overlay hud-tr">FHD_1080P // 60FPS</div>
+                <div class="hud-overlay hud-bl">AUTH: GOVERNANCE_LEVEL_01</div>
+                <div class="hud-overlay hud-br">DURATION: 03:59:12</div>
+
+                <div class="video-prism">
+                    <div class="scanline"></div>
+                    <video id="v" controls preload="metadata">
+                        <source src="web_guide_5min.mp4" type="video/mp4">
+                    </video>
+                </div>
             </div>
         </section>
 
-        <div class="features-grid">
-            <div class="feature-card">
-                <h3>CORE STREAM</h3>
-                <ul>
-                    <li>多云资源实时查询 & 聚合</li>
-                    <li>AI 辅助成本预测流</li>
-                    <li>智能闲置资源识别算法</li>
-                    <li>自动化安全基线检查</li>
-                </ul>
+        <div class="bento-grid">
+            <div class="bento-item bento-1">
+                <div>
+                    <span class="bento-label">01 // VISUALIZATION</span>
+                    <h3 class="bento-title">极简视觉</h3>
+                </div>
+                <p class="bento-content">采用 Next.js 14 驱动的毛玻璃 UI 架构，为复杂的云资源提供极其丝滑的可视化治理体验。</p>
             </div>
-            <div class="feature-card">
-                <h3>ENGINE STATS</h3>
-                <ul>
-                    <li>并发量: High-Speed Parallel</li>
-                    <li>架构: Standard Package v2.1</li>
-                    <li>前端: Next.js 14 / Tailwind</li>
-                    <li>性能: MySQL Persistence Cache</li>
-                </ul>
+            <div class="bento-item bento-2">
+                <div>
+                    <span class="bento-label">02 // ARCHITECTURE</span>
+                    <h3 class="bento-title">并发数据聚合引擎</h3>
+                </div>
+                <p class="bento-content">基于 Python 并发 SDK 模型，实现跨账号、跨地域的秒级数据采集。即使面对数万个 ECS 实例，也能在瞬息之间完成全盘审计与性能分析。</p>
             </div>
-            <div class="feature-card">
-                <h3>DATA OUTPUT</h3>
-                <ul>
-                    <li>专业级 Excel 审计报告</li>
-                    <li>动态可视化交互看板</li>
-                    <li>多维度成本治理洞察</li>
-                    <li>全自动修复记录审计</li>
-                </ul>
+            <div class="bento-item bento-3">
+                <div>
+                    <span class="bento-label">03 // AI ANALYSIS</span>
+                    <h3 class="bento-title">智能 FinOps 预测</h3>
+                </div>
+                <p class="bento-content">内置 Prophet 机器学习模型，自动学习您的历史账单规律，精准预测未来 90 天的成本走向，并识别潜在的折扣机会与浪费漏洞。</p>
+            </div>
+            <div class="bento-item bento-4">
+                <div>
+                    <span class="bento-label">04 // REPORTING</span>
+                    <h3 class="bento-title">全域报告导出</h3>
+                </div>
+                <p class="bento-content">一键生成包含资源清单、安全加固建议与成本优化的专业 HTML/Excel 报告。</p>
             </div>
         </div>
 
-        <footer class="cta-footer">
-            <h2 style="margin-bottom: 2rem; font-family: Orbitron;">READY TO DEPLOY?</h2>
-            <a href="https://github.com/songqipeng/cloudlens" class="btn-modern">INIT PROJECT</a>
-            <p style="margin-top: 3rem; color: var(--text-dim); font-size: 0.8rem; letter-spacing: 0.2em;">&copy; 2026
-                CLOUDLENS PROTOCOL</p>
+        <footer>
+            &copy; 2026 CLOUDLENS PROJECT // OPERATING UNDER MIT LICENSE
         </footer>
     </div>
 
     <script>
-        // Smooth hover effect for the video player
-        const wrapper = document.querySelector('.video-wrapper');
-        document.addEventListener('mousemove', (e) => {
-            const xAxis = (window.innerWidth / 2 - e.pageX) / 50;
-            const yAxis = (window.innerHeight / 2 - e.pageY) / 50;
-            wrapper.style.transform = `rotateY(${xAxis}deg) rotateX(${yAxis}deg)`;
+        // Custom Cursor
+        const cursor = document.querySelector('.cursor');
+        const follower = document.querySelector('.cursor-follower');
+        document.addEventListener('mousemove', e => {
+            cursor.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0)`;
+            follower.style.transform = `translate3d(${e.clientX - 16}px, ${e.clientY - 16}px, 0)`;
         });
+
+        // 3D Parallax Prism
+        const wrap = document.getElementById('prism-wrap');
+        document.addEventListener('mousemove', e => {
+            const x = (window.innerWidth / 2 - e.clientX) / 20;
+            const y = (window.innerHeight / 2 - e.clientY) / 20;
+            wrap.style.transform = `rotateY(${-x}deg) rotateX(${y}deg)`;
+        });
+
+        // Data Stream Background
+        const canvas = document.getElementById('canvas-bg');
+        const ctx = canvas.getContext('2d');
+        let width, height, particles;
+
+        function init() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            particles = [];
+            for (let i = 0; i < 50; i++) {
+                particles.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    speed: 0.5 + Math.random() * 2,
+                    size: 1 + Math.random() * 2
+                });
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = '#0ea5e9';
+            particles.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                p.y -= p.speed;
+                if (p.y < 0) p.y = height;
+            });
+            requestAnimationFrame(draw);
+        }
+
+        window.addEventListener('resize', init);
+        init();
+        draw();
     </script>
 </body>
 
