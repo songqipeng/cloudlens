@@ -59,6 +59,7 @@ logs/
 *.xlsx
 *.xls
 *.html
+!docs/video.html
 *.pdf
 !requirements.txt
 
