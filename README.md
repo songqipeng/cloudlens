@@ -31,13 +31,15 @@
 
 **NEW!** 3分59秒 Web 界面完整使用指南视频已发布！
 
-[![CloudLens Web 使用指南](https://img.shields.io/badge/Video-Web%20Guide-red.svg)](./test-recordings/web/cloudlens_web_guide_5min_20260113_155041.mp4)
+[![CloudLens Web 使用指南](https://img.shields.io/badge/Video-Web%20Guide-red.svg)](./docs/web_guide_5min.mp4)
 
 **视频内容**：
 - ✅ 9个核心功能完整演示（资源查询、成本分析、安全合规等）
 - ✅ 真实操作流程展示（敏感信息已脱敏）
 - ✅ 中文专业讲解，音画同步
 - ✅ Full HD 1080p，无黑屏，页面完整展示
+
+> 💡 **提示**：视频可在 GitHub 上直接在线播放，也可以点击下载到本地观看。
 
 📖 **详细说明**：[视频使用指南](./docs/VIDEO_GUIDE.md)
 
@@ -184,7 +186,8 @@ npm run dev
 **完整文档索引**: [docs/README.md](./docs/README.md) - 按角色分类的文档导航
 
 ### 🎬 视频教程
-- **[视频使用指南](./docs/VIDEO_GUIDE.md)** - 🆕 **Web 界面 3分59秒完整教程视频**
+- **[Web 使用指南视频](./docs/web_guide_5min.mp4)** - 🆕 **3分59秒完整教程视频（可直接在线播放）**
+- [视频使用指南](./docs/VIDEO_GUIDE.md) - 视频功能说明和使用方法
 - [视频技术报告](./docs/WEB_GUIDE_5MIN_REPORT.md) - 视频制作技术细节
 
 ### 📘 快速开始
