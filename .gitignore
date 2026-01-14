@@ -1,5 +1,8 @@
 # 敏感配置文件
 config.json
+.env
+.env.local
+.env.*.local
 
 # 数据库文件
 *.db
