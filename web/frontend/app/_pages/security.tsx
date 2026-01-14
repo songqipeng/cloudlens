@@ -319,7 +319,7 @@ export default function SecurityPage() {
                                         </div>
                                       )}
                                       <div className="text-muted-foreground text-[10px] mt-1 opacity-60">
-                                        {t.security.clickToView || '点击查看详情'}
+                                        点击查看详情
                                       </div>
                                     </div>
                                   )
