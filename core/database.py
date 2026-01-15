@@ -119,19 +119,17 @@ class MySQLAdapter(DatabaseAdapter):
             'database': config.get('database', 'cloudlens'),
             'charset': config.get('charset', 'utf8mb4'),
             'collation': config.get('collation', 'utf8mb4_unicode_ci'),
-            'autocommit': False,
         }
-        
+
         # 创建连接池（Week 4-5优化：优化连接池参数）
         pool_size = config.get('pool_size', 20)  # 默认20，可根据实际负载调整
         pool_reset_session = config.get('pool_reset_session', True)
-        
+
         try:
             self.pool = pooling.MySQLConnectionPool(
                 pool_name="cloudlens_pool",
                 pool_size=pool_size,
                 pool_reset_session=pool_reset_session,
-                # 连接池优化参数
                 autocommit=False,  # 手动控制事务
                 **self.config
             )
