@@ -2,234 +2,67 @@
 
 > **版本**: 2.0  
 > **更新日期**: 2026-01-19  
-> **适用场景**: 新开发者快速上手、普通用户快速启动
+> **适用对象**: 所有用户（统一流程）
 
 ---
 
-## 🎯 两种使用场景
-
-### 场景1: 普通用户（只想快速使用）
-
-**目标**: 最快速度启动 CloudLens，无需了解开发细节
-
-👉 **推荐**: 使用 Docker Compose（3步搞定）
-
-### 场景2: 开发者（需要开发和测试）
-
-**目标**: 本地开发环境，可以修改代码并实时看到效果
-
-👉 **推荐**: 本地开发环境（适合开发调试）
-
----
-
-## 🚀 场景1: 普通用户快速启动（推荐）
+## 🚀 3步快速启动
 
 ### 前置条件
 
 - ✅ 已安装 Docker 和 Docker Compose
+- ✅ 已安装 Git
 - ✅ 有 AI API 密钥（Claude 或 OpenAI）
 
-### 3步启动
+---
+
+## 步骤 1: 下载代码
 
 ```bash
-# 1. 下载最新代码
 git clone https://github.com/songqipeng/cloudlens.git
 cd cloudlens
-
-# 2. 配置环境变量（至少配置AI API密钥）
-cp .env.example .env
-# 编辑 .env，添加：
-# ANTHROPIC_API_KEY=your_claude_api_key
-# LLM_PROVIDER=claude
-
-# 3. 一键启动（自动拉取Docker镜像）
-docker-compose up -d
-```
-
-### 访问应用
-
-- **前端**: http://localhost:3000
-- **后端API**: http://localhost:8000
-- **API文档**: http://localhost:8000/docs
-
-### 查看服务状态
-
-```bash
-# 查看所有服务状态
-docker-compose ps
-
-# 查看日志
-docker-compose logs -f
-
-# 停止服务
-docker-compose down
 ```
 
 ---
 
-## 🛠️ 场景2: 开发者本地开发环境
-
-### 前置条件
-
-- ✅ Python 3.11+
-- ✅ Node.js 20+
-- ✅ MySQL 8.0+（或使用 Docker 启动 MySQL）
-
-### 完整步骤
-
-#### 1. 下载最新代码
-
-```bash
-git clone https://github.com/songqipeng/cloudlens.git
-cd cloudlens
-
-# 拉取最新代码
-git pull origin main
-```
-
-#### 2. 启动 MySQL（如果使用 MySQL）
-
-**选项A: 使用 Docker 启动 MySQL（推荐）**
-
-```bash
-docker run -d \
-  --name cloudlens-mysql \
-  -e MYSQL_ROOT_PASSWORD=cloudlens_root_2024 \
-  -e MYSQL_DATABASE=cloudlens \
-  -e MYSQL_USER=cloudlens \
-  -e MYSQL_PASSWORD=cloudlens123 \
-  -p 3306:3306 \
-  mysql:8.0
-
-# 等待MySQL启动（约10秒）
-sleep 10
-
-# 初始化数据库
-mysql -u cloudlens -pcloudlens123 cloudlens < migrations/init_mysql_schema.sql
-mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_chatbot_tables.sql
-mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_anomaly_table.sql
-```
-
-**选项B: 使用本地 MySQL**
-
-```bash
-# macOS
-brew services start mysql
-
-# 创建数据库和用户
-mysql -u root -p <<EOF
-CREATE DATABASE cloudlens CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'cloudlens'@'localhost' IDENTIFIED BY 'cloudlens123';
-GRANT ALL PRIVILEGES ON cloudlens.* TO 'cloudlens'@'localhost';
-FLUSH PRIVILEGES;
-EOF
-
-# 初始化数据库
-mysql -u cloudlens -pcloudlens123 cloudlens < migrations/init_mysql_schema.sql
-mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_chatbot_tables.sql
-mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_anomaly_table.sql
-```
-
-#### 3. 安装依赖
-
-```bash
-# 安装Python依赖
-pip install -r requirements.txt
-
-# 安装前端依赖
-cd web/frontend
-npm install
-cd ../..
-```
-
-#### 4. 配置环境变量
+## 步骤 2: 配置环境变量
 
 ```bash
 # 复制环境变量模板
 cp .env.example .env
 
-# 编辑 .env，至少配置：
-# - AI API密钥（ANTHROPIC_API_KEY 或 OPENAI_API_KEY）
-# - 数据库配置（如果使用MySQL）
+# 编辑 .env 文件，至少配置 AI API 密钥
+nano .env
 ```
 
-#### 5. 启动服务
-
-**终端1 - 启动后端**:
+**必需配置**（至少一个）:
 ```bash
-cd web/backend
-python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+# 使用 Claude（推荐）
+ANTHROPIC_API_KEY=sk-ant-api03-xxxxx
+LLM_PROVIDER=claude
+
+# 或使用 OpenAI
+OPENAI_API_KEY=sk-xxxxx
+LLM_PROVIDER=openai
 ```
-
-**终端2 - 启动前端**:
-```bash
-cd web/frontend
-npm run dev
-```
-
-#### 6. 访问应用
-
-- **前端**: http://localhost:3000
-- **后端API**: http://localhost:8000
-- **API文档**: http://localhost:8000/docs
 
 ---
 
-## 📋 快速启动脚本（普通用户）
-
-我们提供了一个一键启动脚本：
+## 步骤 3: 一键启动
 
 ```bash
-# 下载代码
-git clone https://github.com/songqipeng/cloudlens.git
-cd cloudlens
-
-# 运行快速启动脚本
-./scripts/quick-start.sh
+# 使用智能启动脚本（自动检测架构、拉取镜像、启动服务）
+./scripts/start.sh
 ```
 
 脚本会自动：
-1. 检查 Docker 是否安装
-2. 配置环境变量（如果不存在）
-3. 启动所有服务
-4. 显示访问地址
+- ✅ 检测代码是否有更新（自动询问是否拉取）
+- ✅ 检测 CPU 架构（ARM64/AMD64）
+- ✅ 检测运行中的服务（自动询问是否重启）
+- ✅ 拉取或构建相应平台的镜像
+- ✅ 启动所有服务
 
----
-
-## 🔄 更新到最新版本
-
-### 普通用户（Docker方式）
-
-```bash
-# 进入项目目录
-cd cloudlens
-
-# 拉取最新代码
-git pull origin main
-
-# 拉取最新Docker镜像
-docker-compose pull
-
-# 重启服务
-docker-compose up -d
-```
-
-### 开发者（本地环境）
-
-```bash
-# 拉取最新代码
-git pull origin main
-
-# 更新Python依赖（如果有新依赖）
-pip install -r requirements.txt
-
-# 更新前端依赖（如果有新依赖）
-cd web/frontend
-npm install
-cd ../..
-
-# 重启服务（停止并重新启动）
-```
+**等待约 30-60 秒**，然后访问：**http://localhost:3000**
 
 ---
 
@@ -237,100 +70,234 @@ cd ../..
 
 ### 1. 检查服务状态
 
-**Docker方式**:
 ```bash
-docker-compose ps
-# 所有服务应该显示为 "Up"
+docker compose ps
 ```
 
-**本地方式**:
+所有服务应该显示为 `Up` 状态。
+
+### 2. 检查后端健康
+
 ```bash
-# 检查后端
 curl http://localhost:8000/health
-# 应该返回: {"status":"healthy",...}
-
-# 检查前端
-curl http://localhost:3000
-# 应该返回HTML内容
 ```
 
-### 2. 访问前端
+应该返回：
+```json
+{
+  "status": "healthy",
+  "timestamp": "...",
+  "service": "cloudlens-api",
+  "version": "1.1.0"
+}
+```
 
-打开浏览器访问：http://localhost:3000
+### 3. 访问前端
 
-### 3. 测试AI Chatbot
-
-1. 在页面右下角找到蓝色圆形按钮
-2. 点击打开AI助手
-3. 输入问题测试
+打开浏览器访问：**http://localhost:3000**
 
 ---
 
-## 🐛 常见问题
+## 🔄 更新到最新版本
 
-### 问题1: Docker镜像拉取失败
+```bash
+cd cloudlens
+./scripts/start.sh
+```
 
-**症状**: `Error response from daemon: pull access denied`
+脚本会自动：
+- ✅ 检测代码是否有更新
+- ✅ 询问是否拉取最新代码（默认 Y）
+- ✅ 检测运行中的服务
+- ✅ 询问是否重启服务
+- ✅ 拉取最新镜像
+- ✅ 启动服务
+
+> 📖 **详细更新指南**: 查看 [更新指南](./UPDATE_GUIDE.md)
+
+---
+
+## 🛠️ 常用命令
+
+### 启动服务
+
+```bash
+./scripts/start.sh
+```
+
+### 停止服务
+
+```bash
+docker compose down
+```
+
+### 查看日志
+
+```bash
+# 查看所有服务日志
+docker compose logs -f
+
+# 查看特定服务日志
+docker compose logs -f backend
+docker compose logs -f frontend
+```
+
+### 重启服务
+
+```bash
+docker compose restart
+```
+
+---
+
+## 🎯 使用功能
+
+### AI Chatbot
+
+1. 打开浏览器访问 http://localhost:3000
+2. 点击右下角的**蓝色圆形按钮**（AI助手图标）
+3. 开始对话，例如：
+   - "为什么这个月成本提升了10%？"
+   - "有哪些闲置资源可以优化？"
+
+### 折扣分析
+
+1. 访问：http://localhost:3000/a/[账号名]/discounts
+2. 查看折扣数据，支持排序、筛选、搜索
+
+### 成本异常检测
+
+通过 API 调用：
+```bash
+curl -X POST "http://localhost:8000/api/v1/anomaly/detect?account=your_account"
+```
+
+### 预算管理
+
+通过 API 调用：
+```bash
+curl "http://localhost:8000/api/v1/budgets"
+```
+
+---
+
+## 🔧 故障排查
+
+### 问题1: 服务无法启动
+
+**可能原因**:
+- 端口被占用
+- 之前的容器未清理
+- 配置错误
 
 **解决方案**:
 ```bash
-# 检查网络连接
-ping hub.docker.com
-
-# 手动拉取镜像
-docker pull songqipeng/cloudlens-backend:latest
-docker pull songqipeng/cloudlens-frontend:latest
-```
-
-### 问题2: 服务启动失败
-
-**症状**: 容器状态为 `Exit 1`
-
-**排查步骤**:
-```bash
-# 查看详细日志
-docker-compose logs backend
-docker-compose logs frontend
-
-# 检查环境变量
-docker-compose config
-
-# 检查端口占用
-lsof -i :8000  # 后端端口
+# 1. 检查端口占用
 lsof -i :3000  # 前端端口
+lsof -i :8000  # 后端端口
+lsof -i :3306  # MySQL端口
+lsof -i :6379  # Redis端口
+
+# 2. 清理并重启
+docker compose down
+./scripts/start.sh
 ```
 
-### 问题3: 数据库连接失败
-
-**症状**: 后端日志显示数据库连接错误
+### 问题2: 前端页面空白
 
 **解决方案**:
 ```bash
-# 检查MySQL是否运行
-docker-compose ps mysql  # Docker方式
-brew services list | grep mysql  # 本地方式
+# 查看前端日志
+docker compose logs frontend
 
-# 测试数据库连接
-mysql -u cloudlens -pcloudlens123 -h localhost cloudlens -e "SELECT 1;"
+# 重启前端
+docker compose restart frontend
 ```
 
-### 问题4: AI Chatbot不工作
-
-**症状**: AI功能返回错误
+### 问题3: AI Chatbot 不工作
 
 **解决方案**:
 1. 检查 `.env` 文件中是否配置了 AI API 密钥
 2. 验证密钥是否有效
-3. 查看后端日志：`docker-compose logs backend | grep -i "ai\|llm"`
+3. 查看后端日志：`docker compose logs backend | grep -i "ai\|llm"`
+
+### 问题4: 数据库连接失败
+
+**解决方案**:
+```bash
+# 检查 MySQL 是否运行
+docker compose ps mysql
+
+# 查看 MySQL 日志
+docker compose logs mysql
+
+# 重启 MySQL
+docker compose restart mysql
+```
+
+### 问题5: 架构相关问题
+
+**如果遇到架构相关错误，使用智能启动脚本**:
+
+```bash
+./scripts/start.sh
+```
+
+脚本会自动：
+- 检测您的系统架构
+- 选择正确的平台（ARM64 或 AMD64）
+- 拉取或构建相应镜像
+- 启动服务
+
+---
+
+## 💻 开发相关
+
+### 本地开发环境
+
+如果您需要修改代码并实时看到效果：
+
+```bash
+# 1. 安装 Python 依赖
+pip install -r requirements.txt
+
+# 2. 安装前端依赖
+cd web/frontend && npm install && cd ../..
+
+# 3. 启动数据库（使用 Docker）
+docker run -d --name cloudlens-mysql \
+  -e MYSQL_ROOT_PASSWORD=cloudlens_root_2024 \
+  -e MYSQL_DATABASE=cloudlens \
+  -e MYSQL_USER=cloudlens \
+  -e MYSQL_PASSWORD=cloudlens123 \
+  -p 3306:3306 mysql:8.0
+
+# 4. 初始化数据库
+sleep 10
+mysql -u cloudlens -pcloudlens123 cloudlens < migrations/init_mysql_schema.sql
+mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_chatbot_tables.sql
+mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_anomaly_table.sql
+
+# 5. 启动开发服务
+# 终端1 - 后端（支持热重载）
+cd web/backend
+python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+# 终端2 - 前端（支持热重载）
+cd web/frontend
+npm run dev
+```
+
+> 📖 **详细开发指南**: 查看 [开发者快速开始指南](./QUICK_START_FOR_DEVELOPERS.md)（可选）
 
 ---
 
 ## 📚 相关文档
 
-- [Docker Hub 使用指南](./DOCKER_HUB_SETUP.md) - Docker镜像使用说明
-- [本地测试指南](./LOCAL_TESTING_GUIDE.md) - 详细测试步骤
-- [Q1功能使用指南](./Q1_USER_GUIDE.md) - Q1功能详细说明
-- [开发指南](./DEVELOPMENT_GUIDE.md) - 开发者文档
+- **更新指南**: [更新指南](./UPDATE_GUIDE.md)
+- **Q1功能使用**: [Q1功能使用指南](./Q1_USER_GUIDE.md)
+- **本地测试**: [本地测试指南](./LOCAL_TESTING_GUIDE.md)
+- **Docker Hub**: [Docker Hub 使用指南](./DOCKER_HUB_SETUP.md)
 
 ---
 

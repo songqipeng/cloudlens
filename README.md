@@ -41,9 +41,7 @@
 
 ## 🛠️ 快速开始
 
-### 👥 我是普通用户（只想快速使用）
-
-**3步快速启动**：
+### 3步快速启动（统一流程）
 
 ```bash
 # 1. 下载代码
@@ -54,32 +52,33 @@ cd cloudlens
 cp .env.example .env
 # 编辑 .env，添加：ANTHROPIC_API_KEY=your_key
 
-# 3. 一键启动（自动检测架构并启动）
+# 3. 一键启动（自动检测架构、拉取镜像、启动服务）
 ./scripts/start.sh
 ```
 
 **等待 30-60 秒**，然后访问：**http://localhost:3000**
 
-> 💡 **提示**: `start.sh` 脚本会自动检测您的系统架构（ARM64/AMD64），自动拉取或构建相应镜像，无需手动配置。  
-> 📖 **详细指南**: [用户快速开始指南](./docs/QUICK_START_FOR_USERS.md)
+> 💡 **提示**: `start.sh` 脚本会自动：
+> - 检测代码是否有更新（自动询问是否拉取）
+> - 检测您的系统架构（ARM64/AMD64）
+> - 检测运行中的服务（自动询问是否重启）
+> - 拉取或构建相应平台的镜像
+> - 启动所有服务
+>
+> 📖 **详细指南**: [快速开始指南](./docs/QUICK_START.md)
 
 ---
 
-### 👨‍💻 我是开发者（需要开发环境）
+### 💻 本地开发（可选）
 
-**5分钟快速开始**：
+如果您需要修改代码并实时看到效果，可以设置本地开发环境：
 
 ```bash
-# 1. 下载最新代码
-git clone https://github.com/songqipeng/cloudlens.git
-cd cloudlens
-git pull origin main
-
-# 2. 安装依赖
+# 安装依赖
 pip install -r requirements.txt
 cd web/frontend && npm install && cd ../..
 
-# 3. 启动数据库（使用Docker）
+# 启动数据库（使用 Docker）
 docker run -d --name cloudlens-mysql \
   -e MYSQL_ROOT_PASSWORD=cloudlens_root_2024 \
   -e MYSQL_DATABASE=cloudlens \
@@ -87,13 +86,13 @@ docker run -d --name cloudlens-mysql \
   -e MYSQL_PASSWORD=cloudlens123 \
   -p 3306:3306 mysql:8.0
 
-# 4. 初始化数据库
+# 初始化数据库
 sleep 10
 mysql -u cloudlens -pcloudlens123 cloudlens < migrations/init_mysql_schema.sql
 mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_chatbot_tables.sql
 mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_anomaly_table.sql
 
-# 5. 启动开发服务
+# 启动开发服务（支持热重载）
 # 终端1 - 后端
 cd web/backend && python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
@@ -101,7 +100,7 @@ cd web/backend && python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reloa
 cd web/frontend && npm run dev
 ```
 
-> 📖 **详细指南**: [开发者快速开始指南](./docs/QUICK_START_FOR_DEVELOPERS.md)
+> 📖 **详细开发指南**: [开发者快速开始指南](./docs/QUICK_START_FOR_DEVELOPERS.md)（可选参考）
 
 ---
 
@@ -131,22 +130,16 @@ curl http://localhost:8000/health
 
 ### 🔄 更新到最新版本
 
-**推荐方式：使用智能启动脚本（最简单）**
-
 ```bash
 cd cloudlens
 ./scripts/start.sh
 ```
 
-脚本会自动检测代码更新、拉取镜像、重启服务。
-
-**手动更新方式：**
-
-```bash
-cd cloudlens
-git pull origin main          # 拉取最新代码
-./scripts/start.sh            # 自动处理镜像和服务
-```
+脚本会自动：
+- ✅ 检测代码是否有更新（自动询问是否拉取）
+- ✅ 检测运行中的服务（自动询问是否重启）
+- ✅ 拉取最新镜像
+- ✅ 启动服务
 
 > 📖 **详细更新指南**: 查看 [更新指南](./docs/UPDATE_GUIDE.md)
 
@@ -154,10 +147,11 @@ git pull origin main          # 拉取最新代码
 
 ### 📚 相关文档
 
-- [快速开始指南](./docs/QUICK_START.md) ⭐ **新用户必读**
-- [Docker Hub 使用指南](./docs/DOCKER_HUB_SETUP.md) - Docker镜像使用说明
-- [本地测试指南](./docs/LOCAL_TESTING_GUIDE.md) - 详细测试步骤
+- [快速开始指南](./docs/QUICK_START.md) ⭐ **必读**
+- [更新指南](./docs/UPDATE_GUIDE.md) - 如何更新到最新版本
 - [Q1功能使用指南](./docs/Q1_USER_GUIDE.md) - Q1功能详细说明
+- [本地测试指南](./docs/LOCAL_TESTING_GUIDE.md) - 详细测试步骤
+- [开发者快速开始指南](./docs/QUICK_START_FOR_DEVELOPERS.md) - 本地开发环境（可选）
 
 ---
 
