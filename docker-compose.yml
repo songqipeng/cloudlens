@@ -45,6 +45,7 @@ services:
     image: ${DOCKER_HUB_USERNAME:-songqipeng}/cloudlens-backend:${IMAGE_TAG:-latest}
     platform: linux/amd64  # 兼容性：如果镜像不支持 ARM64，使用 amd64
     container_name: cloudlens-backend
+    pull_policy: always  # 强制拉取镜像
     environment:
       # 数据库配置
       CLOUDLENS_DATABASE__DB_TYPE: mysql
@@ -99,6 +100,7 @@ services:
     image: ${DOCKER_HUB_USERNAME:-songqipeng}/cloudlens-frontend:${IMAGE_TAG:-latest}
     platform: linux/amd64  # 兼容性：如果镜像不支持 ARM64，使用 amd64
     container_name: cloudlens-frontend
+    pull_policy: always  # 强制拉取镜像
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     ports:
