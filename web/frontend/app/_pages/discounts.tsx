@@ -144,7 +144,7 @@ export default function DiscountsPage() {
     }
   }
 
-  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortKey, setSortKey] = useState<keyof DiscountRow | null>(null)
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
 
   const rows = useMemo(() => {
@@ -192,7 +192,7 @@ export default function DiscountsPage() {
     return filtered
   }, [data, mode, search, sortKey, sortOrder])
   
-  const handleSort = (key: string, order: "asc" | "desc") => {
+  const handleSort = (key: keyof DiscountRow, order: "asc" | "desc") => {
     setSortKey(key)
     setSortOrder(order)
   }
@@ -467,7 +467,7 @@ export default function DiscountsPage() {
                 </div>
               </div>
             ) : (
-              <Table data={rows} columns={columns} onSort={handleSort} />
+              <Table data={rows} columns={columns} onSort={handleSort as (key: string, order: "asc" | "desc") => void} />
             )}
             {rows.length > 0 && (
               <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.08)]">
