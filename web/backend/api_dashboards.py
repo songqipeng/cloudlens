@@ -43,8 +43,15 @@ class DashboardRequest(BaseModel):
     is_shared: bool = False
 
 
-# 初始化存储管理器
-_dashboard_storage = DashboardStorage()
+# 初始化存储管理器（延迟初始化，避免导入时连接MySQL）
+_dashboard_storage = None
+
+def get_dashboard_storage():
+    """获取仪表盘存储管理器（单例模式）"""
+    global _dashboard_storage
+    if _dashboard_storage is None:
+        _dashboard_storage = DashboardStorage()
+    return _dashboard_storage
 
 
 # ==================== 辅助函数 ====================
@@ -83,7 +90,8 @@ def list_dashboards(account: Optional[str] = None) -> Dict[str, Any]:
             if account_config:
                 account_id = f"{account_config.access_key_id[:10]}-{account}"
         
-        dashboards = _dashboard_storage.list_dashboards(account_id, include_shared=True)
+        storage = get_dashboard_storage()
+        dashboards = storage.list_dashboards(account_id, include_shared=True)
         return {
             "success": True,
             "data": [dashboard.to_dict() for dashboard in dashboards],
@@ -97,7 +105,8 @@ def list_dashboards(account: Optional[str] = None) -> Dict[str, Any]:
 def get_dashboard_detail(dashboard_id: str) -> Dict[str, Any]:
     """获取仪表盘详情"""
     try:
-        dashboard = _dashboard_storage.get_dashboard(dashboard_id)
+        storage = get_dashboard_storage()
+        dashboard = storage.get_dashboard(dashboard_id)
         if not dashboard:
             raise HTTPException(status_code=404, detail=f"Dashboard {dashboard_id} not found")
         return {
@@ -143,8 +152,9 @@ def create_dashboard(req: DashboardRequest, account: Optional[str] = None) -> Di
             is_shared=req.is_shared
         )
         
-        dashboard_id = _dashboard_storage.create_dashboard(dashboard)
-        created_dashboard = _dashboard_storage.get_dashboard(dashboard_id)
+        storage = get_dashboard_storage()
+        dashboard_id = storage.create_dashboard(dashboard)
+        created_dashboard = storage.get_dashboard(dashboard_id)
         return {
             "success": True,
             "message": "Dashboard created",
@@ -158,7 +168,8 @@ def create_dashboard(req: DashboardRequest, account: Optional[str] = None) -> Di
 def update_dashboard(dashboard_id: str, req: DashboardRequest) -> Dict[str, Any]:
     """更新自定义仪表盘"""
     try:
-        existing = _dashboard_storage.get_dashboard(dashboard_id)
+        storage = get_dashboard_storage()
+        existing = storage.get_dashboard(dashboard_id)
         if not existing:
             raise HTTPException(status_code=404, detail="Dashboard not found")
         
@@ -185,7 +196,8 @@ def update_dashboard(dashboard_id: str, req: DashboardRequest) -> Dict[str, Any]
             created_at=existing.created_at
         )
         
-        _dashboard_storage.update_dashboard(updated)
+        storage = get_dashboard_storage()
+        storage.update_dashboard(updated)
         return {"success": True, "message": "Dashboard updated"}
     except Exception as e:
         raise handle_api_error(e, "update_dashboard")
@@ -195,7 +207,8 @@ def update_dashboard(dashboard_id: str, req: DashboardRequest) -> Dict[str, Any]
 def delete_dashboard(dashboard_id: str) -> Dict[str, Any]:
     """删除自定义仪表盘"""
     try:
-        success = _dashboard_storage.delete_dashboard(dashboard_id)
+        storage = get_dashboard_storage()
+        success = storage.delete_dashboard(dashboard_id)
         if not success:
             raise HTTPException(status_code=404, detail="Dashboard not found")
         return {"success": True, "message": "Dashboard deleted"}
