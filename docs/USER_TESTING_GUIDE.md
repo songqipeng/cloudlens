@@ -143,3 +143,63 @@ open http://localhost:8000/docs
 1. `docker compose ps` 的输出
 2. `docker compose logs backend` 的输出
 3. 浏览器控制台错误信息（F12）
+
+## ⚠️ 重要提示：服务启动需要时间
+
+### 第一次启动
+
+**需要等待60-90秒**，因为：
+- MySQL容器需要初始化（约30秒）
+- 数据库迁移需要执行（约10-20秒）
+- 后端服务需要启动（约10-20秒）
+
+### 测试步骤
+
+```bash
+# 1. 启动服务
+./scripts/start.sh
+
+# 2. 等待服务完全启动（重要！）
+echo "等待服务启动（90秒）..."
+sleep 90
+
+# 3. 测试后端服务
+curl http://localhost:8000/health
+
+# 应该返回：
+# {"status":"healthy","timestamp":"...","service":"cloudlens-api","version":"1.1.0"}
+```
+
+### 如果遇到 "Connection reset by peer"
+
+这通常意味着服务还在启动中，请：
+
+1. **等待更长时间**
+   ```bash
+   sleep 90
+   curl http://localhost:8000/health
+   ```
+
+2. **检查服务状态**
+   ```bash
+   docker compose ps
+   ```
+
+3. **查看后端日志**
+   ```bash
+   docker compose logs backend --tail 50
+   ```
+   
+   应该看到：
+   - "MySQL已就绪！"
+   - "启动后端服务..."
+   - "Uvicorn running on http://0.0.0.0:8000"
+
+4. **如果仍然失败**
+   ```bash
+   # 查看完整日志
+   docker compose logs backend
+   
+   # 重启服务
+   docker compose restart backend
+   ```
