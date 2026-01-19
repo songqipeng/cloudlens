@@ -218,7 +218,7 @@ def delete_dashboard(dashboard_id: str) -> Dict[str, Any]:
 
 # ==================== 仪表盘数据端点 ====================
 
-@router.get("/api/dashboard/summary")
+@router.get("/dashboard/summary")
 async def get_summary(
     account: Optional[str] = None, 
     force_refresh: bool = Query(False, description="强制刷新缓存")
