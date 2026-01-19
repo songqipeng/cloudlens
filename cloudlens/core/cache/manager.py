@@ -30,21 +30,29 @@ class CacheManager:
         self.ttl_seconds = ttl_seconds
         self.db_type = db_type or os.getenv("DB_TYPE", "mysql").lower()
 
-        # 创建MySQL数据库适配器
-        self.db = DatabaseFactory.create_adapter("mysql")
+        # 延迟初始化数据库适配器，避免导入时连接MySQL
+        self.db = None
         self._table_name = "resource_cache"
 
-        self._init_db()
+        # 延迟初始化数据库，避免导入时连接
+        # self._init_db()
+
+    def _get_db(self) -> DatabaseAdapter:
+        """延迟获取数据库适配器"""
+        if self.db is None:
+            self.db = DatabaseFactory.create_adapter("mysql")
+            self._init_db()  # 首次使用时初始化
+        return self.db
 
     def _init_db(self):
         """初始化MySQL数据库表结构"""
         # MySQL表结构已在init_mysql_schema.sql中创建
         # 这里只检查表是否存在
         try:
-            self.db.query("SELECT 1 FROM resource_cache LIMIT 1")
+            self._get_db().query("SELECT 1 FROM resource_cache LIMIT 1")
         except Exception:
             # 表不存在，创建表
-            self.db.execute("""
+            self._get_db().execute("""
                 CREATE TABLE IF NOT EXISTS resource_cache (
                     cache_key VARCHAR(255) PRIMARY KEY,
                     resource_type VARCHAR(50) NOT NULL,
@@ -79,7 +87,7 @@ class CacheManager:
         """
         params = (cache_key, now)
 
-        result = self.db.query_one(sql, params)
+        result = self._get_db().query_one(sql, params)
 
         if result:
             # MySQL的JSON类型可以直接解析
@@ -119,7 +127,7 @@ class CacheManager:
         """
         params = (cache_key, resource_type, account_name, region, data_json, created_at, expires_at)
 
-        self.db.execute(sql, params)
+        self._get_db().execute(sql, params)
 
     def clear(self, resource_type: str = None, account_name: str = None):
         """
@@ -142,7 +150,7 @@ class CacheManager:
             sql = "DELETE FROM resource_cache"
             params = None
 
-        self.db.execute(sql, params)
+        self._get_db().execute(sql, params)
     
     def clear_all(self):
         """清除所有缓存"""
@@ -154,12 +162,12 @@ class CacheManager:
 
         # 先查询要删除的数量
         count_sql = "SELECT COUNT(*) as count FROM resource_cache WHERE expires_at < %s"
-        count_result = self.db.query_one(count_sql, (now,))
+        count_result = self._get_db().query_one(count_sql, (now,))
         count = count_result['count'] if count_result else 0
 
         # 执行删除
         sql = "DELETE FROM resource_cache WHERE expires_at < %s"
-        self.db.execute(sql, (now,))
+        self._get_db().execute(sql, (now,))
         return count
 
     def _generate_key(self, resource_type: str, account_name: str, region: str = None) -> str:
