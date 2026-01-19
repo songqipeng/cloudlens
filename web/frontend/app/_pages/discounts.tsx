@@ -56,7 +56,10 @@ export default function DiscountsPage() {
   const fmtZhe = (z: number | null | undefined, free?: boolean) => {
     if (free) return t.discounts.free
     if (z === null || z === undefined || !Number.isFinite(z)) return "-"
-    return `${Number(z).toFixed(1)}${t.discounts.discountUnit}`
+    const zhe = Number(z)
+    // 处理边界情况：0折或负数折显示为"免费"
+    if (zhe <= 0) return t.discounts.free
+    return `${zhe.toFixed(1)}${t.discounts.discountUnit}`
   }
 
   const typeLabel = (tType: string) => {
@@ -141,9 +144,12 @@ export default function DiscountsPage() {
     }
   }
 
+  const [sortKey, setSortKey] = useState<string | null>(null)
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+
   const rows = useMemo(() => {
     const all = data?.rows || []
-    const filtered = all
+    let filtered = all
       .filter((r) => (mode === "all" ? true : String(r.subscription_type) === mode))
       .filter((r) => {
         const q = search.trim().toLowerCase()
@@ -153,8 +159,43 @@ export default function DiscountsPage() {
           String(r.product_name || "").toLowerCase().includes(q)
         )
       })
+    
+    // 实现排序
+    if (sortKey) {
+      filtered = [...filtered].sort((a, b) => {
+        const aVal = a[sortKey]
+        const bVal = b[sortKey]
+        
+        // 处理null/undefined
+        if (aVal == null && bVal == null) return 0
+        if (aVal == null) return 1
+        if (bVal == null) return -1
+        
+        // 数值比较
+        const aNum = Number(aVal)
+        const bNum = Number(bVal)
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+          return sortOrder === "asc" ? aNum - bNum : bNum - aNum
+        }
+        
+        // 字符串比较
+        const aStr = String(aVal).toLowerCase()
+        const bStr = String(bVal).toLowerCase()
+        if (sortOrder === "asc") {
+          return aStr.localeCompare(bStr)
+        } else {
+          return bStr.localeCompare(aStr)
+        }
+      })
+    }
+    
     return filtered
-  }, [data, mode, search])
+  }, [data, mode, search, sortKey, sortOrder])
+  
+  const handleSort = (key: string, order: "asc" | "desc") => {
+    setSortKey(key)
+    setSortOrder(order)
+  }
 
   const columns: TableColumn<DiscountRow>[] = [
     {
@@ -184,26 +225,65 @@ export default function DiscountsPage() {
       key: "pretax_amount",
       label: t.discounts.discountedPrice,
       sortable: true,
-      render: (v) => <span className="font-mono">{fmtCny(Number(v || 0))}</span>,
+      render: (v, row) => {
+        const amount = Number(v || 0)
+        // 数据验证：确保折后价不超过原价
+        const gross = Number(row.pretax_gross_amount || 0)
+        const isValid = amount <= gross
+        return (
+          <span className={`font-mono ${!isValid ? 'text-destructive' : ''}`} title={!isValid ? '数据异常：折后价超过原价' : ''}>
+            {fmtCny(amount)}
+          </span>
+        )
+      },
     },
     {
       key: "discount_amount",
       label: t.discounts.savings,
       sortable: true,
-      render: (v) => <span className="font-mono text-primary">{fmtCny(Number(v || 0))}</span>,
+      render: (v, row) => {
+        const amount = Number(v || 0)
+        // 数据验证：重新计算折扣金额确保准确性
+        const gross = Number(row.pretax_gross_amount || 0)
+        const pretax = Number(row.pretax_amount || 0)
+        const calculatedDiscount = Math.max(0, gross - pretax)
+        const isValid = Math.abs(amount - calculatedDiscount) < 0.01 // 允许0.01的误差
+        
+        return (
+          <span 
+            className={`font-mono text-primary ${!isValid ? 'opacity-70' : ''}`}
+            title={!isValid ? `计算值: ${fmtCny(calculatedDiscount)}` : ''}
+          >
+            {fmtCny(amount)}
+          </span>
+        )
+      },
     },
     {
       key: "discount_pct",
       label: t.discounts.overallDiscount,
       sortable: true,
-      render: (v, row) => (
-        <div className="font-mono">
-          <div className="font-semibold">{fmtZhe(row.discount_zhe, row.free)}</div>
-          <div className="text-[11px] text-muted-foreground">
-            {row.discount_rate === null ? "-" : `${t.discounts.actualPaymentRate} ${Number(row.discount_rate).toFixed(4)}`}
+      render: (v, row) => {
+        // 数据验证：确保折扣金额计算正确
+        const gross = Number(row.pretax_gross_amount || 0)
+        const pretax = Number(row.pretax_amount || 0)
+        const calculatedDiscount = gross > 0 ? gross - pretax : 0
+        const calculatedRate = gross > 0 ? (pretax / gross) : null
+        
+        return (
+          <div className="font-mono">
+            <div className="font-semibold">{fmtZhe(row.discount_zhe, row.free)}</div>
+            <div className="text-[11px] text-muted-foreground">
+              {calculatedRate === null ? "-" : `${t.discounts.actualPaymentRate} ${calculatedRate.toFixed(4)}`}
+            </div>
+            {row.discount_pct !== null && (
+              <div className="text-[10px] text-muted-foreground/70 mt-0.5">
+                {Number(row.discount_pct).toFixed(2)}% {t.discounts.discountOff || "折扣"}
+              </div>
+            )}
           </div>
-        </div>
-      ),
+        )
+      },
     },
     {
       key: "outstanding_amount",
@@ -214,6 +294,23 @@ export default function DiscountsPage() {
   ]
 
   const summary = data?.summary
+  
+  // 计算筛选后的汇总数据（用于验证）
+  const filteredSummary = useMemo(() => {
+    if (!rows.length) return null
+    const totalGross = rows.reduce((sum, r) => sum + Number(r.pretax_gross_amount || 0), 0)
+    const totalPretax = rows.reduce((sum, r) => sum + Number(r.pretax_amount || 0), 0)
+    const totalDiscount = rows.reduce((sum, r) => sum + Number(r.discount_amount || 0), 0)
+    const rate = totalGross > 0 ? totalPretax / totalGross : null
+    return {
+      totalGross,
+      totalPretax,
+      totalDiscount,
+      rate,
+      zhe: rate !== null && totalPretax > 0 ? rate * 10 : null,
+      free: totalGross > 0 && totalPretax === 0
+    }
+  }, [rows])
 
   return (
     <DashboardLayout>
@@ -272,8 +369,22 @@ export default function DiscountsPage() {
               <CardTitle className="text-sm text-muted-foreground">{t.discounts.savingsDiscount}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">{fmtCny(Number(summary?.total_discount_amount || 0))}</div>
-              <div className="text-xs text-muted-foreground mt-1">{t.discounts.overallDiscount}：{fmtZhe(summary?.discount_zhe, summary?.free)}</div>
+              <div className="text-2xl font-bold text-primary">
+                {fmtCny(Number(
+                  filteredSummary?.totalDiscount ?? summary?.total_discount_amount ?? 0
+                ))}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {t.discounts.overallDiscount}：{fmtZhe(
+                  filteredSummary?.zhe ?? summary?.discount_zhe, 
+                  filteredSummary?.free ?? summary?.free
+                )}
+              </div>
+              {filteredSummary && mode !== "all" && (
+                <div className="text-[10px] text-muted-foreground/70 mt-1">
+                  （仅当前筛选）
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -342,8 +453,34 @@ export default function DiscountsPage() {
                 <div className="font-medium text-destructive mb-2">{t.discounts.loadFailed}</div>
                 <div className="text-muted-foreground break-words">{error}</div>
               </div>
+            ) : rows.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">暂无数据</p>
+                  <p className="text-xs">请检查：</p>
+                  <ul className="text-xs space-y-1 mt-2 text-left max-w-md mx-auto">
+                    <li>• 账期是否正确（格式：YYYY-MM）</li>
+                    <li>• 筛选条件是否过于严格</li>
+                    <li>• 该账期是否有账单数据</li>
+                    <li>• 可以尝试点击"强制刷新"重新获取数据</li>
+                  </ul>
+                </div>
+              </div>
             ) : (
-              <Table data={rows} columns={columns} />
+              <Table data={rows} columns={columns} onSort={handleSort} />
+            )}
+            {rows.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.08)]">
+                <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                  <span>共 {rows.length} 条记录</span>
+                  {mode !== "all" && (
+                    <span>（已筛选：{mode === "Subscription" ? t.discounts.subscription : t.discounts.payAsYouGo}）</span>
+                  )}
+                  {search && (
+                    <span>（搜索："{search}"）</span>
+                  )}
+                </div>
+              </div>
             )}
             <div className="text-xs text-muted-foreground mt-3">
               {t.discounts.note}

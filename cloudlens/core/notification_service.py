@@ -1,18 +1,18 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-通知服务
-
-负责发送告警通知（邮件、Webhook、短信等）
+通知服务模块
+支持邮件、钉钉、企业微信告警
 """
 
+import os
 import logging
 import json
+from typing import List, Dict, Optional, Any
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import Optional, Dict, Any, List
-from datetime import datetime
 import requests
-from cloudlens.core.alert_manager import Alert, AlertRule
 
 logger = logging.getLogger(__name__)
 
@@ -20,237 +20,175 @@ logger = logging.getLogger(__name__)
 class NotificationService:
     """通知服务"""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or {}
-        self.smtp_host = self.config.get("smtp_host", "smtp.gmail.com")
-        self.smtp_port = self.config.get("smtp_port", 587)
-        self.smtp_user = self.config.get("smtp_user")
-        self.smtp_password = self.config.get("smtp_password")
-        self.smtp_from = self.config.get("smtp_from", self.smtp_user)
+    def __init__(self):
+        self.smtp_host = os.getenv("SMTP_HOST")
+        self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
+        self.smtp_user = os.getenv("SMTP_USER")
+        self.smtp_password = os.getenv("SMTP_PASSWORD")
+        self.smtp_from = os.getenv("SMTP_FROM", self.smtp_user)
+        
+        self.dingtalk_webhook = os.getenv("DINGTALK_WEBHOOK_URL")
+        self.wechat_webhook = os.getenv("WECHAT_WEBHOOK_URL")
     
-    def send_alert_notification(self, alert: Alert, rule: AlertRule) -> bool:
-        """发送告警通知"""
-        success = True
+    def send_anomaly_alert(
+        self,
+        anomaly: Dict[str, Any],
+        channels: List[str] = None
+    ) -> Dict[str, bool]:
+        """
+        发送异常告警
         
-        # 邮件通知
-        if rule.notify_email:
-            try:
-                self.send_email(alert, rule, rule.notify_email)
-            except Exception as e:
-                logger.error(f"Failed to send email notification: {e}")
-                success = False
+        Args:
+            anomaly: 异常数据
+            channels: 通知渠道列表（email/dingtalk/wechat），如果为None则使用所有可用渠道
+            
+        Returns:
+            发送结果字典
+        """
+        if channels is None:
+            channels = ["email", "dingtalk", "wechat"]
         
-        # Webhook通知
-        if rule.notify_webhook:
-            try:
-                self.send_webhook(alert, rule, rule.notify_webhook)
-            except Exception as e:
-                logger.error(f"Failed to send webhook notification: {e}")
-                success = False
+        results = {}
         
-        # 短信通知（可选）
-        if rule.notify_sms:
-            try:
-                self.send_sms(alert, rule, rule.notify_sms)
-            except Exception as e:
-                logger.error(f"Failed to send SMS notification: {e}")
-                success = False
+        # 构建消息内容
+        title = f"成本异常告警 - {anomaly.get('severity', 'unknown').upper()}"
+        message = self._build_anomaly_message(anomaly)
         
-        return success
+        # 发送到各个渠道
+        if "email" in channels and self.smtp_host:
+            results["email"] = self._send_email(
+                to=self.smtp_user,  # 默认发送给自己，可以配置
+                subject=title,
+                content=message
+            )
+        else:
+            results["email"] = False
+        
+        if "dingtalk" in channels and self.dingtalk_webhook:
+            results["dingtalk"] = self._send_dingtalk(title, message)
+        else:
+            results["dingtalk"] = False
+        
+        if "wechat" in channels and self.wechat_webhook:
+            results["wechat"] = self._send_wechat(title, message)
+        else:
+            results["wechat"] = False
+        
+        return results
     
-    def send_email(self, alert: Alert, rule: AlertRule, to_email: str) -> bool:
-        """发送邮件通知"""
-        if not self.smtp_user or not self.smtp_password:
-            logger.warning("SMTP credentials not configured, skipping email notification")
-            return False
+    def _build_anomaly_message(self, anomaly: Dict[str, Any]) -> str:
+        """构建异常消息内容"""
+        account_id = anomaly.get("account_id", "未知账号")
+        date = anomaly.get("date", "未知日期")
+        current_cost = anomaly.get("current_cost", 0)
+        baseline_cost = anomaly.get("baseline_cost", 0)
+        deviation_pct = anomaly.get("deviation_pct", 0)
+        severity = anomaly.get("severity", "unknown")
+        root_cause = anomaly.get("root_cause", "未分析")
         
+        message = f"""
+成本异常检测告警
+
+账号: {account_id}
+日期: {date}
+严重程度: {severity.upper()}
+
+成本情况:
+- 当前成本: ¥{current_cost:.2f}
+- 基线成本: ¥{baseline_cost:.2f}
+- 偏差: {deviation_pct:.1f}%
+
+根因分析:
+{root_cause}
+
+请及时查看并处理。
+"""
+        return message
+    
+    def _send_email(
+        self,
+        to: str,
+        subject: str,
+        content: str
+    ) -> bool:
+        """发送邮件"""
         try:
-            # 创建邮件
-            msg = MIMEMultipart('alternative')
-            # 修复编码问题：使用 Header 处理中文主题
-            from email.header import Header
-            msg['Subject'] = Header(f"[{alert.severity.upper()}] {alert.title}", 'utf-8')
-            msg['From'] = self.smtp_from
-            msg['To'] = to_email
+            if not all([self.smtp_host, self.smtp_user, self.smtp_password]):
+                logger.warning("邮件配置不完整，跳过发送")
+                return False
             
-            # 邮件正文
-            html_body = self._generate_email_html(alert, rule)
-            text_body = self._generate_email_text(alert, rule)
+            msg = MIMEMultipart()
+            msg["From"] = self.smtp_from
+            msg["To"] = to
+            msg["Subject"] = subject
             
-            # 修复编码问题：明确指定字符编码
-            msg.attach(MIMEText(text_body, 'plain', 'utf-8'))
-            msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+            msg.attach(MIMEText(content, "plain", "utf-8"))
             
-            # 发送邮件
-            # 根据端口判断使用SSL还是TLS
-            if self.smtp_port == 465:
-                # 使用SSL
-                import ssl
-                context = ssl.create_default_context()
-                server = smtplib.SMTP_SSL(self.smtp_host, self.smtp_port, context=context)
-                try:
-                    server.login(self.smtp_user, self.smtp_password)
-                    server.send_message(msg)
-                    logger.info(f"Email notification sent to {to_email}")
-                    return True
-                finally:
-                    try:
-                        server.quit()
-                    except:
-                        server.close()
-            else:
-                # 使用TLS（默认）
-                import ssl
-                context = ssl.create_default_context()
-                server = smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=10)
-                try:
-                    # 启动TLS，使用SSL上下文
-                    server.starttls(context=context)
-                    server.login(self.smtp_user, self.smtp_password)
-                    server.send_message(msg)
-                    logger.info(f"Email notification sent to {to_email}")
-                    return True
-                finally:
-                    try:
-                        server.quit()
-                    except Exception as quit_error:
-                        # 忽略退出时的错误（某些SMTP服务器会返回异常退出码）
-                        logger.debug(f"SMTP quit error (ignored): {quit_error}")
-                        try:
-                            server.close()
-                        except:
-                            pass
+            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+                server.starttls()
+                server.login(self.smtp_user, self.smtp_password)
+                server.send_message(msg)
+            
+            logger.info(f"邮件发送成功: {to}")
+            return True
+            
         except Exception as e:
-            logger.error(f"Failed to send email: {e}")
+            logger.error(f"邮件发送失败: {str(e)}")
             return False
     
-    def send_webhook(self, alert: Alert, rule: AlertRule, webhook_url: str) -> bool:
-        """发送Webhook通知"""
+    def _send_dingtalk(self, title: str, content: str) -> bool:
+        """发送钉钉消息"""
         try:
+            if not self.dingtalk_webhook:
+                logger.warning("钉钉webhook未配置，跳过发送")
+                return False
+            
             payload = {
-                "alert_id": alert.id,
-                "rule_id": rule.id,
-                "rule_name": rule.name,
-                "severity": alert.severity,
-                "status": alert.status,
-                "title": alert.title,
-                "message": alert.message,
-                "metric_value": alert.metric_value,
-                "threshold": alert.threshold,
-                "account_id": alert.account_id,
-                "triggered_at": alert.triggered_at.isoformat() if alert.triggered_at else None,
-                "resource_id": alert.resource_id,
-                "resource_type": alert.resource_type
+                "msgtype": "markdown",
+                "markdown": {
+                    "title": title,
+                    "text": f"## {title}\n\n{content}"
+                }
             }
             
             response = requests.post(
-                webhook_url,
+                self.dingtalk_webhook,
                 json=payload,
-                headers={"Content-Type": "application/json"},
                 timeout=10
             )
-            
             response.raise_for_status()
-            logger.info(f"Webhook notification sent to {webhook_url}")
+            
+            logger.info("钉钉消息发送成功")
             return True
+            
         except Exception as e:
-            logger.error(f"Failed to send webhook: {e}")
+            logger.error(f"钉钉消息发送失败: {str(e)}")
             return False
     
-    def send_sms(self, alert: Alert, rule: AlertRule, phone_number: str) -> bool:
-        """发送短信通知（需要第三方服务）"""
-        # TODO: 集成短信服务（如阿里云短信、腾讯云短信等）
-        logger.warning("SMS notification not implemented yet")
-        return False
-    
-    def _generate_email_text(self, alert: Alert, rule: AlertRule) -> str:
-        """生成邮件文本内容"""
-        return f"""
-告警通知
-
-规则名称: {rule.name}
-告警标题: {alert.title}
-严重程度: {alert.severity.upper()}
-状态: {alert.status}
-
-{alert.message}
-
-详细信息:
-- 指标值: {alert.metric_value}
-- 阈值: {alert.threshold}
-- 账号ID: {alert.account_id}
-- 触发时间: {alert.triggered_at.strftime('%Y-%m-%d %H:%M:%S') if alert.triggered_at else 'N/A'}
-
-请及时处理此告警。
-"""
-    
-    def _generate_email_html(self, alert: Alert, rule: AlertRule) -> str:
-        """生成邮件HTML内容"""
-        severity_color = {
-            "info": "#3b82f6",
-            "warning": "#f59e0b",
-            "error": "#ef4444",
-            "critical": "#dc2626"
-        }.get(alert.severity, "#6b7280")
-        
-        return f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-        .header {{ background-color: {severity_color}; color: white; padding: 20px; border-radius: 5px 5px 0 0; }}
-        .content {{ background-color: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; }}
-        .info-row {{ margin: 10px 0; }}
-        .label {{ font-weight: bold; color: #6b7280; }}
-        .footer {{ margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h2>{alert.title}</h2>
-        </div>
-        <div class="content">
-            <div class="info-row">
-                <span class="label">规则名称:</span> {rule.name}
-            </div>
-            <div class="info-row">
-                <span class="label">严重程度:</span> <span style="color: {severity_color}; font-weight: bold;">{alert.severity.upper()}</span>
-            </div>
-            <div class="info-row">
-                <span class="label">状态:</span> {alert.status}
-            </div>
-            <div class="info-row">
-                <span class="label">告警信息:</span>
-                <p>{alert.message}</p>
-            </div>
-            <div class="info-row">
-                <span class="label">指标值:</span> {alert.metric_value}
-            </div>
-            <div class="info-row">
-                <span class="label">阈值:</span> {alert.threshold}
-            </div>
-            <div class="info-row">
-                <span class="label">账号ID:</span> {alert.account_id or 'N/A'}
-            </div>
-            <div class="info-row">
-                <span class="label">触发时间:</span> {alert.triggered_at.strftime('%Y-%m-%d %H:%M:%S') if alert.triggered_at else 'N/A'}
-            </div>
-        </div>
-        <div class="footer">
-            <p>此邮件由 CloudLens 告警系统自动发送，请勿回复。</p>
-        </div>
-    </div>
-</body>
-</html>
-"""
-
-
-
-
-
-
-
+    def _send_wechat(self, title: str, content: str) -> bool:
+        """发送企业微信消息"""
+        try:
+            if not self.wechat_webhook:
+                logger.warning("企业微信webhook未配置，跳过发送")
+                return False
+            
+            payload = {
+                "msgtype": "markdown",
+                "markdown": {
+                    "content": f"## {title}\n\n{content}"
+                }
+            }
+            
+            response = requests.post(
+                self.wechat_webhook,
+                json=payload,
+                timeout=10
+            )
+            response.raise_for_status()
+            
+            logger.info("企业微信消息发送成功")
+            return True
+            
+        except Exception as e:
+            logger.error(f"企业微信消息发送失败: {str(e)}")
+            return False

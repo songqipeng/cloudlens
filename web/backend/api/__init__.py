@@ -26,6 +26,8 @@ def register_v1_routes():
         optimization,
         cost_allocation,
         ai,
+        chatbot,
+        anomaly,
     )
     
     # 注册所有路由（所有模块已使用/api前缀，直接注册）
@@ -43,6 +45,8 @@ def register_v1_routes():
     api_router.include_router(optimization.router, tags=["optimization"])
     api_router.include_router(cost_allocation.router, tags=["cost-allocation"])
     api_router.include_router(ai.router, tags=["ai"])
+    api_router.include_router(chatbot.router, tags=["chatbot"])
+    api_router.include_router(anomaly.router, tags=["anomaly"])
 
 # 立即注册路由
 register_v1_routes()

@@ -72,36 +72,115 @@ export default function AdvancedDiscountTrendPage() {
     setLoading(true)
     setError(null)
     
-    try {
-      const dateParams = getDateRangeParams()
-      
-      // 这些分析 API 可能需要较长时间，增加超时时间到90秒
-      const apiOptions = { timeout: 90000, retries: 2 } as any
-      const [quarterly, yearly, products, regions, subscription, opts, anom, insightsData] = await Promise.all([
-        apiGet<QuarterlyResponse>(`/discounts/quarterly?account=${currentAccount}&quarters=8${dateParams}`, {}, apiOptions),
-        apiGet<YearlyResponse>(`/discounts/yearly?account=${currentAccount}${dateParams}`, {}, apiOptions),
-        apiGet<ProductTrendsResponse>(`/discounts/product-trends?account=${currentAccount}&months=19&top_n=10${dateParams}`, {}, apiOptions),
-        apiGet<RegionsResponse>(`/discounts/regions?account=${currentAccount}${dateParams}`, {}, apiOptions),
-        apiGet<SubscriptionTypesResponse>(`/discounts/subscription-types?account=${currentAccount}${dateParams}`, {}, apiOptions),
-        apiGet<OptimizationSuggestionsResponse>(`/discounts/optimization-suggestions?account=${currentAccount}${dateParams}`, {}, apiOptions),
-        apiGet<AnomaliesResponse>(`/discounts/anomalies?account=${currentAccount}&threshold=0.10${dateParams}`, {}, apiOptions),
-        apiGet(`/discounts/insights?account=${currentAccount}${dateParams}`, {}, apiOptions),
-      ])
-      
-      setQuarterlyData(quarterly)
-      setYearlyData(yearly)
-      setProductTrends(products)
-      setRegionsData(regions)
-      setSubscriptionData(subscription)
-      setSuggestions(opts)
-      setAnomaliesData(anom)
-      setInsights(insightsData)
-    } catch (err: any) {
-      console.error("Failed to load discount analysis data:", err)
-      setError(err.message || t.discountAdvanced.loadFailed)
-    } finally {
-      setLoading(false)
+    const dateParams = getDateRangeParams()
+    const baseApiOptions = { timeout: 30000, retries: 1 } as any // 降低超时时间，更快失败
+    
+    // 定义所有API调用，每个都独立处理错误
+    const apiCalls = {
+      quarterly: () => apiGet<QuarterlyResponse>(`/discounts/quarterly?account=${currentAccount}&quarters=8${dateParams}`, {}, baseApiOptions),
+      yearly: () => apiGet<YearlyResponse>(`/discounts/yearly?account=${currentAccount}${dateParams}`, {}, baseApiOptions),
+      products: () => apiGet<ProductTrendsResponse>(`/discounts/product-trends?account=${currentAccount}&months=19&top_n=10${dateParams}`, {}, baseApiOptions),
+      regions: () => apiGet<RegionsResponse>(`/discounts/regions?account=${currentAccount}${dateParams}`, {}, baseApiOptions),
+      subscription: () => apiGet<SubscriptionTypesResponse>(`/discounts/subscription-types?account=${currentAccount}${dateParams}`, {}, baseApiOptions),
+      opts: () => apiGet<OptimizationSuggestionsResponse>(`/discounts/optimization-suggestions?account=${currentAccount}${dateParams}`, {}, baseApiOptions),
+      anom: () => apiGet<AnomaliesResponse>(`/discounts/anomalies?account=${currentAccount}&threshold=0.10${dateParams}`, {}, baseApiOptions),
+      insights: () => apiGet(`/discounts/insights?account=${currentAccount}${dateParams}`, {}, { timeout: 20000, retries: 0 } as any),
     }
+    
+    // 使用 Promise.allSettled 让每个API独立加载，互不阻塞
+    const results = await Promise.allSettled([
+      apiCalls.quarterly(),
+      apiCalls.yearly(),
+      apiCalls.products(),
+      apiCalls.regions(),
+      apiCalls.subscription(),
+      apiCalls.opts(),
+      apiCalls.anom(),
+      apiCalls.insights(),
+    ])
+    
+    // 处理每个结果，成功则设置数据，失败则记录错误但不阻塞其他数据
+    const [quarterlyResult, yearlyResult, productsResult, regionsResult, subscriptionResult, optsResult, anomResult, insightsResult] = results
+    
+    // 处理季度数据
+    if (quarterlyResult.status === 'fulfilled') {
+      setQuarterlyData(quarterlyResult.value)
+    } else {
+      console.warn("季度数据加载失败:", quarterlyResult.reason)
+    }
+    
+    // 处理年度数据
+    if (yearlyResult.status === 'fulfilled') {
+      setYearlyData(yearlyResult.value)
+    } else {
+      console.warn("年度数据加载失败:", yearlyResult.reason)
+    }
+    
+    // 处理产品趋势数据
+    if (productsResult.status === 'fulfilled') {
+      setProductTrends(productsResult.value)
+    } else {
+      console.warn("产品趋势数据加载失败:", productsResult.reason)
+      // 如果产品趋势失败，设置一个空数据避免UI错误
+      setProductTrends({ success: false, data: { products: [] } } as any)
+    }
+    
+    // 处理区域数据
+    if (regionsResult.status === 'fulfilled') {
+      setRegionsData(regionsResult.value)
+    } else {
+      console.warn("区域数据加载失败:", regionsResult.reason)
+    }
+    
+    // 处理订阅类型数据
+    if (subscriptionResult.status === 'fulfilled') {
+      setSubscriptionData(subscriptionResult.value)
+    } else {
+      console.warn("订阅类型数据加载失败:", subscriptionResult.reason)
+    }
+    
+    // 处理优化建议数据
+    if (optsResult.status === 'fulfilled') {
+      setSuggestions(optsResult.value)
+    } else {
+      console.warn("优化建议数据加载失败:", optsResult.reason)
+    }
+    
+    // 处理异常数据
+    if (anomResult.status === 'fulfilled') {
+      setAnomaliesData(anomResult.value)
+    } else {
+      console.warn("异常数据加载失败:", anomResult.reason)
+    }
+    
+    // 处理Insights数据
+    if (insightsResult.status === 'fulfilled') {
+      setInsights(insightsResult.value)
+    } else {
+      console.warn("Insights数据加载失败:", insightsResult.reason)
+      setInsights(null)
+    }
+    
+    // 检查是否有任何数据加载成功
+    const hasAnyData = quarterlyResult.status === 'fulfilled' || 
+                      yearlyResult.status === 'fulfilled' || 
+                      productsResult.status === 'fulfilled' ||
+                      regionsResult.status === 'fulfilled'
+    
+    if (!hasAnyData) {
+      // 如果所有核心数据都失败了，显示错误
+      const firstError = results.find(r => r.status === 'rejected')
+      if (firstError && firstError.status === 'rejected') {
+        setError(firstError.reason?.message || t.discountAdvanced.loadFailed)
+      } else {
+        setError(t.discountAdvanced.loadFailed)
+      }
+    } else {
+      // 至少有一些数据加载成功，清除错误
+      setError(null)
+    }
+    
+    setLoading(false)
   }
 
   const handleExport = (exportType: string) => {
@@ -444,7 +523,12 @@ function OverviewTab({ quarterly, yearly, products, regions, subscription, sugge
               )
             })}
             {(!insights || !insights.data?.insights?.length) && (
-              <p className="text-sm text-muted-foreground">{t.discountAdvanced.overview.generatingInsights}</p>
+              <div className="text-sm text-muted-foreground">
+                <p>{t.discountAdvanced.overview.generatingInsights}</p>
+                <p className="mt-2 text-xs text-muted-foreground/70">
+                  {insights === null ? "（Insights数据加载超时，其他数据已正常加载）" : ""}
+                </p>
+              </div>
             )}
           </div>
         </CardContent>

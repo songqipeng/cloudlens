@@ -4,6 +4,7 @@ import "./globals.css";
 import { AccountProvider } from "@/contexts/account-context";
 import { LocaleProvider } from "@/contexts/locale-context";
 import { ToastContainer } from "@/components/ui/toast";
+import { AIChatbot } from "@/components/ai-chatbot";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,6 +35,7 @@ export default function RootLayout({
           <AccountProvider>
             {children}
             <ToastContainer />
+            <AIChatbot />
           </AccountProvider>
         </LocaleProvider>
       </body>

@@ -1,0 +1,122 @@
+version: '3.8'
+
+services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: cloudlens-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-cloudlens_root_2024}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-cloudlens}
+      MYSQL_USER: ${MYSQL_USER:-cloudlens}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cloudlens123}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-cloudlens_root_2024}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - cloudlens-network
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: cloudlens-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - cloudlens-network
+
+  # 后端 API 服务
+  backend:
+    build:
+      context: .
+      dockerfile: web/backend/Dockerfile
+    container_name: cloudlens-backend
+    environment:
+      # 数据库配置
+      CLOUDLENS_DATABASE__DB_TYPE: mysql
+      CLOUDLENS_DATABASE__MYSQL_HOST: mysql
+      CLOUDLENS_DATABASE__MYSQL_PORT: 3306
+      CLOUDLENS_DATABASE__MYSQL_USER: ${MYSQL_USER:-cloudlens}
+      CLOUDLENS_DATABASE__MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cloudlens123}
+      CLOUDLENS_DATABASE__MYSQL_DATABASE: ${MYSQL_DATABASE:-cloudlens}
+      # Redis配置
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # CORS配置
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      # 应用配置
+      CLOUDLENS_ENVIRONMENT: ${CLOUDLENS_ENVIRONMENT:-production}
+      CLOUDLENS_DEBUG: ${CLOUDLENS_DEBUG:-false}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+      - ~/.cloudlens:/root/.cloudlens:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - cloudlens-network
+
+  # 前端 Web 服务
+  frontend:
+    build:
+      context: .
+      dockerfile: web/frontend/Dockerfile
+    container_name: cloudlens-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - cloudlens-network
+
+  # Nginx API Gateway（可选，生产环境推荐）
+  nginx:
+    image: nginx:alpine
+    container_name: cloudlens-nginx
+    ports:
+      - "${NGINX_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+    networks:
+      - cloudlens-network
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  cloudlens-network:
+    driver: bridge

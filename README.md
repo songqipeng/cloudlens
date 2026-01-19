@@ -62,10 +62,87 @@ pip install prophet  # (可选) 用于 AI 预测功能
 ```
 
 ### 4. 启动 Web 界面
+
+**方式一：Docker Compose（推荐，Q1新功能）**
+
+```bash
+# 1. 配置环境变量
+cp .env.example .env
+# 编辑.env，至少配置AI API密钥：
+# ANTHROPIC_API_KEY=your_claude_api_key
+# LLM_PROVIDER=claude
+
+# 2. 启动所有服务
+docker-compose up -d
+
+# 3. 等待服务启动（约10-15秒）
+sleep 15
+
+# 4. 初始化数据库（首次运行）
+docker-compose exec -T mysql mysql -u cloudlens -pcloudlens123 cloudlens < migrations/init_mysql_schema.sql
+docker-compose exec -T mysql mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_chatbot_tables.sql
+docker-compose exec -T mysql mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_anomaly_table.sql
+
+# 5. 验证服务
+curl http://localhost:8000/health
+curl http://localhost:3000
+```
+
+**方式二：本地开发环境（用于开发和测试）**
+
+```bash
+# 1. 安装依赖
+pip install -r requirements.txt
+cd web/frontend && npm install && cd ../..
+
+# 2. 配置环境变量
+cp .env.example .env
+# 编辑.env，配置数据库和AI API密钥
+
+# 3. 启动MySQL（如果使用MySQL）
+# 选项A: 使用Docker
+docker run -d --name cloudlens-mysql \
+  -e MYSQL_ROOT_PASSWORD=cloudlens_root_2024 \
+  -e MYSQL_DATABASE=cloudlens \
+  -e MYSQL_USER=cloudlens \
+  -e MYSQL_PASSWORD=cloudlens123 \
+  -p 3306:3306 mysql:8.0
+
+# 初始化数据库
+sleep 10
+mysql -u cloudlens -pcloudlens123 cloudlens < migrations/init_mysql_schema.sql
+mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_chatbot_tables.sql
+mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_anomaly_table.sql
+
+# 4. 启动服务
+# 终端1 - 后端
+cd web/backend
+python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+# 终端2 - 前端
+cd web/frontend
+npm run dev
+```
+
+**方式三：传统方式**
 ```bash
 ./scripts/start_web.sh
 ```
-访问 `http://localhost:3000` 即可开启可视化治理之旅。
+
+### 5. 访问和测试
+
+- **前端界面**: http://localhost:3000
+- **后端API**: http://localhost:8000
+- **API文档**: http://localhost:8000/docs
+
+**测试功能**:
+- ✅ AI Chatbot: 右下角蓝色圆形按钮
+- ✅ 折扣分析: 访问 `/a/[账号]/discounts`，测试排序、筛选、搜索
+- ✅ 成本异常检测: 调用 `/api/v1/anomaly/detect` API
+- ✅ 预算管理: 调用 `/api/v1/budgets` API
+
+> 💡 **详细测试指南**: 查看 [本地测试指南](./docs/LOCAL_TESTING_GUIDE.md)  
+> 💡 **Q1功能使用**: 查看 [Q1功能使用指南](./docs/Q1_USER_GUIDE.md)
 
 ---
 
@@ -84,6 +161,7 @@ CloudLens 为规模化运行而生：
 *   **[官方首页 & 文档中心](https://songqipeng.github.io/cloudlens/)**
 *   **[视频演示教程](https://songqipeng.github.io/cloudlens/video.html)**
 *   **[2026 综合路线图](./docs/COMPREHENSIVE_ROADMAP_2026.md)**
+*   **[Q1功能使用指南](./docs/Q1_USER_GUIDE.md)** ⭐ 新功能详细使用说明（AI Chatbot、异常检测、预算管理）
 
 ---
 

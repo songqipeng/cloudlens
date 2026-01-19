@@ -265,3 +265,24 @@ def get_budget_trend(budget_id: str, days: int = Query(30, ge=1, le=90)) -> Dict
         }
     except Exception as e:
         raise handle_api_error(e, "get_budget_trend")
+
+
+@router.post("/budgets/check-alerts")
+def check_budget_alerts(account: Optional[str] = None) -> Dict[str, Any]:
+    """检查所有预算并发送告警"""
+    try:
+        from cloudlens.core.budget_alert_service import BudgetAlertService
+        
+        alert_service = BudgetAlertService()
+        account_id = _get_account_id(account) if account else None
+        
+        alerts = alert_service.check_all_budgets(account_id)
+        
+        return {
+            "success": True,
+            "message": f"检查完成，触发 {len(alerts)} 个告警",
+            "data": alerts,
+            "count": len(alerts)
+        }
+    except Exception as e:
+        raise handle_api_error(e, "check_budget_alerts")

@@ -57,3 +57,10 @@ uvicorn[standard]>=0.24.0
 
 # 任务调度
 APScheduler>=3.10.0
+
+# AI/LLM支持
+anthropic>=0.18.0
+openai>=1.0.0
+
+# HTTP请求（用于通知服务）
+requests>=2.31.0
