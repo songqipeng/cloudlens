@@ -12,6 +12,7 @@
 
 - ✅ 已安装 Docker 和 Docker Compose
 - ✅ 有 AI API 密钥（Claude 或 OpenAI）
+- ✅ **Apple Silicon (M1/M2/M3) 用户**: 确保 Docker Desktop 已启用 Rosetta 2 支持
 
 ### 步骤 1: 下载代码
 
@@ -178,12 +179,21 @@ docker-compose restart
 
 ## 🔧 故障排查
 
+### 问题0: ARM64 (Apple Silicon) 架构问题
+
+**症状**: 错误信息包含 `no matching manifest for linux/arm64/v8`
+
+**解决方案**:
+- `docker-compose.yml` 已配置 `platform: linux/amd64`，应该可以自动处理
+- 如果仍有问题，查看 [ARM64 支持说明](./ARM64_SUPPORT.md)
+
 ### 问题1: 服务无法启动
 
 **可能原因**:
 - 端口被占用
 - 之前的容器未清理
 - 配置错误
+- 架构不匹配（ARM64/Apple Silicon）
 
 **解决方案**:
 ```bash
@@ -202,6 +212,28 @@ docker compose up -d
 
 # 4. 如果仍有问题，查看日志
 docker compose logs
+```
+
+### 问题1.1: ARM64 (Apple Silicon) 架构问题
+
+**错误信息**:
+```
+no matching manifest for linux/arm64/v8 in the manifest list entries
+```
+
+**解决方案**:
+```bash
+# 方案1: 使用 Rosetta 2 运行（推荐，已自动配置）
+# docker-compose.yml 已添加 platform: linux/amd64 配置
+# 直接运行即可：
+docker compose up -d
+
+# 方案2: 如果仍有问题，确保 Docker Desktop 已启用 Rosetta
+# Docker Desktop → Settings → General → Use Rosetta for x86/amd64 emulation on Apple Silicon
+
+# 方案3: 本地构建镜像（如果镜像不支持 ARM64）
+docker compose build
+docker compose up -d
 ```
 
 ### 问题2: 前端页面空白
