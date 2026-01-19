@@ -202,7 +202,22 @@ async def root():
 
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):
-    """处理404错误，返回更友好的错误信息"""
+    """处理404错误，返回更友好的错误信息
+    
+    注意：只有当路由真正未找到时才使用此处理器。
+    如果路由匹配成功但业务逻辑返回404（如资源不存在），
+    应该直接返回业务逻辑的响应，而不是使用此处理器。
+    """
+    # 检查是否是HTTPException（业务逻辑返回的404）
+    from fastapi import HTTPException
+    if isinstance(exc, HTTPException):
+        # 这是业务逻辑返回的404，直接返回原始响应
+        return JSONResponse(
+            status_code=404,
+            content={"detail": exc.detail}
+        )
+    
+    # 这是真正的路由未找到
     return JSONResponse(
         status_code=404,
         content={
