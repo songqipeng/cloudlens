@@ -2,7 +2,6 @@ services:
   # MySQL 数据库
   mysql:
     image: mysql:8.0
-    platform: linux/amd64  # 兼容性：如果镜像不支持 ARM64，使用 amd64
     container_name: cloudlens-mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-cloudlens_root_2024}
@@ -43,9 +42,7 @@ services:
   # 后端 API 服务
   backend:
     image: ${DOCKER_HUB_USERNAME:-songqipeng}/cloudlens-backend:${IMAGE_TAG:-latest}
-    platform: linux/amd64  # 兼容性：如果镜像不支持 ARM64，使用 amd64
     container_name: cloudlens-backend
-    pull_policy: always  # 强制拉取镜像
     environment:
       # 数据库配置
       CLOUDLENS_DATABASE__DB_TYPE: mysql
@@ -98,9 +95,7 @@ services:
   # 前端 Web 服务
   frontend:
     image: ${DOCKER_HUB_USERNAME:-songqipeng}/cloudlens-frontend:${IMAGE_TAG:-latest}
-    platform: linux/amd64  # 兼容性：如果镜像不支持 ARM64，使用 amd64
     container_name: cloudlens-frontend
-    pull_policy: always  # 强制拉取镜像
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     ports:

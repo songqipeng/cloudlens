@@ -54,12 +54,13 @@ cd cloudlens
 cp .env.example .env
 # 编辑 .env，添加：ANTHROPIC_API_KEY=your_key
 
-# 3. 一键启动（自动拉取最新镜像）
-docker-compose up -d
+# 3. 一键启动（自动检测架构并启动）
+./scripts/start.sh
 ```
 
 **等待 30-60 秒**，然后访问：**http://localhost:3000**
 
+> 💡 **提示**: `start.sh` 脚本会自动检测您的系统架构（ARM64/AMD64），自动拉取或构建相应镜像，无需手动配置。  
 > 📖 **详细指南**: [用户快速开始指南](./docs/QUICK_START_FOR_USERS.md)
 
 ---

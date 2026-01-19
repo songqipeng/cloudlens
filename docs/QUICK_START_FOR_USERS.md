@@ -12,7 +12,9 @@
 
 - ✅ 已安装 Docker 和 Docker Compose
 - ✅ 有 AI API 密钥（Claude 或 OpenAI）
-- ✅ **Apple Silicon (M1/M2/M3) 用户**: 确保 Docker Desktop 已启用 Rosetta 2 支持
+
+> 💡 **提示**: 脚本会自动检测您的系统架构（ARM64/AMD64），无需手动配置。
+> 如果是 Apple Silicon (M1/M2/M3)，建议启用 Docker Desktop 的 Rosetta 2 支持以获得更好性能。
 
 ### 步骤 1: 下载代码
 
@@ -44,6 +46,21 @@ LLM_PROVIDER=openai
 
 ### 步骤 3: 一键启动
 
+**方式1: 使用智能启动脚本（推荐，最简单）**
+
+```bash
+# 使用智能启动脚本（自动检测架构并处理）
+./scripts/start.sh
+```
+
+这个脚本会：
+- ✅ 自动检测您的 CPU 架构（ARM64/AMD64）
+- ✅ 自动拉取或构建相应平台的镜像
+- ✅ 自动启动所有服务
+- ✅ 显示服务状态和访问地址
+
+**方式2: 直接使用 Docker Compose**
+
 ```bash
 # 启动所有服务（自动拉取最新镜像）
 docker compose up -d
@@ -51,11 +68,9 @@ docker compose up -d
 
 # 查看服务状态
 docker compose ps
-# 或使用旧版本: docker-compose ps
 
 # 查看日志（等待数据库初始化完成）
 docker compose logs -f
-# 或使用旧版本: docker-compose logs -f
 ```
 
 **等待约 30-60 秒**，然后访问：**http://localhost:3000**
@@ -214,26 +229,25 @@ docker compose up -d
 docker compose logs
 ```
 
-### 问题1.1: ARM64 (Apple Silicon) 架构问题
+### 问题1.1: 架构相关问题
 
-**错误信息**:
-```
-no matching manifest for linux/arm64/v8 in the manifest list entries
-```
+**如果遇到架构相关错误，使用智能启动脚本**:
 
-**解决方案**:
 ```bash
-# 方案1: 使用 Rosetta 2 运行（推荐，已自动配置）
-# docker-compose.yml 已添加 platform: linux/amd64 配置
-# 直接运行即可：
-docker compose up -d
+# 使用智能启动脚本（自动处理架构问题）
+./scripts/start.sh
+```
 
-# 方案2: 如果仍有问题，确保 Docker Desktop 已启用 Rosetta
+脚本会自动：
+- 检测您的系统架构
+- 选择正确的平台（ARM64 或 AMD64）
+- 拉取或构建相应镜像
+- 启动服务
+
+**手动处理（如果需要）**:
+```bash
+# 确保 Docker Desktop 已启用 Rosetta（Apple Silicon）
 # Docker Desktop → Settings → General → Use Rosetta for x86/amd64 emulation on Apple Silicon
-
-# 方案3: 本地构建镜像（如果镜像不支持 ARM64）
-docker compose build
-docker compose up -d
 ```
 
 ### 问题2: 前端页面空白
