@@ -17,9 +17,23 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/cost-allocation", tags=["cost-allocation"])
 
-# 初始化存储和服务
-_allocation_storage = CostAllocationStorage()
-_allocator = CostAllocator(_allocation_storage, "data/bills.db")
+# 初始化存储和服务（延迟初始化，避免导入时连接MySQL）
+_allocation_storage = None
+_allocator = None
+
+def _get_allocation_storage():
+    """获取成本分配存储管理器（懒加载）"""
+    global _allocation_storage
+    if _allocation_storage is None:
+        _allocation_storage = CostAllocationStorage()
+    return _allocation_storage
+
+def _get_allocator():
+    """获取成本分配器（懒加载）"""
+    global _allocator
+    if _allocator is None:
+        _allocator = CostAllocator(_get_allocation_storage(), "data/bills.db")
+    return _allocator
 
 
 # Pydantic模型
@@ -52,7 +66,7 @@ def list_allocation_rules(
             if account_config:
                 account_id = f"{account_config.access_key_id[:10]}-{account}"
         
-        rules = _allocation_storage.list_rules(account_id=account_id, enabled_only=enabled_only)
+        rules = _get_allocation_storage().list_rules(account_id=account_id, enabled_only=enabled_only)
         
         return {
             "success": True,
@@ -79,7 +93,7 @@ def list_allocation_rules(
 def get_allocation_rule(rule_id: str) -> Dict[str, Any]:
     """获取成本分配规则详情"""
     try:
-        rule = _allocation_storage.get_rule(rule_id)
+        rule = _get_allocation_storage().get_rule(rule_id)
         if not rule:
             raise HTTPException(status_code=404, detail=f"成本分配规则 {rule_id} 不存在")
         
@@ -134,7 +148,7 @@ def create_allocation_rule(req: AllocationRuleRequest, account: Optional[str] = 
             enabled=req.enabled
         )
         
-        rule_id = _allocation_storage.create_rule(rule)
+        rule_id = _get_allocation_storage().create_rule(rule)
         rule.id = rule_id
         
         return {
@@ -154,7 +168,7 @@ def create_allocation_rule(req: AllocationRuleRequest, account: Optional[str] = 
 def update_allocation_rule(rule_id: str, req: AllocationRuleRequest) -> Dict[str, Any]:
     """更新成本分配规则"""
     try:
-        existing_rule = _allocation_storage.get_rule(rule_id)
+        existing_rule = _get_allocation_storage().get_rule(rule_id)
         if not existing_rule:
             raise HTTPException(status_code=404, detail=f"成本分配规则 {rule_id} 不存在")
         
@@ -173,7 +187,7 @@ def update_allocation_rule(rule_id: str, req: AllocationRuleRequest) -> Dict[str
             created_at=existing_rule.created_at
         )
         
-        success = _allocation_storage.update_rule(rule)
+        success = _get_allocation_storage().update_rule(rule)
         if not success:
             raise HTTPException(status_code=500, detail="更新成本分配规则失败")
         
@@ -195,7 +209,7 @@ def update_allocation_rule(rule_id: str, req: AllocationRuleRequest) -> Dict[str
 def delete_allocation_rule(rule_id: str) -> Dict[str, Any]:
     """删除成本分配规则"""
     try:
-        success = _allocation_storage.delete_rule(rule_id)
+        success = _get_allocation_storage().delete_rule(rule_id)
         if not success:
             raise HTTPException(status_code=404, detail=f"成本分配规则 {rule_id} 不存在")
         
@@ -214,7 +228,7 @@ def delete_allocation_rule(rule_id: str) -> Dict[str, Any]:
 def execute_allocation(rule_id: str, account: Optional[str] = None) -> Dict[str, Any]:
     """执行成本分配"""
     try:
-        rule = _allocation_storage.get_rule(rule_id)
+        rule = _get_allocation_storage().get_rule(rule_id)
         if not rule:
             raise HTTPException(status_code=404, detail=f"成本分配规则 {rule_id} 不存在")
         
@@ -222,10 +236,10 @@ def execute_allocation(rule_id: str, account: Optional[str] = None) -> Dict[str,
             raise HTTPException(status_code=400, detail="成本分配规则未启用")
         
         # 执行分配
-        result = _allocator.allocate(rule)
+        result = _get_allocator().allocate(rule)
         
         # 保存结果
-        result_id = _allocation_storage.save_result(result)
+        result_id = _get_allocation_storage().save_result(result)
         result.id = result_id
         
         return {
@@ -256,7 +270,7 @@ def list_allocation_results(
 ) -> Dict[str, Any]:
     """获取成本分配结果列表"""
     try:
-        results = _allocation_storage.list_results(rule_id=rule_id, period=period, limit=limit)
+        results = _get_allocation_storage().list_results(rule_id=rule_id, period=period, limit=limit)
         
         return {
             "success": True,
@@ -284,7 +298,7 @@ def list_allocation_results(
 def get_allocation_result(result_id: str) -> Dict[str, Any]:
     """获取成本分配结果详情"""
     try:
-        results = _allocation_storage.list_results(limit=1000)
+        results = _get_allocation_storage().list_results(limit=1000)
         result = next((r for r in results if r.id == result_id), None)
         
         if not result:
