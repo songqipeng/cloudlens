@@ -23,17 +23,28 @@ if [ -d ".git" ]; then
         echo "   本地版本: $(git log -1 --oneline 2>/dev/null || echo 'unknown')"
         echo "   远程版本: $(git log -1 --oneline origin/main 2>/dev/null || echo 'unknown')"
         echo ""
+        echo "   💡 提示：建议先拉取最新代码以确保使用最新版本"
         read -p "   是否要拉取最新代码？(Y/n): " -n 1 -r
         echo ""
         if [[ ! $REPLY =~ ^[Nn]$ ]]; then
             echo "   📥 拉取最新代码..."
-            git pull origin main
-            echo "   ✅ 代码已更新"
+            if git pull origin main; then
+                echo "   ✅ 代码已更新"
+            else
+                echo "   ⚠️  代码拉取失败，可能包含冲突或本地修改"
+                echo "   💡 提示：可以手动执行 'git pull origin main' 解决冲突"
+            fi
+            echo ""
+        else
+            echo "   ℹ️  跳过代码更新，使用当前版本"
             echo ""
         fi
     else
         echo "   ✅ 代码已是最新版本"
+        echo ""
     fi
+else
+    echo "   ℹ️  当前目录不是 git 仓库，跳过代码更新检查"
     echo ""
 fi
 
