@@ -41,58 +41,44 @@
 
 ## 🛠️ 快速开始
 
-### 🎯 两种使用场景
+### 👥 我是普通用户（只想快速使用）
 
-#### 场景1: 普通用户（只想快速使用）⭐ 推荐
-
-**目标**: 最快速度启动，无需了解开发细节
+**3步快速启动**：
 
 ```bash
-# 1. 下载最新代码
+# 1. 下载代码
 git clone https://github.com/songqipeng/cloudlens.git
 cd cloudlens
 
 # 2. 配置环境变量（至少配置AI API密钥）
 cp .env.example .env
-# 编辑 .env，添加：
-# ANTHROPIC_API_KEY=your_claude_api_key
-# LLM_PROVIDER=claude
+# 编辑 .env，添加：ANTHROPIC_API_KEY=your_key
 
-# 3. 一键启动（自动拉取Docker镜像）
+# 3. 一键启动（自动拉取最新镜像）
 docker-compose up -d
-
-# 4. 访问应用
-# 前端: http://localhost:3000
-# 后端: http://localhost:8000
 ```
 
-**或使用快速启动脚本**:
-```bash
-git clone https://github.com/songqipeng/cloudlens.git
-cd cloudlens
-./scripts/quick-start.sh
-```
+**等待 30-60 秒**，然后访问：**http://localhost:3000**
 
-> 💡 **提示**: 镜像自动从 Docker Hub 拉取，数据库自动初始化，无需手动操作。  
-> 📖 **详细说明**: 查看 [快速开始指南](./docs/QUICK_START.md)
+> 📖 **详细指南**: [用户快速开始指南](./docs/QUICK_START_FOR_USERS.md)
 
 ---
 
-#### 场景2: 开发者（需要开发和测试）
+### 👨‍💻 我是开发者（需要开发环境）
 
-**目标**: 本地开发环境，可以修改代码并实时看到效果
+**5分钟快速开始**：
 
 ```bash
 # 1. 下载最新代码
 git clone https://github.com/songqipeng/cloudlens.git
 cd cloudlens
-git pull origin main  # 拉取最新代码
+git pull origin main
 
 # 2. 安装依赖
 pip install -r requirements.txt
 cd web/frontend && npm install && cd ../..
 
-# 3. 启动MySQL（使用Docker最简单）
+# 3. 启动数据库（使用Docker）
 docker run -d --name cloudlens-mysql \
   -e MYSQL_ROOT_PASSWORD=cloudlens_root_2024 \
   -e MYSQL_DATABASE=cloudlens \
@@ -100,27 +86,21 @@ docker run -d --name cloudlens-mysql \
   -e MYSQL_PASSWORD=cloudlens123 \
   -p 3306:3306 mysql:8.0
 
-# 初始化数据库
+# 4. 初始化数据库
 sleep 10
 mysql -u cloudlens -pcloudlens123 cloudlens < migrations/init_mysql_schema.sql
 mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_chatbot_tables.sql
 mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_anomaly_table.sql
 
-# 4. 配置环境变量
-cp .env.example .env
-# 编辑 .env，配置数据库和AI API密钥
+# 5. 启动开发服务
+# 终端1 - 后端
+cd web/backend && python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
-# 5. 启动服务
-# 终端1 - 后端（支持热重载）
-cd web/backend
-python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-
-# 终端2 - 前端（支持热重载）
-cd web/frontend
-npm run dev
+# 终端2 - 前端
+cd web/frontend && npm run dev
 ```
 
-> 📖 **详细说明**: 查看 [快速开始指南](./docs/QUICK_START.md) 和 [本地测试指南](./docs/LOCAL_TESTING_GUIDE.md)
+> 📖 **详细指南**: [开发者快速开始指南](./docs/QUICK_START_FOR_DEVELOPERS.md)
 
 ---
 
