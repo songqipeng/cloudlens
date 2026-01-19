@@ -85,7 +85,8 @@ services:
         MAX_RETRIES=30
         RETRY_COUNT=0
         while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          if mysql -h mysql -u cloudlens -pcloudlens123 -e "SELECT 1" > /dev/null 2>&1; then
+          # 尝试连接MySQL，禁用SSL以避免证书问题
+          if mysql -h mysql -u cloudlens -pcloudlens123 --ssl=0 -e "SELECT 1" > /dev/null 2>&1; then
             echo "MySQL已就绪"
             break
           fi
@@ -94,12 +95,12 @@ services:
           sleep 2
         done
         if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-          echo "错误: MySQL连接超时，但继续尝试启动服务..."
+          echo "警告: MySQL连接超时，但继续尝试启动服务..."
         fi
         echo "初始化数据库表结构..."
-        mysql -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/init_mysql_schema.sql || true
-        mysql -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/add_chatbot_tables.sql || true
-        mysql -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/add_anomaly_table.sql || true
+        mysql -h mysql -u cloudlens -pcloudlens123 --ssl=0 cloudlens < /app/migrations/init_mysql_schema.sql || true
+        mysql -h mysql -u cloudlens -pcloudlens123 --ssl=0 cloudlens < /app/migrations/add_chatbot_tables.sql || true
+        mysql -h mysql -u cloudlens -pcloudlens123 --ssl=0 cloudlens < /app/migrations/add_anomaly_table.sql || true
         echo "启动后端服务..."
         exec uvicorn web.backend.main:app --host 0.0.0.0 --port 8000
 
