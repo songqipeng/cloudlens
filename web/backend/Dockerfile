@@ -19,6 +19,7 @@ COPY web/backend/requirements.txt /app/backend-requirements.txt
 
 # 安装Python依赖
 RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install mysql-connector-python || echo "Warning: mysql-connector-python installation failed, will try at runtime" && \
     pip install --no-cache-dir -r backend-requirements.txt
 
 # 复制项目代码
