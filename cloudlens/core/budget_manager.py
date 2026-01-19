@@ -290,9 +290,8 @@ class BudgetStorage:
             pass
         else:
             # SQLite表结构（立即创建，因为SQLite是本地文件）
-            try:
-                # 创建预算表
-                self._get_db().execute("""
+            # 创建预算表
+            self._get_db().execute("""
                 CREATE TABLE IF NOT EXISTS budgets (
                     id VARCHAR(255) PRIMARY KEY,
                     name VARCHAR(255) NOT NULL,
@@ -403,9 +402,9 @@ class BudgetStorage:
                 except Exception as e:
                     # 索引可能已存在，忽略错误
                     logger.debug(f"Index creation skipped (may already exist): {e}")
-        except Exception as e:
-            logger.error(f"Error initializing database: {e}")
-            raise
+            except Exception as e:
+                # 索引可能已存在，忽略错误
+                logger.debug(f"Index creation skipped (may already exist): {e}")
     
     def create_budget(self, budget: Budget) -> str:
         """创建预算"""

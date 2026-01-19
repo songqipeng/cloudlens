@@ -217,9 +217,8 @@ class VirtualTagStorage:
             pass
         else:
             # SQLite表结构（立即创建，因为SQLite是本地文件）
-            try:
-                # 创建虚拟标签表
-                self._get_db().execute("""
+            # 创建虚拟标签表
+            self._get_db().execute("""
                 CREATE TABLE IF NOT EXISTS virtual_tags (
                     id VARCHAR(255) PRIMARY KEY,
                     name VARCHAR(255) NOT NULL,
