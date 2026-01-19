@@ -213,18 +213,22 @@ class DashboardStorage:
         conditions = []
         params = []
         
-        if account_id:
-            conditions.append(f"account_id = {placeholder}")
-            params.append(account_id)
-        
         if include_shared:
-            conditions.append(f"(is_shared = 1 OR account_id = {placeholder})")
             if account_id:
+                # 包含共享的仪表盘，或者属于指定账号的仪表盘
+                conditions.append(f"(is_shared = 1 OR account_id = {placeholder})")
                 params.append(account_id)
+            else:
+                # 只包含共享的仪表盘
+                conditions.append("is_shared = 1")
         else:
+            # 不包含共享的，只返回指定账号的仪表盘
             if account_id:
                 conditions.append(f"account_id = {placeholder}")
                 params.append(account_id)
+            else:
+                # 如果没有指定账号且不包含共享的，返回空列表
+                return []
         
         where_clause = " AND ".join(conditions) if conditions else "1=1"
         
