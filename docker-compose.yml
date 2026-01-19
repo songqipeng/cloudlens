@@ -86,7 +86,8 @@ services:
         MAX_RETRIES=30
         RETRY_COUNT=0
         while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          if mysql -h mysql -u cloudlens -pcloudlens123 -e "SELECT 1" > /dev/null 2>&1; then
+          # 使用mysqladmin ping检查MySQL是否就绪
+          if mysqladmin ping -h mysql -u cloudlens -pcloudlens123 --silent 2>/dev/null; then
             echo "MySQL已就绪！"
             break
           fi
