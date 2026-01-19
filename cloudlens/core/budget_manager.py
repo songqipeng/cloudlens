@@ -283,11 +283,16 @@ class BudgetStorage:
         return "%s" if self.db_type == "mysql" else "?"
     
     def _init_database(self):
-        """初始化数据库表结构"""
-        
-        try:
-            # 创建预算表
-            self.db.execute("""
+        """初始化数据库表结构（延迟执行，避免导入时连接MySQL）"""
+        if self.db_type == "mysql":
+            # MySQL表结构已在init_mysql_schema.sql中创建
+            # 延迟检查，避免导入时连接
+            pass
+        else:
+            # SQLite表结构（立即创建，因为SQLite是本地文件）
+            try:
+                # 创建预算表
+                self._get_db().execute("""
                 CREATE TABLE IF NOT EXISTS budgets (
                     id VARCHAR(255) PRIMARY KEY,
                     name VARCHAR(255) NOT NULL,
@@ -322,7 +327,7 @@ class BudgetStorage:
             """)
             
             # 创建预算执行记录表
-            self.db.execute("""
+            self._get_db().execute("""
                 CREATE TABLE IF NOT EXISTS budget_records (
                     id VARCHAR(255) PRIMARY KEY,
                     budget_id VARCHAR(255) NOT NULL,
@@ -345,7 +350,7 @@ class BudgetStorage:
             """)
             
             # 创建预算告警记录表
-            self.db.execute("""
+            self._get_db().execute("""
                 CREATE TABLE IF NOT EXISTS budget_alerts (
                     id VARCHAR(255) PRIMARY KEY,
                     budget_id VARCHAR(255) NOT NULL,
@@ -377,7 +382,7 @@ class BudgetStorage:
                 for idx_name, table_name, columns in indexes_to_create:
                     try:
                         # 检查索引是否存在
-                        result = self.db.query(f"""
+                        result = self._get_db().query(f"""
                             SELECT COUNT(*) as cnt 
                             FROM information_schema.statistics 
                             WHERE table_schema = DATABASE() 
@@ -385,16 +390,16 @@ class BudgetStorage:
                             AND index_name = '{idx_name}'
                         """)
                         if result and result[0].get('cnt', 0) == 0:
-                            self.db.execute(f"CREATE INDEX {idx_name} ON {table_name}({columns})")
+                            self._get_db().execute(f"CREATE INDEX {idx_name} ON {table_name}({columns})")
                     except Exception as e:
                         logger.debug(f"Index {idx_name} creation skipped: {e}")
             else:
                 # SQLite支持IF NOT EXISTS
                 try:
-                    self.db.execute("CREATE INDEX IF NOT EXISTS idx_budgets_account ON budgets(account_id)")
-                    self.db.execute("CREATE INDEX IF NOT EXISTS idx_budgets_period ON budgets(period)")
-                    self.db.execute("CREATE INDEX IF NOT EXISTS idx_budget_records_budget ON budget_records(budget_id, date)")
-                    self.db.execute("CREATE INDEX IF NOT EXISTS idx_budget_alerts_budget ON budget_alerts(budget_id)")
+                    self._get_db().execute("CREATE INDEX IF NOT EXISTS idx_budgets_account ON budgets(account_id)")
+                    self._get_db().execute("CREATE INDEX IF NOT EXISTS idx_budgets_period ON budgets(period)")
+                    self._get_db().execute("CREATE INDEX IF NOT EXISTS idx_budget_records_budget ON budget_records(budget_id, date)")
+                    self._get_db().execute("CREATE INDEX IF NOT EXISTS idx_budget_alerts_budget ON budget_alerts(budget_id)")
                 except Exception as e:
                     # 索引可能已存在，忽略错误
                     logger.debug(f"Index creation skipped (may already exist): {e}")
@@ -413,7 +418,7 @@ class BudgetStorage:
         
         placeholder = self._get_placeholder()
         try:
-            self.db.execute(f"""
+            self._get_db().execute(f"""
                 INSERT INTO budgets (
                     id, name, amount, period, type,
                     start_date, end_date,
@@ -444,7 +449,7 @@ class BudgetStorage:
     def get_budget(self, budget_id: str) -> Optional[Budget]:
         """获取预算"""
         placeholder = self._get_placeholder()
-        rows = self.db.query(f"SELECT * FROM budgets WHERE id = {placeholder}", (budget_id,))
+        rows = self._get_db().query(f"SELECT * FROM budgets WHERE id = {placeholder}", (budget_id,))
         if not rows:
             return None
         
@@ -552,9 +557,9 @@ class BudgetStorage:
         """列出预算"""
         placeholder = self._get_placeholder()
         if account_id:
-            rows = self.db.query(f"SELECT id FROM budgets WHERE account_id = {placeholder} ORDER BY created_at DESC", (account_id,))
+            rows = self._get_db().query(f"SELECT id FROM budgets WHERE account_id = {placeholder} ORDER BY created_at DESC", (account_id,))
         else:
-            rows = self.db.query("SELECT id FROM budgets ORDER BY created_at DESC")
+            rows = self._get_db().query("SELECT id FROM budgets ORDER BY created_at DESC")
         
         # 处理查询结果可能为None的情况
         if rows is None:
@@ -586,7 +591,7 @@ class BudgetStorage:
         
         placeholder = self._get_placeholder()
         try:
-            cursor = self.db.execute(f"""
+            cursor = self._get_db().execute(f"""
                 UPDATE budgets
                 SET name = {placeholder}, amount = {placeholder}, period = {placeholder}, type = {placeholder},
                     start_date = {placeholder}, end_date = {placeholder},
@@ -617,7 +622,7 @@ class BudgetStorage:
         """删除预算"""
         placeholder = self._get_placeholder()
         try:
-            cursor = self.db.execute(f"DELETE FROM budgets WHERE id = {placeholder}", (budget_id,))
+            cursor = self._get_db().execute(f"DELETE FROM budgets WHERE id = {placeholder}", (budget_id,))
             logger.info(f"Deleted budget: {budget_id}")
             return cursor.rowcount > 0
         except Exception as e:
@@ -631,12 +636,12 @@ class BudgetStorage:
             record_id = str(uuid.uuid4())
             # MySQL使用REPLACE，SQLite使用INSERT OR REPLACE
             if self.db_type == "mysql":
-                self.db.execute(f"""
+                self._get_db().execute(f"""
                     REPLACE INTO budget_records (id, budget_id, date, spent, predicted)
                     VALUES ({', '.join([placeholder] * 5)})
                 """, (record_id, budget_id, date.date().isoformat(), spent, predicted))
             else:
-                self.db.execute(f"""
+                self._get_db().execute(f"""
                 INSERT OR REPLACE INTO budget_records (id, budget_id, date, spent, predicted)
                     VALUES ({', '.join([placeholder] * 5)})
                 """, (record_id, budget_id, date.date().isoformat(), spent, predicted))
@@ -646,7 +651,7 @@ class BudgetStorage:
     def get_spend_history(self, budget_id: str, days: int = 30) -> List[Dict]:
         """获取支出历史"""
         placeholder = self._get_placeholder()
-        rows = self.db.query(f"""
+        rows = self._get_db().query(f"""
                 SELECT date, spent, predicted
                 FROM budget_records
             WHERE budget_id = {placeholder}

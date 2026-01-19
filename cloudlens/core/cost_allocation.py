@@ -81,7 +81,7 @@ class CostAllocationStorage:
         self.db_type = db_type or os.getenv("DB_TYPE", "mysql").lower()
         
         if self.db_type == "mysql":
-            self.db = DatabaseFactory.create_adapter("mysql")
+            self.db = None  # 延迟初始化，避免导入时连接MySQL
             self.db_path = None
         else:
             if db_path is None:
@@ -92,15 +92,26 @@ class CostAllocationStorage:
         
         self._init_database()
     
+    def _get_db(self):
+        """延迟获取数据库适配器"""
+        if self.db is None:
+            self.db = DatabaseFactory.create_adapter("mysql")
+        return self.db
+    
     def _get_placeholder(self) -> str:
         """获取SQL占位符"""
         return "%s" if self.db_type == "mysql" else "?"
     
     def _init_database(self):
-        """初始化数据库"""
-        
-        # 分配规则表
-        self.db.execute("""
+        """初始化数据库（延迟执行，避免导入时连接MySQL）"""
+        if self.db_type == "mysql":
+            # MySQL表结构已在init_mysql_schema.sql中创建
+            # 延迟检查，避免导入时连接
+            pass
+        else:
+            # SQLite表结构（立即创建，因为SQLite是本地文件）
+            # 分配规则表
+            self._get_db().execute("""
             CREATE TABLE IF NOT EXISTS allocation_rules (
                 id VARCHAR(255) PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
@@ -135,7 +146,7 @@ class CostAllocationStorage:
         """)
         
         # 分配结果表
-        self.db.execute("""
+        self._get_db().execute("""
             CREATE TABLE IF NOT EXISTS allocation_results (
                 id VARCHAR(255) PRIMARY KEY,
                 rule_id VARCHAR(255) NOT NULL,
@@ -173,7 +184,7 @@ class CostAllocationStorage:
         rule.updated_at = datetime.now()
         
         placeholder = self._get_placeholder()
-        self.db.execute(f"""
+        self._get_db().execute(f"""
             INSERT INTO allocation_rules (
                 id, name, description, method, account_id,
                 service_filter, tag_filter, date_range,
@@ -194,7 +205,7 @@ class CostAllocationStorage:
     def get_rule(self, rule_id: str) -> Optional[AllocationRule]:
         """获取分配规则"""
         placeholder = self._get_placeholder()
-        rows = self.db.query(f"SELECT * FROM allocation_rules WHERE id = {placeholder}", (rule_id,))
+        rows = self._get_db().query(f"SELECT * FROM allocation_rules WHERE id = {placeholder}", (rule_id,))
         
         if not rows:
             return None
@@ -216,7 +227,7 @@ class CostAllocationStorage:
         
         query += " ORDER BY created_at DESC"
         
-        rows = self.db.query(query, tuple(params) if params else None)
+        rows = self._get_db().query(query, tuple(params) if params else None)
         
         return [self._row_to_rule(row) for row in rows]
     
@@ -225,7 +236,7 @@ class CostAllocationStorage:
         rule.updated_at = datetime.now()
         
         placeholder = self._get_placeholder()
-        cursor = self.db.execute(f"""
+        cursor = self._get_db().execute(f"""
             UPDATE allocation_rules SET
                 name = {placeholder}, description = {placeholder}, method = {placeholder}, account_id = {placeholder},
                 service_filter = {placeholder}, tag_filter = {placeholder}, date_range = {placeholder},
@@ -246,7 +257,7 @@ class CostAllocationStorage:
     def delete_rule(self, rule_id: str) -> bool:
         """删除分配规则"""
         placeholder = self._get_placeholder()
-        cursor = self.db.execute(f"DELETE FROM allocation_rules WHERE id = {placeholder}", (rule_id,))
+        cursor = self._get_db().execute(f"DELETE FROM allocation_rules WHERE id = {placeholder}", (rule_id,))
         return cursor.rowcount > 0
     
     def save_result(self, result: AllocationResult) -> str:
@@ -258,7 +269,7 @@ class CostAllocationStorage:
             result.created_at = datetime.now()
         
         placeholder = self._get_placeholder()
-        self.db.execute(f"""
+        self._get_db().execute(f"""
             INSERT INTO allocation_results (
                 id, rule_id, rule_name, period, total_cost,
                 allocated_cost, unallocated_cost, allocations, created_at
@@ -294,7 +305,7 @@ class CostAllocationStorage:
         query += f" ORDER BY created_at DESC LIMIT {placeholder}"
         params.append(limit)
         
-        rows = self.db.query(query, tuple(params))
+        rows = self._get_db().query(query, tuple(params))
         
         return [self._row_to_result(row) for row in rows]
     

@@ -187,7 +187,7 @@ class VirtualTagStorage:
         self.db_type = db_type or os.getenv("DB_TYPE", "mysql").lower()
         
         if self.db_type == "mysql":
-            self.db = DatabaseFactory.create_adapter("mysql")
+            self.db = None  # 延迟初始化，避免导入时连接MySQL
             self.db_path = None
         else:
             if db_path is None:
@@ -199,16 +199,27 @@ class VirtualTagStorage:
         
         self._init_database()
     
+    def _get_db(self):
+        """延迟获取数据库适配器"""
+        if self.db is None:
+            self.db = DatabaseFactory.create_adapter("mysql")
+        return self.db
+    
     def _get_placeholder(self) -> str:
         """获取SQL占位符"""
         return "%s" if self.db_type == "mysql" else "?"
     
     def _init_database(self):
-        """初始化数据库表结构"""
-        
-        try:
-            # 创建虚拟标签表
-            self.db.execute("""
+        """初始化数据库表结构（延迟执行，避免导入时连接MySQL）"""
+        if self.db_type == "mysql":
+            # MySQL表结构已在init_mysql_schema.sql中创建
+            # 延迟检查，避免导入时连接
+            pass
+        else:
+            # SQLite表结构（立即创建，因为SQLite是本地文件）
+            try:
+                # 创建虚拟标签表
+                self._get_db().execute("""
                 CREATE TABLE IF NOT EXISTS virtual_tags (
                     id VARCHAR(255) PRIMARY KEY,
                     name VARCHAR(255) NOT NULL,
@@ -231,7 +242,7 @@ class VirtualTagStorage:
             """)
             
             # 创建标签规则表
-            self.db.execute("""
+            self._get_db().execute("""
                 CREATE TABLE IF NOT EXISTS tag_rules (
                     id VARCHAR(255) PRIMARY KEY,
                     tag_id VARCHAR(255) NOT NULL,
@@ -254,7 +265,7 @@ class VirtualTagStorage:
             """)
             
             # 创建标签匹配缓存表（性能优化）
-            self.db.execute("""
+            self._get_db().execute("""
                 CREATE TABLE IF NOT EXISTS tag_matches (
                     resource_id VARCHAR(255) NOT NULL,
                     resource_type VARCHAR(50) NOT NULL,
@@ -288,7 +299,7 @@ class VirtualTagStorage:
                 for idx_name, table_name, columns in indexes_to_create:
                     try:
                         # 检查索引是否存在
-                        result = self.db.query(f"""
+                        result = self._get_db().query(f"""
                             SELECT COUNT(*) as cnt 
                             FROM information_schema.statistics 
                             WHERE table_schema = DATABASE() 
@@ -296,16 +307,16 @@ class VirtualTagStorage:
                             AND index_name = '{idx_name}'
                         """)
                         if result and result[0].get('cnt', 0) == 0:
-                            self.db.execute(f"CREATE INDEX {idx_name} ON {table_name}({columns})")
+                            self._get_db().execute(f"CREATE INDEX {idx_name} ON {table_name}({columns})")
                     except Exception as e:
                         logger.debug(f"Index {idx_name} creation skipped: {e}")
             else:
                 # SQLite支持IF NOT EXISTS
                 try:
-                    self.db.execute("CREATE INDEX IF NOT EXISTS idx_tag_key_value ON virtual_tags(tag_key, tag_value)")
-                    self.db.execute("CREATE INDEX IF NOT EXISTS idx_tag_rules_tag_id ON tag_rules(tag_id)")
-                    self.db.execute("CREATE INDEX IF NOT EXISTS idx_tag_matches_resource ON tag_matches(resource_id, resource_type, account_name)")
-                    self.db.execute("CREATE INDEX IF NOT EXISTS idx_tag_matches_tag ON tag_matches(tag_id)")
+                    self._get_db().execute("CREATE INDEX IF NOT EXISTS idx_tag_key_value ON virtual_tags(tag_key, tag_value)")
+                    self._get_db().execute("CREATE INDEX IF NOT EXISTS idx_tag_rules_tag_id ON tag_rules(tag_id)")
+                    self._get_db().execute("CREATE INDEX IF NOT EXISTS idx_tag_matches_resource ON tag_matches(resource_id, resource_type, account_name)")
+                    self._get_db().execute("CREATE INDEX IF NOT EXISTS idx_tag_matches_tag ON tag_matches(tag_id)")
                 except Exception as e:
                     logger.debug(f"Index creation skipped (may already exist): {e}")
         except Exception as e:
@@ -324,7 +335,7 @@ class VirtualTagStorage:
         placeholder = self._get_placeholder()
         try:
             # 插入标签
-            self.db.execute(f"""
+            self._get_db().execute(f"""
                 INSERT INTO virtual_tags (id, name, tag_key, tag_value, priority, created_at, updated_at)
                 VALUES ({', '.join([placeholder] * 7)})
             """, (
@@ -342,7 +353,7 @@ class VirtualTagStorage:
                 if not rule.id:
                     rule.id = str(uuid.uuid4())
                 rule.tag_id = tag.id
-                self.db.execute(f"""
+                self._get_db().execute(f"""
                     INSERT INTO tag_rules (id, tag_id, field, operator, pattern, priority)
                     VALUES ({', '.join([placeholder] * 6)})
                 """, (
@@ -364,14 +375,14 @@ class VirtualTagStorage:
         """获取虚拟标签"""
         placeholder = self._get_placeholder()
         # 获取标签
-        rows = self.db.query(f"SELECT * FROM virtual_tags WHERE id = {placeholder}", (tag_id,))
+        rows = self._get_db().query(f"SELECT * FROM virtual_tags WHERE id = {placeholder}", (tag_id,))
         if not rows:
                 return None
         
         row = rows[0]
             
             # 获取规则
-        rule_rows = self.db.query(f"SELECT * FROM tag_rules WHERE tag_id = {placeholder} ORDER BY priority DESC", (tag_id,))
+        rule_rows = self._get_db().query(f"SELECT * FROM tag_rules WHERE tag_id = {placeholder} ORDER BY priority DESC", (tag_id,))
         
         rules = []
         for r in rule_rows:
@@ -419,7 +430,7 @@ class VirtualTagStorage:
     
     def list_tags(self) -> List[VirtualTag]:
         """列出所有虚拟标签"""
-        rows = self.db.query("SELECT id FROM virtual_tags ORDER BY priority DESC, created_at DESC")
+        rows = self._get_db().query("SELECT id FROM virtual_tags ORDER BY priority DESC, created_at DESC")
         
         # 处理查询结果可能为None的情况
         if rows is None:
@@ -443,7 +454,7 @@ class VirtualTagStorage:
         placeholder = self._get_placeholder()
         try:
             # 更新标签
-            self.db.execute(f"""
+            self._get_db().execute(f"""
                 UPDATE virtual_tags
                 SET name = {placeholder}, tag_key = {placeholder}, tag_value = {placeholder}, priority = {placeholder}, updated_at = {placeholder}
                 WHERE id = {placeholder}
@@ -457,14 +468,14 @@ class VirtualTagStorage:
             ))
             
             # 删除旧规则
-            self.db.execute(f"DELETE FROM tag_rules WHERE tag_id = {placeholder}", (tag.id,))
+            self._get_db().execute(f"DELETE FROM tag_rules WHERE tag_id = {placeholder}", (tag.id,))
             
             # 插入新规则
             for rule in tag.rules:
                 if not rule.id:
                     rule.id = str(uuid.uuid4())
                 rule.tag_id = tag.id
-                self.db.execute(f"""
+                self._get_db().execute(f"""
                     INSERT INTO tag_rules (id, tag_id, field, operator, pattern, priority)
                     VALUES ({', '.join([placeholder] * 6)})
                 """, (
@@ -477,7 +488,7 @@ class VirtualTagStorage:
                 ))
             
             # 清除匹配缓存（规则已改变）
-            self.db.execute(f"DELETE FROM tag_matches WHERE tag_id = {placeholder}", (tag.id,))
+            self._get_db().execute(f"DELETE FROM tag_matches WHERE tag_id = {placeholder}", (tag.id,))
             
             logger.info(f"Updated virtual tag: {tag.name} ({tag.id})")
             return True
@@ -489,7 +500,7 @@ class VirtualTagStorage:
         """删除虚拟标签"""
         placeholder = self._get_placeholder()
         try:
-            cursor = self.db.execute(f"DELETE FROM virtual_tags WHERE id = {placeholder}", (tag_id,))
+            cursor = self._get_db().execute(f"DELETE FROM virtual_tags WHERE id = {placeholder}", (tag_id,))
             logger.info(f"Deleted virtual tag: {tag_id}")
             return cursor.rowcount > 0
         except Exception as e:
@@ -507,9 +518,9 @@ class VirtualTagStorage:
         placeholder = self._get_placeholder()
         try:
             if tag_id:
-                self.db.execute(f"DELETE FROM tag_matches WHERE tag_id = {placeholder}", (tag_id,))
+                self._get_db().execute(f"DELETE FROM tag_matches WHERE tag_id = {placeholder}", (tag_id,))
             else:
-                self.db.execute("DELETE FROM tag_matches")
+                self._get_db().execute("DELETE FROM tag_matches")
         except Exception as e:
             logger.error(f"Error clearing cache: {e}")
 

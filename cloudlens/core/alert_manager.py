@@ -133,7 +133,7 @@ class AlertStorage:
         self.db_type = db_type or os.getenv("DB_TYPE", "mysql").lower()
         
         if self.db_type == "mysql":
-            self.db = DatabaseFactory.create_adapter("mysql")
+            self.db = None  # 延迟初始化，避免导入时连接MySQL
             self.db_path = None
         else:
             if db_path is None:
@@ -145,17 +145,28 @@ class AlertStorage:
         
         self._init_database()
     
+    def _get_db(self):
+        """延迟获取数据库适配器"""
+        if self.db is None:
+            self.db = DatabaseFactory.create_adapter("mysql")
+        return self.db
+    
     def _get_placeholder(self) -> str:
         """获取SQL占位符"""
         return "%s" if self.db_type == "mysql" else "?"
     
     def _init_database(self):
-        """初始化数据库"""
-        placeholder = self._get_placeholder()
-        
-        # 告警规则表
+        """初始化数据库（延迟执行，避免导入时连接MySQL）"""
         if self.db_type == "mysql":
-            self.db.execute("""
+            # MySQL表结构已在init_mysql_schema.sql中创建
+            # 延迟检查，避免导入时连接
+            pass
+        else:
+            # SQLite表结构（立即创建，因为SQLite是本地文件）
+            placeholder = self._get_placeholder()
+            
+            # 告警规则表
+            self._get_db().execute("""
                 CREATE TABLE IF NOT EXISTS alert_rules (
                     id VARCHAR(255) PRIMARY KEY,
                     name VARCHAR(255) NOT NULL,
@@ -179,7 +190,7 @@ class AlertStorage:
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
         else:
-            self.db.execute("""
+            self._get_db().execute("""
             CREATE TABLE IF NOT EXISTS alert_rules (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -205,7 +216,7 @@ class AlertStorage:
         
         # 告警记录表
         if self.db_type == "mysql":
-            self.db.execute("""
+            self._get_db().execute("""
                 CREATE TABLE IF NOT EXISTS alerts (
                     id VARCHAR(255) PRIMARY KEY,
                     rule_id VARCHAR(255) NOT NULL,
@@ -228,7 +239,7 @@ class AlertStorage:
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
         else:
-            self.db.execute("""
+            self._get_db().execute("""
             CREATE TABLE IF NOT EXISTS alerts (
                 id TEXT PRIMARY KEY,
                 rule_id TEXT NOT NULL,
@@ -252,7 +263,7 @@ class AlertStorage:
         """)
         
         # 告警历史表（用于统计）
-        self.db.execute(f"""
+        self._get_db().execute(f"""
             CREATE TABLE IF NOT EXISTS alert_history (
                 id VARCHAR(255) PRIMARY KEY,
                 alert_id VARCHAR(255) NOT NULL,
@@ -290,7 +301,7 @@ class AlertStorage:
         rule.updated_at = datetime.now()
         
         placeholder = self._get_placeholder()
-        self.db.execute(f"""
+        self._get_db().execute(f"""
             INSERT INTO alert_rules (
                 id, name, description, type, severity, enabled,
                 condition, threshold, metric, account_id,
@@ -314,7 +325,7 @@ class AlertStorage:
     def get_rule(self, rule_id: str) -> Optional[AlertRule]:
         """获取告警规则"""
         placeholder = self._get_placeholder()
-        rows = self.db.query(f"SELECT * FROM alert_rules WHERE id = {placeholder}", (rule_id,))
+        rows = self._get_db().query(f"SELECT * FROM alert_rules WHERE id = {placeholder}", (rule_id,))
         
         if not rows:
             return None
@@ -336,7 +347,7 @@ class AlertStorage:
         
         query += " ORDER BY created_at DESC"
         
-        rows = self.db.query(query, tuple(params) if params else None)
+        rows = self._get_db().query(query, tuple(params) if params else None)
         
         return [self._row_to_rule(row) for row in rows]
     
@@ -345,7 +356,7 @@ class AlertStorage:
         rule.updated_at = datetime.now()
         
         placeholder = self._get_placeholder()
-        cursor = self.db.execute(f"""
+        cursor = self._get_db().execute(f"""
             UPDATE alert_rules SET
                 name = {placeholder}, description = {placeholder}, type = {placeholder}, severity = {placeholder}, enabled = {placeholder},
                 condition = {placeholder}, threshold = {placeholder}, metric = {placeholder}, account_id = {placeholder},
@@ -368,7 +379,7 @@ class AlertStorage:
     def delete_rule(self, rule_id: str) -> bool:
         """删除告警规则"""
         placeholder = self._get_placeholder()
-        cursor = self.db.execute(f"DELETE FROM alert_rules WHERE id = {placeholder}", (rule_id,))
+        cursor = self._get_db().execute(f"DELETE FROM alert_rules WHERE id = {placeholder}", (rule_id,))
         return cursor.rowcount > 0
     
     def create_alert(self, alert: Alert) -> str:
@@ -380,7 +391,7 @@ class AlertStorage:
             alert.triggered_at = datetime.now()
         
         placeholder = self._get_placeholder()
-        self.db.execute(f"""
+        self._get_db().execute(f"""
             INSERT INTO alerts (
                 id, rule_id, rule_name, severity, status,
                 title, message, metric_value, threshold,
@@ -433,7 +444,7 @@ class AlertStorage:
         query += f" ORDER BY triggered_at DESC LIMIT {placeholder}"
         params.append(limit)
         
-        rows = self.db.query(query, tuple(params))
+        rows = self._get_db().query(query, tuple(params))
         
         return [self._row_to_alert(row) for row in rows]
     
@@ -448,7 +459,7 @@ class AlertStorage:
         placeholder = self._get_placeholder()
         
         # 获取当前状态
-        rows = self.db.query(f"SELECT status, rule_id FROM alerts WHERE id = {placeholder}", (alert_id,))
+        rows = self._get_db().query(f"SELECT status, rule_id FROM alerts WHERE id = {placeholder}", (alert_id,))
         if not rows:
             return False
         
@@ -473,14 +484,14 @@ class AlertStorage:
         
         params.append(alert_id)
         
-        cursor = self.db.execute(
+        cursor = self._get_db().execute(
             f"UPDATE alerts SET {', '.join(update_fields)} WHERE id = {placeholder}",
             tuple(params)
         )
         
         # 记录历史
         history_id = f"history-{datetime.now().timestamp()}"
-        self.db.execute(f"""
+        self._get_db().execute(f"""
             INSERT INTO alert_history (
                 id, alert_id, rule_id, action, status_before, status_after,
                 performed_by, performed_at, notes
