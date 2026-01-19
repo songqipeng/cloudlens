@@ -293,12 +293,13 @@ class DatabaseFactory:
             )
 
         # 从环境变量或kwargs获取MySQL配置
+        # 优先读取CLOUDLENS_DATABASE__MYSQL_*（docker-compose配置），然后读取MYSQL_*，最后使用默认值
         mysql_config = {
-            'host': kwargs.get('host') or os.getenv("MYSQL_HOST", "localhost"),
-            'port': int(kwargs.get('port') or os.getenv("MYSQL_PORT", 3306)),
-            'user': kwargs.get('user') or os.getenv("MYSQL_USER", "cloudlens"),
-            'password': kwargs.get('password') or os.getenv("MYSQL_PASSWORD", ""),
-            'database': kwargs.get('database') or os.getenv("MYSQL_DATABASE", "cloudlens"),
+            'host': kwargs.get('host') or os.getenv("CLOUDLENS_DATABASE__MYSQL_HOST") or os.getenv("MYSQL_HOST", "localhost"),
+            'port': int(kwargs.get('port') or os.getenv("CLOUDLENS_DATABASE__MYSQL_PORT") or os.getenv("MYSQL_PORT", 3306)),
+            'user': kwargs.get('user') or os.getenv("CLOUDLENS_DATABASE__MYSQL_USER") or os.getenv("MYSQL_USER", "cloudlens"),
+            'password': kwargs.get('password') or os.getenv("CLOUDLENS_DATABASE__MYSQL_PASSWORD") or os.getenv("MYSQL_PASSWORD", ""),
+            'database': kwargs.get('database') or os.getenv("CLOUDLENS_DATABASE__MYSQL_DATABASE") or os.getenv("MYSQL_DATABASE", "cloudlens"),
             'charset': kwargs.get('charset') or os.getenv("MYSQL_CHARSET", "utf8mb4"),
             'pool_size': int(kwargs.get('pool_size') or os.getenv("MYSQL_POOL_SIZE", 20)),
         }
