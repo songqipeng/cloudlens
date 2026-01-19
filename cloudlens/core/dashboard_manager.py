@@ -82,7 +82,7 @@ class DashboardStorage:
         self.db_type = db_type or os.getenv("DB_TYPE", "mysql").lower()
         
         if self.db_type == "mysql":
-            self.db = DatabaseFactory.create_adapter("mysql")
+            self.db = None  # 延迟初始化，避免导入时连接MySQL
             self.db_path = None
         else:
             if db_path is None:
@@ -94,6 +94,12 @@ class DashboardStorage:
         
         self._init_database()
     
+    def _get_db(self):
+        """延迟获取数据库适配器"""
+        if self.db is None:
+            self.db = DatabaseFactory.create_adapter("mysql")
+        return self.db
+    
     def _get_placeholder(self) -> str:
         """获取SQL占位符"""
         return "%s" if self.db_type == "mysql" else "?"
@@ -103,13 +109,13 @@ class DashboardStorage:
         if self.db_type == "mysql":
             # MySQL表结构已在init_mysql_schema.sql中创建
             try:
-                self.db.query("SELECT 1 FROM dashboards LIMIT 1")
+                self._get_db().query("SELECT 1 FROM dashboards LIMIT 1")
                 logger.info("MySQL仪表盘表已存在")
             except Exception:
                 logger.warning("MySQL仪表盘表不存在，请先运行migrations/init_mysql_schema.sql")
         else:
             # SQLite表结构
-            self.db.execute("""
+            self._get_db().execute("""
                 CREATE TABLE IF NOT EXISTS dashboards (
                     id TEXT PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -173,13 +179,13 @@ class DashboardStorage:
             dashboard.updated_at
         )
         
-        self.db.execute(sql, params)
+        self._get_db().execute(sql, params)
         return dashboard.id
     
     def get_dashboard(self, dashboard_id: str) -> Optional[Dashboard]:
         """获取仪表盘"""
         placeholder = self._get_placeholder()
-        result = self.db.query_one(
+        result = self._get_db().query_one(
             f"SELECT * FROM dashboards WHERE id = {placeholder}",
             (dashboard_id,)
         )
@@ -225,7 +231,7 @@ class DashboardStorage:
         
         where_clause = " AND ".join(conditions) if conditions else "1=1"
         
-        results = self.db.query(
+        results = self._get_db().query(
             f"SELECT * FROM dashboards WHERE {where_clause} ORDER BY updated_at DESC",
             tuple(params) if params else None
         )
@@ -282,13 +288,13 @@ class DashboardStorage:
             dashboard.id
         )
         
-        self.db.execute(sql, params)
+        self._get_db().execute(sql, params)
         return True
     
     def delete_dashboard(self, dashboard_id: str) -> bool:
         """删除仪表盘"""
         placeholder = self._get_placeholder()
-        self.db.execute(
+        self._get_db().execute(
             f"DELETE FROM dashboards WHERE id = {placeholder}",
             (dashboard_id,)
         )
