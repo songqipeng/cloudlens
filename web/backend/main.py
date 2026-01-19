@@ -12,6 +12,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # 加载环境变量（从 ~/.cloudlens/.env 文件）
+# 注意：只有在环境变量不存在时才从文件加载，确保Docker容器中的环境变量优先级更高
 env_file = Path.home() / ".cloudlens" / ".env"
 if env_file.exists():
     with open(env_file, "r") as f:
@@ -19,7 +20,10 @@ if env_file.exists():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 key, value = line.split("=", 1)
-                os.environ[key.strip()] = value.strip()
+                key = key.strip()
+                # 只有在环境变量不存在时才设置，确保Docker容器中的环境变量优先级更高
+                if key not in os.environ:
+                    os.environ[key] = value.strip()
 
 from fastapi import FastAPI, Request, status
 from cloudlens.core.database import DatabaseFactory

@@ -47,26 +47,11 @@ class CacheManager:
         return self.db
 
     def _init_db(self):
-        """初始化MySQL数据库表结构"""
+        """初始化MySQL数据库表结构（延迟执行，避免导入时连接MySQL）"""
         # MySQL表结构已在init_mysql_schema.sql中创建
-        # 这里只检查表是否存在
-        try:
-            self._get_db().query("SELECT 1 FROM resource_cache LIMIT 1")
-        except Exception:
-            # 表不存在，创建表
-            self._get_db().execute("""
-                CREATE TABLE IF NOT EXISTS resource_cache (
-                    cache_key VARCHAR(255) PRIMARY KEY,
-                    resource_type VARCHAR(50) NOT NULL,
-                    account_name VARCHAR(100) NOT NULL,
-                    region VARCHAR(50),
-                    data JSON NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    expires_at TIMESTAMP NOT NULL,
-                    INDEX idx_resource_type_account (resource_type, account_name),
-                    INDEX idx_expires_at (expires_at)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-            """)
+        # 延迟检查，避免导入时连接
+        # 首次使用时如果表不存在，会在查询时自动报错，然后可以创建表
+        pass
 
     def get(self, resource_type: str, account_name: str, region: str = None) -> Optional[List[Any]]:
         """

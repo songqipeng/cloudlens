@@ -294,15 +294,63 @@ class DatabaseFactory:
 
         # 从环境变量或kwargs获取MySQL配置
         # 优先读取CLOUDLENS_DATABASE__MYSQL_*（docker-compose配置），然后读取MYSQL_*，最后使用默认值
+        # 注意：kwargs中的值优先于环境变量
+        host = kwargs.get('host')
+        if not host:
+            host = os.getenv("CLOUDLENS_DATABASE__MYSQL_HOST")
+        if not host:
+            host = os.getenv("MYSQL_HOST")
+        if not host:
+            host = "localhost"  # 默认值
+        
+        port = kwargs.get('port')
+        if port is None:
+            port = os.getenv("CLOUDLENS_DATABASE__MYSQL_PORT")
+        if port is None:
+            port = os.getenv("MYSQL_PORT")
+        if port is None:
+            port = 3306  # 默认值
+        port = int(port)
+        
+        user = kwargs.get('user')
+        if not user:
+            user = os.getenv("CLOUDLENS_DATABASE__MYSQL_USER")
+        if not user:
+            user = os.getenv("MYSQL_USER")
+        if not user:
+            user = "cloudlens"  # 默认值
+        
+        password = kwargs.get('password')
+        if password is None:
+            password = os.getenv("CLOUDLENS_DATABASE__MYSQL_PASSWORD")
+        if password is None:
+            password = os.getenv("MYSQL_PASSWORD")
+        if password is None:
+            password = ""  # 默认值
+        
+        database = kwargs.get('database')
+        if not database:
+            database = os.getenv("CLOUDLENS_DATABASE__MYSQL_DATABASE")
+        if not database:
+            database = os.getenv("MYSQL_DATABASE")
+        if not database:
+            database = "cloudlens"  # 默认值
+        
         mysql_config = {
-            'host': kwargs.get('host') or os.getenv("CLOUDLENS_DATABASE__MYSQL_HOST") or os.getenv("MYSQL_HOST", "localhost"),
-            'port': int(kwargs.get('port') or os.getenv("CLOUDLENS_DATABASE__MYSQL_PORT") or os.getenv("MYSQL_PORT", 3306)),
-            'user': kwargs.get('user') or os.getenv("CLOUDLENS_DATABASE__MYSQL_USER") or os.getenv("MYSQL_USER", "cloudlens"),
-            'password': kwargs.get('password') or os.getenv("CLOUDLENS_DATABASE__MYSQL_PASSWORD") or os.getenv("MYSQL_PASSWORD", ""),
-            'database': kwargs.get('database') or os.getenv("CLOUDLENS_DATABASE__MYSQL_DATABASE") or os.getenv("MYSQL_DATABASE", "cloudlens"),
+            'host': host,
+            'port': port,
+            'user': user,
+            'password': password,
+            'database': database,
             'charset': kwargs.get('charset') or os.getenv("MYSQL_CHARSET", "utf8mb4"),
             'pool_size': int(kwargs.get('pool_size') or os.getenv("MYSQL_POOL_SIZE", 20)),
         }
+        
+        # 调试日志：记录实际使用的配置
+        if mysql_config['host'] == 'localhost':
+            logger.warning(f"⚠️  DatabaseFactory创建适配器时使用localhost！环境变量: CLOUDLENS_DATABASE__MYSQL_HOST={os.getenv('CLOUDLENS_DATABASE__MYSQL_HOST')}, MYSQL_HOST={os.getenv('MYSQL_HOST')}, kwargs={kwargs}")
+        else:
+            logger.debug(f"DatabaseFactory创建适配器: host={mysql_config['host']}, port={mysql_config['port']}")
         
         # 生成缓存键（基于配置）
         cache_key = f"{db_type}:{mysql_config['host']}:{mysql_config['port']}:{mysql_config['database']}"
