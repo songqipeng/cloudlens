@@ -81,35 +81,12 @@ services:
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
-        set -e
-        echo "等待MySQL就绪..."
-        MAX_RETRIES=30
-        RETRY_COUNT=0
-        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-          # 使用mysqladmin ping检查MySQL是否就绪（禁用SSL）
-          if mysqladmin ping -h mysql -u cloudlens -pcloudlens123 --ssl-mode=DISABLED --silent 2>/dev/null || \
-             mysqladmin ping -h mysql -u cloudlens -pcloudlens123 --skip-ssl --silent 2>/dev/null || \
-             timeout 2 bash -c 'echo > /dev/tcp/mysql/3306' 2>/dev/null; then
-            echo "MySQL已就绪！"
-            break
-          fi
-          RETRY_COUNT=$((RETRY_COUNT + 1))
-          echo "等待MySQL... ($RETRY_COUNT/$MAX_RETRIES)"
-          sleep 2
-        done
-        if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-          echo "警告: MySQL连接超时，但继续尝试启动服务..."
-        fi
+        echo "等待MySQL就绪（依赖depends_on healthcheck）..."
+        sleep 5
         echo "初始化数据库表结构..."
-        mysql -h mysql -u cloudlens -pcloudlens123 --ssl-mode=DISABLED cloudlens < /app/migrations/init_mysql_schema.sql 2>&1 || \
-        mysql -h mysql -u cloudlens -pcloudlens123 --skip-ssl cloudlens < /app/migrations/init_mysql_schema.sql 2>&1 || \
-        echo "警告: init_mysql_schema.sql 执行失败或已存在"
-        mysql -h mysql -u cloudlens -pcloudlens123 --ssl-mode=DISABLED cloudlens < /app/migrations/add_chatbot_tables.sql 2>&1 || \
-        mysql -h mysql -u cloudlens -pcloudlens123 --skip-ssl cloudlens < /app/migrations/add_chatbot_tables.sql 2>&1 || \
-        echo "警告: add_chatbot_tables.sql 执行失败或已存在"
-        mysql -h mysql -u cloudlens -pcloudlens123 --ssl-mode=DISABLED cloudlens < /app/migrations/add_anomaly_table.sql 2>&1 || \
-        mysql -h mysql -u cloudlens -pcloudlens123 --skip-ssl cloudlens < /app/migrations/add_anomaly_table.sql 2>&1 || \
-        echo "警告: add_anomaly_table.sql 执行失败或已存在"
+        mysql -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/init_mysql_schema.sql 2>&1 || echo "警告: init_mysql_schema.sql 执行失败或已存在"
+        mysql -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/add_chatbot_tables.sql 2>&1 || echo "警告: add_chatbot_tables.sql 执行失败或已存在"
+        mysql -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/add_anomaly_table.sql 2>&1 || echo "警告: add_anomaly_table.sql 执行失败或已存在"
         echo "启动后端服务..."
         exec uvicorn web.backend.main:app --host 0.0.0.0 --port 8000
 
