@@ -34,10 +34,16 @@ class BillStorageManager:
         """
         # 只使用MySQL（SQLite已废弃）
         self.db_type = "mysql"
-        self.db = DatabaseFactory.create_adapter("mysql")
+        self.db = None  # 延迟初始化，避免导入时连接MySQL
         self.db_path = None
         
         self._init_database()
+    
+    def _get_db(self) -> DatabaseAdapter:
+        """延迟获取数据库适配器"""
+        if self.db is None:
+            self.db = DatabaseFactory.create_adapter("mysql")
+        return self.db
     
     def _get_placeholder(self) -> str:
         """获取SQL占位符（只支持MySQL）"""
@@ -53,12 +59,8 @@ class BillStorageManager:
     def _init_database(self):
         """初始化数据库表结构（只支持MySQL）"""
         # MySQL表结构已在init_mysql_schema.sql中创建
-        # 这里只检查表是否存在
-        try:
-            self.db.query("SELECT 1 FROM bill_items LIMIT 1")
-            logger.info("MySQL账单表已存在")
-        except Exception:
-            logger.warning("MySQL账单表不存在，请先运行migrations/init_mysql_schema.sql")
+        # 这里只检查表是否存在（延迟检查，避免导入时连接）
+        pass  # 延迟到首次使用时检查
     
     def insert_bill_items(
         self, 
@@ -85,7 +87,7 @@ class BillStorageManager:
         skipped = 0
         
         try:
-            self.db.begin_transaction()
+            self._get_db().begin_transaction()
             
             # 准备批量数据
             batch_size = 1000  # 每批插入1000条
@@ -163,19 +165,19 @@ class BillStorageManager:
                     batch = all_values[i:i + batch_size]
                     try:
                         # 使用executemany批量插入（性能优化）
-                        rows_affected = self.db.executemany(sql, batch)
+                        rows_affected = self._get_db().executemany(sql, batch)
                         inserted += rows_affected if rows_affected > 0 else len(batch)
                     except Exception as e:
                         logger.warning(f"批量插入失败（批次 {i//batch_size + 1}）: {str(e)}")
                         skipped += len(batch)
             
-            self.db.commit()
+            self._get_db().commit()
             logger.info(f"账期 {billing_cycle} 批量插入 {inserted} 条，跳过 {skipped} 条")
             
             return inserted, skipped
         
         except Exception as e:
-            self.db.rollback()
+            self._get_db().rollback()
             logger.error(f"批量插入失败: {str(e)}")
             raise
     
@@ -240,7 +242,7 @@ class BillStorageManager:
             except (ValueError, TypeError):
                 logger.warning(f"Invalid limit value: {limit}, ignoring")
 
-        return self.db.query(sql, tuple(params) if params else None)
+        return self._get_db().query(sql, tuple(params) if params else None)
 
     def get_billing_cycles(self, account_id: str) -> List[Dict]:
         """
@@ -265,7 +267,7 @@ class BillStorageManager:
                 ORDER BY billing_cycle DESC
             """
 
-            results = self.db.query(sql, (account_id,))
+            results = self._get_db().query(sql, (account_id,))
             return results if results else []
         except Exception as e:
             logger.error(f"获取账期列表失败: {str(e)}")
@@ -276,27 +278,27 @@ class BillStorageManager:
         placeholder = self._get_placeholder()
 
         # 总记录数
-        total_result = self.db.query_one(f"SELECT COUNT(*) as count FROM bill_items")
+        total_result = self._get_db().query_one(f"SELECT COUNT(*) as count FROM bill_items")
         total_records = total_result['count'] if total_result else 0
 
         # 账号数
-        account_result = self.db.query_one(f"SELECT COUNT(DISTINCT account_id) as count FROM bill_items")
+        account_result = self._get_db().query_one(f"SELECT COUNT(DISTINCT account_id) as count FROM bill_items")
         account_count = account_result['count'] if account_result else 0
 
         # 账期数
-        cycle_result = self.db.query_one(f"SELECT COUNT(DISTINCT billing_cycle) as count FROM bill_items")
+        cycle_result = self._get_db().query_one(f"SELECT COUNT(DISTINCT billing_cycle) as count FROM bill_items")
         cycle_count = cycle_result['count'] if cycle_result else 0
 
         # 时间范围
-        min_result = self.db.query_one(f"SELECT MIN(billing_cycle) as min_cycle FROM bill_items")
-        max_result = self.db.query_one(f"SELECT MAX(billing_cycle) as max_cycle FROM bill_items")
+        min_result = self._get_db().query_one(f"SELECT MIN(billing_cycle) as min_cycle FROM bill_items")
+        max_result = self._get_db().query_one(f"SELECT MAX(billing_cycle) as max_cycle FROM bill_items")
 
         # 数据库大小（MySQL）
         db_size_mb = 0.0
         try:
             if self.db_type == "mysql":
                 # 查询MySQL数据库大小
-                size_result = self.db.query_one("""
+                size_result = self._get_db().query_one("""
                     SELECT
                         ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) as size_mb
                     FROM information_schema.tables

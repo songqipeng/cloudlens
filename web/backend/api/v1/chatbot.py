@@ -26,8 +26,8 @@ router = APIRouter(prefix="/api/v1/chatbot", tags=["chatbot"])
 
 # 初始化LLM客户端
 _llm_client: Optional[LLMClient] = None
-_db = DatabaseFactory.create_adapter("mysql")
-_bill_storage = BillStorageManager()
+_db: Optional[Any] = None  # 延迟初始化，避免导入时连接MySQL
+_bill_storage: Optional[BillStorageManager] = None  # 延迟初始化
 
 
 def get_llm_client() -> LLMClient:
@@ -45,6 +45,22 @@ def get_llm_client() -> LLMClient:
                 detail=f"AI服务不可用: {str(e)}"
             )
     return _llm_client
+
+
+def _get_db():
+    """获取数据库适配器（懒加载）"""
+    global _db
+    if _db is None:
+        _db = DatabaseFactory.create_adapter("mysql")
+    return _db
+
+
+def _get_bill_storage() -> BillStorageManager:
+    """获取账单存储管理器（懒加载）"""
+    global _bill_storage
+    if _bill_storage is None:
+        _bill_storage = BillStorageManager()
+    return _bill_storage
 
 
 # ==================== 请求模型 ====================
@@ -103,7 +119,7 @@ async def _get_user_context(account_id: Optional[str]) -> str:
         
         # 获取账单数据
         billing_cycle = end_date.strftime("%Y-%m")
-        items = _bill_storage.get_bill_items(
+        items = _get_bill_storage().get_bill_items(
             account_id=account_id,
             billing_cycle=billing_cycle
         )
@@ -174,7 +190,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
         if not session_id:
             session_id = str(uuid.uuid4())
             # 创建新会话
-            _db.execute(
+            _get_db().execute(
                 "INSERT INTO chat_sessions (id, account_id, title, created_at) VALUES (%s, %s, %s, NOW())",
                 (session_id, account_id, "新对话")
             )
@@ -186,7 +202,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
         # 获取历史消息（如果有session_id）
         history_messages = []
         if session_id:
-            history = _db.query(
+            history = _get_db().query(
                 "SELECT role, content FROM chat_messages WHERE session_id = %s ORDER BY created_at ASC LIMIT 20",
                 (session_id,)
             )
@@ -213,7 +229,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
         
         # 保存用户消息
         for msg in req.messages:
-            _db.execute(
+            _get_db().execute(
                 "INSERT INTO chat_messages (id, session_id, role, content, created_at) VALUES (%s, %s, %s, %s, NOW())",
                 (str(uuid.uuid4()), session_id, msg.role, msg.content)
             )
@@ -224,7 +240,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
             "usage": result["usage"],
             "model": result["model"]
         }
-        _db.execute(
+        _get_db().execute(
             "INSERT INTO chat_messages (id, session_id, role, content, metadata, created_at) VALUES (%s, %s, %s, %s, %s, NOW())",
             (message_id, session_id, "assistant", result["message"], str(metadata))
         )
@@ -232,7 +248,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
         # 更新会话标题（如果是第一条消息）
         if len(history_messages) == 0 and req.messages:
             first_message = req.messages[0].content[:50]
-            _db.execute(
+            _get_db().execute(
                 "UPDATE chat_sessions SET title = %s WHERE id = %s",
                 (first_message, session_id)
             )
@@ -269,7 +285,7 @@ def list_sessions(
         query += " ORDER BY updated_at DESC LIMIT %s"
         params.append(limit)
         
-        sessions = _db.query(query, tuple(params))
+        sessions = _get_db().query(query, tuple(params))
         
         return {
             "success": True,
@@ -296,7 +312,7 @@ def get_messages(
 ) -> Dict[str, Any]:
     """获取会话消息"""
     try:
-        messages = _db.query(
+        messages = _get_db().query(
             "SELECT id, role, content, metadata, created_at FROM chat_messages WHERE session_id = %s ORDER BY created_at ASC LIMIT %s",
             (session_id, limit)
         )
@@ -323,7 +339,7 @@ def get_messages(
 def delete_session(session_id: str) -> Dict[str, Any]:
     """删除会话（级联删除消息）"""
     try:
-        _db.execute("DELETE FROM chat_sessions WHERE id = %s", (session_id,))
+        _get_db().execute("DELETE FROM chat_sessions WHERE id = %s", (session_id,))
         return {
             "success": True,
             "message": "会话删除成功"
