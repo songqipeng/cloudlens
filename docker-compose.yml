@@ -71,11 +71,11 @@ services:
       CLOUDLENS_DEBUG: ${CLOUDLENS_DEBUG:-false}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
-    volumes:
-      - ./config:/app/config:ro
-      - ./logs:/app/logs
-      - ./migrations:/app/migrations:ro
-      - ~/.cloudlens:/root/.cloudlens:ro
+        volumes:
+          - ./config:/app/config:ro
+          - ./logs:/app/logs
+          - ./migrations:/app/migrations:ro
+          - ~/.cloudlens:/root/.cloudlens
     depends_on:
       mysql:
         condition: service_healthy
