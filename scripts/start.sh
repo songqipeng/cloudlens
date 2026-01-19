@@ -16,6 +16,30 @@ echo "🔍 检测系统信息..."
 echo "   • 操作系统: $OS"
 echo "   • CPU 架构: $ARCH"
 
+# 检查是否有运行中的服务
+echo ""
+echo "🔍 检查现有服务..."
+if docker compose ps 2>/dev/null | grep -q "Up"; then
+    echo "   ⚠️  检测到运行中的服务"
+    echo ""
+    echo "   运行中的服务："
+    docker compose ps 2>/dev/null | grep "Up" || true
+    echo ""
+    read -p "   是否要停止现有服务并重新启动？(y/N): " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "   🛑 停止现有服务..."
+        docker compose down
+        echo "   ✅ 服务已停止"
+    else
+        echo "   ℹ️  保持现有服务运行，仅拉取最新镜像..."
+        PULL_ONLY=true
+    fi
+else
+    echo "   ✅ 没有运行中的服务"
+    PULL_ONLY=false
+fi
+
 # 确定 Docker 平台
 if [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then
     if [ "$OS" = "Darwin" ]; then
@@ -93,29 +117,40 @@ if [ "$NEED_BUILD_BACKEND" = "true" ] || [ "$NEED_BUILD_FRONTEND" = "true" ]; th
     fi
 fi
 
-echo ""
-echo "🚀 启动服务..."
-docker compose up -d
+if [ "$PULL_ONLY" != "true" ]; then
+    echo ""
+    echo "🚀 启动服务..."
+    docker compose up -d
 
-echo ""
-echo "⏳ 等待服务启动（约 30 秒）..."
-sleep 30
+    echo ""
+    echo "⏳ 等待服务启动（约 30 秒）..."
+    sleep 30
 
-echo ""
-echo "📊 服务状态："
-docker compose ps
+    echo ""
+    echo "📊 服务状态："
+    docker compose ps
 
-echo ""
-echo "✅ 启动完成！"
-echo ""
-echo "访问地址："
-echo "   • 前端: http://localhost:3000"
-echo "   • 后端: http://localhost:8000"
-echo "   • API 文档: http://localhost:8000/docs"
-echo ""
-echo "查看日志："
-echo "   docker compose logs -f"
-echo ""
+    echo ""
+    echo "✅ 启动完成！"
+    echo ""
+    echo "访问地址："
+    echo "   • 前端: http://localhost:3000"
+    echo "   • 后端: http://localhost:8000"
+    echo "   • API 文档: http://localhost:8000/docs"
+    echo ""
+    echo "查看日志："
+    echo "   docker compose logs -f"
+    echo ""
+else
+    echo ""
+    echo "✅ 镜像已更新！"
+    echo ""
+    echo "💡 提示："
+    echo "   服务正在运行中，新镜像将在下次重启时生效"
+    echo "   如需立即使用新镜像，请运行："
+    echo "   docker compose restart"
+    echo ""
+fi
 
 if [ "$USE_ROSETTA" = "true" ]; then
     echo "💡 提示："
