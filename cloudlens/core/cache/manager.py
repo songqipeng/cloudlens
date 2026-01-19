@@ -40,8 +40,8 @@ class CacheManager:
     def _get_db(self) -> DatabaseAdapter:
         """延迟获取数据库适配器"""
         if self.db is None:
-            # 清除缓存，确保使用最新的环境变量配置
-            DatabaseFactory._adapters.clear()
+            # 不清除缓存，直接创建适配器（会使用正确的环境变量）
+            # 注意：不要清除缓存，因为可能已经有正确配置的适配器
             self.db = DatabaseFactory.create_adapter("mysql")
             self._init_db()  # 首次使用时初始化
         return self.db
