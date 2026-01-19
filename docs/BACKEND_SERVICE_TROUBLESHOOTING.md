@@ -204,3 +204,54 @@ docker compose logs backend --tail 50
 # 5. 测试服务
 curl http://localhost:8000/health
 ```
+
+## 问题：Connection reset by peer
+
+**症状：**
+- `curl localhost:8000` 返回 `curl: (56) Recv failure: Connection reset by peer`
+- 后端日志显示"等待MySQL就绪..."但没有后续日志
+
+**原因：**
+- 后端服务正在启动中，MySQL连接可能还在等待
+- 或者后端启动脚本卡在MySQL等待循环
+
+**解决方案：**
+
+1. **等待更长时间（60-90秒）**
+   ```bash
+   # 服务启动需要时间，特别是第一次启动
+   sleep 90
+   curl http://localhost:8000/health
+   ```
+
+2. **检查后端日志**
+   ```bash
+   docker compose logs backend --tail 50
+   ```
+   
+   应该看到：
+   - "MySQL已就绪！"
+   - "启动后端服务..."
+   - "Uvicorn running on http://0.0.0.0:8000"
+
+3. **如果卡在"等待MySQL就绪..."**
+   ```bash
+   # 检查MySQL是否运行
+   docker compose ps mysql
+   
+   # 测试MySQL连接
+   docker compose exec mysql mysql -u cloudlens -pcloudlens123 -e "SELECT 1"
+   
+   # 重启后端服务
+   docker compose restart backend
+   ```
+
+4. **如果仍然失败，查看完整日志**
+   ```bash
+   docker compose logs backend --tail 100
+   ```
+
+**预期行为：**
+- 第一次启动：需要60-90秒（MySQL初始化、数据库迁移）
+- 后续启动：需要30-60秒
+- 健康检查应该返回200状态码
