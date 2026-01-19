@@ -55,10 +55,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     const refreshAccounts = async () => {
         try {
             // 优先使用新的 /settings/accounts 接口（包含别名）
-            let res = await fetch('http://127.0.0.1:8000/api/settings/accounts')
+            // 使用相对路径，让浏览器自动处理协议和主机
+            const apiBase = typeof window !== 'undefined' 
+                ? `${window.location.protocol}//${window.location.hostname}:8000/api`
+                : 'http://127.0.0.1:8000/api'
+            let res = await fetch(`${apiBase}/settings/accounts`)
             if (!res.ok) {
                 // 如果新接口失败，回退到旧接口
-                res = await fetch('http://127.0.0.1:8000/api/accounts')
+                res = await fetch(`${apiBase}/accounts`)
             }
             if (res.ok) {
                 const response = await res.json()
