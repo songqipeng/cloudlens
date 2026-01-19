@@ -7,7 +7,12 @@
 import { getTranslations } from "./i18n"
 import type { Locale } from "./i18n"
 
-const API_BASE = "http://127.0.0.1:8000/api"
+// 使用环境变量配置API地址，如果没有则使用默认值
+const API_BASE = process.env.NEXT_PUBLIC_API_URL 
+    ? `${process.env.NEXT_PUBLIC_API_URL}/api`
+    : (typeof window !== "undefined" 
+        ? `${window.location.protocol}//${window.location.hostname}:8000/api`
+        : "http://127.0.0.1:8000/api")
 
 // 请求去重Map
 const pendingRequests = new Map<string, Promise<any>>()
