@@ -66,27 +66,32 @@ pip install prophet  # (可选) 用于 AI 预测功能
 **方式一：Docker Compose（推荐，Q1新功能）**
 
 ```bash
-# 1. 配置环境变量
+# 1. 克隆代码
+git clone https://github.com/songqipeng/cloudlens.git
+cd cloudlens
+
+# 2. 配置环境变量
 cp .env.example .env
 # 编辑.env，至少配置AI API密钥：
 # ANTHROPIC_API_KEY=your_claude_api_key
 # LLM_PROVIDER=claude
 
-# 2. 启动所有服务
+# 3. 启动所有服务（自动拉取Docker Hub镜像）
 docker-compose up -d
 
-# 3. 等待服务启动（约10-15秒）
-sleep 15
+# 4. 查看服务状态
+docker-compose ps
 
-# 4. 初始化数据库（首次运行）
-docker-compose exec -T mysql mysql -u cloudlens -pcloudlens123 cloudlens < migrations/init_mysql_schema.sql
-docker-compose exec -T mysql mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_chatbot_tables.sql
-docker-compose exec -T mysql mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_anomaly_table.sql
+# 5. 查看日志（等待数据库自动初始化完成）
+docker-compose logs -f
 
-# 5. 验证服务
+# 6. 验证服务
 curl http://localhost:8000/health
-curl http://localhost:3000
+# 访问前端: http://localhost:3000
 ```
+
+> 💡 **提示**: 镜像会自动从 Docker Hub 拉取，无需本地构建。数据库会在首次启动时自动初始化，无需手动执行 SQL 脚本。  
+> 📖 **详细说明**: 查看 [Docker Hub 使用指南](./docs/DOCKER_HUB_SETUP.md)
 
 **方式二：本地开发环境（用于开发和测试）**
 

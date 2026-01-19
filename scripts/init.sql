@@ -1,6 +1,7 @@
 -- ============================================================
 -- CloudLens MySQL 数据库初始化脚本
 -- 用于Docker容器自动初始化
+-- 此脚本会在MySQL容器首次启动时自动执行
 -- ============================================================
 
 -- 创建数据库（如果不存在）
@@ -9,7 +10,7 @@ CREATE DATABASE IF NOT EXISTS cloudlens CHARACTER SET utf8mb4 COLLATE utf8mb4_un
 -- 使用数据库
 USE cloudlens;
 
--- 执行主schema文件（通过docker-entrypoint-initdb.d自动执行）
--- 这里只做数据库创建，表结构由migrations/init_mysql_schema.sql创建
+-- 注意：表结构由 migrations/init_mysql_schema.sql 创建
+-- 此脚本只负责创建数据库，表结构会在容器启动后通过迁移脚本创建
 
 SELECT 'Database cloudlens created successfully!' AS status;

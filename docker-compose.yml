@@ -15,6 +15,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
       - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./migrations:/docker-entrypoint-initdb.d/migrations:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-cloudlens_root_2024}"]
       interval: 10s
@@ -43,9 +44,7 @@ services:
 
   # 后端 API 服务
   backend:
-    build:
-      context: .
-      dockerfile: web/backend/Dockerfile
+    image: ${DOCKER_HUB_USERNAME:-songqipeng}/cloudlens-backend:${IMAGE_TAG:-latest}
     container_name: cloudlens-backend
     environment:
       # 数据库配置
@@ -80,9 +79,7 @@ services:
 
   # 前端 Web 服务
   frontend:
-    build:
-      context: .
-      dockerfile: web/frontend/Dockerfile
+    image: ${DOCKER_HUB_USERNAME:-songqipeng}/cloudlens-frontend:${IMAGE_TAG:-latest}
     container_name: cloudlens-frontend
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
