@@ -189,7 +189,7 @@ class AlertStorage:
                     updated_at DATETIME
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
-        else:
+            # SQLite表结构
             self._get_db().execute("""
             CREATE TABLE IF NOT EXISTS alert_rules (
                 id TEXT PRIMARY KEY,

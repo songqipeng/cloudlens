@@ -318,9 +318,6 @@ class VirtualTagStorage:
                     self._get_db().execute("CREATE INDEX IF NOT EXISTS idx_tag_matches_tag ON tag_matches(tag_id)")
                 except Exception as e:
                     logger.debug(f"Index creation skipped (may already exist): {e}")
-        except Exception as e:
-            logger.error(f"Error initializing database: {e}")
-            raise
     
     def create_tag(self, tag: VirtualTag) -> str:
         """创建虚拟标签"""

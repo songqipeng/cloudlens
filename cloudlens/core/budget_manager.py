@@ -402,9 +402,6 @@ class BudgetStorage:
                 except Exception as e:
                     # 索引可能已存在，忽略错误
                     logger.debug(f"Index creation skipped (may already exist): {e}")
-            except Exception as e:
-                # 索引可能已存在，忽略错误
-                logger.debug(f"Index creation skipped (may already exist): {e}")
     
     def create_budget(self, budget: Budget) -> str:
         """创建预算"""
