@@ -41,71 +41,58 @@
 
 ## 🛠️ 快速开始
 
-### 1. 安装环境
-```bash
-git clone https://github.com/songqipeng/cloudlens.git
-cd cloudlens
-pip install -r requirements.txt
-pip install prophet  # (可选) 用于 AI 预测功能
-```
+### 🎯 两种使用场景
 
-### 2. 配置账号
-```bash
-./cl config add --provider aliyun --name prod --region cn-hangzhou --ak YOUR_AK --sk YOUR_SK
-```
+#### 场景1: 普通用户（只想快速使用）⭐ 推荐
 
-### 3. CLI 命令行操作
-```bash
-./cl analyze idle --account prod       # 扫描闲置资源 (搞定浪费)
-./cl analyze security --cis --account prod # 安全合规检查
-./cl analyze forecast --days 90        # AI 预测未来支出
-```
-
-### 4. 启动 Web 界面
-
-**方式一：Docker Compose（推荐，Q1新功能）**
+**目标**: 最快速度启动，无需了解开发细节
 
 ```bash
-# 1. 克隆代码
+# 1. 下载最新代码
 git clone https://github.com/songqipeng/cloudlens.git
 cd cloudlens
 
-# 2. 配置环境变量
+# 2. 配置环境变量（至少配置AI API密钥）
 cp .env.example .env
-# 编辑.env，至少配置AI API密钥：
+# 编辑 .env，添加：
 # ANTHROPIC_API_KEY=your_claude_api_key
 # LLM_PROVIDER=claude
 
-# 3. 启动所有服务（自动拉取Docker Hub镜像）
+# 3. 一键启动（自动拉取Docker镜像）
 docker-compose up -d
 
-# 4. 查看服务状态
-docker-compose ps
-
-# 5. 查看日志（等待数据库自动初始化完成）
-docker-compose logs -f
-
-# 6. 验证服务
-curl http://localhost:8000/health
-# 访问前端: http://localhost:3000
+# 4. 访问应用
+# 前端: http://localhost:3000
+# 后端: http://localhost:8000
 ```
 
-> 💡 **提示**: 镜像会自动从 Docker Hub 拉取，无需本地构建。数据库会在首次启动时自动初始化，无需手动执行 SQL 脚本。  
-> 📖 **详细说明**: 查看 [Docker Hub 使用指南](./docs/DOCKER_HUB_SETUP.md)
+**或使用快速启动脚本**:
+```bash
+git clone https://github.com/songqipeng/cloudlens.git
+cd cloudlens
+./scripts/quick-start.sh
+```
 
-**方式二：本地开发环境（用于开发和测试）**
+> 💡 **提示**: 镜像自动从 Docker Hub 拉取，数据库自动初始化，无需手动操作。  
+> 📖 **详细说明**: 查看 [快速开始指南](./docs/QUICK_START.md)
+
+---
+
+#### 场景2: 开发者（需要开发和测试）
+
+**目标**: 本地开发环境，可以修改代码并实时看到效果
 
 ```bash
-# 1. 安装依赖
+# 1. 下载最新代码
+git clone https://github.com/songqipeng/cloudlens.git
+cd cloudlens
+git pull origin main  # 拉取最新代码
+
+# 2. 安装依赖
 pip install -r requirements.txt
 cd web/frontend && npm install && cd ../..
 
-# 2. 配置环境变量
-cp .env.example .env
-# 编辑.env，配置数据库和AI API密钥
-
-# 3. 启动MySQL（如果使用MySQL）
-# 选项A: 使用Docker
+# 3. 启动MySQL（使用Docker最简单）
 docker run -d --name cloudlens-mysql \
   -e MYSQL_ROOT_PASSWORD=cloudlens_root_2024 \
   -e MYSQL_DATABASE=cloudlens \
@@ -119,35 +106,75 @@ mysql -u cloudlens -pcloudlens123 cloudlens < migrations/init_mysql_schema.sql
 mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_chatbot_tables.sql
 mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_anomaly_table.sql
 
-# 4. 启动服务
-# 终端1 - 后端
+# 4. 配置环境变量
+cp .env.example .env
+# 编辑 .env，配置数据库和AI API密钥
+
+# 5. 启动服务
+# 终端1 - 后端（支持热重载）
 cd web/backend
 python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
-# 终端2 - 前端
+# 终端2 - 前端（支持热重载）
 cd web/frontend
 npm run dev
 ```
 
-**方式三：传统方式**
+> 📖 **详细说明**: 查看 [快速开始指南](./docs/QUICK_START.md) 和 [本地测试指南](./docs/LOCAL_TESTING_GUIDE.md)
+
+---
+
+### 📋 CLI 命令行操作（可选）
+
 ```bash
-./scripts/start_web.sh
+# 配置云账号
+./cl config add --provider aliyun --name prod --region cn-hangzhou --ak YOUR_AK --sk YOUR_SK
+
+# 使用CLI命令
+./cl analyze idle --account prod       # 扫描闲置资源
+./cl analyze security --cis --account prod # 安全合规检查
+./cl analyze forecast --days 90        # AI 预测未来支出
 ```
 
-### 5. 访问和测试
+---
 
-- **前端界面**: http://localhost:3000
-- **后端API**: http://localhost:8000
-- **API文档**: http://localhost:8000/docs
+### ✅ 验证安装
 
-**测试功能**:
-- ✅ AI Chatbot: 右下角蓝色圆形按钮
-- ✅ 折扣分析: 访问 `/a/[账号]/discounts`，测试排序、筛选、搜索
-- ✅ 成本异常检测: 调用 `/api/v1/anomaly/detect` API
-- ✅ 预算管理: 调用 `/api/v1/budgets` API
+```bash
+# 检查后端健康
+curl http://localhost:8000/health
 
-> 💡 **详细测试指南**: 查看 [本地测试指南](./docs/LOCAL_TESTING_GUIDE.md)  
-> 💡 **Q1功能使用**: 查看 [Q1功能使用指南](./docs/Q1_USER_GUIDE.md)
+# 访问前端
+# 浏览器打开: http://localhost:3000
+```
+
+### 🔄 更新到最新版本
+
+**普通用户（Docker方式）**:
+```bash
+cd cloudlens
+git pull origin main          # 拉取最新代码
+docker-compose pull           # 拉取最新镜像
+docker-compose up -d          # 重启服务
+```
+
+**开发者（本地环境）**:
+```bash
+cd cloudlens
+git pull origin main          # 拉取最新代码
+pip install -r requirements.txt  # 更新Python依赖（如有）
+cd web/frontend && npm install && cd ../..  # 更新前端依赖（如有）
+# 重启服务
+```
+
+---
+
+### 📚 相关文档
+
+- [快速开始指南](./docs/QUICK_START.md) ⭐ **新用户必读**
+- [Docker Hub 使用指南](./docs/DOCKER_HUB_SETUP.md) - Docker镜像使用说明
+- [本地测试指南](./docs/LOCAL_TESTING_GUIDE.md) - 详细测试步骤
+- [Q1功能使用指南](./docs/Q1_USER_GUIDE.md) - Q1功能详细说明
 
 ---
 
