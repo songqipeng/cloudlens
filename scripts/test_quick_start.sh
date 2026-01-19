@@ -60,14 +60,14 @@ echo ""
 
 # 1.1 检查 Docker
 test_check "Docker 已安装" "docker --version"
-test_warn "Docker Compose 已安装" "docker-compose --version || docker compose version"
+test_warn "Docker Compose 已安装" "docker compose version || docker-compose --version"
 
 # 1.2 检查必需文件
 test_check ".env.example 文件存在" "[ -f .env.example ]"
 test_check "docker-compose.yml 文件存在" "[ -f docker-compose.yml ]"
 
 # 1.3 检查 docker-compose 配置
-test_check "docker-compose.yml 配置有效" "docker-compose config > /dev/null"
+test_check "docker-compose.yml 配置有效" "docker compose config > /dev/null 2>&1 || docker-compose config > /dev/null 2>&1"
 
 # 1.4 检查镜像配置
 test_check "后端镜像配置存在" "grep -q 'cloudlens-backend' docker-compose.yml"

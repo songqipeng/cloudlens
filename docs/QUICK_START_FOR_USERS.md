@@ -45,13 +45,16 @@ LLM_PROVIDER=openai
 
 ```bash
 # 启动所有服务（自动拉取最新镜像）
-docker-compose up -d
+docker compose up -d
+# 或使用旧版本: docker-compose up -d
 
 # 查看服务状态
-docker-compose ps
+docker compose ps
+# 或使用旧版本: docker-compose ps
 
 # 查看日志（等待数据库初始化完成）
-docker-compose logs -f
+docker compose logs -f
+# 或使用旧版本: docker-compose logs -f
 ```
 
 **等待约 30-60 秒**，然后访问：**http://localhost:3000**
@@ -63,7 +66,8 @@ docker-compose logs -f
 ### 1. 检查服务状态
 
 ```bash
-docker-compose ps
+docker compose ps
+# 或使用旧版本: docker-compose ps
 ```
 
 所有服务应该显示为 `Up` 状态。
@@ -129,10 +133,12 @@ cd cloudlens
 git pull origin main
 
 # 2. 拉取最新镜像
-docker-compose pull
+docker compose pull
+# 或使用旧版本: docker-compose pull
 
 # 3. 重启服务
-docker-compose up -d
+docker compose up -d
+# 或使用旧版本: docker-compose up -d
 ```
 
 ---
@@ -182,8 +188,9 @@ lsof -i :8000
 lsof -i :3306
 
 # 清理并重启
-docker-compose down
-docker-compose up -d
+docker compose down
+docker compose up -d
+# 或使用旧版本: docker-compose down && docker-compose up -d
 ```
 
 ### 问题2: 前端页面空白
@@ -191,10 +198,12 @@ docker-compose up -d
 **解决方案**:
 ```bash
 # 查看前端日志
-docker-compose logs frontend
+docker compose logs frontend
+# 或使用旧版本: docker-compose logs frontend
 
 # 重启前端
-docker-compose restart frontend
+docker compose restart frontend
+# 或使用旧版本: docker-compose restart frontend
 ```
 
 ### 问题3: AI Chatbot 不工作
@@ -202,20 +211,24 @@ docker-compose restart frontend
 **解决方案**:
 1. 检查 `.env` 文件中是否配置了 AI API 密钥
 2. 验证密钥是否有效
-3. 查看后端日志：`docker-compose logs backend | grep -i "ai\|llm"`
+3. 查看后端日志：`docker compose logs backend | grep -i "ai\|llm"`
+   # 或使用旧版本: docker-compose logs backend | grep -i "ai\|llm"
 
 ### 问题4: 数据库连接失败
 
 **解决方案**:
 ```bash
 # 检查 MySQL 是否运行
-docker-compose ps mysql
+docker compose ps mysql
+# 或使用旧版本: docker-compose ps mysql
 
 # 查看 MySQL 日志
-docker-compose logs mysql
+docker compose logs mysql
+# 或使用旧版本: docker-compose logs mysql
 
 # 重启 MySQL
-docker-compose restart mysql
+docker compose restart mysql
+# 或使用旧版本: docker-compose restart mysql
 ```
 
 ---
