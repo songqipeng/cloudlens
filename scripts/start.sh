@@ -8,6 +8,35 @@ echo "║     CloudLens 智能启动脚本                                   ║
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 
+# 检查是否在 git 仓库中
+if [ -d ".git" ]; then
+    echo "🔍 检查代码更新..."
+    # 获取远程更新（不合并）
+    git fetch origin main >/dev/null 2>&1 || true
+    
+    # 检查本地和远程是否有差异
+    LOCAL=$(git rev-parse @ 2>/dev/null || echo "")
+    REMOTE=$(git rev-parse @{u} 2>/dev/null || echo "")
+    
+    if [ -n "$LOCAL" ] && [ -n "$REMOTE" ] && [ "$LOCAL" != "$REMOTE" ]; then
+        echo "   ⚠️  检测到代码更新可用"
+        echo "   本地版本: $(git log -1 --oneline 2>/dev/null || echo 'unknown')"
+        echo "   远程版本: $(git log -1 --oneline origin/main 2>/dev/null || echo 'unknown')"
+        echo ""
+        read -p "   是否要拉取最新代码？(Y/n): " -n 1 -r
+        echo ""
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            echo "   📥 拉取最新代码..."
+            git pull origin main
+            echo "   ✅ 代码已更新"
+            echo ""
+        fi
+    else
+        echo "   ✅ 代码已是最新版本"
+    fi
+    echo ""
+fi
+
 # 检测 CPU 架构
 ARCH=$(uname -m)
 OS=$(uname -s)

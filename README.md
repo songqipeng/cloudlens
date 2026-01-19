@@ -131,22 +131,24 @@ curl http://localhost:8000/health
 
 ### 🔄 更新到最新版本
 
-**普通用户（Docker方式）**:
+**推荐方式：使用智能启动脚本（最简单）**
+
 ```bash
 cd cloudlens
-git pull origin main          # 拉取最新代码
-docker-compose pull           # 拉取最新镜像
-docker-compose up -d          # 重启服务
+./scripts/start.sh
 ```
 
-**开发者（本地环境）**:
+脚本会自动检测代码更新、拉取镜像、重启服务。
+
+**手动更新方式：**
+
 ```bash
 cd cloudlens
 git pull origin main          # 拉取最新代码
-pip install -r requirements.txt  # 更新Python依赖（如有）
-cd web/frontend && npm install && cd ../..  # 更新前端依赖（如有）
-# 重启服务
+./scripts/start.sh            # 自动处理镜像和服务
 ```
+
+> 📖 **详细更新指南**: 查看 [更新指南](./docs/UPDATE_GUIDE.md)
 
 ---
 
