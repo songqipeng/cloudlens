@@ -17,14 +17,21 @@
 
 ### 前置条件
 
-1. **安装Docker和Docker Compose**
+1. **安装Docker和Docker Compose**（推荐方式）
    ```bash
    # 检查Docker是否安装
    docker --version
    docker-compose --version
    ```
 
-2. **配置环境变量**
+2. **或准备本地开发环境**（用于开发和测试）
+   - Python 3.11+
+   - Node.js 20+
+   - MySQL 8.0+（可选，也可用Docker启动MySQL）
+
+### 方式一：Docker Compose启动（推荐）
+
+#### 1. 配置环境变量
    ```bash
    # 复制模板
    cp .env.example .env
@@ -34,13 +41,86 @@
    # - 数据库密码等
    ```
 
-3. **准备云账号配置**
+#### 2. 配置云账号（如需要）
    ```bash
    # 复制配置模板
    cp config/config.json.example config/config.json
    
    # 编辑config.json，填入你的阿里云/腾讯云AK/SK
    ```
+
+#### 3. 启动服务
+   ```bash
+   # 启动所有服务
+   docker-compose up -d
+   
+   # 等待服务启动（约10-15秒）
+   sleep 15
+   
+   # 初始化数据库（首次运行）
+   docker-compose exec -T mysql mysql -u cloudlens -pcloudlens123 cloudlens < migrations/init_mysql_schema.sql
+   docker-compose exec -T mysql mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_chatbot_tables.sql
+   docker-compose exec -T mysql mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_anomaly_table.sql
+   ```
+
+#### 4. 访问应用
+   - **前端**: http://localhost:3000
+   - **后端API**: http://localhost:8000
+   - **API文档**: http://localhost:8000/docs
+
+### 方式二：本地开发环境启动
+
+#### 1. 安装依赖
+   ```bash
+   # 安装Python依赖
+   pip install -r requirements.txt
+   
+   # 安装前端依赖
+   cd web/frontend && npm install && cd ../..
+   ```
+
+#### 2. 启动MySQL（如果使用MySQL）
+   ```bash
+   # 使用Docker启动MySQL（推荐）
+   docker run -d --name cloudlens-mysql \
+     -e MYSQL_ROOT_PASSWORD=cloudlens_root_2024 \
+     -e MYSQL_DATABASE=cloudlens \
+     -e MYSQL_USER=cloudlens \
+     -e MYSQL_PASSWORD=cloudlens123 \
+     -p 3306:3306 mysql:8.0
+   
+   # 等待MySQL启动
+   sleep 10
+   
+   # 初始化数据库
+   mysql -u cloudlens -pcloudlens123 cloudlens < migrations/init_mysql_schema.sql
+   mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_chatbot_tables.sql
+   mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_anomaly_table.sql
+   ```
+
+#### 3. 配置环境变量
+   ```bash
+   cp .env.example .env
+   # 编辑.env，配置数据库和AI API密钥
+   ```
+
+#### 4. 启动服务
+   ```bash
+   # 终端1 - 启动后端
+   cd web/backend
+   python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+   
+   # 终端2 - 启动前端
+   cd web/frontend
+   npm run dev
+   ```
+
+#### 5. 访问应用
+   - **前端**: http://localhost:3000
+   - **后端API**: http://localhost:8000
+   - **API文档**: http://localhost:8000/docs
+
+> 💡 **详细测试指南**: 查看 [本地测试指南](./LOCAL_TESTING_GUIDE.md) 获取完整的测试步骤和问题排查方法
 
 ---
 
