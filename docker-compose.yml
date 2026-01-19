@@ -82,13 +82,13 @@ services:
     command:
       - |
         echo "等待MySQL就绪..."
-        until mysql -h mysql -u cloudlens -pcloudlens123 -e "SELECT 1" > /dev/null 2>&1; do
+        until mysql -h mysql -u cloudlens -pcloudlens123 --skip-ssl -e "SELECT 1" > /dev/null 2>&1; do
           sleep 2
         done
         echo "初始化数据库表结构..."
-        mysql -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/init_mysql_schema.sql || true
-        mysql -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/add_chatbot_tables.sql || true
-        mysql -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/add_anomaly_table.sql || true
+        mysql -h mysql -u cloudlens -pcloudlens123 --skip-ssl cloudlens < /app/migrations/init_mysql_schema.sql || true
+        mysql -h mysql -u cloudlens -pcloudlens123 --skip-ssl cloudlens < /app/migrations/add_chatbot_tables.sql || true
+        mysql -h mysql -u cloudlens -pcloudlens123 --skip-ssl cloudlens < /app/migrations/add_anomaly_table.sql || true
         echo "启动后端服务..."
         exec uvicorn web.backend.main:app --host 0.0.0.0 --port 8000
 

@@ -146,21 +146,22 @@ if [ "$NEED_BUILD_BACKEND" = "true" ] || [ "$NEED_BUILD_FRONTEND" = "true" ]; th
     echo "🔨 开始本地构建..."
     export DOCKER_BUILDKIT=1
     
-    if [ "$NEED_BUILD_BACKEND" = "true" ]; then
-        echo "   构建后端镜像..."
-        docker compose build --platform $PLATFORM backend
-    fi
-    
-    if [ "$NEED_BUILD_FRONTEND" = "true" ]; then
-        echo "   构建前端镜像..."
-        docker compose build --platform $PLATFORM frontend
-    fi
+        if [ "$NEED_BUILD_BACKEND" = "true" ]; then
+            echo "   构建后端镜像..."
+            DOCKER_DEFAULT_PLATFORM=$PLATFORM docker compose build --platform $PLATFORM backend
+        fi
+        
+        if [ "$NEED_BUILD_FRONTEND" = "true" ]; then
+            echo "   构建前端镜像..."
+            DOCKER_DEFAULT_PLATFORM=$PLATFORM docker compose build --platform $PLATFORM frontend
+        fi
 fi
 
 if [ "$PULL_ONLY" != "true" ]; then
     echo ""
     echo "🚀 启动服务..."
-    docker compose up -d
+    # 使用环境变量设置平台，确保docker compose使用正确的架构
+    DOCKER_DEFAULT_PLATFORM=$PLATFORM docker compose up -d
 
     echo ""
     echo "⏳ 等待服务启动（约 30 秒）..."
