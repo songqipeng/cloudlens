@@ -197,27 +197,42 @@ class ConfigManager:
         for acc_config in config.get("accounts", []):
             try:
                 secret = None
-                if acc_config.get("use_keyring", True):
-                    secret = keyring.get_password(
-                        "cloudlens", f"{acc_config['name']}_access_key_secret"
-                    )
-
-                # Fallback to config file if not in keyring
+                
+                # 优先从配置文件读取（如果keyring不可用，密钥会存储在配置文件中）
+                secret = acc_config.get("access_key_secret")
+                
+                # 如果配置文件中没有，尝试从keyring读取
                 if not secret:
-                    secret = acc_config.get("access_key_secret")
+                    try:
+                        # 检查keyring是否可用
+                        keyring_backend = keyring.get_keyring()
+                        backend_class_name = keyring_backend.__class__.__name__
+                        backend_str = str(keyring_backend)
+                        
+                        if 'fail' not in backend_class_name.lower() and 'fail' not in backend_str.lower():
+                            secret = keyring.get_password(
+                                "cloudlens", f"{acc_config['name']}_access_key_secret"
+                            )
+                    except Exception:
+                        # keyring不可用，忽略
+                        pass
 
-                if secret:
+                # 只要有access_key_id就创建账号（secret可以为空，但通常应该有）
+                if acc_config.get("access_key_id"):
                     accounts.append(
                         CloudAccount(
                             name=acc_config["name"],
                             provider=acc_config["provider"],
                             access_key_id=acc_config["access_key_id"],
-                            access_key_secret=secret,
+                            access_key_secret=secret or "",  # 允许为空
                             region=acc_config.get("region", "cn-hangzhou"),
                             alias=acc_config.get("alias"),
                         )
                     )
-            except:
+            except Exception as e:
+                # 记录错误但继续处理其他账号
+                import logging
+                logging.getLogger(__name__).warning(f"加载账号 {acc_config.get('name', 'unknown')} 失败: {e}")
                 pass
 
         return accounts
