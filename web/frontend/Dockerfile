@@ -6,10 +6,11 @@ FROM base AS deps
 WORKDIR /app
 
 # 复制package文件
-COPY web/frontend/package.json web/frontend/package-lock.json* ./
+COPY web/frontend/package.json ./
+COPY web/frontend/package-lock.json* ./
 
-# 安装依赖
-RUN npm ci
+# 安装依赖（如果package-lock.json不存在，使用npm install）
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 # 构建阶段
 FROM base AS builder
