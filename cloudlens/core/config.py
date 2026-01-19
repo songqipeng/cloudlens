@@ -52,10 +52,21 @@ class ConfigManager:
     ):
         """
         添加账号配置
-        密钥存储在系统 keyring 中，配置元数据存储在 JSON 文件
+        密钥优先存储在系统 keyring 中，如果 keyring 不可用则存储在 JSON 文件中
+        配置元数据存储在 JSON 文件
         """
-        # 保存密钥到 keyring
-        keyring.set_password("cloudlens", f"{name}_access_key_secret", access_key_secret)
+        # 尝试保存密钥到 keyring，如果失败则存储在配置文件中
+        try:
+            # 检查 keyring 是否可用（不是 fail backend）
+            keyring_backend = keyring.get_keyring()
+            if hasattr(keyring_backend, '__class__') and 'fail' not in str(keyring_backend.__class__).lower():
+                keyring.set_password("cloudlens", f"{name}_access_key_secret", access_key_secret)
+                use_keyring = True
+            else:
+                use_keyring = False
+        except Exception:
+            # keyring 不可用，使用配置文件存储
+            use_keyring = False
 
         # 保存配置元数据
         config = self._load_config()
@@ -71,6 +82,9 @@ class ConfigManager:
             existing["region"] = region or "cn-hangzhou"
             if alias is not None:
                 existing["alias"] = alias
+            # 如果 keyring 不可用，将密钥存储在配置文件中
+            if not use_keyring:
+                existing["access_key_secret"] = access_key_secret
         else:
             account_data = {
                 "name": name,
@@ -80,6 +94,9 @@ class ConfigManager:
             }
             if alias:
                 account_data["alias"] = alias
+            # 如果 keyring 不可用，将密钥存储在配置文件中
+            if not use_keyring:
+                account_data["access_key_secret"] = access_key_secret
             config["accounts"].append(account_data)
 
         self._save_config(config)

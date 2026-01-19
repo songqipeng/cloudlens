@@ -149,8 +149,21 @@ export default function AccountsPage() {
         if (e.message.includes("Failed to fetch") || e.message.includes("无法连接到服务器")) {
           errorMessage = "无法连接到后端服务。请确保后端服务正在运行（http://localhost:8000）"
         }
-      } else if (e?.detail?.error) {
-        errorMessage = e.detail.error
+      } else if (e?.detail) {
+        // 处理detail对象
+        if (typeof e.detail === 'string') {
+          errorMessage = e.detail
+        } else if (e.detail?.error) {
+          errorMessage = e.detail.error
+        } else if (e.detail?.message) {
+          errorMessage = e.detail.message
+        } else if (e.detail?.detail) {
+          errorMessage = e.detail.detail
+        } else {
+          errorMessage = JSON.stringify(e.detail)
+        }
+      } else if (e?.error) {
+        errorMessage = typeof e.error === 'string' ? e.error : JSON.stringify(e.error)
       } else if (e?.message) {
         errorMessage = e.message
       }
@@ -219,8 +232,21 @@ export default function AccountsPage() {
         if (e.message.includes("Failed to fetch") || e.message.includes("无法连接到服务器")) {
           errorMessage = "无法连接到后端服务。请确保后端服务正在运行（http://localhost:8000）"
         }
-      } else if (e?.detail?.error) {
-        errorMessage = e.detail.error
+      } else if (e?.detail) {
+        // 处理detail对象
+        if (typeof e.detail === 'string') {
+          errorMessage = e.detail
+        } else if (e.detail?.error) {
+          errorMessage = e.detail.error
+        } else if (e.detail?.message) {
+          errorMessage = e.detail.message
+        } else if (e.detail?.detail) {
+          errorMessage = e.detail.detail
+        } else {
+          errorMessage = JSON.stringify(e.detail)
+        }
+      } else if (e?.error) {
+        errorMessage = typeof e.error === 'string' ? e.error : JSON.stringify(e.error)
       } else if (e?.message) {
         errorMessage = e.message
       }
