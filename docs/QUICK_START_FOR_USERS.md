@@ -180,17 +180,28 @@ docker-compose restart
 
 ### 问题1: 服务无法启动
 
+**可能原因**:
+- 端口被占用
+- 之前的容器未清理
+- 配置错误
+
 **解决方案**:
 ```bash
-# 检查端口占用
-lsof -i :3000
-lsof -i :8000
-lsof -i :3306
+# 1. 检查端口占用
+lsof -i :3000  # 前端端口
+lsof -i :8000  # 后端端口
+lsof -i :3306  # MySQL端口
+lsof -i :6379  # Redis端口
 
-# 清理并重启
+# 2. 如果端口被占用，停止占用端口的服务，或修改 docker-compose.yml 中的端口映射
+
+# 3. 清理并重启
 docker compose down
 docker compose up -d
 # 或使用旧版本: docker-compose down && docker-compose up -d
+
+# 4. 如果仍有问题，查看日志
+docker compose logs
 ```
 
 ### 问题2: 前端页面空白
