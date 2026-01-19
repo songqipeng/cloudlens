@@ -134,3 +134,73 @@ docker compose logs backend --tail 50
 1. `docker compose logs backend` 的完整输出
 2. `docker compose ps` 的输出
 3. `lsof -i :8000` 的输出
+
+## 问题：后端服务卡在"等待MySQL就绪..."
+
+### 症状
+- `docker compose logs backend` 显示 "等待MySQL就绪..." 但之后没有更多日志
+- `curl localhost:8000` 返回 "Connection reset by peer"
+- 后端容器可能处于退出状态
+
+### 原因
+1. MySQL用户或数据库未创建
+2. MySQL连接权限问题
+3. 网络连接问题
+
+### 解决方案
+
+#### 方案1：检查并创建MySQL用户和数据库
+
+```bash
+# 进入MySQL容器
+docker compose exec mysql mysql -u root -pcloudlens_root_2024
+
+# 在MySQL中执行
+CREATE DATABASE IF NOT EXISTS cloudlens CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'cloudlens'@'%' IDENTIFIED BY 'cloudlens123';
+GRANT ALL PRIVILEGES ON cloudlens.* TO 'cloudlens'@'%';
+FLUSH PRIVILEGES;
+EXIT;
+```
+
+#### 方案2：重新初始化MySQL（会清除数据）
+
+```bash
+# 停止所有服务
+docker compose down
+
+# 删除MySQL数据卷
+docker volume rm cloudlens_mysql_data
+
+# 重新启动
+./scripts/start.sh
+```
+
+#### 方案3：检查init.sql是否执行
+
+```bash
+# 检查init.sql是否在MySQL容器中
+docker compose exec mysql ls -la /docker-entrypoint-initdb.d/
+
+# 如果不存在，检查挂载配置
+grep -A 1 "init.sql" docker-compose.yml
+```
+
+### 验证修复
+
+```bash
+# 1. 检查MySQL用户
+docker compose exec mysql mysql -u root -pcloudlens_root_2024 -e "SELECT User FROM mysql.user WHERE User='cloudlens';"
+
+# 2. 测试后端容器连接MySQL
+docker compose exec backend bash -c "mysql -h mysql -u cloudlens -pcloudlens123 -e 'SELECT 1'"
+
+# 3. 重启后端服务
+docker compose restart backend
+
+# 4. 查看日志
+docker compose logs backend --tail 50
+
+# 5. 测试服务
+curl http://localhost:8000/health
+```
