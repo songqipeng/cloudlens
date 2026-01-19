@@ -51,6 +51,12 @@ services:
       CLOUDLENS_DATABASE__MYSQL_USER: ${MYSQL_USER:-cloudlens}
       CLOUDLENS_DATABASE__MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cloudlens123}
       CLOUDLENS_DATABASE__MYSQL_DATABASE: ${MYSQL_DATABASE:-cloudlens}
+      # DatabaseFactory使用的环境变量（兼容性）
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-cloudlens}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cloudlens123}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-cloudlens}
       # Redis配置
       REDIS_HOST: redis
       REDIS_PORT: 6379
