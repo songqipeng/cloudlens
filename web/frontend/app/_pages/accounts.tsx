@@ -139,9 +139,22 @@ export default function AccountsPage() {
       setShowAddModal(false)
       resetAddForm()
       goToAccountSettings(name)
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to add account:", e)
-      setAddError(String(e))
+      // 提供更友好的错误信息
+      let errorMessage = String(e)
+      if (e instanceof Error) {
+        errorMessage = e.message
+        // 如果是网络错误，提供更详细的提示
+        if (e.message.includes("Failed to fetch") || e.message.includes("无法连接到服务器")) {
+          errorMessage = "无法连接到后端服务。请确保后端服务正在运行（http://localhost:8000）"
+        }
+      } else if (e?.detail?.error) {
+        errorMessage = e.detail.error
+      } else if (e?.message) {
+        errorMessage = e.message
+      }
+      setAddError(errorMessage)
       setAdding(false)
     }
   }
@@ -198,7 +211,20 @@ export default function AccountsPage() {
       resetAddForm()
     } catch (e: any) {
       console.error("Failed to update account:", e)
-      setEditError(e?.message || String(e))
+      // 提供更友好的错误信息
+      let errorMessage = String(e)
+      if (e instanceof Error) {
+        errorMessage = e.message
+        // 如果是网络错误，提供更详细的提示
+        if (e.message.includes("Failed to fetch") || e.message.includes("无法连接到服务器")) {
+          errorMessage = "无法连接到后端服务。请确保后端服务正在运行（http://localhost:8000）"
+        }
+      } else if (e?.detail?.error) {
+        errorMessage = e.detail.error
+      } else if (e?.message) {
+        errorMessage = e.message
+      }
+      setEditError(errorMessage)
       setEditing(false)
     }
   }

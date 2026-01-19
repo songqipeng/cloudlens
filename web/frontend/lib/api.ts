@@ -274,6 +274,18 @@ export async function apiPost<T = any>(
                 body: data ? JSON.stringify(data) : undefined,
                 ...options,
                 signal: controller.signal,
+            }).catch((fetchError) => {
+                // 捕获网络错误（如 Failed to fetch）
+                console.error(`[API] 网络错误: ${url}`, fetchError)
+                const locale = getCurrentLocale() as Locale
+                const networkErrorMessage = locale === 'zh'
+                    ? `无法连接到服务器。请检查：\n1. 后端服务是否运行（http://localhost:8000）\n2. 网络连接是否正常\n3. 浏览器控制台是否有 CORS 错误`
+                    : `Cannot connect to server. Please check:\n1. Is backend service running (http://localhost:8000)?\n2. Is network connection normal?\n3. Are there CORS errors in browser console?`
+                throw new ApiError(0, { 
+                    error: networkErrorMessage,
+                    originalError: String(fetchError),
+                    url 
+                }, networkErrorMessage)
             })
             clearTimeout(timeoutId)
 
