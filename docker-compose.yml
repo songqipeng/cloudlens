@@ -1,9 +1,9 @@
 services:
-      # MySQL 数据库
-      mysql:
-        image: mysql:8.0
-        platform: linux/amd64  # 兼容性：如果镜像不支持 ARM64，使用 amd64
-        container_name: cloudlens-mysql
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    platform: linux/amd64  # 兼容性：如果镜像不支持 ARM64，使用 amd64
+    container_name: cloudlens-mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-cloudlens_root_2024}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-cloudlens}
