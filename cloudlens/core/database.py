@@ -121,24 +121,27 @@ class MySQLAdapter(DatabaseAdapter):
             'collation': config.get('collation', 'utf8mb4_unicode_ci'),
         }
 
-        # 创建连接池（Week 4-5优化：优化连接池参数）
-        pool_size = config.get('pool_size', 20)  # 默认20，可根据实际负载调整
-        pool_reset_session = config.get('pool_reset_session', True)
-
-        try:
-            self.pool = pooling.MySQLConnectionPool(
-                pool_name="cloudlens_pool",
-                pool_size=pool_size,
-                pool_reset_session=pool_reset_session,
-                autocommit=False,  # 手动控制事务
-                **self.config
-            )
-            logger.info(f"✅ MySQL连接池已创建: pool_size={pool_size}")
-        except MySQLError as e:
-            logger.error(f"创建MySQL连接池失败: {e}")
-            raise
-        
+        # 延迟创建连接池（避免导入时立即连接MySQL）
+        self.pool = None
+        self.pool_size = config.get('pool_size', 20)  # 默认20，可根据实际负载调整
+        self.pool_reset_session = config.get('pool_reset_session', True)
         self.conn = None
+    
+    def _ensure_pool(self):
+        """确保连接池已创建（延迟初始化）"""
+        if self.pool is None:
+            try:
+                self.pool = pooling.MySQLConnectionPool(
+                    pool_name="cloudlens_pool",
+                    pool_size=self.pool_size,
+                    pool_reset_session=self.pool_reset_session,
+                    autocommit=False,  # 手动控制事务
+                    **self.config
+                )
+                logger.info(f"✅ MySQL连接池已创建: pool_size={self.pool_size}, host={self.config['host']}")
+            except MySQLError as e:
+                logger.error(f"创建MySQL连接池失败: host={self.config['host']}, port={self.config['port']}, 错误: {e}")
+                raise
     
     def connect(self):
         """从连接池获取连接（用于事务操作）"""
