@@ -140,6 +140,14 @@ mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_chatbot_tables.sql
 mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_anomaly_table.sql
 ```
 
+**注意**: 如果本地没有安装 `mysql` 客户端，可以使用 Docker 容器内的命令：
+```bash
+# 使用 Docker 容器执行 SQL
+docker exec -i cloudlens-mysql mysql -u cloudlens -pcloudlens123 cloudlens < migrations/init_mysql_schema.sql
+docker exec -i cloudlens-mysql mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_chatbot_tables.sql
+docker exec -i cloudlens-mysql mysql -u cloudlens -pcloudlens123 cloudlens < migrations/add_anomaly_table.sql
+```
+
 ---
 
 ## 🚀 步骤 4: 启动开发服务
@@ -370,8 +378,11 @@ docker ps | grep mysql
 # 或
 brew services list | grep mysql
 
-# 测试连接
+# 测试连接（如果本地有 mysql 客户端）
 mysql -u cloudlens -pcloudlens123 -h localhost cloudlens -e "SELECT 1;"
+
+# 或使用 Docker 容器测试连接
+docker exec cloudlens-mysql mysql -u cloudlens -pcloudlens123 cloudlens -e "SELECT 1;"
 ```
 
 ### 问题3: 前端构建失败
@@ -391,6 +402,13 @@ npm run build
 # Python 依赖
 pip install --upgrade pip
 pip install -r requirements.txt
+
+# 如果遇到编译错误，可能需要安装系统依赖
+# macOS
+brew install mysql-client
+
+# Ubuntu/Debian
+sudo apt-get install default-libmysqlclient-dev
 
 # 前端依赖
 cd web/frontend
