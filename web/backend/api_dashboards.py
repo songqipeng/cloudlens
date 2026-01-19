@@ -276,12 +276,13 @@ async def get_summary(
             "loading": True
         }
 
-        # 后台异步更新缓存
+        # 后台异步更新缓存（延迟导入，避免触发其他模块的导入）
         import threading
-        from web.backend.api import _update_dashboard_summary_cache
         
         def update_cache_task():
             try:
+                # 延迟导入，避免在导入时触发其他模块的初始化
+                from web.backend.api import _update_dashboard_summary_cache
                 _update_dashboard_summary_cache(account, account_config)
             except Exception as e:
                 logger.error(f"Background summary update failed: {e}")
