@@ -42,9 +42,23 @@ class BudgetRequest(BaseModel):
     account_id: Optional[str] = None
 
 
-# 初始化存储管理器
-_budget_storage = BudgetStorage()
-_bill_storage = BillStorageManager()
+# 初始化存储管理器（延迟初始化，避免导入时连接MySQL）
+_budget_storage = None
+_bill_storage = None
+
+def _get_budget_storage():
+    """获取预算存储管理器（懒加载）"""
+    global _budget_storage
+    if _budget_storage is None:
+        _budget_storage = BudgetStorage()
+    return _budget_storage
+
+def _get_bill_storage():
+    """获取账单存储管理器（懒加载）"""
+    global _bill_storage
+    if _bill_storage is None:
+        _bill_storage = BillStorageManager()
+    return _bill_storage
 
 
 # ==================== 辅助函数 ====================
@@ -70,7 +84,7 @@ def list_budgets(account: Optional[str] = None) -> Dict[str, Any]:
     """获取预算列表"""
     try:
         account_id = _get_account_id(account)
-        budgets = _budget_storage.list_budgets(account_id)
+        budgets = _get_budget_storage().list_budgets(account_id)
         
         budget_list = []
         for budget in budgets:
@@ -93,7 +107,7 @@ def list_budgets(account: Optional[str] = None) -> Dict[str, Any]:
 def get_budget(budget_id: str) -> Dict[str, Any]:
     """获取预算详情"""
     try:
-        budget = _budget_storage.get_budget(budget_id)
+        budget = _get_budget_storage().get_budget(budget_id)
         if not budget:
             raise HTTPException(status_code=404, detail=f"预算 {budget_id} 不存在")
         return {
@@ -153,8 +167,8 @@ def create_budget(req: BudgetRequest, account: Optional[str] = None) -> Dict[str
         )
         
         # 保存到数据库
-        budget_id = _budget_storage.create_budget(budget)
-        created_budget = _budget_storage.get_budget(budget_id)
+        budget_id = _get_budget_storage().create_budget(budget)
+        created_budget = _get_budget_storage().get_budget(budget_id)
         
         return {
             "success": True,
@@ -169,7 +183,7 @@ def create_budget(req: BudgetRequest, account: Optional[str] = None) -> Dict[str
 def update_budget(budget_id: str, req: BudgetRequest) -> Dict[str, Any]:
     """更新预算"""
     try:
-        existing_budget = _budget_storage.get_budget(budget_id)
+        existing_budget = _get_budget_storage().get_budget(budget_id)
         if not existing_budget:
             raise HTTPException(status_code=404, detail=f"预算 {budget_id} 不存在")
         
@@ -206,7 +220,7 @@ def update_budget(budget_id: str, req: BudgetRequest) -> Dict[str, Any]:
             created_at=existing_budget.created_at
         )
         
-        _budget_storage.update_budget(updated_budget)
+        _get_budget_storage().update_budget(updated_budget)
         return {
             "success": True,
             "message": "预算更新成功",
@@ -222,7 +236,7 @@ def update_budget(budget_id: str, req: BudgetRequest) -> Dict[str, Any]:
 def delete_budget(budget_id: str) -> Dict[str, Any]:
     """删除预算"""
     try:
-        success = _budget_storage.delete_budget(budget_id)
+        success = _get_budget_storage().delete_budget(budget_id)
         if not success:
             raise HTTPException(status_code=404, detail=f"预算 {budget_id} 不存在")
         return {
@@ -239,11 +253,11 @@ def delete_budget(budget_id: str) -> Dict[str, Any]:
 def get_budget_status(budget_id: str) -> Dict[str, Any]:
     """获取预算状态"""
     try:
-        budget = _budget_storage.get_budget(budget_id)
+        budget = _get_budget_storage().get_budget(budget_id)
         if not budget:
             raise HTTPException(status_code=404, detail=f"预算 {budget_id} 不存在")
         
-        status = _budget_storage.calculate_budget_status(budget, budget.account_id, _bill_storage)
+        status = _get_budget_storage().calculate_budget_status(budget, budget.account_id, _get_bill_storage())
         return {
             "success": True,
             "data": status.to_dict()
@@ -258,7 +272,7 @@ def get_budget_status(budget_id: str) -> Dict[str, Any]:
 def get_budget_trend(budget_id: str, days: int = Query(30, ge=1, le=90)) -> Dict[str, Any]:
     """获取预算趋势"""
     try:
-        history = _budget_storage.get_spend_history(budget_id, days)
+        history = _get_budget_storage().get_spend_history(budget_id, days)
         return {
             "success": True,
             "data": history

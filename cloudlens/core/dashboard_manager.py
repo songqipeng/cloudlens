@@ -105,16 +105,13 @@ class DashboardStorage:
         return "%s" if self.db_type == "mysql" else "?"
     
     def _init_database(self):
-        """初始化数据库表结构"""
+        """初始化数据库表结构（延迟执行，避免导入时连接MySQL）"""
         if self.db_type == "mysql":
             # MySQL表结构已在init_mysql_schema.sql中创建
-            try:
-                self._get_db().query("SELECT 1 FROM dashboards LIMIT 1")
-                logger.info("MySQL仪表盘表已存在")
-            except Exception:
-                logger.warning("MySQL仪表盘表不存在，请先运行migrations/init_mysql_schema.sql")
+            # 延迟检查，避免导入时连接
+            pass
         else:
-            # SQLite表结构
+            # SQLite表结构（立即创建，因为SQLite是本地文件）
             self._get_db().execute("""
                 CREATE TABLE IF NOT EXISTS dashboards (
                     id TEXT PRIMARY KEY,

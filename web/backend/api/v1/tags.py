@@ -45,8 +45,15 @@ class TagPreviewRequest(BaseModel):
     resource_type: Optional[str] = None
 
 
-# 初始化存储管理器
-_tag_storage = VirtualTagStorage()
+# 初始化存储管理器（延迟初始化，避免导入时连接MySQL）
+_tag_storage = None
+
+def _get_tag_storage():
+    """获取虚拟标签存储管理器（懒加载）"""
+    global _tag_storage
+    if _tag_storage is None:
+        _tag_storage = VirtualTagStorage()
+    return _tag_storage
 
 
 # ==================== 辅助函数 ====================
@@ -78,7 +85,7 @@ def _get_provider_for_account(account: Optional[str] = None):
 def list_virtual_tags() -> Dict[str, Any]:
     """获取所有虚拟标签列表"""
     try:
-        tags = _tag_storage.list_tags()
+        tags = _get_tag_storage().list_tags()
         return {
             "success": True,
             "data": [tag.to_dict() for tag in tags],
@@ -92,7 +99,7 @@ def list_virtual_tags() -> Dict[str, Any]:
 def get_virtual_tag(tag_id: str) -> Dict[str, Any]:
     """获取虚拟标签详情"""
     try:
-        tag = _tag_storage.get_tag(tag_id)
+        tag = _get_tag_storage().get_tag(tag_id)
         if not tag:
             raise HTTPException(status_code=404, detail=f"标签 {tag_id} 不存在")
         return {
@@ -141,10 +148,10 @@ def create_virtual_tag(req: VirtualTagRequest) -> Dict[str, Any]:
         )
         
         # 保存到数据库
-        tag_id = _tag_storage.create_tag(tag)
+        tag_id = _get_tag_storage().create_tag(tag)
         
         # 返回创建的标签
-        created_tag = _tag_storage.get_tag(tag_id)
+        created_tag = _get_tag_storage().get_tag(tag_id)
         return {
             "success": True,
             "message": "标签创建成功",
@@ -161,7 +168,7 @@ def update_virtual_tag(tag_id: str, req: VirtualTagRequest) -> Dict[str, Any]:
     """更新虚拟标签"""
     try:
         # 检查标签是否存在
-        existing_tag = _tag_storage.get_tag(tag_id)
+        existing_tag = _get_tag_storage().get_tag(tag_id)
         if not existing_tag:
             raise HTTPException(status_code=404, detail=f"标签 {tag_id} 不存在")
         
@@ -195,12 +202,12 @@ def update_virtual_tag(tag_id: str, req: VirtualTagRequest) -> Dict[str, Any]:
         )
         
         # 保存到数据库
-        success = _tag_storage.update_tag(tag)
+        success = _get_tag_storage().update_tag(tag)
         if not success:
             raise HTTPException(status_code=500, detail="更新标签失败")
         
         # 返回更新的标签
-        updated_tag = _tag_storage.get_tag(tag_id)
+        updated_tag = _get_tag_storage().get_tag(tag_id)
         return {
             "success": True,
             "message": "标签更新成功",
@@ -216,7 +223,7 @@ def update_virtual_tag(tag_id: str, req: VirtualTagRequest) -> Dict[str, Any]:
 def delete_virtual_tag(tag_id: str) -> Dict[str, Any]:
     """删除虚拟标签"""
     try:
-        success = _tag_storage.delete_tag(tag_id)
+        success = _get_tag_storage().delete_tag(tag_id)
         if not success:
             raise HTTPException(status_code=404, detail=f"标签 {tag_id} 不存在")
         return {
@@ -243,7 +250,7 @@ def preview_tag_matches(req: TagPreviewRequest) -> Dict[str, Any]:
         # 获取标签规则
         if req.tag_id:
             # 使用现有标签
-            tag = _tag_storage.get_tag(req.tag_id)
+            tag = _get_tag_storage().get_tag(req.tag_id)
             if not tag:
                 raise HTTPException(status_code=404, detail=f"标签 {req.tag_id} 不存在")
             rules = tag.rules
@@ -323,7 +330,7 @@ def get_tag_cost(
     """获取标签的成本统计"""
     try:
         # 获取标签
-        tag = _tag_storage.get_tag(tag_id)
+        tag = _get_tag_storage().get_tag(tag_id)
         if not tag:
             raise HTTPException(status_code=404, detail=f"标签 {tag_id} 不存在")
         
@@ -354,7 +361,7 @@ def get_tag_cost(
 def clear_tag_cache(tag_id: Optional[str] = None) -> Dict[str, Any]:
     """清除标签匹配缓存"""
     try:
-        _tag_storage.clear_cache(tag_id)
+        _get_tag_storage().clear_cache(tag_id)
         return {
             "success": True,
             "message": "缓存清除成功"

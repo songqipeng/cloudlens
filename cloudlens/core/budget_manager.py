@@ -260,7 +260,7 @@ class BudgetStorage:
         self.db_type = db_type or os.getenv("DB_TYPE", "mysql").lower()
         
         if self.db_type == "mysql":
-            self.db = DatabaseFactory.create_adapter("mysql")
+            self.db = None  # 延迟初始化，避免导入时连接MySQL
             self.db_path = None
         else:
             if db_path is None:
@@ -271,6 +271,12 @@ class BudgetStorage:
             self.db = DatabaseFactory.create_adapter("sqlite", db_path=db_path)
         
         self._init_database()
+    
+    def _get_db(self):
+        """延迟获取数据库适配器"""
+        if self.db is None:
+            self.db = DatabaseFactory.create_adapter("mysql")
+        return self.db
     
     def _get_placeholder(self) -> str:
         """获取SQL占位符"""

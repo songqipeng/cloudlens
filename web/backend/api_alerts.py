@@ -17,10 +17,31 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
-# 初始化存储和服务
-_alert_storage = AlertStorage()
-_bill_storage = BillStorageManager()
-_alert_engine = AlertEngine(_alert_storage, _bill_storage)
+# 初始化存储和服务（延迟初始化，避免导入时连接MySQL）
+_alert_storage = None
+_bill_storage = None
+_alert_engine = None
+
+def _get_alert_storage():
+    """获取告警存储管理器（懒加载）"""
+    global _alert_storage
+    if _alert_storage is None:
+        _alert_storage = AlertStorage()
+    return _alert_storage
+
+def _get_bill_storage():
+    """获取账单存储管理器（懒加载）"""
+    global _bill_storage
+    if _bill_storage is None:
+        _bill_storage = BillStorageManager()
+    return _bill_storage
+
+def _get_alert_engine():
+    """获取告警引擎（懒加载）"""
+    global _alert_engine
+    if _alert_engine is None:
+        _alert_engine = AlertEngine(_get_alert_storage(), _get_bill_storage())
+    return _alert_engine
 
 # 从配置文件加载通知配置
 def _load_notification_config():
