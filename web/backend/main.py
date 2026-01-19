@@ -21,7 +21,11 @@ if env_file.exists():
                 key, value = line.split("=", 1)
                 os.environ[key.strip()] = value.strip()
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI
+from cloudlens.core.database import DatabaseFactory
+
+# 清除适配器缓存，确保使用最新的环境变量配置
+DatabaseFactory._adapters.clear(), Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
