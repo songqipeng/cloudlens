@@ -142,6 +142,7 @@ class MySQLAdapter(DatabaseAdapter):
     
     def connect(self):
         """从连接池获取连接（用于事务操作）"""
+        self._ensure_pool()  # 确保连接池已创建
         if not self.conn:
             try:
                 self.conn = self.pool.get_connection()
@@ -159,6 +160,7 @@ class MySQLAdapter(DatabaseAdapter):
     
     def execute(self, sql: str, params: Optional[Tuple] = None) -> Any:
         """执行SQL"""
+        self._ensure_pool()  # 确保连接池已创建
         # 每次操作都获取新连接，操作完成后立即归还
         conn = self.pool.get_connection()
         cursor = conn.cursor(dictionary=True)
@@ -202,6 +204,7 @@ class MySQLAdapter(DatabaseAdapter):
     
     def query(self, sql: str, params: Optional[Tuple] = None) -> List[Dict]:
         """查询并返回字典列表"""
+        self._ensure_pool()  # 确保连接池已创建
         # 每次操作都获取新连接，操作完成后立即归还
         conn = self.pool.get_connection()
         cursor = conn.cursor(dictionary=True)
