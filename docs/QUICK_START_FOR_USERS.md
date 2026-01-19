@@ -143,19 +143,34 @@ curl "http://localhost:8000/api/v1/budgets"
 
 ## 🔄 更新到最新版本
 
+**推荐方式：使用智能启动脚本（最简单）**
+
+```bash
+cd cloudlens
+./scripts/start.sh
+```
+
+脚本会自动：
+- ✅ 检测代码是否有更新
+- ✅ 询问是否拉取最新代码
+- ✅ 检测运行中的服务
+- ✅ 询问是否重启服务
+- ✅ 拉取最新镜像
+- ✅ 启动服务
+
+**手动更新方式：**
+
 ```bash
 # 1. 拉取最新代码
 cd cloudlens
 git pull origin main
 
-# 2. 拉取最新镜像
+# 2. 拉取最新镜像并重启
 docker compose pull
-# 或使用旧版本: docker-compose pull
-
-# 3. 重启服务
 docker compose up -d
-# 或使用旧版本: docker-compose up -d
 ```
+
+> 📖 **详细更新指南**: 查看 [更新指南](./UPDATE_GUIDE.md)
 
 ---
 
