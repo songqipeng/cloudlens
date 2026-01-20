@@ -321,6 +321,139 @@ class BillStorageManager:
             'db_type': self.db_type
         }
 
+    def get_discount_analysis_data(self, account_id: str, months: int = 6) -> Dict:
+        """
+        获取折扣分析数据（聚合查询）
+
+        Args:
+            account_id: 账号ID
+            months: 分析月数
+
+        Returns:
+            包含月度、产品、实例维度的折扣数据
+        """
+        placeholder = self._get_placeholder()
+
+        try:
+            # 1. 月度趋势数据
+            monthly_sql = f"""
+                SELECT
+                    billing_cycle as month,
+                    SUM(pretax_amount + IFNULL(invoice_discount, 0)) as official_price,
+                    SUM(IFNULL(invoice_discount, 0)) as discount_amount,
+                    SUM(pretax_amount) as actual_amount
+                FROM bill_items
+                WHERE account_id = {placeholder}
+                GROUP BY billing_cycle
+                ORDER BY billing_cycle DESC
+                LIMIT {placeholder}
+            """
+            monthly_rows = self._get_db().query(monthly_sql, (account_id, months))
+
+            # 计算折扣率
+            monthly_data = []
+            for row in reversed(monthly_rows):  # 反转为升序
+                official_price = float(row.get('official_price', 0) or 0)
+                discount_amount = float(row.get('discount_amount', 0) or 0)
+                actual_amount = float(row.get('actual_amount', 0) or 0)
+                discount_rate = discount_amount / official_price if official_price > 0 else 0
+
+                monthly_data.append({
+                    'month': row.get('month', ''),
+                    'official_price': official_price,
+                    'discount_amount': discount_amount,
+                    'actual_amount': actual_amount,
+                    'discount_rate': discount_rate
+                })
+
+            # 2. 产品维度数据
+            product_sql = f"""
+                SELECT
+                    product_name as product,
+                    SUM(pretax_amount + IFNULL(invoice_discount, 0)) as official_price,
+                    SUM(IFNULL(invoice_discount, 0)) as discount_amount,
+                    SUM(pretax_amount) as actual_amount
+                FROM bill_items
+                WHERE account_id = {placeholder}
+                GROUP BY product_name
+                HAVING SUM(IFNULL(invoice_discount, 0)) > 0
+                ORDER BY discount_amount DESC
+                LIMIT 20
+            """
+            product_rows = self._get_db().query(product_sql, (account_id,))
+
+            products = []
+            for row in product_rows:
+                official_price = float(row.get('official_price', 0) or 0)
+                discount_amount = float(row.get('discount_amount', 0) or 0)
+                actual_amount = float(row.get('actual_amount', 0) or 0)
+                discount_rate = discount_amount / official_price if official_price > 0 else 0
+
+                products.append({
+                    'product': row.get('product', ''),
+                    'official_price': official_price,
+                    'discount_amount': discount_amount,
+                    'actual_amount': actual_amount,
+                    'discount_rate': discount_rate
+                })
+
+            # 3. 实例维度数据
+            instance_sql = f"""
+                SELECT
+                    instance_id,
+                    product_name,
+                    SUM(pretax_amount + IFNULL(invoice_discount, 0)) as official_price,
+                    SUM(IFNULL(invoice_discount, 0)) as discount_amount,
+                    SUM(pretax_amount) as actual_amount
+                FROM bill_items
+                WHERE account_id = {placeholder}
+                    AND instance_id IS NOT NULL
+                    AND instance_id != ''
+                GROUP BY instance_id, product_name
+                HAVING SUM(IFNULL(invoice_discount, 0)) > 0
+                ORDER BY discount_amount DESC
+                LIMIT 50
+            """
+            instance_rows = self._get_db().query(instance_sql, (account_id,))
+
+            instances = []
+            for row in instance_rows:
+                official_price = float(row.get('official_price', 0) or 0)
+                discount_amount = float(row.get('discount_amount', 0) or 0)
+                actual_amount = float(row.get('actual_amount', 0) or 0)
+                discount_rate = discount_amount / official_price if official_price > 0 else 0
+
+                instances.append({
+                    'instance_id': row.get('instance_id', ''),
+                    'product_name': row.get('product_name', ''),
+                    'official_price': official_price,
+                    'discount_amount': discount_amount,
+                    'actual_amount': actual_amount,
+                    'discount_rate': discount_rate
+                })
+
+            # 获取时间范围
+            start_cycle = monthly_data[0]['month'] if monthly_data else ''
+            end_cycle = monthly_data[-1]['month'] if monthly_data else ''
+
+            return {
+                'monthly': monthly_data,
+                'products': products,
+                'instances': instances,
+                'start_cycle': start_cycle,
+                'end_cycle': end_cycle
+            }
+
+        except Exception as e:
+            logger.error(f"获取折扣分析数据失败: {str(e)}")
+            return {
+                'monthly': [],
+                'products': [],
+                'instances': [],
+                'start_cycle': '',
+                'end_cycle': ''
+            }
+
 
 
 
