@@ -81,7 +81,7 @@ def list_dashboards(account: Optional[str] = None) -> Dict[str, Any]:
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
-                account_id = f"{account_config.access_key_id[:10]}-{account}"
+                account_id = account  # Use account name directly
         
         dashboards = _dashboard_storage.list_dashboards(account_id, include_shared=True)
         return {
@@ -119,7 +119,7 @@ def create_dashboard(req: DashboardRequest, account: Optional[str] = None) -> Di
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
-                account_id = f"{account_config.access_key_id[:10]}-{account}"
+                account_id = account  # Use account name directly
         
         widgets = [
             WidgetConfig(

@@ -82,7 +82,7 @@ def get_discounts_trend(
         account_config = cm.get_account(account_name)
         
         # 构造账号ID
-        account_id = f"{account_config.access_key_id[:10]}-{account_name}"
+        account_id = account_name  # Use account name directly
         
         analyzer = DiscountAnalyzerDB()
         result = analyzer.analyze_discount_trend(account_id=account_id, months=months)
@@ -132,7 +132,7 @@ def get_discounts_by_products(
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
-        account_id = f"{account_config.access_key_id[:10]}-{account_name}"
+        account_id = account_name  # Use account name directly
         
         analyzer = DiscountAnalyzerDB()
         result = analyzer.analyze_discount_trend(account_id=account_id, months=months)
@@ -156,7 +156,7 @@ def get_discounts_quarterly(account: Optional[str] = None, quarters: int = 8):
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
-        account_id = f"{account_config.access_key_id[:10]}-{account_name}"
+        account_id = account_name  # Use account name directly
         
         analyzer = AdvancedDiscountAnalyzer()
         result = analyzer.get_quarterly_comparison(account_id, quarters)
@@ -173,7 +173,7 @@ def get_discounts_yearly(account: Optional[str] = None):
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
-        account_id = f"{account_config.access_key_id[:10]}-{account_name}"
+        account_id = account_name  # Use account name directly
         
         analyzer = AdvancedDiscountAnalyzer()
         result = analyzer.get_yearly_comparison(account_id)
@@ -190,7 +190,7 @@ def get_product_discount_trends(account: Optional[str] = None, months: int = 19)
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
-        account_id = f"{account_config.access_key_id[:10]}-{account_name}"
+        account_id = account_name  # Use account name directly
         
         analyzer = AdvancedDiscountAnalyzer()
         result = analyzer.get_product_discount_trends(account_id, months)
@@ -207,7 +207,7 @@ def get_discounts_by_regions(account: Optional[str] = None, months: int = 19):
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
-        account_id = f"{account_config.access_key_id[:10]}-{account_name}"
+        account_id = account_name  # Use account name directly
         
         analyzer = AdvancedDiscountAnalyzer()
         result = analyzer.get_region_discount_ranking(account_id, months)
@@ -224,7 +224,7 @@ def get_discounts_by_subscription_types(account: Optional[str] = None, months: i
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
-        account_id = f"{account_config.access_key_id[:10]}-{account_name}"
+        account_id = account_name  # Use account name directly
         
         analyzer = AdvancedDiscountAnalyzer()
         result = analyzer.get_subscription_type_comparison(account_id, months)
@@ -241,7 +241,7 @@ def get_discount_optimization_suggestions(account: Optional[str] = None):
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
-        account_id = f"{account_config.access_key_id[:10]}-{account_name}"
+        account_id = account_name  # Use account name directly
         
         analyzer = AdvancedDiscountAnalyzer()
         result = analyzer.get_optimization_suggestions(account_id)
@@ -258,7 +258,7 @@ def get_discount_anomalies(account: Optional[str] = None, months: int = 19):
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
-        account_id = f"{account_config.access_key_id[:10]}-{account_name}"
+        account_id = account_name  # Use account name directly
         
         analyzer = AdvancedDiscountAnalyzer()
         result = analyzer.detect_anomalies(account_id, months)
@@ -275,7 +275,7 @@ def get_product_region_discount_matrix(account: Optional[str] = None):
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
-        account_id = f"{account_config.access_key_id[:10]}-{account_name}"
+        account_id = account_name  # Use account name directly
         
         analyzer = AdvancedDiscountAnalyzer()
         result = analyzer.get_product_region_matrix(account_id)
@@ -292,7 +292,7 @@ def get_discounts_moving_average(account: Optional[str] = None, windows: str = "
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
-        account_id = f"{account_config.access_key_id[:10]}-{account_name}"
+        account_id = account_name  # Use account name directly
         
         window_sizes = [int(w.strip()) for w in windows.split(',')]
         analyzer = AdvancedDiscountAnalyzer()
@@ -310,7 +310,7 @@ def get_discounts_cumulative(account: Optional[str] = None):
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
-        account_id = f"{account_config.access_key_id[:10]}-{account_name}"
+        account_id = account_name  # Use account name directly
         
         analyzer = AdvancedDiscountAnalyzer()
         result = analyzer.get_cumulative_discount(account_id)
@@ -327,7 +327,7 @@ def get_instance_lifecycle_discounts(account: Optional[str] = None):
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
-        account_id = f"{account_config.access_key_id[:10]}-{account_name}"
+        account_id = account_name  # Use account name directly
         
         analyzer = AdvancedDiscountAnalyzer()
         result = analyzer.get_instance_lifecycle_analysis(account_id)
@@ -344,7 +344,7 @@ def get_discount_insights(account: Optional[str] = None):
         provider, account_name = _get_provider_for_account(account)
         cm = ConfigManager()
         account_config = cm.get_account(account_name)
-        account_id = f"{account_config.access_key_id[:10]}-{account_name}"
+        account_id = account_name  # Use account name directly
         
         analyzer = AdvancedDiscountAnalyzer()
         result = analyzer.generate_insights(account_id)

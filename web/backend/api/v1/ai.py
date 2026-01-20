@@ -31,7 +31,7 @@ def get_optimization_suggestions(
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
-                account_id = f"{account_config.access_key_id[:10]}-{account}"
+                account_id = account  # Use account name directly
         
         suggestions = _ai_optimizer.generate_suggestions(account_id=account_id, limit=limit)
         
@@ -76,7 +76,7 @@ def predict_cost(
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
-                account_id = f"{account_config.access_key_id[:10]}-{account}"
+                account_id = account  # Use account name directly
         
         prediction = _ai_optimizer.predict_cost(account_id=account_id, days=days)
         
@@ -109,7 +109,7 @@ def analyze_resource(
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
-                account_id = f"{account_config.access_key_id[:10]}-{account}"
+                account_id = account  # Use account name directly
         
         analysis = _ai_optimizer.analyze_resource_usage(
             resource_id=resource_id,

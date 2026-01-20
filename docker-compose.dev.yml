@@ -1,0 +1,127 @@
+version: '3.8'
+
+services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: cloudlens-mysql-dev
+    environment:
+      MYSQL_ROOT_PASSWORD: cloudlens_root_2024
+      MYSQL_DATABASE: cloudlens
+      MYSQL_USER: cloudlens
+      MYSQL_PASSWORD: cloudlens123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data_dev:/var/lib/mysql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pcloudlens_root_2024"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - cloudlens-dev
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: cloudlens-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_dev:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - cloudlens-dev
+
+  # 后端 API 服务（开发模式，挂载源代码）
+  backend:
+    image: python:3.11-slim
+    container_name: cloudlens-backend-dev
+    working_dir: /app
+    environment:
+      # 数据库配置
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: cloudlens
+      MYSQL_PASSWORD: cloudlens123
+      MYSQL_DATABASE: cloudlens
+      # Redis配置
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # 开发模式
+      CLOUDLENS_ENVIRONMENT: development
+      CLOUDLENS_DEBUG: "true"
+      PYTHONUNBUFFERED: 1
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./cloudlens:/app/cloudlens
+      - ./web/backend:/app/web/backend
+      - ./config:/app/config
+      - ./migrations:/app/migrations
+      - ./logs:/app/logs
+      - ~/.cloudlens:/root/.cloudlens
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      bash -c "
+      echo '安装依赖...' &&
+      pip install -q fastapi uvicorn[standard] mysql-connector-python redis aliyun-python-sdk-core aliyun-python-sdk-bssopenapi pydantic python-multipart &&
+      echo '初始化数据库...' &&
+      mysql -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/init_mysql_schema.sql 2>&1 || true &&
+      mysql -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/add_chatbot_tables.sql 2>&1 || true &&
+      mysql -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/add_anomaly_table.sql 2>&1 || true &&
+      echo '启动开发服务器...' &&
+      uvicorn web.backend.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    restart: unless-stopped
+    networks:
+      - cloudlens-dev
+
+  # 前端 Web 服务（开发模式）
+  frontend:
+    image: node:18-alpine
+    container_name: cloudlens-frontend-dev
+    working_dir: /app
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./web/frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: >
+      sh -c "
+      if [ ! -d node_modules ]; then
+        echo '安装依赖...' &&
+        npm install
+      fi &&
+      echo '启动开发服务器...' &&
+      npm run dev
+      "
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - cloudlens-dev
+
+volumes:
+  mysql_data_dev:
+  redis_data_dev:
+
+networks:
+  cloudlens-dev:
+    driver: bridge

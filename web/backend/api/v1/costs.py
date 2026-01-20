@@ -74,7 +74,7 @@ def _get_billing_overview_from_db(
         db = DatabaseFactory.create_adapter("mysql")
 
         # 构造正确的 account_id 格式：{access_key_id[:10]}-{account_name}
-        account_id = f"{account_config.access_key_id[:10]}-{account_config.name}"
+        account_id = account_config.name  # Use account name directly
 
         # 验证 account_id 是否存在（精确匹配）
         account_result = db.query_one("""
@@ -767,7 +767,7 @@ def get_budget(account: Optional[str] = None):
     account_config = cm.get_account(account_name)
     
     # 构造正确的 account_id 格式：{access_key_id[:10]}-{account_name}
-    account_id = f"{account_config.access_key_id[:10]}-{account_config.name}"
+    account_id = account_config.name  # Use account name directly
     
     storage = BudgetStorage()
     budgets = storage.list_budgets(account_id=account_id)
@@ -808,7 +808,7 @@ def set_budget(budget_data: Dict[str, Any], account: Optional[str] = None):
     provider, account_name = _get_provider_for_account(account)
     cm = ConfigManager()
     account_config = cm.get_account(account_name)
-    account_id = f"{account_config.access_key_id[:10]}-{account_config.name}"
+    account_id = account_config.name  # Use account name directly
     
     storage = BudgetStorage()
     

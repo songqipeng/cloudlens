@@ -74,7 +74,7 @@ def _get_billing_overview_from_db(
         db = DatabaseFactory.create_adapter("mysql")
 
         # 构造正确的 account_id 格式：{access_key_id[:10]}-{account_name}
-        account_id = f"{account_config.access_key_id[:10]}-{account_config.name}"
+        account_id = account_config.name  # Use account name directly
 
         # 验证 account_id 是否存在（精确匹配）
         account_result = db.query_one("""
@@ -298,16 +298,45 @@ def _get_billing_overview_totals(
     cache_key = f"billing_overview_totals_{billing_cycle}"
     cache_manager = CacheManager(ttl_seconds=86400)
 
+    # ✅ 新增：初始化缓存验证器
+    from cloudlens.core.cache_validator import SmartCacheValidator
+    from cloudlens.core.database import get_database_adapter
+
+    db = get_database_adapter()
+    validator = SmartCacheValidator(db_adapter=db, verification_probability=0.1)
+
     # 检查缓存
     if not force_refresh:
-        cached = cache_manager.get(
+        # 获取原始缓存数据（包含metadata）
+        cached_raw = cache_manager.get(
             resource_type=cache_key,
-            account_name=account_config.name
+            account_name=account_config.name,
+            raw=True  # 获取完整数据（包含metadata）
         )
-        if cached and isinstance(cached, list) and len(cached) > 0:
-            cached_dict = cached[0] if isinstance(cached[0], dict) else None
-            if cached_dict and "total_pretax" in cached_dict:
-                return cached_dict
+
+        if cached_raw:
+            # ✅ 新增：验证缓存有效性
+            is_valid, reason, should_refresh = validator.validate(
+                cached_data=cached_raw,
+                billing_cycle=billing_cycle,
+                account_id=account_config.name,
+                force_deep_check=False
+            )
+
+            if is_valid:
+                logger.info(f"✅ 缓存有效，使用缓存数据: {account_config.name}, {billing_cycle}")
+                # 返回data部分（兼容旧格式）
+                if isinstance(cached_raw, dict) and 'data' in cached_raw:
+                    cached_dict = cached_raw['data']
+                else:
+                    # 向后兼容：旧格式缓存
+                    cached_dict = cached_raw[0] if isinstance(cached_raw, list) and len(cached_raw) > 0 else cached_raw
+
+                if isinstance(cached_dict, dict) and "total_pretax" in cached_dict:
+                    return cached_dict
+            else:
+                logger.warning(f"⚠️ 缓存验证失败: {reason}，重新查询")
+                # 继续往下执行，从数据库或API获取
 
     # 优先从本地数据库读取
     if not force_refresh:
@@ -317,10 +346,19 @@ def _get_billing_overview_totals(
                 f"✅ 从本地数据库读取账单概览: {account_config.name}, "
                 f"{billing_cycle}, 总成本={db_result.get('total_pretax', 0)}"
             )
+
+            # ✅ 新增：写缓存时附加metadata
+            cache_data = cache_manager.create_cache_data(
+                data=db_result,
+                billing_cycle=billing_cycle,
+                record_count=db_result.get('record_count', 0),
+                data_source="database"
+            )
+
             cache_manager.set(
                 resource_type=cache_key,
                 account_name=account_config.name,
-                data=[db_result]
+                data=cache_data  # 存储带metadata的结构
             )
             return db_result
         logger.info(f"📡 数据库中没有账期 {billing_cycle} 的数据，通过API查询")
@@ -382,10 +420,19 @@ def _get_billing_overview_totals(
     if total == 0:
         logger.warning(f"⚠️  API查询账期 {billing_cycle} 的总成本为0")
 
+    # ✅ 新增：写缓存时附加metadata
+    cache_data = cache_manager.create_cache_data(
+        data=result,
+        billing_cycle=billing_cycle,
+        record_count=len(items),
+        last_bill_date=max([item.get('BillingDate') for item in items if item.get('BillingDate')], default=None),
+        data_source="bss_api"
+    )
+
     cache_manager.set(
         resource_type=cache_key,
         account_name=account_config.name,
-        data=[result]
+        data=cache_data  # 存储带metadata的结构
     )
     logger.info(f"✅ 通过API获取账单概览成功: {account_config.name}, {billing_cycle}")
     return result
@@ -767,7 +814,7 @@ def get_budget(account: Optional[str] = None):
     account_config = cm.get_account(account_name)
     
     # 构造正确的 account_id 格式：{access_key_id[:10]}-{account_name}
-    account_id = f"{account_config.access_key_id[:10]}-{account_config.name}"
+    account_id = account_config.name  # Use account name directly
     
     storage = BudgetStorage()
     budgets = storage.list_budgets(account_id=account_id)
@@ -808,7 +855,7 @@ def set_budget(budget_data: Dict[str, Any], account: Optional[str] = None):
     provider, account_name = _get_provider_for_account(account)
     cm = ConfigManager()
     account_config = cm.get_account(account_name)
-    account_id = f"{account_config.access_key_id[:10]}-{account_config.name}"
+    account_id = account_config.name  # Use account name directly
     
     storage = BudgetStorage()
     

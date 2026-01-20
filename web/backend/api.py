@@ -1161,7 +1161,7 @@ async def get_trend(
                 if not account_config:
                     raise HTTPException(status_code=404, detail=f"账号 '{account}' 不存在")
                 
-                account_id = f"{account_config.access_key_id[:10]}-{account}"
+                account_id = account  # Use account name directly
                 
                 # 查询所有账期的月度成本
                 rows = db.query("""
@@ -1468,9 +1468,9 @@ def _get_billing_overview_from_db(
             billing_cycle = datetime.now().strftime("%Y-%m")
         
         db = DatabaseFactory.create_adapter("mysql")
-        
-        # 构造正确的 account_id 格式：{access_key_id[:10]}-{account_name}
-        account_id = f"{account_config.access_key_id[:10]}-{account_config.name}"
+
+        # Use account name directly
+        account_id = account_config.name
         
         # 验证 account_id 是否存在（精确匹配）
         account_result = db.query_one("""
@@ -3538,7 +3538,7 @@ def get_discount_trend(
             raise HTTPException(status_code=404, detail=f"账号 '{account}' 不存在")
         
         # 生成账号ID（与bill_fetcher保持一致）
-        account_id = f"{account_config.access_key_id[:10]}-{account}"
+        account_id = account  # Use account name directly
         
         # 使用数据库版折扣分析器（默认使用MySQL）
         analyzer = DiscountAnalyzerDB()
@@ -3683,7 +3683,7 @@ def get_product_discounts(
             raise HTTPException(status_code=404, detail=f"账号 '{account}' 不存在")
         
         # 生成账号ID
-        account_id = f"{account_config.access_key_id[:10]}-{account}"
+        account_id = account  # Use account name directly
         
         # 使用数据库版折扣分析器（默认使用MySQL）
         analyzer = DiscountAnalyzerDB()
@@ -3986,7 +3986,7 @@ def get_quarterly_discount_comparison(
         analyzer = AdvancedDiscountAnalyzer()
         
         # 构造账号ID（与bill_cmd.py保持一致）
-        account_id = f"{account_config.access_key_id[:10]}-{account}"
+        account_id = account  # Use account name directly
         
         result = analyzer.get_quarterly_comparison(account_id, quarters, start_date, end_date)
         
@@ -4036,7 +4036,7 @@ def get_yearly_discount_comparison(
         analyzer = AdvancedDiscountAnalyzer()
         
         # 构造账号ID（与bill_cmd.py保持一致）
-        account_id = f"{account_config.access_key_id[:10]}-{account}"
+        account_id = account  # Use account name directly
         
         result = analyzer.get_yearly_comparison(account_id, start_date, end_date)
         

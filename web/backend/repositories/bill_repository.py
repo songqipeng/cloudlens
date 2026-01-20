@@ -29,7 +29,7 @@ class BillRepository(BaseRepository):
                 billing_cycle = datetime.now().strftime("%Y-%m")
             
             # 构造account_id
-            account_id = f"{account_config.access_key_id[:10]}-{account_config.name}"
+            account_id = account_config.name  # Use account name directly
             
             # 验证account_id是否存在
             account_result = self.db.query_one("""

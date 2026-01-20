@@ -43,7 +43,8 @@ def _load_notification_config():
 def _get_notification_service():
     """获取通知服务实例（每次调用时重新加载配置）"""
     config = _load_notification_config()
-    return NotificationService(config=config)
+    # NotificationService doesn't accept config parameter, uses env vars instead
+    return NotificationService()
 
 _notification_service = _get_notification_service()
 
@@ -111,7 +112,7 @@ def list_alert_rules(
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
-                account_id = f"{account_config.access_key_id[:10]}-{account}"
+                account_id = account  # Use account name directly
         
         rules = _alert_storage.list_rules(account_id=account_id, enabled_only=enabled_only)
         
@@ -189,7 +190,7 @@ def create_alert_rule(req: AlertRuleRequest, account: Optional[str] = None) -> D
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
-                account_id = f"{account_config.access_key_id[:10]}-{account}"
+                account_id = account  # Use account name directly
         
         # 如果没有指定接收邮箱，使用默认接收邮箱
         notify_email = req.notify_email
@@ -327,7 +328,7 @@ def list_alerts(
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
-                account_id = f"{account_config.access_key_id[:10]}-{account}"
+                account_id = account  # Use account name directly
         
         alerts = _alert_storage.list_alerts(
             account_id=account_id,
@@ -371,7 +372,7 @@ def check_alert_rule(rule_id: str, account: Optional[str] = None) -> Dict[str, A
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
-                account_id = f"{account_config.access_key_id[:10]}-{account}"
+                account_id = account  # Use account name directly
         
         alert = _alert_engine.check_rule(rule_id, account_id)
         
@@ -412,7 +413,7 @@ def check_all_rules(account: Optional[str] = None) -> Dict[str, Any]:
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
-                account_id = f"{account_config.access_key_id[:10]}-{account}"
+                account_id = account  # Use account name directly
         
         triggered_alerts = _alert_engine.check_all_rules(account_id)
         

@@ -54,7 +54,7 @@ class CacheManager:
         # 首次使用时如果表不存在，会在查询时自动报错，然后可以创建表
         pass
 
-    def get(self, resource_type: str, account_name: str, region: str = None) -> Optional[List[Any]]:
+    def get(self, resource_type: str, account_name: str, region: str = None, raw: bool = False) -> Optional[Any]:
         """
         从缓存获取资源数据
 
@@ -62,6 +62,7 @@ class CacheManager:
             resource_type: 资源类型 (ecs, rds, etc.)
             account_name: 账号名称
             region: 区域 (可选)
+            raw: 是否返回原始数据（包含metadata），默认False只返回data部分
 
         Returns:
             缓存的资源列表，如果不存在或已过期则返回 None
@@ -70,7 +71,7 @@ class CacheManager:
         now = datetime.now()
 
         sql = """
-            SELECT data, expires_at FROM resource_cache
+            SELECT data, expires_at, created_at FROM resource_cache
             WHERE cache_key = %s AND expires_at > %s
         """
         params = (cache_key, now)
@@ -81,7 +82,17 @@ class CacheManager:
             # MySQL的JSON类型可以直接解析
             data = result['data']
             if isinstance(data, str):
-                return json.loads(data)
+                data = json.loads(data)
+
+            # 如果请求原始数据（包含metadata），直接返回
+            if raw:
+                return data
+
+            # 兼容旧格式：如果数据有 'data' 和 'metadata' 字段，返回 data 部分
+            # 否则返回整个数据（向后兼容）
+            if isinstance(data, dict) and 'data' in data and 'metadata' in data:
+                return data['data']
+
             return data
         return None
 
@@ -165,3 +176,26 @@ class CacheManager:
             parts.append(region)
         key_str = ":".join(parts)
         return hashlib.md5(key_str.encode()).hexdigest()
+
+    @staticmethod
+    def create_cache_data(data: Any, **metadata_fields) -> dict:
+        """
+        创建带metadata的缓存数据结构
+
+        Args:
+            data: 实际数据
+            **metadata_fields: metadata字段（如billing_cycle, record_count等）
+
+        Returns:
+            {"data": ..., "metadata": {...}}
+        """
+        metadata = {
+            "cached_at": datetime.now().isoformat(),
+            "version": 1
+        }
+        metadata.update(metadata_fields)
+
+        return {
+            "data": data,
+            "metadata": metadata
+        }

@@ -64,7 +64,7 @@ def list_allocation_rules(
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
-                account_id = f"{account_config.access_key_id[:10]}-{account}"
+                account_id = account  # Use account name directly
         
         rules = _get_allocation_storage().list_rules(account_id=account_id, enabled_only=enabled_only)
         
@@ -132,7 +132,7 @@ def create_allocation_rule(req: AllocationRuleRequest, account: Optional[str] = 
             cm = ConfigManager()
             account_config = cm.get_account(account)
             if account_config:
-                account_id = f"{account_config.access_key_id[:10]}-{account}"
+                account_id = account  # Use account name directly
         
         rule = AllocationRule(
             id="",  # 将在存储时生成
