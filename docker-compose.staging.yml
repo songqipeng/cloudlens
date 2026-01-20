@@ -1,0 +1,110 @@
+services:
+  # MySQL 数据库（Staging）
+  mysql:
+    image: mysql:8.0
+    container_name: cloudlens-mysql-staging
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-staging_root_2024}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-cloudlens_staging}
+      MYSQL_USER: ${MYSQL_USER:-cloudlens}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-staging_password}
+    ports:
+      - "${MYSQL_PORT:-3307}:3306"  # 使用不同端口避免冲突
+    volumes:
+      - mysql_data_staging:/var/lib/mysql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-staging_root_2024}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - cloudlens-staging
+
+  # Redis 缓存（Staging）
+  redis:
+    image: redis:7-alpine
+    container_name: cloudlens-redis-staging
+    ports:
+      - "${REDIS_PORT:-6380}:6379"  # 使用不同端口避免冲突
+    volumes:
+      - redis_data_staging:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - cloudlens-staging
+
+  # 后端 API 服务（Staging - 使用镜像）
+  backend:
+    image: ${DOCKER_HUB_USERNAME:-songqipeng}/cloudlens-backend:${IMAGE_TAG:-staging}
+    container_name: cloudlens-backend-staging
+    environment:
+      # 数据库配置
+      CLOUDLENS_DATABASE__DB_TYPE: mysql
+      CLOUDLENS_DATABASE__MYSQL_HOST: mysql
+      CLOUDLENS_DATABASE__MYSQL_PORT: 3306
+      CLOUDLENS_DATABASE__MYSQL_USER: ${MYSQL_USER:-cloudlens}
+      CLOUDLENS_DATABASE__MYSQL_PASSWORD: ${MYSQL_PASSWORD:-staging_password}
+      CLOUDLENS_DATABASE__MYSQL_DATABASE: ${MYSQL_DATABASE:-cloudlens_staging}
+      # DatabaseFactory兼容环境变量
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-cloudlens}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-staging_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-cloudlens_staging}
+      # Redis配置
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # 应用配置
+      CLOUDLENS_ENVIRONMENT: staging
+      CLOUDLENS_DEBUG: "false"
+      # CORS配置
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+    ports:
+      - "${BACKEND_PORT:-8001}:8000"  # 使用不同端口避免冲突
+    volumes:
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+      - ./migrations:/app/migrations:ro
+      - ~/.cloudlens:/root/.cloudlens
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - cloudlens-staging
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 前端 Web 服务（Staging）
+  frontend:
+    image: ${DOCKER_HUB_USERNAME:-songqipeng}/cloudlens-frontend:${IMAGE_TAG:-staging}
+    container_name: cloudlens-frontend-staging
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8001
+      NODE_ENV: production
+    ports:
+      - "${FRONTEND_PORT:-3001}:3000"  # 使用不同端口避免冲突
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - cloudlens-staging
+
+volumes:
+  mysql_data_staging:
+  redis_data_staging:
+
+networks:
+  cloudlens-staging:
+    driver: bridge
