@@ -14,7 +14,7 @@ import uuid
 import os
 
 from web.backend.api_base import handle_api_error
-from cloudlens.core.llm_client import create_llm_client, LLMClient, ClaudeClient, OpenAIClient
+from cloudlens.core.llm_client import create_llm_client, LLMClient, ClaudeClient, OpenAIClient, DeepSeekClient
 from cloudlens.core.database import DatabaseFactory
 from cloudlens.core.config import ConfigManager
 from cloudlens.core.context import ContextManager
@@ -43,9 +43,7 @@ def get_llm_client(provider: str = "claude", api_key: Optional[str] = None) -> L
             elif provider == "openai":
                 return OpenAIClient(api_key=api_key)
             elif provider == "deepseek":
-                # DeepSeek暂不支持，使用OpenAI兼容接口
-                logger.warning(f"DeepSeek provider暂不支持，请使用claude或openai")
-                raise ValueError(f"DeepSeek provider暂不支持")
+                return DeepSeekClient(api_key=api_key)
             else:
                 raise ValueError(f"不支持的LLM提供商: {provider}")
         except Exception as e:
@@ -75,8 +73,7 @@ def get_llm_client(provider: str = "claude", api_key: Optional[str] = None) -> L
                 elif provider == "openai":
                     _llm_clients[provider] = OpenAIClient(api_key=decrypted_key)
                 elif provider == "deepseek":
-                    # DeepSeek暂不支持
-                    raise HTTPException(status_code=400, detail="DeepSeek provider暂不支持")
+                    _llm_clients[provider] = DeepSeekClient(api_key=decrypted_key)
                 logger.info(f"LLM客户端初始化成功: {provider}")
 
             return _llm_clients[provider]

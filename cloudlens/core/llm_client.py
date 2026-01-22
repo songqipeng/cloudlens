@@ -181,13 +181,84 @@ class OpenAIClient(LLMClient):
             raise
 
 
+class DeepSeekClient(LLMClient):
+    """DeepSeek API客户端（使用OpenAI兼容接口）"""
+
+    def __init__(self, api_key: Optional[str] = None):
+        """
+        初始化DeepSeek客户端
+
+        Args:
+            api_key: DeepSeek API密钥，如果为None则从环境变量读取
+        """
+        self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
+        if not self.api_key:
+            raise ValueError("DEEPSEEK_API_KEY环境变量未设置")
+
+        try:
+            from openai import OpenAI
+            # DeepSeek使用OpenAI兼容的API接口
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url="https://api.deepseek.com"
+            )
+            self.model = "deepseek-chat"
+        except ImportError:
+            raise ImportError("请安装openai包: pip install openai")
+
+    async def chat(
+        self,
+        messages: List[Dict[str, str]],
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2000
+    ) -> Dict[str, Any]:
+        """发送聊天请求到DeepSeek API"""
+        try:
+            # 构建消息列表
+            deepseek_messages = []
+            if system_prompt:
+                deepseek_messages.append({
+                    "role": "system",
+                    "content": system_prompt
+                })
+
+            for msg in messages:
+                if msg["role"] != "system":
+                    deepseek_messages.append({
+                        "role": msg["role"],
+                        "content": msg["content"]
+                    })
+
+            # 调用API
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=deepseek_messages,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+
+            return {
+                "message": response.choices[0].message.content,
+                "usage": {
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens
+                },
+                "model": self.model
+            }
+        except Exception as e:
+            logger.error(f"DeepSeek API调用失败: {str(e)}")
+            raise
+
+
 def create_llm_client(provider: str = "claude") -> LLMClient:
     """
     创建LLM客户端
-    
+
     Args:
-        provider: 提供商名称（"claude" 或 "openai"）
-        
+        provider: 提供商名称（"claude"、"openai" 或 "deepseek"）
+
     Returns:
         LLMClient实例
     """
@@ -196,5 +267,7 @@ def create_llm_client(provider: str = "claude") -> LLMClient:
         return ClaudeClient()
     elif provider == "openai":
         return OpenAIClient()
+    elif provider == "deepseek":
+        return DeepSeekClient()
     else:
         raise ValueError(f"不支持的LLM提供商: {provider}")
