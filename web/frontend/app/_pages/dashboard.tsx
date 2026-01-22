@@ -311,9 +311,14 @@ pip install -r requirements.txt
         if (sumData && typeof sumData === 'object') {
           const actualData = sumData.success && sumData.data ? sumData.data : sumData
           console.log("[Dashboard] ✅ 设置 Summary 数据:", actualData)
+          // 只设置 summary API 提供的核心字段，其他字段由后续的API补充
           setSummary((prev: any) => ({
             ...(prev || {}),
-            ...actualData,
+            total_cost: actualData.total_cost ?? prev?.total_cost ?? 0,
+            cost_trend: actualData.cost_trend ?? prev?.cost_trend ?? "N/A",
+            trend_pct: actualData.trend_pct ?? prev?.trend_pct ?? 0,
+            idle_count: actualData.idle_count ?? prev?.idle_count ?? 0,
+            savings_potential: actualData.savings_potential ?? prev?.savings_potential ?? 0,
             loading: actualData.loading ?? false
           }))
         } else {
@@ -349,9 +354,14 @@ pip install -r requirements.txt
               // 检查数据是否已加载完成
               if (refreshedSummary && !refreshedSummary.loading && refreshedSummary.total_resources > 0) {
                 console.log("[Dashboard] ✅ Summary 数据已加载完成:", refreshedSummary)
+                // 只更新 summary API 应该提供的字段，保留从其他API获取的数据
                 setSummary((prev: any) => ({
                   ...(prev || {}),
-                  ...refreshedSummary,
+                  total_cost: refreshedSummary.total_cost ?? prev?.total_cost ?? 0,
+                  cost_trend: refreshedSummary.cost_trend ?? prev?.cost_trend ?? "N/A",
+                  trend_pct: refreshedSummary.trend_pct ?? prev?.trend_pct ?? 0,
+                  idle_count: refreshedSummary.idle_count ?? prev?.idle_count ?? 0,
+                  savings_potential: refreshedSummary.savings_potential ?? prev?.savings_potential ?? 0,
                   loading: false
                 }))
                 setLoading(false)
@@ -364,9 +374,14 @@ pip install -r requirements.txt
               } else {
                 // 数据已返回但可能仍为0，停止轮询
                 console.log("[Dashboard] Summary 数据已返回，停止轮询")
+                // 只更新 summary API 应该提供的字段，保留从其他API获取的数据
                 setSummary((prev: any) => ({
                   ...(prev || {}),
-                  ...refreshedSummary,
+                  total_cost: refreshedSummary.total_cost ?? prev?.total_cost ?? 0,
+                  cost_trend: refreshedSummary.cost_trend ?? prev?.cost_trend ?? "N/A",
+                  trend_pct: refreshedSummary.trend_pct ?? prev?.trend_pct ?? 0,
+                  idle_count: refreshedSummary.idle_count ?? prev?.idle_count ?? 0,
+                  savings_potential: refreshedSummary.savings_potential ?? prev?.savings_potential ?? 0,
                   loading: false
                 }))
                 setLoading(false)

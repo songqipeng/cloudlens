@@ -8,6 +8,12 @@ import { LanguageSwitcher } from "@/components/language-switcher"
 import { apiGet, apiPost } from "@/lib/api"
 import { toastSuccess, toastError } from "@/components/ui/toast"
 
+interface LLMConfig {
+  provider: string
+  has_api_key: boolean
+  is_active: boolean
+}
+
 export default function SettingsPage() {
   const { t, locale } = useLocale()
   const [rules, setRules] = useState<any>(null)
@@ -16,14 +22,25 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [savingNotifications, setSavingNotifications] = useState(false)
 
+  // LLM配置相关状态
+  const [llmConfigs, setLlmConfigs] = useState<LLMConfig[]>([])
+  const [apiKeys, setApiKeys] = useState({
+    claude: '',
+    openai: '',
+    deepseek: ''
+  })
+  const [savingLlm, setSavingLlm] = useState(false)
+
   useEffect(() => {
     Promise.all([
       apiGet("/config/rules"),
-      apiGet("/config/notifications")
+      apiGet("/config/notifications"),
+      apiGet<LLMConfig[]>("/v1/chatbot/configs")
     ])
-      .then(([rulesData, notificationData]) => {
+      .then(([rulesData, notificationData, llmData]) => {
         setRules(rulesData)
         setNotificationConfig(notificationData)
+        setLlmConfigs(llmData)
         setLoading(false)
       })
       .catch((e) => {
@@ -52,6 +69,37 @@ export default function SettingsPage() {
       toastError(t.settings.saveFailed + ": " + String(e))
     }
     setSavingNotifications(false)
+  }
+
+  async function handleSaveLlmConfig() {
+    setSavingLlm(true)
+    try {
+      const promises = Object.entries(apiKeys).map(([provider, api_key]) => {
+        if (api_key.trim()) {
+          return apiPost('/v1/chatbot/configs', {
+            provider,
+            api_key,
+            is_active: true
+          })
+        }
+        return Promise.resolve()
+      })
+
+      await Promise.all(promises)
+
+      // 重新加载配置
+      const llmData = await apiGet<LLMConfig[]>("/v1/chatbot/configs")
+      setLlmConfigs(llmData)
+
+      // 清空输入框
+      setApiKeys({ claude: '', openai: '', deepseek: '' })
+
+      toastSuccess('API密钥配置已保存')
+    } catch (e) {
+      toastError('保存失败: ' + String(e))
+    } finally {
+      setSavingLlm(false)
+    }
   }
 
   if (loading) {
@@ -260,6 +308,120 @@ export default function SettingsPage() {
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition shadow-lg shadow-primary/20 disabled:opacity-50"
               >
                 {savingNotifications ? t.settings.saving : t.common.save}
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* LLM API 配置 */}
+        <Card className="glass">
+          <CardHeader>
+            <CardTitle>AI 模型配置</CardTitle>
+            <CardDescription>
+              配置大语言模型的 API 密钥，用于 AI Chatbot 功能
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4">
+              {/* Claude API Key */}
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium leading-none">
+                    Anthropic API Key (Claude 3.5 Sonnet)
+                  </label>
+                  {llmConfigs.find(c => c.provider === 'claude')?.has_api_key && (
+                    <span className="text-xs text-green-600 dark:text-green-500 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-green-600 dark:bg-green-500"></span>
+                      已配置
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="password"
+                  className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-ring focus:outline-none"
+                  value={apiKeys.claude}
+                  onChange={(e) => setApiKeys({ ...apiKeys, claude: e.target.value })}
+                  placeholder="sk-ant-..."
+                />
+                <p className="text-xs text-muted-foreground">
+                  强大的推理和分析能力，适合复杂问答场景
+                </p>
+              </div>
+
+              {/* OpenAI API Key */}
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium leading-none">
+                    OpenAI API Key (GPT-4)
+                  </label>
+                  {llmConfigs.find(c => c.provider === 'openai')?.has_api_key && (
+                    <span className="text-xs text-green-600 dark:text-green-500 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-green-600 dark:bg-green-500"></span>
+                      已配置
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="password"
+                  className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-ring focus:outline-none"
+                  value={apiKeys.openai}
+                  onChange={(e) => setApiKeys({ ...apiKeys, openai: e.target.value })}
+                  placeholder="sk-..."
+                />
+                <p className="text-xs text-muted-foreground">
+                  通用对话和问答，知识面广
+                </p>
+              </div>
+
+              {/* DeepSeek API Key */}
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium leading-none">
+                    DeepSeek API Key
+                  </label>
+                  {llmConfigs.find(c => c.provider === 'deepseek')?.has_api_key && (
+                    <span className="text-xs text-green-600 dark:text-green-500 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-green-600 dark:bg-green-500"></span>
+                      已配置
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="password"
+                  className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-ring focus:outline-none"
+                  value={apiKeys.deepseek}
+                  onChange={(e) => setApiKeys({ ...apiKeys, deepseek: e.target.value })}
+                  placeholder="sk-..."
+                />
+                <p className="text-xs text-muted-foreground">
+                  高性价比 AI 模型，适合大量对话场景
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-border/50">
+              <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50 rounded-md">
+                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="text-xs text-blue-800 dark:text-blue-300">
+                  <p className="font-medium mb-1">安全说明：</p>
+                  <ul className="space-y-1 list-disc list-inside">
+                    <li>API 密钥将加密存储在数据库中</li>
+                    <li>可以选择配置一个或多个模型的 API 密钥</li>
+                    <li>在 AI Chatbot 中可以随时切换使用不同的模型</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={handleSaveLlmConfig}
+                disabled={savingLlm}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition shadow-lg shadow-primary/20 disabled:opacity-50"
+              >
+                {savingLlm ? '保存中...' : '保存配置'}
               </button>
             </div>
           </CardContent>

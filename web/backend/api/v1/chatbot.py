@@ -14,37 +14,85 @@ import uuid
 import os
 
 from web.backend.api_base import handle_api_error
-from cloudlens.core.llm_client import create_llm_client, LLMClient
+from cloudlens.core.llm_client import create_llm_client, LLMClient, ClaudeClient, OpenAIClient
 from cloudlens.core.database import DatabaseFactory
 from cloudlens.core.config import ConfigManager
 from cloudlens.core.context import ContextManager
 from cloudlens.core.bill_storage import BillStorageManager
+from cloudlens.core.encryption import get_encryption
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/chatbot", tags=["chatbot"])
 
 # 初始化LLM客户端
-_llm_client: Optional[LLMClient] = None
+_llm_clients: Dict[str, LLMClient] = {}  # 缓存每个provider的客户端
 _db: Optional[Any] = None  # 延迟初始化，避免导入时连接MySQL
 _bill_storage: Optional[BillStorageManager] = None  # 延迟初始化
 
 
-def get_llm_client() -> LLMClient:
+def get_llm_client(provider: str = "claude", api_key: Optional[str] = None) -> LLMClient:
     """获取LLM客户端（懒加载）"""
-    global _llm_client
-    if _llm_client is None:
-        provider = os.getenv("LLM_PROVIDER", "claude").lower()
+    global _llm_clients
+
+    # 如果提供了api_key，直接创建新客户端
+    if api_key:
         try:
-            _llm_client = create_llm_client(provider)
-            logger.info(f"LLM客户端初始化成功: {provider}")
+            if provider == "claude":
+                return ClaudeClient(api_key=api_key)
+            elif provider == "openai":
+                return OpenAIClient(api_key=api_key)
+            elif provider == "deepseek":
+                # DeepSeek暂不支持，使用OpenAI兼容接口
+                logger.warning(f"DeepSeek provider暂不支持，请使用claude或openai")
+                raise ValueError(f"DeepSeek provider暂不支持")
+            else:
+                raise ValueError(f"不支持的LLM提供商: {provider}")
         except Exception as e:
             logger.error(f"LLM客户端初始化失败: {str(e)}")
             raise HTTPException(
                 status_code=500,
                 detail=f"AI服务不可用: {str(e)}"
             )
-    return _llm_client
+
+    # 否则尝试从数据库获取API key
+    try:
+        db = _get_db()
+        config = db.query(
+            "SELECT api_key_encrypted FROM llm_configs WHERE provider = %s AND is_active = TRUE LIMIT 1",
+            (provider,)
+        )
+
+        if config and config[0].get("api_key_encrypted"):
+            # 解密API key
+            encryption = get_encryption()
+            decrypted_key = encryption.decrypt(config[0]["api_key_encrypted"])
+
+            # 创建并缓存客户端
+            if provider not in _llm_clients:
+                if provider == "claude":
+                    _llm_clients[provider] = ClaudeClient(api_key=decrypted_key)
+                elif provider == "openai":
+                    _llm_clients[provider] = OpenAIClient(api_key=decrypted_key)
+                elif provider == "deepseek":
+                    # DeepSeek暂不支持
+                    raise HTTPException(status_code=400, detail="DeepSeek provider暂不支持")
+                logger.info(f"LLM客户端初始化成功: {provider}")
+
+            return _llm_clients[provider]
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"未配置 {provider} 的API密钥，请在设置中配置"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"LLM客户端初始化失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"AI服务不可用: {str(e)}"
+        )
 
 
 def _get_db():
@@ -76,6 +124,7 @@ class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     session_id: Optional[str] = None
     account: Optional[str] = None
+    provider: Optional[str] = "claude"  # LLM提供商
     temperature: float = 0.7
     max_tokens: int = 2000
 
@@ -218,8 +267,8 @@ async def chat(req: ChatRequest) -> ChatResponse:
             for msg in req.messages
         ]
         
-        # 调用LLM
-        llm = get_llm_client()
+        # 调用LLM（使用请求指定的provider）
+        llm = get_llm_client(provider=req.provider or "claude")
         result = await llm.chat(
             messages=messages,
             system_prompt=system_prompt,
@@ -346,3 +395,120 @@ def delete_session(session_id: str) -> Dict[str, Any]:
         }
     except Exception as e:
         raise handle_api_error(e, "delete_session")
+
+
+# ==================== LLM配置管理 ====================
+
+class LLMConfigRequest(BaseModel):
+    """LLM配置请求模型"""
+    provider: str  # claude, openai, deepseek
+    api_key: str
+    is_active: bool = True
+
+
+class LLMConfigResponse(BaseModel):
+    """LLM配置响应模型"""
+    provider: str
+    has_api_key: bool  # 是否已配置API key（不返回实际key）
+    is_active: bool
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+@router.get("/configs", response_model=List[LLMConfigResponse])
+def get_llm_configs() -> List[LLMConfigResponse]:
+    """获取所有LLM配置（不返回实际API key）"""
+    try:
+        db = _get_db()
+        configs = db.query(
+            "SELECT provider, api_key_encrypted, is_active, created_at, updated_at FROM llm_configs ORDER BY provider"
+        )
+
+        result = []
+        for config in configs:
+            result.append(LLMConfigResponse(
+                provider=config["provider"],
+                has_api_key=bool(config["api_key_encrypted"]),
+                is_active=config["is_active"],
+                created_at=config["created_at"].isoformat() if isinstance(config["created_at"], datetime) else config["created_at"],
+                updated_at=config["updated_at"].isoformat() if isinstance(config["updated_at"], datetime) else config["updated_at"]
+            ))
+
+        return result
+    except Exception as e:
+        raise handle_api_error(e, "get_llm_configs")
+
+
+@router.post("/configs")
+def save_llm_config(req: LLMConfigRequest) -> Dict[str, Any]:
+    """保存或更新LLM配置"""
+    try:
+        # 验证provider
+        if req.provider not in ["claude", "openai", "deepseek"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"不支持的LLM提供商: {req.provider}，支持的选项: claude, openai, deepseek"
+            )
+
+        # 加密API key
+        encryption = get_encryption()
+        encrypted_key = encryption.encrypt(req.api_key)
+
+        db = _get_db()
+
+        # 检查配置是否已存在
+        existing = db.query(
+            "SELECT provider FROM llm_configs WHERE provider = %s LIMIT 1",
+            (req.provider,)
+        )
+
+        if existing:
+            # 更新现有配置
+            db.execute(
+                "UPDATE llm_configs SET api_key_encrypted = %s, is_active = %s, updated_at = NOW() WHERE provider = %s",
+                (encrypted_key, req.is_active, req.provider)
+            )
+            logger.info(f"更新LLM配置: {req.provider}")
+        else:
+            # 插入新配置
+            db.execute(
+                "INSERT INTO llm_configs (provider, api_key_encrypted, is_active, created_at, updated_at) VALUES (%s, %s, %s, NOW(), NOW())",
+                (req.provider, encrypted_key, req.is_active)
+            )
+            logger.info(f"保存LLM配置: {req.provider}")
+
+        # 清除缓存的客户端，强制下次重新加载
+        global _llm_clients
+        if req.provider in _llm_clients:
+            del _llm_clients[req.provider]
+
+        return {
+            "success": True,
+            "message": f"{req.provider} 配置已保存"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"保存LLM配置失败: {str(e)}")
+        raise handle_api_error(e, "save_llm_config")
+
+
+@router.delete("/configs/{provider}")
+def delete_llm_config(provider: str) -> Dict[str, Any]:
+    """删除LLM配置"""
+    try:
+        db = _get_db()
+        db.execute("DELETE FROM llm_configs WHERE provider = %s", (provider,))
+
+        # 清除缓存的客户端
+        global _llm_clients
+        if provider in _llm_clients:
+            del _llm_clients[provider]
+
+        logger.info(f"删除LLM配置: {provider}")
+        return {
+            "success": True,
+            "message": f"{provider} 配置已删除"
+        }
+    except Exception as e:
+        raise handle_api_error(e, "delete_llm_config")

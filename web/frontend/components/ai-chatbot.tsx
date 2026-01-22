@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useRef, useEffect } from 'react'
-import { apiPost, apiGet } from '@/lib/api'
-import { MessageCircle, X, Minimize2, Send, Loader2 } from 'lucide-react'
+import { apiPost } from '@/lib/api'
+import { MessageCircle, X, Send, Loader2, Sparkles, ChevronDown, Zap } from 'lucide-react'
 
 interface Message {
   id: string
@@ -22,15 +22,29 @@ interface ChatResponse {
   model: string
 }
 
+interface ModelConfig {
+  id: string
+  name: string
+  description: string
+  icon: string
+}
+
+const AVAILABLE_MODELS: ModelConfig[] = [
+  { id: 'claude', name: 'Claude 3.5 Sonnet', description: '强大的推理和分析能力', icon: '🧠' },
+  { id: 'openai', name: 'GPT-4', description: '通用对话和问答', icon: '💬' },
+  { id: 'deepseek', name: 'DeepSeek', description: '高性价比AI模型', icon: '⚡' },
+]
+
 export function AIChatbot() {
   const [isOpen, setIsOpen] = useState(false)
-  const [isMinimized, setIsMinimized] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const [selectedModel, setSelectedModel] = useState('claude')
+  const [showModelSelector, setShowModelSelector] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // 滚动到底部
   const scrollToBottom = () => {
@@ -42,6 +56,12 @@ export function AIChatbot() {
       scrollToBottom()
     }
   }, [messages, isOpen])
+
+  useEffect(() => {
+    if (isOpen) {
+      inputRef.current?.focus()
+    }
+  }, [isOpen])
 
   // 发送消息
   const handleSend = async () => {
@@ -63,6 +83,7 @@ export function AIChatbot() {
         {
           messages: [{ role: 'user', content: userMessage.content }],
           session_id: sessionId,
+          provider: selectedModel,
           temperature: 0.7,
           max_tokens: 2000
         }
@@ -82,17 +103,16 @@ export function AIChatbot() {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: '抱歉，AI服务暂时不可用。请检查API配置或稍后重试。'
+        content: '抱歉，AI服务暂时不可用。请检查API配置或稍后重试。\n\n💡 提示：点击右上角设置按钮配置API密钥。'
       }
       setMessages(prev => [...prev, errorMessage])
     } finally {
       setLoading(false)
-      inputRef.current?.focus()
     }
   }
 
   // 处理键盘事件
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -101,10 +121,10 @@ export function AIChatbot() {
 
   // 快速问题
   const quickQuestions = [
-    '为什么这个月成本提升了10%？',
-    '有哪些闲置资源可以优化？',
-    '帮我分析一下最近的成本趋势',
-    '预测下个月的成本'
+    { icon: '📊', text: '为什么这个月成本提升了10%？', category: '成本分析' },
+    { icon: '💤', text: '有哪些闲置资源可以优化？', category: '资源优化' },
+    { icon: '📈', text: '帮我分析一下最近的成本趋势', category: '趋势分析' },
+    { icon: '🔮', text: '预测下个月的成本', category: '成本预测' }
   ]
 
   const handleQuickQuestion = (question: string) => {
@@ -114,152 +134,230 @@ export function AIChatbot() {
     }, 100)
   }
 
+  // 清空对话
+  const handleClearChat = () => {
+    setMessages([])
+    setSessionId(null)
+  }
+
   if (!isOpen) {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-[100] bg-primary hover:bg-primary/90 text-primary-foreground rounded-full p-4 shadow-lg shadow-primary/25 transition-all duration-200 hover:scale-110 hover:shadow-xl hover:shadow-primary/30"
+        className="fixed bottom-8 right-8 z-[100] group"
         aria-label="打开AI助手"
-        style={{
-          boxShadow: '0 4px 12px rgba(59, 130, 246, 0.25), 0 0 0 1px rgba(59, 130, 246, 0.1)'
-        }}
       >
-        <MessageCircle className="w-6 h-6" />
+        <div className="relative">
+          {/* 光晕效果 */}
+          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 opacity-75 blur-xl group-hover:opacity-100 transition-opacity duration-300" />
+
+          {/* 主按钮 */}
+          <div className="relative bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 rounded-full p-5 shadow-2xl transform transition-all duration-300 hover:scale-110 hover:rotate-12">
+            <Sparkles className="w-7 h-7 text-white" />
+          </div>
+
+          {/* 脉冲动画 */}
+          <div className="absolute inset-0 rounded-full bg-blue-500 animate-ping opacity-20" />
+        </div>
+
+        {/* 提示文字 */}
+        <div className="absolute right-full mr-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+          <div className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-4 py-2 rounded-lg shadow-lg whitespace-nowrap text-sm font-medium">
+            CloudLens AI 助手
+            <div className="absolute left-full top-1/2 -translate-y-1/2 border-8 border-transparent border-l-blue-600" />
+          </div>
+        </div>
       </button>
     )
   }
 
   return (
     <div
-      className={`fixed bottom-6 right-6 z-[100] rounded-[12px] border border-[rgba(255,255,255,0.08)] bg-[rgba(15,15,20,0.95)] backdrop-blur-[20px] shadow-[0_8px_24px_rgba(0,0,0,0.3)] transition-all duration-300 ${
-        isMinimized ? 'w-80 h-14' : 'w-96 h-[600px]'
-      } flex flex-col`}
-      style={{
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.08)'
-      }}
+      className="fixed bottom-8 right-8 z-[100] flex flex-col transition-all duration-300"
+      style={{ width: '480px', height: '680px' }}
     >
-      {/* 头部 */}
-      <div className="flex items-center justify-between p-4 border-b border-[rgba(255,255,255,0.08)] bg-gradient-to-r from-primary/20 to-primary/10">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-            <MessageCircle className="w-4 h-4 text-primary" />
-          </div>
-          <span className="font-semibold text-foreground">CloudLens AI 助手</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsMinimized(!isMinimized)}
-            className="hover:bg-muted rounded p-1.5 transition-colors text-muted-foreground hover:text-foreground"
-            aria-label={isMinimized ? '展开' : '最小化'}
-          >
-            <Minimize2 className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => {
-              setIsOpen(false)
-              setIsMinimized(false)
-            }}
-            className="hover:bg-muted rounded p-1.5 transition-colors text-muted-foreground hover:text-foreground"
-            aria-label="关闭"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+      {/* 主容器 */}
+      <div className="relative flex flex-col h-full rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/95 to-slate-950/95 backdrop-blur-xl shadow-2xl overflow-hidden">
+        {/* 顶部渐变装饰 */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-cyan-500 to-blue-500" />
 
-      {!isMinimized && (
-        <>
-          {/* 消息列表 */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[rgba(15,15,20,0.5)]">
-            {messages.length === 0 ? (
-              <div className="text-center text-muted-foreground py-8">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
-                  <MessageCircle className="w-8 h-8 text-primary" />
-                </div>
-                <p className="mb-4 text-foreground font-medium">我是CloudLens AI助手，可以帮您：</p>
-                <ul className="text-sm text-left max-w-xs mx-auto space-y-2 text-muted-foreground">
-                  <li>• 分析成本变化原因</li>
-                  <li>• 识别闲置资源</li>
-                  <li>• 提供优化建议</li>
-                  <li>• 解释账单明细</li>
-                </ul>
-                <div className="mt-6 space-y-2">
-                  <p className="text-xs text-muted-foreground mb-2">快速问题：</p>
-                  {quickQuestions.map((q, i) => (
-                    <button
-                      key={i}
-                      onClick={() => handleQuickQuestion(q)}
-                      className="block w-full text-left px-3 py-2 text-sm bg-[rgba(15,15,20,0.8)] border border-[rgba(255,255,255,0.08)] rounded-lg hover:bg-[rgba(15,15,20,0.95)] hover:border-primary/30 hover:text-primary transition-all duration-200 text-foreground"
-                    >
-                      {q}
-                    </button>
-                  ))}
+        {/* 头部 */}
+        <div className="relative p-5 border-b border-white/10 bg-gradient-to-r from-blue-500/10 via-cyan-500/10 to-blue-500/10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 blur opacity-50" />
+                <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-white" />
                 </div>
               </div>
-            ) : (
-              <>
-                {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[80%] rounded-lg px-4 py-2.5 ${
-                        msg.role === 'user'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-[rgba(15,15,20,0.8)] text-foreground border border-[rgba(255,255,255,0.08)]'
-                      }`}
-                      style={{
-                        boxShadow: msg.role === 'user' 
-                          ? '0 2px 8px rgba(59, 130, 246, 0.2)' 
-                          : '0 2px 8px rgba(0, 0, 0, 0.15)'
-                      }}
-                    >
-                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-                    </div>
-                  </div>
-                ))}
-                {loading && (
-                  <div className="flex justify-start">
-                    <div className="bg-[rgba(15,15,20,0.8)] border border-[rgba(255,255,255,0.08)] rounded-lg px-4 py-2.5">
-                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                    </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </>
-            )}
-          </div>
+              <div>
+                <h3 className="font-bold text-white text-base">CloudLens AI</h3>
+                <p className="text-xs text-slate-400">智能云治理助手</p>
+              </div>
+            </div>
 
-          {/* 输入区域 */}
-          <div className="p-4 border-t border-[rgba(255,255,255,0.08)] bg-[rgba(15,15,20,0.5)]">
-            <div className="flex gap-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="输入您的问题..."
-                className="flex-1 px-4 py-2.5 bg-[rgba(15,15,20,0.8)] border border-[rgba(255,255,255,0.08)] rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all text-foreground placeholder:text-muted-foreground"
-                disabled={loading}
-              />
-              <button
-                onClick={handleSend}
-                disabled={!input.trim() || loading}
-                className="px-4 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30"
-                aria-label="发送"
-              >
-                {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Send className="w-5 h-5" />
+            <div className="flex items-center gap-2">
+              {/* 模型选择器 */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowModelSelector(!showModelSelector)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-all text-xs text-slate-300 hover:text-white"
+                >
+                  <span>{AVAILABLE_MODELS.find(m => m.id === selectedModel)?.icon}</span>
+                  <ChevronDown className={`w-3 h-3 transition-transform ${showModelSelector ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showModelSelector && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowModelSelector(false)} />
+                    <div className="absolute top-full right-0 mt-2 w-72 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden z-50">
+                      {AVAILABLE_MODELS.map((model) => (
+                        <button
+                          key={model.id}
+                          onClick={() => {
+                            setSelectedModel(model.id)
+                            setShowModelSelector(false)
+                          }}
+                          className={`w-full flex items-start gap-3 p-3 hover:bg-white/5 transition-all border-b border-white/5 last:border-0 ${
+                            selectedModel === model.id ? 'bg-blue-500/10' : ''
+                          }`}
+                        >
+                          <span className="text-2xl">{model.icon}</span>
+                          <div className="flex-1 text-left">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-white text-sm">{model.name}</span>
+                              {selectedModel === model.id && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500 text-white">使用中</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5">{model.description}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
                 )}
+              </div>
+
+              <button
+                onClick={() => setIsOpen(false)}
+                className="p-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                aria-label="关闭"
+              >
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
-        </>
-      )}
+        </div>
+
+        {/* 移除了设置面板 - API 配置已移到设置页面 */}
+
+        {/* 消息列表 */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {messages.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="relative inline-flex mb-6">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 blur-xl opacity-50" />
+                <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-blue-600 to-cyan-600 flex items-center justify-center">
+                  <Sparkles className="w-10 h-10 text-white" />
+                </div>
+              </div>
+
+              <h4 className="text-lg font-bold text-white mb-2">CloudLens AI 智能助手</h4>
+              <p className="text-sm text-slate-400 mb-6 max-w-xs mx-auto">
+                我可以帮您分析云资源、优化成本、识别安全风险
+              </p>
+
+              <div className="space-y-2 max-w-md mx-auto">
+                <p className="text-xs text-slate-500 mb-3">✨ 试试问我：</p>
+                {quickQuestions.map((q, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleQuickQuestion(q.text)}
+                    className="group w-full flex items-start gap-3 p-3 bg-gradient-to-r from-white/5 to-white/0 hover:from-blue-500/20 hover:to-cyan-500/20 border border-white/10 hover:border-blue-500/30 rounded-xl transition-all duration-300 text-left"
+                  >
+                    <span className="text-xl flex-shrink-0 mt-0.5">{q.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs text-blue-400 font-medium">{q.category}</span>
+                      <p className="text-sm text-slate-300 group-hover:text-white transition-colors mt-0.5">
+                        {q.text}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
+              {messages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+                      msg.role === 'user'
+                        ? 'bg-gradient-to-br from-blue-600 to-cyan-600 text-white shadow-lg shadow-blue-500/20'
+                        : 'bg-white/5 text-slate-200 border border-white/10'
+                    }`}
+                  >
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                  </div>
+                </div>
+              ))}
+              {loading && (
+                <div className="flex justify-start">
+                  <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                    <span className="text-sm text-slate-400">AI 正在思考...</span>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </>
+          )}
+        </div>
+
+        {/* 输入区域 */}
+        <div className="p-5 border-t border-white/10 bg-slate-900/50">
+          <div className="flex gap-3">
+            <div className="flex-1 relative">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="输入您的问题... (Enter 发送, Shift+Enter 换行)"
+                rows={1}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all text-white placeholder:text-slate-500 resize-none text-sm"
+                style={{ minHeight: '48px', maxHeight: '120px' }}
+                disabled={loading}
+              />
+            </div>
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || loading}
+              className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 disabled:shadow-none flex items-center justify-center group"
+              aria-label="发送"
+            >
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Send className="w-5 h-5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+              )}
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between mt-3 text-xs text-slate-500">
+            <span>当前模型: {AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name}</span>
+            <span className="flex items-center gap-1">
+              <Zap className="w-3 h-3" />
+              由 AI 驱动
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
