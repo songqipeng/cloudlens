@@ -41,7 +41,7 @@ export function AIChatbot() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
-  const [selectedModel, setSelectedModel] = useState('claude')
+  const [selectedModel, setSelectedModel] = useState('deepseek')  // 默认使用DeepSeek
   const [showModelSelector, setShowModelSelector] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
