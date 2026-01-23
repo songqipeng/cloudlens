@@ -1,0 +1,25 @@
+# AWS配置
+aws_region = "ap-northeast-1"  # 日本东京
+
+# 域名配置
+domain_name         = "cloudlens.songqipeng.com"
+route53_zone_name   = "songqipeng.com"
+create_route53_zone = false  # 域名在阿里云，不在Route 53
+
+# EC2配置
+instance_type = "t3.medium"
+ebs_volume_size = 50
+
+# 网络配置
+create_vpc = true  # 创建新VPC（默认VPC不存在）
+
+# SSH配置
+create_key_pair = true
+ssh_public_key  = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC6ylATv43IeWRoQKalgFfdyniAqLJz+3PrbytloHt7kIrjjjLV7tGfqF/H8cWCzcYxp6taAh51KN1cEtkLCa+hdAg7VCzYleWB32zrw+FK31O96frEoIW+ou7T3WYZuGrgEGIgULY5UwBi4heMFNGBHSdwPGASUzVwWdChC3jXMWSfIDKK+ePECNIEWLJzg3idgKVleByed/YX48yA+PkTbj7CnGAVwl0HUeBxtsyHBdeDtt9VTyodsYkJ5jVLWM1K8O7pMoHf/RU9pH+UL7lcAF9RqFim0tXRb28COkDM6suFbxWOZ8wpKu0Z7vdyij2q/LMPHVsFKaOtbZuG5wS6zhqGwH5mYAmCmgpso/R7Lsy4shfYL03PKlftC/mE2JYprIrCj4A4SZEiE6evdySykc7Dv8570iEilaimjh704LhmGQpUMuwWo1shVlL6zOvL22efGIBnVDXb4/1b30FFWbCC/1GT11F9K0U50Zq/KoVUWTNxhYUXCzL5WrTGFUSpZpRjBD2DzWRsx0o2ddjYKZi+kcVmf8RoBd80mJwaVglie31DnxHZ0nuww+zyKF9iEzC3TCzwpwry4/OYXe99cS0xM9XHEyn5d64kdh8t+Sxel/3DskcDoEmWJCfk173hqn/c2IJTx3PgH3LAv8AYEV66Mh+UxiTokJyKeH2TFw== cloudlens@songqipengdeMac-mini.local"
+
+ssh_allowed_cidrs = ["0.0.0.0/0"]
+
+# 数据库配置
+mysql_user     = "cloudlens"
+mysql_password = "nMmjHE6nJFi4j6oG6vEw"
+mysql_database = "cloudlens"

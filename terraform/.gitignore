@@ -1,0 +1,18 @@
+# Terraform文件
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform.tfvars.example
+.terraform/
+.terraform.lock.hcl
+*.tfplan
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# 敏感信息
+*.pem
+*.key
+secrets.tfvars
