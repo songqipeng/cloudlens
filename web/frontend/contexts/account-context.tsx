@@ -55,9 +55,11 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     const refreshAccounts = async () => {
         try {
             // 优先使用新的 /settings/accounts 接口（包含别名）
-            // 使用相对路径，让浏览器自动处理协议和主机
-            const apiBase = typeof window !== 'undefined' 
-                ? `${window.location.protocol}//${window.location.hostname}:8000/api`
+            // 生产环境使用相对路径通过 nginx 代理，开发环境直连后端
+            const apiBase = typeof window !== 'undefined'
+                ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                    ? 'http://localhost:8000/api'
+                    : `${window.location.origin}/api`)
                 : 'http://127.0.0.1:8000/api'
             let res = await fetch(`${apiBase}/settings/accounts`)
             if (!res.ok) {

@@ -118,14 +118,25 @@ EOF
     fi
 fi
 
-# 修改docker-compose.yml以使用挂载的数据卷
-if [ -f "docker-compose.yml" ] && [ -d "/opt/cloudlens/data" ]; then
-    # 备份原始文件
-    cp docker-compose.yml docker-compose.yml.bak
-    
-    # 修改MySQL数据卷路径
-    sed -i 's|mysql_data:|/opt/cloudlens/data/mysql:|g' docker-compose.yml || true
-    sed -i 's|redis_data:|/opt/cloudlens/data/redis:|g' docker-compose.yml || true
+# 不再修改docker-compose.yml的volumes配置，使用默认的命名卷
+# 数据持久化由docker volumes自动管理
+
+# 创建数据目录（用于bind mount，如果需要的话）
+mkdir -p /opt/cloudlens/data/mysql
+mkdir -p /opt/cloudlens/data/redis
+chown -R 999:999 /opt/cloudlens/data/mysql  # MySQL容器用户
+
+# 修复nginx.conf - 确保/api/路径保留前缀（不strip）
+if [ -f "nginx.conf" ]; then
+    echo "检查nginx.conf配置..."
+    # 确保proxy_pass不带末尾斜杠，这样不会strip掉/api前缀
+    # 后端路由使用/api前缀，所以需要保留
+    sed -i 's|proxy_pass http://backend/;|proxy_pass http://backend;|g' nginx.conf
+    # 增加超时时间
+    sed -i 's|proxy_connect_timeout 60s;|proxy_connect_timeout 120s;|g' nginx.conf
+    sed -i 's|proxy_send_timeout 60s;|proxy_send_timeout 120s;|g' nginx.conf
+    sed -i 's|proxy_read_timeout 60s;|proxy_read_timeout 120s;|g' nginx.conf
+    echo "✅ nginx.conf已检查"
 fi
 
 # 启动Docker Compose（如果代码存在）

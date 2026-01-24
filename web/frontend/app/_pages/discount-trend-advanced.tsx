@@ -185,7 +185,12 @@ export default function AdvancedDiscountTrendPage() {
 
   const handleExport = (exportType: string) => {
     const dateParams = getDateRangeParams()
-    window.open(`http://localhost:8000/api/discounts/export?account=${currentAccount}&export_type=${exportType}${dateParams}`, '_blank')
+    const apiBase = typeof window !== 'undefined'
+      ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+          ? 'http://localhost:8000/api'
+          : `${window.location.origin}/api`)
+      : '/api'
+    window.open(`${apiBase}/discounts/export?account=${currentAccount}&export_type=${exportType}${dateParams}`, '_blank')
   }
 
   // 当账号或时间范围改变时，重新加载数据
