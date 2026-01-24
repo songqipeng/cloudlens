@@ -62,6 +62,32 @@ class BillStorageManager:
         # 这里只检查表是否存在（延迟检查，避免导入时连接）
         pass  # 延迟到首次使用时检查
     
+    def query(self, sql: str, params: tuple = None) -> List[Dict]:
+        """
+        执行SQL查询（公共接口）
+        
+        Args:
+            sql: SQL查询语句
+            params: 查询参数
+            
+        Returns:
+            查询结果列表
+        """
+        return self._get_db().query(sql, params)
+    
+    def query_one(self, sql: str, params: tuple = None) -> Optional[Dict]:
+        """
+        执行SQL查询并返回单条结果（公共接口）
+        
+        Args:
+            sql: SQL查询语句
+            params: 查询参数
+            
+        Returns:
+            单条查询结果或None
+        """
+        return self._get_db().query_one(sql, params)
+    
     def insert_bill_items(
         self, 
         account_id: str,

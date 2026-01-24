@@ -28,7 +28,6 @@ class AdvancedDiscountAnalyzer:
         """
         from cloudlens.core.bill_storage import BillStorageManager
         self.storage = BillStorageManager(db_path)
-        self.db = self.storage.db  # 使用数据库抽象层
         self.db_type = self.storage.db_type
     
     def _get_placeholder(self) -> str:
@@ -40,7 +39,7 @@ class AdvancedDiscountAnalyzer:
         # 替换占位符
         placeholder = self._get_placeholder()
         sql = sql.replace("?", placeholder) if self.db_type == "mysql" else sql
-        return self.db.query(sql, params)
+        return self.storage.query(sql, params)
     
     # ==================== Phase 1: 核心分析功能 ====================
     

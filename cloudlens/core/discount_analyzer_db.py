@@ -139,12 +139,12 @@ class DiscountAnalyzerDB:
         # 使用BillStorageManager的数据库抽象层
         try:
             # 从raw_data中提取合同信息
-            rows = self.storage.db.query("""
+            rows = self.storage.query("""
                 SELECT raw_data
                 FROM bill_items
-                WHERE account_id = ?
-                    AND billing_cycle BETWEEN ? AND ?
-                    AND raw_data LIKE '%ContractNo%'
+                WHERE account_id = %s
+                    AND billing_cycle BETWEEN %s AND %s
+                    AND raw_data LIKE '%%ContractNo%%'
                 LIMIT 10000
             """, (account_id, start_cycle, end_cycle))
             
