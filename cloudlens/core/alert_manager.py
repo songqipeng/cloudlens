@@ -156,16 +156,10 @@ class AlertStorage:
         return "%s" if self.db_type == "mysql" else "?"
     
     def _init_database(self):
-        """初始化数据库（延迟执行，避免导入时连接MySQL）"""
+        """初始化数据库表结构"""
         if self.db_type == "mysql":
-            # MySQL表结构已在init_mysql_schema.sql中创建
-            # 延迟检查，避免导入时连接
-            pass
-        else:
-            # SQLite表结构（立即创建，因为SQLite是本地文件）
-            placeholder = self._get_placeholder()
-            
-            # 告警规则表
+            # MySQL 表结构 - 按依赖顺序创建
+            # 1. 首先创建 alert_rules 表（被其他表引用）
             self._get_db().execute("""
                 CREATE TABLE IF NOT EXISTS alert_rules (
                     id VARCHAR(255) PRIMARY KEY,
@@ -189,33 +183,8 @@ class AlertStorage:
                     updated_at DATETIME
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
-            # SQLite表结构
-            self._get_db().execute("""
-            CREATE TABLE IF NOT EXISTS alert_rules (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT,
-                type TEXT NOT NULL,
-                severity TEXT NOT NULL,
-                enabled INTEGER NOT NULL DEFAULT 1,
-                condition TEXT NOT NULL,
-                threshold REAL,
-                metric TEXT,
-                account_id TEXT,
-                tag_filter TEXT,
-                service_filter TEXT,
-                notify_email TEXT,
-                notify_webhook TEXT,
-                notify_sms TEXT,
-                check_interval INTEGER DEFAULT 60,
-                cooldown_period INTEGER DEFAULT 300,
-                created_at TEXT,
-                updated_at TEXT
-            )
-        """)
-        
-        # 告警记录表
-        if self.db_type == "mysql":
+            
+            # 2. 创建 alerts 表（引用 alert_rules）
             self._get_db().execute("""
                 CREATE TABLE IF NOT EXISTS alerts (
                     id VARCHAR(255) PRIMARY KEY,
@@ -238,32 +207,8 @@ class AlertStorage:
                     FOREIGN KEY (rule_id) REFERENCES alert_rules(id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
-        else:
-            self._get_db().execute("""
-            CREATE TABLE IF NOT EXISTS alerts (
-                id TEXT PRIMARY KEY,
-                rule_id TEXT NOT NULL,
-                rule_name TEXT NOT NULL,
-                severity TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'triggered',
-                title TEXT NOT NULL,
-                message TEXT,
-                metric_value REAL,
-                threshold REAL,
-                account_id TEXT,
-                resource_id TEXT,
-                resource_type TEXT,
-                triggered_at TEXT,
-                acknowledged_at TEXT,
-                resolved_at TEXT,
-                closed_at TEXT,
-                metadata TEXT,
-                FOREIGN KEY (rule_id) REFERENCES alert_rules(id)
-            )
-        """)
-        
-        # 告警历史表（用于统计）
-        if self.db_type == "mysql":
+            
+            # 3. 创建 alert_history 表（引用 alerts）
             self._get_db().execute("""
                 CREATE TABLE IF NOT EXISTS alert_history (
                     id VARCHAR(255) PRIMARY KEY,
@@ -279,20 +224,68 @@ class AlertStorage:
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """)
         else:
+            # SQLite 表结构
             self._get_db().execute("""
-            CREATE TABLE IF NOT EXISTS alert_history (
-                id TEXT PRIMARY KEY,
-                alert_id TEXT NOT NULL,
-                rule_id TEXT NOT NULL,
-                action TEXT NOT NULL,
-                status_before TEXT,
-                status_after TEXT,
-                performed_by TEXT,
-                performed_at TEXT,
-                notes TEXT,
-                FOREIGN KEY (alert_id) REFERENCES alerts(id)
-            )
-        """)
+                CREATE TABLE IF NOT EXISTS alert_rules (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    type TEXT NOT NULL,
+                    severity TEXT NOT NULL,
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    condition TEXT NOT NULL,
+                    threshold REAL,
+                    metric TEXT,
+                    account_id TEXT,
+                    tag_filter TEXT,
+                    service_filter TEXT,
+                    notify_email TEXT,
+                    notify_webhook TEXT,
+                    notify_sms TEXT,
+                    check_interval INTEGER DEFAULT 60,
+                    cooldown_period INTEGER DEFAULT 300,
+                    created_at TEXT,
+                    updated_at TEXT
+                )
+            """)
+            
+            self._get_db().execute("""
+                CREATE TABLE IF NOT EXISTS alerts (
+                    id TEXT PRIMARY KEY,
+                    rule_id TEXT NOT NULL,
+                    rule_name TEXT NOT NULL,
+                    severity TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'triggered',
+                    title TEXT NOT NULL,
+                    message TEXT,
+                    metric_value REAL,
+                    threshold REAL,
+                    account_id TEXT,
+                    resource_id TEXT,
+                    resource_type TEXT,
+                    triggered_at TEXT,
+                    acknowledged_at TEXT,
+                    resolved_at TEXT,
+                    closed_at TEXT,
+                    metadata TEXT,
+                    FOREIGN KEY (rule_id) REFERENCES alert_rules(id)
+                )
+            """)
+            
+            self._get_db().execute("""
+                CREATE TABLE IF NOT EXISTS alert_history (
+                    id TEXT PRIMARY KEY,
+                    alert_id TEXT NOT NULL,
+                    rule_id TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    status_before TEXT,
+                    status_after TEXT,
+                    performed_by TEXT,
+                    performed_at TEXT,
+                    notes TEXT,
+                    FOREIGN KEY (alert_id) REFERENCES alerts(id)
+                )
+            """)
     
     def create_rule(self, rule: AlertRule) -> str:
         """创建告警规则"""
