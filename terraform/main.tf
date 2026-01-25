@@ -130,13 +130,13 @@ resource "aws_security_group" "cloudlens_ec2" {
     cidr_blocks = var.ssh_allowed_cidrs
   }
   
-  # HTTP（临时，ALB创建后可以删除）
+  # Nginx（仅允许来自ALB）
   ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    description     = "Nginx from ALB"
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.cloudlens_alb.id]
   }
   
   # HTTPS
@@ -229,7 +229,7 @@ resource "aws_ebs_volume" "cloudlens_data" {
 
 # IAM角色（EC2实例使用）
 resource "aws_iam_role" "cloudlens_ec2" {
-  name = "${var.project_name}-ec2-role"
+  name = "${var.project_name}-ec2-role-v2"
   
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -292,27 +292,36 @@ resource "aws_iam_role_policy" "cloudlens_ec2" {
 
 # IAM实例配置文件
 resource "aws_iam_instance_profile" "cloudlens_ec2" {
-  name = "${var.project_name}-ec2-profile"
+  name = "${var.project_name}-ec2-profile-v2"
   role = aws_iam_role.cloudlens_ec2.name
 }
 
 # EC2密钥对（如果不存在）
 resource "aws_key_pair" "cloudlens" {
   count = var.create_key_pair ? 1 : 0
-  
-  key_name   = "${var.project_name}-key"
+
+  key_name   = "${var.project_name}-key-v2"
   public_key = var.ssh_public_key
-  
+
   tags = {
     Name = "${var.project_name}-key"
   }
+}
+
+locals {
+  # Route 53托管区域ID（这里只用于输出/参考，实际域名解析由阿里云负责）
+  route53_zone_id           = var.create_route53_zone ? aws_route53_zone.main[0].zone_id : (length(data.aws_route53_zone.main) > 0 ? data.aws_route53_zone.main[0].zone_id : "")
+  route53_zone_name_servers = var.create_route53_zone ? aws_route53_zone.main[0].name_servers : []
+
+  # EC2实例使用的密钥对名称：如果不开启create_key_pair且未指定existing_key_name，则不绑定Key Pair（无法SSH，仅用于跑服务）
+  ec2_key_name = var.create_key_pair ? aws_key_pair.cloudlens[0].key_name : (var.existing_key_name != "" ? var.existing_key_name : null)
 }
 
 # EC2实例
 resource "aws_instance" "cloudlens" {
   ami                    = data.aws_ami.amazon_linux.id
   instance_type          = var.instance_type
-  key_name               = var.create_key_pair ? aws_key_pair.cloudlens[0].key_name : var.existing_key_name
+  key_name               = local.ec2_key_name
   vpc_security_group_ids = [aws_security_group.cloudlens_ec2.id]
   iam_instance_profile   = aws_iam_instance_profile.cloudlens_ec2.name
   
@@ -370,63 +379,11 @@ resource "aws_route53_zone" "main" {
   }
 }
 
-locals {
-  # Route 53托管区域ID
-  route53_zone_id = var.create_route53_zone ? aws_route53_zone.main[0].zone_id : (length(data.aws_route53_zone.main) > 0 ? data.aws_route53_zone.main[0].zone_id : "")
-  route53_zone_name_servers = var.create_route53_zone ? aws_route53_zone.main[0].name_servers : []
-}
-
-# ACM证书（HTTPS）
-resource "aws_acm_certificate" "cloudlens" {
-  domain_name       = var.domain_name
-  validation_method = "DNS"
-  
-  subject_alternative_names = [
-    "*.${var.domain_name}"
-  ]
-  
-  lifecycle {
-    create_before_destroy = true
-  }
-  
-  tags = {
-    Name = "${var.project_name}-cert"
-  }
-}
-
-# Route 53 DNS验证记录
-resource "aws_route53_record" "cert_validation" {
-  for_each = {
-    for dvo in aws_acm_certificate.cloudlens.domain_validation_options : dvo.domain_name => {
-      name   = dvo.resource_record_name
-      record = dvo.resource_record_value
-      type   = dvo.resource_record_type
-    }
-  }
-  
-  allow_overwrite = true
-  name            = each.value.name
-  records         = [each.value.record]
-  ttl             = 60
-  type            = each.value.type
-  zone_id         = local.route53_zone_id
-}
-
-# 证书验证
-resource "aws_acm_certificate_validation" "cloudlens" {
-  certificate_arn = aws_acm_certificate.cloudlens.arn
-  validation_record_fqdns = [
-    for record in aws_route53_record.cert_validation : record.fqdn
-  ]
-  
-  timeouts {
-    create = "5m"
-  }
-}
+// 注意：这里不再创建/验证ACM证书，先使用HTTP验证服务是否正常
 
 # Application Load Balancer
 resource "aws_lb" "cloudlens" {
-  name               = "${var.project_name}-alb"
+  name               = "${var.project_name}-alb-v2"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.cloudlens_alb.id]
@@ -445,9 +402,34 @@ resource "aws_lb" "cloudlens" {
   }
 }
 
-# ALB目标组（后端）
+# ALB目标组（Nginx - 统一入口）
+resource "aws_lb_target_group" "nginx" {
+  name     = "${var.project_name}-nginx-tg-v2"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = local.vpc_id
+  
+  health_check {
+    enabled             = true
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+    timeout             = 5
+    interval            = 30
+    path                = "/health"
+    protocol            = "HTTP"
+    matcher             = "200"
+  }
+  
+  deregistration_delay = 30
+  
+  tags = {
+    Name = "${var.project_name}-nginx-tg"
+  }
+}
+
+# ALB目标组（后端 - 保留用于健康检查参考）
 resource "aws_lb_target_group" "backend" {
-  name     = "${var.project_name}-backend-tg"
+  name     = "${var.project_name}-backend-tg-v2"
   port     = 8000
   protocol = "HTTP"
   vpc_id   = local.vpc_id
@@ -472,7 +454,7 @@ resource "aws_lb_target_group" "backend" {
 
 # ALB目标组（前端）
 resource "aws_lb_target_group" "frontend" {
-  name     = "${var.project_name}-frontend-tg"
+  name     = "${var.project_name}-frontend-tg-v2"
   port     = 3000
   protocol = "HTTP"
   vpc_id   = local.vpc_id
@@ -495,86 +477,45 @@ resource "aws_lb_target_group" "frontend" {
   }
 }
 
-# 注册目标（后端）
+# 注册目标（Nginx - 统一入口）
+resource "aws_lb_target_group_attachment" "nginx" {
+  target_group_arn = aws_lb_target_group.nginx.arn
+  target_id        = aws_instance.cloudlens.id
+  port             = 80
+}
+
+# 注册目标（后端 - 保留）
 resource "aws_lb_target_group_attachment" "backend" {
   target_group_arn = aws_lb_target_group.backend.arn
   target_id        = aws_instance.cloudlens.id
   port             = 8000
 }
 
-# 注册目标（前端）
+# 注册目标（前端 - 保留）
 resource "aws_lb_target_group_attachment" "frontend" {
   target_group_arn = aws_lb_target_group.frontend.arn
   target_id        = aws_instance.cloudlens.id
   port             = 3000
 }
 
-# ALB监听器（HTTP - 重定向到HTTPS）
+# ALB监听器（HTTP - 所有流量走Nginx）
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.cloudlens.arn
   port              = "80"
   protocol          = "HTTP"
-  
-  default_action {
-    type = "redirect"
-    
-    redirect {
-      port        = "443"
-      protocol    = "HTTPS"
-      status_code = "HTTP_301"
-    }
-  }
-}
 
-# ALB监听器（HTTPS）
-resource "aws_lb_listener" "https" {
-  load_balancer_arn = aws_lb.cloudlens.arn
-  port              = "443"
-  protocol          = "HTTPS"
-  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = aws_acm_certificate_validation.cloudlens.certificate_arn
-  
-  # 默认路由到前端
+  # 所有流量转发到Nginx，由Nginx做路由分发
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.frontend.arn
+    target_group_arn = aws_lb_target_group.nginx.arn
   }
 }
 
-# ALB监听器规则（API路由到后端 - 优先级高）
-resource "aws_lb_listener_rule" "api" {
-  listener_arn = aws_lb_listener.https.arn
-  priority     = 100
-  
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.backend.arn
-  }
-  
-  condition {
-    path_pattern {
-      values = ["/api/*"]
-    }
-  }
-}
-
-# Route 53 A记录（指向ALB）
-# 注意：如果域名在阿里云，这个记录不会生效，需要在阿里云配置A记录指向ALB的DNS名称
-resource "aws_route53_record" "cloudlens" {
-  zone_id = local.route53_zone_id
-  name    = var.domain_name
-  type    = "A"
-  
-  alias {
-    name                   = aws_lb.cloudlens.dns_name
-    zone_id                = aws_lb.cloudlens.zone_id
-    evaluate_target_health = true
-  }
-}
+# 删除原来的 /api/* 路由规则，让 Nginx 处理所有路由
 
 # CloudWatch日志组
 resource "aws_cloudwatch_log_group" "cloudlens" {
-  name              = "/aws/ec2/${var.project_name}"
+  name              = "/aws/ec2/${var.project_name}-v2"
   retention_in_days = 7
   
   tags = {

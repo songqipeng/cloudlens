@@ -63,8 +63,8 @@ def _load_notification_config():
 
 def _get_notification_service():
     """获取通知服务实例（每次调用时重新加载配置）"""
-    config = _load_notification_config()
-    return NotificationService(config=config)
+    # NotificationService 从环境变量读取配置，无需传递 config 参数
+    return NotificationService()
 
 _notification_service = _get_notification_service()
 

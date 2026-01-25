@@ -1,0 +1,53 @@
+qx
+
+
+q
+
+
+
+:q
+
+
+
+
+q
+
+
+sss# CloudLens Terraform配置示例
+# 复制此文件为 terraform.tfvars 并填写实际值
+
+# AWS配置
+aws_region = "ap-northeast-1"  # 日本东京（推荐）
+# 或
+# aws_region = "ap-east-1"     # 香港
+# 或
+# aws_region = "us-east-1"      # 美国东部（最便宜）
+
+# 域名配置
+domain_name         = "cloudlens.songqipeng.com"
+route53_zone_name   = "songqipeng.com"
+create_route53_zone = false  # 如果域名已在Route 53，设为false
+
+# EC2配置
+instance_type = "t3.medium"  # 或 t3.small (更便宜)
+ebs_volume_size = 50  # GB
+
+# 网络配置
+create_vpc = false  # 使用默认VPC（推荐）或创建新VPC
+# 如果create_vpc=true，需要配置以下：
+# vpc_cidr = "10.0.0.0/16"
+# public_subnet_cidr = "10.0.1.0/24"
+
+# SSH配置
+create_key_pair = true
+ssh_public_key  = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ... your-email@example.com"  # 您的SSH公钥
+# 或使用现有密钥对：
+# create_key_pair = false
+# existing_key_name = "my-existing-key"
+
+ssh_allowed_cidrs = ["0.0.0.0/0"]  # 生产环境应该限制为特定IP，例如: ["1.2.3.4/32"]
+
+# 数据库配置
+mysql_user     = "cloudlens"
+mysql_password = "CHANGE_ME_TO_SECURE_PASSWORD"  # ⚠️ 请修改为强密码
+mysql_database = "cloudlens"

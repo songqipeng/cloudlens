@@ -7,12 +7,27 @@
 import { getTranslations } from "./i18n"
 import type { Locale } from "./i18n"
 
-// 使用环境变量配置API地址，如果没有则使用默认值
-const API_BASE = process.env.NEXT_PUBLIC_API_URL 
-    ? `${process.env.NEXT_PUBLIC_API_URL}/api`
-    : (typeof window !== "undefined" 
-        ? `${window.location.protocol}//${window.location.hostname}:8000/api`
-        : "http://127.0.0.1:8000/api")
+// 使用环境变量配置API地址
+// 生产环境：使用相对路径 /api（由nginx代理）
+// 开发环境：使用 localhost:8000
+const API_BASE = (() => {
+    // 服务端渲染时的默认值
+    if (typeof window === "undefined") {
+        return "http://127.0.0.1:8000/api"
+    }
+    
+    // 浏览器环境：检查是否为开发环境
+    const hostname = window.location.hostname
+    const isLocalDev = hostname === "localhost" || hostname === "127.0.0.1"
+    
+    if (isLocalDev) {
+        // 本地开发：直接访问后端
+        return "http://localhost:8000/api"
+    } else {
+        // 生产环境：使用相对路径，由nginx代理到后端
+        return `${window.location.origin}/api`
+    }
+})()
 
 // 请求去重Map
 const pendingRequests = new Map<string, Promise<any>>()
@@ -284,8 +299,8 @@ export async function apiPost<T = any>(
                 console.error(`[API] 网络错误: ${url}`, fetchError)
                 const locale = getCurrentLocale() as Locale
                 const networkErrorMessage = locale === 'zh'
-                    ? `无法连接到服务器。请检查：\n1. 后端服务是否运行（http://localhost:8000）\n2. 网络连接是否正常\n3. 浏览器控制台是否有 CORS 错误`
-                    : `Cannot connect to server. Please check:\n1. Is backend service running (http://localhost:8000)?\n2. Is network connection normal?\n3. Are there CORS errors in browser console?`
+                    ? `无法连接到服务器。请检查网络连接是否正常，或稍后重试。`
+                    : `Cannot connect to server. Please check your network connection or try again later.`
                 throw new ApiError(0, { 
                     error: networkErrorMessage,
                     originalError: String(fetchError),

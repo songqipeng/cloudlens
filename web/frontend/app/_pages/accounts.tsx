@@ -147,7 +147,7 @@ export default function AccountsPage() {
         errorMessage = e.message
         // 如果是网络错误，提供更详细的提示
         if (e.message.includes("Failed to fetch") || e.message.includes("无法连接到服务器")) {
-          errorMessage = "无法连接到后端服务。请确保后端服务正在运行（http://localhost:8000）"
+          errorMessage = "无法连接到后端服务。请检查网络连接或稍后重试。"
         }
       } else if (e?.detail) {
         // 处理detail对象
@@ -230,7 +230,7 @@ export default function AccountsPage() {
         errorMessage = e.message
         // 如果是网络错误，提供更详细的提示
         if (e.message.includes("Failed to fetch") || e.message.includes("无法连接到服务器")) {
-          errorMessage = "无法连接到后端服务。请确保后端服务正在运行（http://localhost:8000）"
+          errorMessage = "无法连接到后端服务。请检查网络连接或稍后重试。"
         }
       } else if (e?.detail) {
         // 处理detail对象
