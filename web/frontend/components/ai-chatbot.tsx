@@ -144,24 +144,24 @@ export function AIChatbot() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-8 right-8 z-[100] group"
+        className="fixed bottom-20 sm:bottom-8 right-4 sm:right-8 z-[100] group"
         aria-label="打开AI助手"
       >
         <div className="relative">
           {/* 光晕效果 */}
           <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 opacity-75 blur-xl group-hover:opacity-100 transition-opacity duration-300" />
 
-          {/* 主按钮 */}
-          <div className="relative bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 rounded-full p-5 shadow-2xl transform transition-all duration-300 hover:scale-110 hover:rotate-12">
-            <Sparkles className="w-7 h-7 text-white" />
+          {/* 主按钮 - 移动端稍小 */}
+          <div className="relative bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 rounded-full p-3.5 sm:p-5 shadow-2xl transform transition-all duration-300 hover:scale-110 hover:rotate-12">
+            <Sparkles className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
           </div>
 
           {/* 脉冲动画 */}
           <div className="absolute inset-0 rounded-full bg-blue-500 animate-ping opacity-20" />
         </div>
 
-        {/* 提示文字 */}
-        <div className="absolute right-full mr-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+        {/* 提示文字 - 仅桌面端显示 */}
+        <div className="hidden sm:block absolute right-full mr-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
           <div className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-4 py-2 rounded-lg shadow-lg whitespace-nowrap text-sm font-medium">
             CloudLens AI 助手
             <div className="absolute left-full top-1/2 -translate-y-1/2 border-8 border-transparent border-l-blue-600" />
@@ -173,11 +173,11 @@ export function AIChatbot() {
 
   return (
     <div
-      className="fixed bottom-8 right-8 z-[100] flex flex-col transition-all duration-300"
-      style={{ width: '480px', height: '680px' }}
+      className="fixed inset-4 sm:inset-auto sm:bottom-8 sm:right-8 z-[100] flex flex-col transition-all duration-300"
+      style={{ maxWidth: '100%', maxHeight: '100%' }}
     >
-      {/* 主容器 */}
-      <div className="relative flex flex-col h-full rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/95 to-slate-950/95 backdrop-blur-xl shadow-2xl overflow-hidden">
+      {/* 移动端全屏容器，桌面端固定尺寸 */}
+      <div className="relative flex flex-col h-full sm:w-[480px] sm:h-[680px] rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900/95 to-slate-950/95 backdrop-blur-xl shadow-2xl overflow-hidden">
         {/* 顶部渐变装饰 */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-cyan-500 to-blue-500" />
 

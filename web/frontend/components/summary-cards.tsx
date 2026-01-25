@@ -83,125 +83,126 @@ export function SummaryCards({
     }
     
     return (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
             <Card className="group hover:shadow-xl hover:shadow-primary/20 transition-all duration-300 hover:-translate-y-1">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">{t.dashboard.totalCost}</CardTitle>
-                    <div className="p-2.5 bg-primary/10 rounded-xl group-hover:bg-primary/20 transition-colors">
-                        <DollarSign className="h-5 w-5 text-primary" />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{t.dashboard.totalCost}</CardTitle>
+                    <div className="p-1.5 sm:p-2.5 bg-primary/10 rounded-lg sm:rounded-xl group-hover:bg-primary/20 transition-colors">
+                        <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                     </div>
                 </CardHeader>
-                <CardContent>
-                    {/* Finout 风格：大数字显示（48px），等宽字体，超过1万以万为单位 */}
-                    <div className="text-[48px] font-bold tracking-tight mb-2 font-mono tabular-nums leading-none">
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                    {/* 响应式数字：移动端28px，桌面端48px */}
+                    <div className="text-[28px] sm:text-[36px] lg:text-[48px] font-bold tracking-tight mb-1 sm:mb-2 font-mono tabular-nums leading-none">
                         <AnimatedNumber value={safeTotalCost} useWan={true} />
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">
                         {t.dashboard.monthlyEstimate}
                     </p>
                 </CardContent>
             </Card>
 
             <Card className="group hover:shadow-xl hover:shadow-blue-500/20 transition-all duration-300 hover:-translate-y-1">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">{t.dashboard.costTrend}</CardTitle>
-                    <div className="p-2.5 bg-blue-500/10 rounded-xl group-hover:bg-blue-500/20 transition-colors">
-                        <Activity className="h-5 w-5 text-blue-500" />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{t.dashboard.costTrend}</CardTitle>
+                    <div className="p-1.5 sm:p-2.5 bg-blue-500/10 rounded-lg sm:rounded-xl group-hover:bg-blue-500/20 transition-colors">
+                        <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
                     </div>
                 </CardHeader>
-                <CardContent>
-                    {/* Finout 风格：趋势指示器 */}
-                    <div className="text-3xl font-bold tracking-tight mb-2">{getTrendText(safeTrend)}</div>
-                    <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                    {/* 响应式趋势文字 */}
+                    <div className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight mb-1 sm:mb-2">{getTrendText(safeTrend)}</div>
+                    <p className="flex items-center gap-1 text-[10px] sm:text-xs text-muted-foreground flex-wrap">
                         {safeTrendPct > 0 ? (
-                            <span className="text-[#ef4444] flex items-center gap-1 font-semibold">
-                                <ArrowUpRight className="h-3.5 w-3.5" /> {safeTrendPct.toFixed(1)}%
+                            <span className="text-[#ef4444] flex items-center gap-0.5 font-semibold">
+                                <ArrowUpRight className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> {safeTrendPct.toFixed(1)}%
                             </span>
                         ) : safeTrendPct < 0 ? (
-                            <span className="text-[#10b981] flex items-center gap-1 font-semibold">
-                                <ArrowDownRight className="h-3.5 w-3.5" /> {Math.abs(safeTrendPct).toFixed(1)}%
+                            <span className="text-[#10b981] flex items-center gap-0.5 font-semibold">
+                                <ArrowDownRight className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> {Math.abs(safeTrendPct).toFixed(1)}%
                             </span>
                         ) : (
                             <span className="text-muted-foreground">—</span>
                         )}
-                        <span>{t.dashboard.comparedToLastMonth}</span>
+                        <span className="hidden sm:inline">{t.dashboard.comparedToLastMonth}</span>
                     </p>
                 </CardContent>
             </Card>
 
             <Card className="group hover:shadow-xl hover:shadow-orange-500/20 transition-all duration-300 hover:-translate-y-1">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">{t.dashboard.idleResources}</CardTitle>
-                    <div className="p-2.5 bg-orange-500/10 rounded-xl group-hover:bg-orange-500/20 transition-colors">
-                        <CloudOff className="h-5 w-5 text-orange-500" />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{t.dashboard.idleResources}</CardTitle>
+                    <div className="p-1.5 sm:p-2.5 bg-orange-500/10 rounded-lg sm:rounded-xl group-hover:bg-orange-500/20 transition-colors">
+                        <CloudOff className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500" />
                     </div>
                 </CardHeader>
-                <CardContent>
-                    {/* Finout 风格：大数字，等宽字体 */}
-                    <div className="text-[48px] font-bold tracking-tight text-[#f59e0b] mb-2 font-mono tabular-nums leading-none animate-count-up">{safeIdleCount}</div>
-                    <p className="text-xs text-muted-foreground">
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                    {/* 响应式数字 */}
+                    <div className="text-[28px] sm:text-[36px] lg:text-[48px] font-bold tracking-tight text-[#f59e0b] mb-1 sm:mb-2 font-mono tabular-nums leading-none animate-count-up">{safeIdleCount}</div>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">
                         {t.dashboard.suggestHandle}
                     </p>
                 </CardContent>
             </Card>
 
             <Card className="group hover:shadow-xl hover:shadow-green-500/20 transition-all duration-300 hover:-translate-y-1">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">{t.dashboard.totalResources}</CardTitle>
-                    <div className="p-2.5 bg-green-500/10 rounded-xl group-hover:bg-green-500/20 transition-colors">
-                        <Server className="h-5 w-5 text-green-500" />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{t.dashboard.totalResources}</CardTitle>
+                    <div className="p-1.5 sm:p-2.5 bg-green-500/10 rounded-lg sm:rounded-xl group-hover:bg-green-500/20 transition-colors">
+                        <Server className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
                     </div>
                 </CardHeader>
-                <CardContent>
-                    <div className="text-[48px] font-bold tracking-tight mb-2 font-mono tabular-nums leading-none animate-count-up">{safeTotalResources}</div>
-                    <p className="text-xs text-muted-foreground">
-                        ECS: {resourceBreakdown.ecs} | RDS: {resourceBreakdown.rds} | Redis: {resourceBreakdown.redis}
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                    <div className="text-[28px] sm:text-[36px] lg:text-[48px] font-bold tracking-tight mb-1 sm:mb-2 font-mono tabular-nums leading-none animate-count-up">{safeTotalResources}</div>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                        <span className="hidden sm:inline">ECS: {resourceBreakdown.ecs} | RDS: {resourceBreakdown.rds} | Redis: {resourceBreakdown.redis}</span>
+                        <span className="sm:hidden">{resourceBreakdown.ecs + resourceBreakdown.rds + resourceBreakdown.redis} 实例</span>
                     </p>
                 </CardContent>
             </Card>
 
             <Card className="group hover:shadow-xl hover:shadow-red-500/20 transition-all duration-300 hover:-translate-y-1">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">{t.dashboard.alertCount}</CardTitle>
-                    <div className="p-2.5 bg-red-500/10 rounded-xl group-hover:bg-red-500/20 transition-colors">
-                        <AlertTriangle className="h-5 w-5 text-red-500" />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{t.dashboard.alertCount}</CardTitle>
+                    <div className="p-1.5 sm:p-2.5 bg-red-500/10 rounded-lg sm:rounded-xl group-hover:bg-red-500/20 transition-colors">
+                        <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-red-500" />
                     </div>
                 </CardHeader>
-                <CardContent>
-                    <div className="text-[48px] font-bold tracking-tight text-[#ef4444] mb-2 font-mono tabular-nums leading-none animate-count-up">{safeAlertCount}</div>
-                    <p className="text-xs text-muted-foreground">
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                    <div className="text-[28px] sm:text-[36px] lg:text-[48px] font-bold tracking-tight text-[#ef4444] mb-1 sm:mb-2 font-mono tabular-nums leading-none animate-count-up">{safeAlertCount}</div>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">
                         {t.dashboard.needAttention}
                     </p>
                 </CardContent>
             </Card>
 
             <Card className="group hover:shadow-xl hover:shadow-purple-500/20 transition-all duration-300 hover:-translate-y-1">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">{t.dashboard.tagCoverage}</CardTitle>
-                    <div className="p-2.5 bg-purple-500/10 rounded-xl group-hover:bg-purple-500/20 transition-colors">
-                        <Tag className="h-5 w-5 text-purple-500" />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{t.dashboard.tagCoverage}</CardTitle>
+                    <div className="p-1.5 sm:p-2.5 bg-purple-500/10 rounded-lg sm:rounded-xl group-hover:bg-purple-500/20 transition-colors">
+                        <Tag className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
                     </div>
                 </CardHeader>
-                <CardContent>
-                    <div className="text-[48px] font-bold tracking-tight mb-2 font-mono tabular-nums leading-none animate-count-up">{safeTagCoverage.toFixed(1)}%</div>
-                    <p className="text-xs text-muted-foreground">
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                    <div className="text-[28px] sm:text-[36px] lg:text-[48px] font-bold tracking-tight mb-1 sm:mb-2 font-mono tabular-nums leading-none animate-count-up">{safeTagCoverage.toFixed(1)}%</div>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">
                         {t.dashboard.resourceTagCompleteness}
                     </p>
                 </CardContent>
             </Card>
 
-            <Card className="group hover:shadow-xl hover:shadow-emerald-500/20 transition-all duration-300 hover:-translate-y-1">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">{t.dashboard.savingsPotential}</CardTitle>
-                    <div className="p-2.5 bg-emerald-500/10 rounded-xl group-hover:bg-emerald-500/20 transition-colors">
-                        <TrendingDown className="h-5 w-5 text-emerald-500" />
+            <Card className="group hover:shadow-xl hover:shadow-emerald-500/20 transition-all duration-300 hover:-translate-y-1 col-span-2 sm:col-span-1">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{t.dashboard.savingsPotential}</CardTitle>
+                    <div className="p-1.5 sm:p-2.5 bg-emerald-500/10 rounded-lg sm:rounded-xl group-hover:bg-emerald-500/20 transition-colors">
+                        <TrendingDown className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-500" />
                     </div>
                 </CardHeader>
-                <CardContent>
-                    <div className="text-[48px] font-bold tracking-tight text-[#10b981] mb-2 font-mono tabular-nums leading-none">
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                    <div className="text-[28px] sm:text-[36px] lg:text-[48px] font-bold tracking-tight text-[#10b981] mb-1 sm:mb-2 font-mono tabular-nums leading-none">
                         <AnimatedNumber value={safeSavingsPotential} useWan={true} />
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">
                         {t.dashboard.monthlySavingsPotential}
                     </p>
                 </CardContent>

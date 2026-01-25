@@ -690,40 +690,38 @@ pip install -r requirements.txt
 
   return (
     <DashboardLayout>
-      <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6 animate-fade-in">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">{t.dashboard.title}</h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleScan}
-              disabled={scanning}
-              className="px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-all duration-200 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap hover:-translate-y-0.5"
-            >
-              {scanning ? (
-                <>
-                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  {t.dashboard.scanning}
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  {t.dashboard.scanNow}
-                </>
-              )}
-            </button>
-          </div>
+      <div className="p-4 sm:p-6 md:p-8 max-w-[1600px] mx-auto space-y-4 sm:space-y-6 animate-fade-in">
+        {/* Header - 移动端优化 */}
+        <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-foreground">{t.dashboard.title}</h1>
+          <button
+            onClick={handleScan}
+            disabled={scanning}
+            className="px-3 py-2 sm:px-5 sm:py-2.5 bg-primary text-primary-foreground rounded-lg text-xs sm:text-sm font-medium hover:bg-primary/90 transition-all duration-200 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 sm:gap-2 whitespace-nowrap hover:-translate-y-0.5 flex-shrink-0"
+          >
+            {scanning ? (
+              <>
+                <svg className="animate-spin h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                <span className="hidden sm:inline">{t.dashboard.scanning}</span>
+                <span className="sm:hidden">扫描中</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span className="hidden sm:inline">{t.dashboard.scanNow}</span>
+                <span className="sm:hidden">扫描</span>
+              </>
+            )}
+          </button>
         </div>
 
         {/* Summary Cards */}
@@ -769,57 +767,57 @@ pip install -r requirements.txt
               }
 
               return (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-4">
                   <Card className="glass border border-border/50 shadow-xl">
-                    <CardContent className="pt-6">
-                      <div className="text-sm text-muted-foreground mb-2">
+                    <CardContent className="p-3 sm:pt-6 sm:p-6">
+                      <div className="text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">
                         {t.dashboard.totalCost || "总成本"}
                       </div>
-                      <div className="text-2xl font-bold">
-                        ¥{totalCost.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <div className="text-lg sm:text-2xl font-bold">
+                        ¥{totalCost.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </div>
                     </CardContent>
                   </Card>
                   <Card className="glass border border-border/50 shadow-xl">
-                    <CardContent className="pt-6">
-                      <div className="text-sm text-muted-foreground mb-2">
+                    <CardContent className="p-3 sm:pt-6 sm:p-6">
+                      <div className="text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">
                         {t.dashboard.avgDailyCost || "日均成本"}
                       </div>
-                      <div className="text-2xl font-bold">
-                        ¥{avgDailyCost.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <div className="text-lg sm:text-2xl font-bold">
+                        ¥{avgDailyCost.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </div>
                     </CardContent>
                   </Card>
                   <Card className="glass border border-border/50 shadow-xl">
-                    <CardContent className="pt-6">
-                      <div className="text-sm text-muted-foreground mb-2">
+                    <CardContent className="p-3 sm:pt-6 sm:p-6">
+                      <div className="text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">
                         {t.dashboard.maxDailyCost || "最高日成本"}
                       </div>
-                      <div className="text-2xl font-bold">
-                        ¥{maxDailyCost.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <div className="text-lg sm:text-2xl font-bold">
+                        ¥{maxDailyCost.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </div>
                     </CardContent>
                   </Card>
                   <Card className="glass border border-border/50 shadow-xl">
-                    <CardContent className="pt-6">
-                      <div className="text-sm text-muted-foreground mb-2">
+                    <CardContent className="p-3 sm:pt-6 sm:p-6">
+                      <div className="text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">
                         {t.dashboard.minDailyCost || "最低日成本"}
                       </div>
-                      <div className="text-2xl font-bold">
-                        ¥{minDailyCost.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <div className="text-lg sm:text-2xl font-bold">
+                        ¥{minDailyCost.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </div>
                     </CardContent>
                   </Card>
-                  <Card className="glass border border-border/50 shadow-xl">
-                    <CardContent className="pt-6">
-                      <div className="text-sm text-muted-foreground mb-2">
+                  <Card className="glass border border-border/50 shadow-xl col-span-2 sm:col-span-1">
+                    <CardContent className="p-3 sm:pt-6 sm:p-6">
+                      <div className="text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">
                         {t.dashboard.trend || "趋势"}
                       </div>
-                      <div className={`text-2xl font-bold flex items-center gap-2 ${trend === "上升" ? "text-red-500" : trend === "下降" ? "text-green-500" : "text-muted-foreground"
+                      <div className={`text-lg sm:text-2xl font-bold flex items-center gap-1 sm:gap-2 ${trend === "上升" ? "text-red-500" : trend === "下降" ? "text-green-500" : "text-muted-foreground"
                         }`}>
                         {trend === "上升" ? "↑" : trend === "下降" ? "↓" : "→"} {Math.abs(trendPct).toFixed(1)}%
                       </div>
-                      <div className={`text-xs mt-1 ${trend === "上升" ? "text-red-500" : trend === "下降" ? "text-green-500" : "text-muted-foreground"
+                      <div className={`text-[10px] sm:text-xs mt-0.5 sm:mt-1 ${trend === "上升" ? "text-red-500" : trend === "下降" ? "text-green-500" : "text-muted-foreground"
                         }`}>
                         {trend}
                       </div>
