@@ -15,11 +15,13 @@ import {
     Percent,
     Wallet,
     Menu,
-    X
+    X,
+    LogOut
 } from "lucide-react"
 import { AccountSelector } from "@/components/account-selector"
 import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
+import { useAuth } from "@/contexts/auth-context"
 
 interface DashboardLayoutProps {
     children: ReactNode
@@ -29,6 +31,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     const pathname = usePathname()
     const { currentAccount } = useAccount()
     const { t, locale } = useLocale()
+    const { logout, user } = useAuth()
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
     // currentAccount 可能在首次渲染时还没从 /a/[account]/layout 同步进来
@@ -118,6 +121,17 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                         <div className="p-4 border-t border-[rgba(255,255,255,0.08)]">
                             <AccountSelector />
                         </div>
+                        {/* 退出登录按钮 - 移动端 */}
+                        <div className="p-4 border-t border-[rgba(255,255,255,0.08)]">
+                            <button
+                                onClick={logout}
+                                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-red-400 hover:bg-red-500/10 transition-all duration-200"
+                            >
+                                <LogOut className="h-5 w-5" />
+                                <span>{locale === 'zh' ? '退出登录' : 'Sign Out'}</span>
+                                {user && <span className="ml-auto text-xs text-muted-foreground">({user.username})</span>}
+                            </button>
+                        </div>
                     </aside>
                 </div>
             )}
@@ -164,9 +178,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     </nav>
                     
                     {/* Footer - Finout 风格：简洁 */}
-                    <div className="mt-auto pt-6 border-t border-[rgba(255,255,255,0.08)]">
-                        {/* 账号选择器 - 移到底部 */}
+                    <div className="mt-auto pt-6 border-t border-[rgba(255,255,255,0.08)] space-y-4">
+                        {/* 账号选择器 */}
                         <AccountSelector />
+                        
+                        {/* 退出登录按钮 - 桌面端 */}
+                        <button
+                            onClick={logout}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-all duration-200"
+                        >
+                            <LogOut className="h-4 w-4" />
+                            <span>{locale === 'zh' ? '退出登录' : 'Sign Out'}</span>
+                            {user && <span className="ml-auto text-xs opacity-60">({user.username})</span>}
+                        </button>
                     </div>
                 </div>
             </aside>

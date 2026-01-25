@@ -1,150 +1,257 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { BarChart3, Eye, EyeOff, Loader2, Lock, User } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { login } from '@/lib/auth'
 
 export default function LoginPage() {
   const router = useRouter()
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  // 粒子动画
+  useEffect(() => {
+    setMounted(true)
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    let animationId: number
+    let particles: { x: number; y: number; speed: number; size: number }[] = []
+
+    const init = () => {
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+      particles = []
+      for (let i = 0; i < 50; i++) {
+        particles.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          speed: 0.5 + Math.random() * 2,
+          size: 1 + Math.random() * 2
+        })
+      }
+    }
+
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.fillStyle = '#0ea5e9'
+      particles.forEach(p => {
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
+        ctx.fill()
+        p.y -= p.speed
+        if (p.y < 0) p.y = canvas.height
+      })
+      animationId = requestAnimationFrame(draw)
+    }
+
+    init()
+    draw()
+
+    const handleResize = () => init()
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      cancelAnimationFrame(animationId)
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
-    // 简单验证
     if (!username.trim() || !password.trim()) {
-      setError('请输入用户名和密码')
+      setError('// ERROR: CREDENTIALS_REQUIRED')
       setLoading(false)
       return
     }
 
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 500))
+    await new Promise(resolve => setTimeout(resolve, 800))
 
     const success = login(username, password)
     
     if (success) {
-      // 登录成功，跳转到首页
       router.push('/')
       router.refresh()
     } else {
-      setError('用户名或密码错误')
+      setError('// ERROR: AUTH_FAILED - INVALID_CREDENTIALS')
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-4">
-      {/* 背景装饰 */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-[128px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-[128px]" />
+    <div 
+      className="min-h-screen bg-black flex items-center justify-center p-4 relative overflow-hidden"
+      style={{
+        backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255, 255, 255, 0.05) 1px, transparent 0)',
+        backgroundSize: '40px 40px'
+      }}
+    >
+      {/* 粒子背景 */}
+      <canvas 
+        ref={canvasRef} 
+        className="fixed inset-0 pointer-events-none opacity-40"
+        style={{ zIndex: 0 }}
+      />
+
+      {/* 扫描线效果 */}
+      <div 
+        className="fixed inset-0 pointer-events-none opacity-30"
+        style={{
+          background: 'linear-gradient(to bottom, transparent 50%, rgba(14, 165, 233, 0.03) 50%)',
+          backgroundSize: '100% 4px',
+          zIndex: 1
+        }}
+      />
+
+      {/* HUD 角标 */}
+      <div className="fixed top-6 left-6 font-mono text-xs text-cyan-500/60 tracking-widest z-10">
+        // SYS.AUTH_GATEWAY
+      </div>
+      <div className="fixed top-6 right-6 font-mono text-xs text-cyan-500/60 tracking-widest z-10">
+        PROTOCOL: SECURE_v2.1
+      </div>
+      <div className="fixed bottom-6 left-6 font-mono text-xs text-cyan-500/60 tracking-widest z-10">
+        {mounted && new Date().toLocaleTimeString('en-US', { hour12: false })}
+      </div>
+      <div className="fixed bottom-6 right-6 font-mono text-xs text-cyan-500/60 tracking-widest z-10">
+        CLOUDLENS_CORE
       </div>
 
       {/* 登录卡片 */}
-      <div className="relative w-full max-w-md">
+      <div className={`relative w-full max-w-md z-10 transition-all duration-1000 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         {/* 卡片光晕 */}
-        <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 via-blue-500/20 to-primary/20 rounded-2xl blur-xl opacity-50" />
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500/20 via-purple-500/20 to-cyan-500/20 rounded-lg blur-xl opacity-50" />
         
-        <div className="relative bg-[rgba(15,15,20,0.95)] backdrop-blur-[20px] border border-[rgba(255,255,255,0.08)] rounded-2xl p-8 shadow-2xl">
-          {/* Logo和标题 */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-blue-600 mb-4 shadow-lg shadow-primary/30">
-              <BarChart3 className="w-8 h-8 text-white" />
+        <div className="relative bg-black/80 backdrop-blur-xl border border-white/10 rounded-lg overflow-hidden">
+          {/* 顶部装饰线 */}
+          <div className="h-px bg-gradient-to-r from-transparent via-cyan-500 to-transparent" />
+          
+          <div className="p-8 sm:p-10">
+            {/* 标题区域 */}
+            <div className="text-center mb-10">
+              <div className="font-mono text-xs text-cyan-500 tracking-[0.5em] mb-4 uppercase">
+                Intelligence Access Gateway
+              </div>
+              <h1 
+                className="text-4xl sm:text-5xl font-black tracking-tight mb-2"
+                style={{ 
+                  fontFamily: "'Orbitron', sans-serif",
+                  background: 'linear-gradient(to bottom, #fff, rgba(255,255,255,0.4))',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent'
+                }}
+              >
+                CLOUDLENS
+              </h1>
+              <div 
+                className="text-sm tracking-[0.3em] text-white/30"
+                style={{ fontFamily: "'Orbitron', sans-serif" }}
+              >
+                PRISM PROTOCOL
+              </div>
+              
+              {/* 装饰线 */}
+              <div className="w-px h-12 bg-gradient-to-b from-cyan-500 to-transparent mx-auto mt-6" />
             </div>
-            <h1 className="text-2xl font-bold text-white mb-2">CloudLens</h1>
-            <p className="text-sm text-muted-foreground">多云资源治理平台</p>
-          </div>
 
-          {/* 登录表单 */}
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* 用户名 */}
-            <div className="space-y-2">
-              <label htmlFor="username" className="text-sm font-medium text-muted-foreground">
-                用户名
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            {/* 登录表单 */}
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* 用户名 */}
+              <div className="space-y-2">
+                <label className="font-mono text-xs text-cyan-500 tracking-widest uppercase">
+                  // USER_ID
+                </label>
                 <input
-                  id="username"
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="请输入用户名"
-                  className="w-full h-12 pl-11 pr-4 bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] rounded-xl text-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all"
+                  placeholder="ENTER_USERNAME"
+                  className="w-full h-12 px-4 bg-white/5 border border-white/10 rounded text-white font-mono placeholder:text-white/20 focus:outline-none focus:border-cyan-500/50 focus:bg-white/10 transition-all"
                   disabled={loading}
                   autoComplete="username"
                 />
               </div>
-            </div>
 
-            {/* 密码 */}
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium text-muted-foreground">
-                密码
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="请输入密码"
-                  className="w-full h-12 pl-11 pr-12 bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] rounded-xl text-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all"
-                  disabled={loading}
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-white transition-colors"
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
+              {/* 密码 */}
+              <div className="space-y-2">
+                <label className="font-mono text-xs text-cyan-500 tracking-widest uppercase">
+                  // ACCESS_KEY
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="w-full h-12 px-4 pr-12 bg-white/5 border border-white/10 rounded text-white font-mono placeholder:text-white/20 focus:outline-none focus:border-cyan-500/50 focus:bg-white/10 transition-all"
+                    disabled={loading}
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-white/30 hover:text-cyan-500 transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {/* 错误提示 */}
-            {error && (
-              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                <p className="text-sm text-red-400">{error}</p>
-              </div>
-            )}
-
-            {/* 登录按钮 */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full h-12 bg-gradient-to-r from-primary to-blue-600 hover:from-primary/90 hover:to-blue-600/90 text-white font-medium rounded-xl transition-all duration-200 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  登录中...
-                </>
-              ) : (
-                '登录'
+              {/* 错误提示 */}
+              {error && (
+                <div className="p-3 border border-red-500/30 rounded bg-red-500/5">
+                  <p className="font-mono text-xs text-red-400">{error}</p>
+                </div>
               )}
-            </button>
-          </form>
 
-          {/* 底部信息 */}
-          <div className="mt-8 pt-6 border-t border-[rgba(255,255,255,0.08)]">
-            <p className="text-xs text-center text-muted-foreground">
-              CloudLens - 企业级多云资源治理与分析工具
-            </p>
+              {/* 登录按钮 */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full h-12 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-black font-bold tracking-wider rounded transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40"
+                style={{ fontFamily: "'Orbitron', sans-serif" }}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    AUTHENTICATING...
+                  </>
+                ) : (
+                  'INITIALIZE ACCESS'
+                )}
+              </button>
+            </form>
+
+            {/* 底部信息 */}
+            <div className="mt-8 pt-6 border-t border-white/5">
+              <p className="font-mono text-xs text-center text-white/20 tracking-widest">
+                &copy; 2026 CLOUDLENS // MIT LICENSE
+              </p>
+            </div>
           </div>
+          
+          {/* 底部装饰线 */}
+          <div className="h-px bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent" />
         </div>
       </div>
+
+      {/* 加载Google字体 */}
+      <style jsx global>{`
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@300;500&display=swap');
+      `}</style>
     </div>
   )
 }
