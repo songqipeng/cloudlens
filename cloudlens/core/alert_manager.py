@@ -263,20 +263,23 @@ class AlertStorage:
         """)
         
         # 告警历史表（用于统计）
-        self._get_db().execute(f"""
-            CREATE TABLE IF NOT EXISTS alert_history (
-                id VARCHAR(255) PRIMARY KEY,
-                alert_id VARCHAR(255) NOT NULL,
-                rule_id VARCHAR(255) NOT NULL,
-                action VARCHAR(50) NOT NULL,
-                status_before VARCHAR(20),
-                status_after VARCHAR(20),
-                performed_by VARCHAR(255),
-                performed_at DATETIME,
-                notes TEXT,
-                FOREIGN KEY (alert_id) REFERENCES alerts(id)
-            )
-        """ if self.db_type == "mysql" else """
+        if self.db_type == "mysql":
+            self._get_db().execute("""
+                CREATE TABLE IF NOT EXISTS alert_history (
+                    id VARCHAR(255) PRIMARY KEY,
+                    alert_id VARCHAR(255) NOT NULL,
+                    rule_id VARCHAR(255) NOT NULL,
+                    action VARCHAR(50) NOT NULL,
+                    status_before VARCHAR(20),
+                    status_after VARCHAR(20),
+                    performed_by VARCHAR(255),
+                    performed_at DATETIME,
+                    notes TEXT,
+                    FOREIGN KEY (alert_id) REFERENCES alerts(id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """)
+        else:
+            self._get_db().execute("""
             CREATE TABLE IF NOT EXISTS alert_history (
                 id TEXT PRIMARY KEY,
                 alert_id TEXT NOT NULL,
