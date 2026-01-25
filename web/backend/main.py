@@ -28,8 +28,8 @@ if env_file.exists():
 from fastapi import FastAPI, Request, status
 from cloudlens.core.database import DatabaseFactory
 
-# 清除适配器缓存，确保使用最新的环境变量配置
-DatabaseFactory._adapters.clear()
+# 注意：不要在这里调用 DatabaseFactory._adapters.clear()
+# 这会导致热重载时连接池泄漏，最终耗尽MySQL连接
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
