@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AccountProvider } from "@/contexts/account-context";
 import { LocaleProvider } from "@/contexts/locale-context";
+import { AuthProvider } from "@/contexts/auth-context";
 import { ToastContainer } from "@/components/ui/toast";
 import { AIChatbot } from "@/components/ai-chatbot";
 
@@ -32,11 +33,13 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <LocaleProvider>
-          <AccountProvider>
-            {children}
-            <ToastContainer />
-            <AIChatbot />
-          </AccountProvider>
+          <AuthProvider>
+            <AccountProvider>
+              {children}
+              <ToastContainer />
+              <AIChatbot />
+            </AccountProvider>
+          </AuthProvider>
         </LocaleProvider>
       </body>
     </html>

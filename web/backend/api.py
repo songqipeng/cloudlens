@@ -917,14 +917,15 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
             analyzer = SecurityComplianceAnalyzer()
             exposed = analyzer.detect_public_exposure(all_resources)
             stopped_instances = analyzer.check_stopped_instances(instances)
+            preemptible_instances = analyzer.check_preemptible_instances(instances)
             
             # 获取最近一次扫描的高风险项
             last_scan = PublicIPScanner.load_last_results()
             high_risk_count = last_scan.get("summary", {}).get("high_risk_count", 0) if last_scan else 0
             
-            # 汇总告警数: 公网暴露 + 长期停止 + 扫描漏洞
-            alert_count = len(exposed) + len(stopped_instances) + high_risk_count
-            logger.info(f"安全告警计算: 公网暴露={len(exposed)}, 长期停止={len(stopped_instances)}, 扫描漏洞={high_risk_count}, 总计={alert_count}")
+            # 汇总告警数: 公网暴露 + 长期停止 + 抢占式实例 + 扫描漏洞 (与 security/overview 保持一致)
+            alert_count = len(exposed) + len(stopped_instances) + len(preemptible_instances) + high_risk_count
+            logger.info(f"安全告警计算: 公网暴露={len(exposed)}, 长期停止={len(stopped_instances)}, 抢占式={len(preemptible_instances)}, 扫描漏洞={high_risk_count}, 总计={alert_count}")
         except Exception as e:
             logger.warning(f"计算安全告警失败: {str(e)}")
             alert_count = 0
@@ -950,9 +951,19 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
         except Exception as e:
             logger.warning(f"保存中间缓存失败: {str(e)}")
         # -------------------------------------------------------------
-        # Savings Potential: Calculate based on actual cost of idle resources
+        # Savings Potential: 优先使用 optimization_suggestions 缓存的数据，保证与前端显示一致
         savings_potential = 0.0
-        if idle_data and account_config:
+        
+        # 先尝试从 optimization_suggestions 缓存获取（与 /api/optimization/suggestions 保持一致）
+        opt_cache = cache_manager.get(resource_type="optimization_suggestions", account_name=account)
+        if opt_cache and isinstance(opt_cache, dict):
+            cached_savings = opt_cache.get("summary", {}).get("total_savings_potential", 0)
+            if cached_savings and cached_savings > 0:
+                savings_potential = float(cached_savings)
+                logger.info(f"优化潜力: 使用 optimization_suggestions 缓存数据 = {savings_potential:.2f}")
+        
+        # 如果缓存没有数据，则自行计算
+        if savings_potential == 0.0 and idle_data and account_config:
             # Get cost map for ECS resources (idle_data typically contains ECS instances)
             cost_map = _get_cost_map("ecs", account_config)
             
