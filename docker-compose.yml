@@ -72,6 +72,8 @@ services:
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
+      - ./cloudlens:/app/cloudlens:ro
+      - ./web:/app/web:ro
       - ./config:/app/config:ro
       - ./logs:/app/logs
       - ./migrations:/app/migrations:ro
