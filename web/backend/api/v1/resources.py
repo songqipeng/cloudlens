@@ -367,7 +367,7 @@ def list_resources(
     all_resources = []
     
     # 并发查询（加速）
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         futures = {executor.submit(_fetch_resources_for_region, account_config, region, type): region for region in all_regions}
         for future in concurrent.futures.as_completed(futures):
             try:
@@ -724,7 +724,7 @@ def export_resources(
         all_regions = AnalysisService._get_all_regions(account_config.access_key_id, account_config.access_key_secret)
         
         all_resources = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
             futures = {executor.submit(_fetch_resources_for_region, account_config, region, type): region for region in all_regions}
             for future in concurrent.futures.as_completed(futures):
                 all_resources.extend(future.result())

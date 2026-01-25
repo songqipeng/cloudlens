@@ -123,7 +123,7 @@ class MySQLAdapter(DatabaseAdapter):
 
         # 延迟创建连接池（避免导入时立即连接MySQL）
         self.pool = None
-        self.pool_size = config.get('pool_size', 20)  # 默认20，可根据实际负载调整
+        self.pool_size = config.get('pool_size', 5)  # 默认5，限制连接数防止耗尽
         self.pool_reset_session = config.get('pool_reset_session', True)
         self.conn = None
     
@@ -349,7 +349,7 @@ class DatabaseFactory:
             'password': password,
             'database': database,
             'charset': kwargs.get('charset') or os.getenv("MYSQL_CHARSET", "utf8mb4"),
-            'pool_size': int(kwargs.get('pool_size') or os.getenv("MYSQL_POOL_SIZE", 20)),
+            'pool_size': int(kwargs.get('pool_size') or os.getenv("MYSQL_POOL_SIZE", 5)),
         }
         
         # 调试日志：记录实际使用的配置

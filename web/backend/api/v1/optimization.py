@@ -30,7 +30,7 @@ def _fetch_all_instances(account_config) -> List[Any]:
             except: pass
             return []
         
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
             futures = [executor.submit(fetch_region_instances, r) for r in all_regions]
             for f in concurrent.futures.as_completed(futures):
                 instances.extend(f.result())
@@ -95,7 +95,7 @@ def _analyze_idle_with_metrics(instances, account_config) -> List[Dict]:
         return None
 
     # 并发执行检查 (CloudMonitor API 并发限制要注意，但 10-20 个线程通常 OK)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         futures = [executor.submit(check_instance_metrics, inst) for inst in running_instances]
         for f in concurrent.futures.as_completed(futures):
             res = f.result()
@@ -227,7 +227,7 @@ def get_optimization_suggestions(
                     return []
                 
                 eips = []
-                with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
                     futures = [executor.submit(fetch_region_eips, r) for r in all_regions]
                     for f in concurrent.futures.as_completed(futures):
                         eips.extend(f.result())
