@@ -364,6 +364,13 @@ def trigger_analysis(req: TriggerAnalysisRequest, background_tasks: BackgroundTa
                     progress_callback=progress_callback
                 )
                 
+                # 保存结果到缓存，确保仪表盘能获取最新数据
+                from cloudlens.core.cache import CacheManager
+                cache_manager = CacheManager(ttl_seconds=86400)
+                cache_manager.set(resource_type="dashboard_idle", account_name=req.account, data=data)
+                cache_manager.set(resource_type="idle_result", account_name=req.account, data=data)
+                logger.info(f"已将 {len(data)} 个闲置资源保存到缓存")
+                
                 # 标记任务完成
                 progress_manager.set_completed(task_id, {
                     "count": len(data),
