@@ -347,6 +347,168 @@ class BillStorageManager:
             'db_type': self.db_type
         }
 
+    def get_discount_analysis_data(self, account_id: str, months: int = 19) -> Dict:
+        """
+        获取折扣分析数据
+        
+        Args:
+            account_id: 账号ID
+            months: 分析月数
+            
+        Returns:
+            包含monthly和product数据的字典
+        """
+        from datetime import datetime
+        from dateutil.relativedelta import relativedelta
+        
+        placeholder = self._get_placeholder()
+        
+        # 计算起始月份
+        end_date = datetime.now()
+        start_date = end_date - relativedelta(months=months)
+        start_cycle = start_date.strftime("%Y-%m")
+        
+        try:
+            # 按月聚合数据
+            monthly_sql = f"""
+                SELECT 
+                    billing_cycle as month,
+                    SUM(COALESCE(list_price, 0)) as official_price,
+                    SUM(COALESCE(invoice_discount, 0)) as discount_amount,
+                    SUM(COALESCE(pretax_amount, 0)) as actual_amount
+                FROM bill_items
+                WHERE account_id = {placeholder}
+                AND billing_cycle >= {placeholder}
+                GROUP BY billing_cycle
+                ORDER BY billing_cycle ASC
+            """
+            
+            monthly_results = self._get_db().query(monthly_sql, (account_id, start_cycle))
+            
+            # 计算折扣率
+            monthly_data = []
+            for row in monthly_results or []:
+                official = float(row.get('official_price', 0) or 0)
+                discount = float(row.get('discount_amount', 0) or 0)
+                actual = float(row.get('actual_amount', 0) or 0)
+                
+                # 折扣计算逻辑优化：
+                # 1. 如果 list_price > 0，直接用 list_price 作为官方价
+                # 2. 如果 list_price = 0，用 (pretax_amount + invoice_discount) 作为官方价
+                if official == 0:
+                    official = actual + abs(discount)
+                
+                # 折扣率 = 折扣金额 / 官方价 * 100
+                discount_rate = (abs(discount) / official * 100) if official > 0 else 0
+                
+                monthly_data.append({
+                    'month': row['month'],
+                    'official_price': official,
+                    'discount_amount': abs(discount),
+                    'actual_amount': actual,
+                    'discount_rate': discount_rate
+                })
+            
+            # 按产品聚合
+            product_sql = f"""
+                SELECT 
+                    product_code,
+                    product_name,
+                    SUM(COALESCE(list_price, 0)) as official_price,
+                    SUM(COALESCE(invoice_discount, 0)) as discount_amount,
+                    SUM(COALESCE(pretax_amount, 0)) as actual_amount
+                FROM bill_items
+                WHERE account_id = {placeholder}
+                AND billing_cycle >= {placeholder}
+                GROUP BY product_code, product_name
+                ORDER BY actual_amount DESC
+            """
+            
+            product_results = self._get_db().query(product_sql, (account_id, start_cycle))
+            
+            # 转换为列表格式（按actual_amount降序）
+            products_list = []
+            for row in product_results or []:
+                code = row.get('product_code', 'unknown')
+                official = float(row.get('official_price', 0) or 0)
+                discount = float(row.get('discount_amount', 0) or 0)
+                actual = float(row.get('actual_amount', 0) or 0)
+                
+                # 折扣计算逻辑优化
+                if official == 0:
+                    official = actual + abs(discount)
+                    
+                discount_rate = (abs(discount) / official * 100) if official > 0 else 0
+                
+                products_list.append({
+                    'product_code': code,
+                    'product_name': row.get('product_name', code),
+                    'official_price': official,
+                    'discount_amount': abs(discount),
+                    'actual_amount': actual,
+                    'discount_rate': discount_rate
+                })
+            
+            # 按实例聚合（Top 50）
+            instance_sql = f"""
+                SELECT 
+                    instance_id,
+                    product_code,
+                    product_name,
+                    nick_name,
+                    SUM(COALESCE(list_price, 0)) as official_price,
+                    SUM(COALESCE(invoice_discount, 0)) as discount_amount,
+                    SUM(COALESCE(pretax_amount, 0)) as actual_amount
+                FROM bill_items
+                WHERE account_id = {placeholder}
+                AND billing_cycle >= {placeholder}
+                AND instance_id IS NOT NULL
+                AND instance_id != ''
+                GROUP BY instance_id, product_code, product_name, nick_name
+                ORDER BY actual_amount DESC
+                LIMIT 100
+            """
+            
+            instance_results = self._get_db().query(instance_sql, (account_id, start_cycle))
+            
+            instances_list = []
+            for row in instance_results or []:
+                official = float(row.get('official_price', 0) or 0)
+                discount = float(row.get('discount_amount', 0) or 0)
+                actual = float(row.get('actual_amount', 0) or 0)
+                
+                # 折扣计算逻辑优化
+                if official == 0:
+                    official = actual + abs(discount)
+                    
+                discount_rate = (abs(discount) / official * 100) if official > 0 else 0
+                
+                instances_list.append({
+                    'instance_id': row.get('instance_id', ''),
+                    'product_code': row.get('product_code', ''),
+                    'product_name': row.get('product_name', ''),
+                    'nick_name': row.get('nick_name', ''),
+                    'official_price': official,
+                    'discount_amount': abs(discount),
+                    'actual_amount': actual,
+                    'discount_rate': discount_rate
+                })
+            
+            # 计算结束月份
+            end_cycle = end_date.strftime("%Y-%m")
+            
+            return {
+                'monthly': monthly_data,
+                'products': products_list,
+                'instances': instances_list,
+                'start_cycle': start_cycle,
+                'end_cycle': end_cycle
+            }
+            
+        except Exception as e:
+            logger.error(f"获取折扣分析数据失败: {str(e)}")
+            return {'monthly': [], 'products': [], 'instances': [], 'start_cycle': '', 'end_cycle': ''}
+
 
 
 

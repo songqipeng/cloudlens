@@ -9,8 +9,9 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Dict, List, Optional, Any
 import logging
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
+import json
 import os
 
 from web.backend.api_base import handle_api_error
@@ -20,6 +21,7 @@ from cloudlens.core.config import ConfigManager
 from cloudlens.core.context import ContextManager
 from cloudlens.core.bill_storage import BillStorageManager
 from cloudlens.core.encryption import get_encryption
+from cloudlens.core.cache import CacheManager
 
 logger = logging.getLogger(__name__)
 
@@ -152,51 +154,198 @@ def _get_account_id(account: Optional[str] = None) -> Optional[str]:
     return None
 
 
-async def _get_user_context(account_id: Optional[str]) -> str:
-    """获取用户成本上下文（用于构建系统提示词）"""
-    if not account_id:
-        return "用户没有配置云账号。"
+async def _get_user_context(account_id: Optional[str], account_name: Optional[str] = None) -> str:
+    """获取丰富的用户数据上下文（用于构建系统提示词）"""
+    if not account_name:
+        return "用户没有配置云账号，无法获取成本数据。"
+    
+    context_parts = []
+    cache_manager = CacheManager(ttl_seconds=3600)  # 1小时缓存
     
     try:
-        # 获取最近一个月的成本数据
-        from datetime import datetime, timedelta
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=30)
-        
-        # 获取账单数据
-        billing_cycle = end_date.strftime("%Y-%m")
-        items = _get_bill_storage().get_bill_items(
-            account_id=account_id,
-            billing_cycle=billing_cycle
-        )
-        
-        if not items:
-            return f"账号 {account_id} 最近一个月没有账单数据。"
-        
-        # 计算总成本
-        total_cost = sum(float(item.get("payment_amount", 0) or 0) for item in items)
-        
-        # 按产品分类统计
-        product_costs = {}
-        for item in items:
-            product = item.get("product_name", "未知产品")
-            cost = float(item.get("payment_amount", 0) or 0)
-            product_costs[product] = product_costs.get(product, 0) + cost
-        
-        # 构建上下文
-        context = f"""
-账号ID: {account_id}
-最近一个月（{billing_cycle}）总成本: ¥{total_cost:.2f}
+        # 1. 从 dashboard_summary 缓存获取核心数据
+        summary = cache_manager.get(resource_type="dashboard_summary", account_name=account_name)
+        if summary and isinstance(summary, dict):
+            total_cost = summary.get("total_cost", 0)
+            trend_pct = summary.get("trend_pct", 0)
+            cost_trend = summary.get("cost_trend", "")
+            idle_count = summary.get("idle_count", 0)
+            total_resources = summary.get("total_resources", 0)
+            savings_potential = summary.get("savings_potential", 0)
+            resource_breakdown = summary.get("resource_breakdown", {})
+            
+            context_parts.append(f"""
+=== 账号概览 ===
+账号: {account_name}
+本月总成本: ¥{total_cost:,.2f}
+成本趋势: {cost_trend} {trend_pct:.1f}%
+总资源数: {total_resources}
+闲置资源数: {idle_count}
+潜在节省: ¥{savings_potential:,.2f}/月
 
-主要产品成本分布:
-"""
-        for product, cost in sorted(product_costs.items(), key=lambda x: x[1], reverse=True)[:10]:
-            context += f"- {product}: ¥{cost:.2f}\n"
-        
-        return context
+资源分布:""")
+            for res_type, count in resource_breakdown.items():
+                context_parts.append(f"- {res_type.upper()}: {count}台")
+        else:
+            context_parts.append(f"账号 {account_name} 暂无仪表盘摘要数据。")
+            
     except Exception as e:
-        logger.warning(f"获取用户上下文失败: {str(e)}")
-        return f"无法获取账号 {account_id} 的成本数据。"
+        logger.warning(f"获取仪表盘摘要失败: {str(e)}")
+        context_parts.append(f"仪表盘数据获取失败: {str(e)}")
+    
+    try:
+        # 2. 从 optimization_suggestions 缓存获取闲置资源详情
+        opt_data = cache_manager.get(resource_type="optimization_suggestions", account_name=account_name)
+        if opt_data and isinstance(opt_data, dict):
+            suggestions = opt_data.get("suggestions", [])
+            summary_info = opt_data.get("summary", {})
+            
+            # 找到闲置资源类型的建议
+            idle_suggestion = None
+            for s in suggestions:
+                if isinstance(s, dict) and s.get("type") == "idle_resources":
+                    idle_suggestion = s
+                    break
+            
+            if idle_suggestion:
+                resources = idle_suggestion.get("resources", [])
+                context_parts.append(f"""
+=== 闲置资源详情 ===
+共检测到 {len(resources)} 个闲置资源
+优化建议优先级: {idle_suggestion.get('priority', 'N/A')}
+
+闲置资源列表 (Top 15):""")
+                for res in resources[:15]:
+                    if isinstance(res, dict):
+                        name = res.get('name', 'N/A')
+                        spec = res.get('spec', 'N/A')
+                        region = res.get('region', 'N/A')
+                        reasons = res.get('reasons', [])
+                        reason_str = "; ".join(reasons) if reasons else "低利用率"
+                        context_parts.append(f"- {name} ({spec}) @ {region}: {reason_str}")
+            else:
+                context_parts.append("\n=== 闲置资源 ===\n暂无闲置资源检测数据")
+                
+    except Exception as e:
+        logger.warning(f"获取优化建议失败: {str(e)}")
+    
+    try:
+        # 3. 获取详细成本分解数据（用于根因分析）
+        cost_breakdown = cache_manager.get(resource_type="cost_breakdown", account_name=account_name)
+        if cost_breakdown and isinstance(cost_breakdown, dict):
+            categories = cost_breakdown.get("categories", [])
+            billing_cycle = cost_breakdown.get("billing_cycle", "")
+            
+            context_parts.append(f"""
+=== 本月成本明细 ({billing_cycle}) ===
+按产品分类的成本 (Top 15):""")
+            for cat in categories[:15]:
+                if isinstance(cat, dict):
+                    code = cat.get("code", "")
+                    name = cat.get("name", code)
+                    amount = cat.get("amount", 0)
+                    sub = cat.get("subscription", {})
+                    pay_type = "包年包月" if sub.get("Subscription", 0) > sub.get("PayAsYouGo", 0) else "按量付费"
+                    context_parts.append(f"- {name}: ¥{amount:,.2f} ({pay_type})")
+    except Exception as e:
+        logger.warning(f"获取成本分解失败: {str(e)}")
+    
+    try:
+        # 4. 获取上月账单数据进行对比分析
+        now = datetime.now()
+        current_month = now.strftime("%Y-%m")
+        last_month = (now.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+        
+        current_billing = cache_manager.get(resource_type=f"billing_overview_totals_{current_month}", account_name=account_name)
+        last_billing = cache_manager.get(resource_type=f"billing_overview_totals_{last_month}", account_name=account_name)
+        
+        if current_billing and last_billing:
+            # 处理可能是列表的情况
+            curr_data = current_billing[0] if isinstance(current_billing, list) else current_billing
+            last_data = last_billing[0] if isinstance(last_billing, list) else last_billing
+            
+            curr_by_product = curr_data.get("by_product", {})
+            last_by_product = last_data.get("by_product", {})
+            curr_total = curr_data.get("total_pretax", 0)
+            last_total = last_data.get("total_pretax", 0)
+            
+            # 计算每个产品的变化
+            changes = []
+            all_products = set(curr_by_product.keys()) | set(last_by_product.keys())
+            for product in all_products:
+                curr_cost = curr_by_product.get(product, 0)
+                last_cost = last_by_product.get(product, 0)
+                diff = curr_cost - last_cost
+                if abs(diff) > 100:  # 只关注变化超过100元的
+                    pct = (diff / last_cost * 100) if last_cost > 0 else 100
+                    changes.append({
+                        "product": product,
+                        "curr": curr_cost,
+                        "last": last_cost,
+                        "diff": diff,
+                        "pct": pct
+                    })
+            
+            # 按变化金额排序
+            changes.sort(key=lambda x: abs(x["diff"]), reverse=True)
+            
+            context_parts.append(f"""
+=== 成本环比分析 ===
+本月 ({current_month}): ¥{curr_total:,.2f}
+上月 ({last_month}): ¥{last_total:,.2f}
+变化: ¥{curr_total - last_total:,.2f} ({((curr_total - last_total) / last_total * 100) if last_total > 0 else 0:.1f}%)
+
+成本变化最大的产品 (Top 10):""")
+            for c in changes[:10]:
+                direction = "↑" if c["diff"] > 0 else "↓"
+                context_parts.append(f"- {c['product']}: ¥{c['last']:,.2f} → ¥{c['curr']:,.2f} ({direction}¥{abs(c['diff']):,.2f}, {c['pct']:+.1f}%)")
+            
+            # 新增的产品
+            new_products = [p for p in curr_by_product if p not in last_by_product and curr_by_product[p] > 100]
+            if new_products:
+                context_parts.append("\n本月新增产品:")
+                for p in new_products[:5]:
+                    context_parts.append(f"- {p}: ¥{curr_by_product[p]:,.2f}")
+    except Exception as e:
+        logger.warning(f"获取账单对比数据失败: {str(e)}")
+    
+    try:
+        # 5. 获取实例统计（从 ecs_instances 缓存）
+        instances_cache = cache_manager.get(resource_type="ecs_instances", account_name=account_name)
+        if instances_cache and isinstance(instances_cache, list) and len(instances_cache) > 0:
+            total_instances = len(instances_cache)
+            running = sum(1 for i in instances_cache if isinstance(i, dict) and str(i.get('status', '')).upper() == 'RUNNING')
+            stopped = total_instances - running
+            
+            # 区域分布
+            region_count = {}
+            spec_count = {}
+            for inst in instances_cache:
+                if isinstance(inst, dict):
+                    region = inst.get('region', '未知')
+                    spec = inst.get('spec', '未知')
+                    region_count[region] = region_count.get(region, 0) + 1
+                    spec_count[spec] = spec_count.get(spec, 0) + 1
+            
+            context_parts.append(f"""
+=== ECS实例统计 ===
+总实例数: {total_instances}
+运行中: {running}, 已停止: {stopped}
+
+区域分布 (Top 5):""")
+            for region, count in sorted(region_count.items(), key=lambda x: x[1], reverse=True)[:5]:
+                context_parts.append(f"- {region}: {count}台")
+            
+            context_parts.append("\n规格分布 (Top 5):")
+            for spec, count in sorted(spec_count.items(), key=lambda x: x[1], reverse=True)[:5]:
+                context_parts.append(f"- {spec}: {count}台")
+    except Exception as e:
+        logger.warning(f"获取实例数据失败: {str(e)}")
+    
+    if not context_parts:
+        return f"账号 {account_name} 暂无可用数据。"
+    
+    return "\n".join(context_parts)
 
 
 def _build_system_prompt(context: str) -> str:
@@ -225,11 +374,17 @@ def _build_system_prompt(context: str) -> str:
 # ==================== API端点 ====================
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(req: ChatRequest) -> ChatResponse:
+async def chat(
+    req: ChatRequest,
+    account: Optional[str] = Query(None, description="账号名称（URL参数）")
+) -> ChatResponse:
     """发送聊天消息"""
     try:
+        # 优先使用 URL query param，其次使用 request body
+        account_name = account or req.account
+        
         # 获取账号ID
-        account_id = _get_account_id(req.account)
+        account_id = _get_account_id(account_name)
         
         # 获取或创建会话ID
         session_id = req.session_id
@@ -242,7 +397,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
             )
         
         # 获取用户上下文
-        context = await _get_user_context(account_id)
+        context = await _get_user_context(account_id, account_name)
         system_prompt = _build_system_prompt(context)
         
         # 获取历史消息（如果有session_id）
@@ -288,7 +443,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
         }
         _get_db().execute(
             "INSERT INTO chat_messages (id, session_id, role, content, metadata, created_at) VALUES (%s, %s, %s, %s, %s, NOW())",
-            (message_id, session_id, "assistant", result["message"], str(metadata))
+            (message_id, session_id, "assistant", result["message"], json.dumps(metadata))
         )
         
         # 更新会话标题（如果是第一条消息）
@@ -308,8 +463,21 @@ async def chat(req: ChatRequest) -> ChatResponse:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"聊天请求失败: {str(e)}")
-        raise handle_api_error(e, "chat")
+        import traceback
+        logger.error(f"聊天请求失败: {str(e)}\n{traceback.format_exc()}")
+        # 返回更详细的错误信息
+        error_msg = str(e)
+        if "timeout" in error_msg.lower():
+            detail = "AI服务响应超时，请稍后重试"
+        elif "rate" in error_msg.lower() or "limit" in error_msg.lower():
+            detail = "请求频率过高，请稍后重试"
+        elif "api" in error_msg.lower() or "key" in error_msg.lower():
+            detail = f"API调用失败: {error_msg}"
+        elif "connect" in error_msg.lower() or "network" in error_msg.lower():
+            detail = "网络连接错误，请检查网络状态"
+        else:
+            detail = f"服务异常: {error_msg}"
+        raise HTTPException(status_code=500, detail=detail)
 
 
 @router.get("/sessions")

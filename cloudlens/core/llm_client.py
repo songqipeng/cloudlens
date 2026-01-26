@@ -55,7 +55,7 @@ class ClaudeClient(LLMClient):
         
         try:
             import anthropic
-            self.client = anthropic.Anthropic(api_key=self.api_key)
+            self.client = anthropic.Anthropic(api_key=self.api_key, timeout=60.0)
             self.model = "claude-3-5-sonnet-20241022"  # 使用最新版本
         except ImportError:
             raise ImportError("请安装anthropic包: pip install anthropic")
@@ -130,7 +130,7 @@ class OpenAIClient(LLMClient):
         
         try:
             from openai import OpenAI
-            self.client = OpenAI(api_key=self.api_key)
+            self.client = OpenAI(api_key=self.api_key, timeout=60.0)
             self.model = "gpt-4"  # 使用GPT-4
         except ImportError:
             raise ImportError("请安装openai包: pip install openai")
@@ -200,7 +200,8 @@ class DeepSeekClient(LLMClient):
             # DeepSeek使用OpenAI兼容的API接口
             self.client = OpenAI(
                 api_key=self.api_key,
-                base_url="https://api.deepseek.com"
+                base_url="https://api.deepseek.com",
+                timeout=60.0
             )
             self.model = "deepseek-chat"
         except ImportError:

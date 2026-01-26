@@ -78,11 +78,25 @@ export function AIChatbot() {
     setLoading(true)
 
     try {
+      // 从 URL 获取当前账号
+      const pathname = window.location.pathname || ""
+      let currentAccount: string | null = null
+      if (pathname.startsWith("/a/")) {
+        const parts = pathname.split("/").filter(Boolean)
+        if (parts.length >= 2 && parts[0] === "a" && parts[1]) {
+          currentAccount = decodeURIComponent(parts[1])
+        }
+      }
+      if (!currentAccount) {
+        currentAccount = localStorage.getItem("currentAccount")
+      }
+
       const response = await apiPost<ChatResponse>(
         '/v1/chatbot/chat',
         {
           messages: [{ role: 'user', content: userMessage.content }],
           session_id: sessionId,
+          account: currentAccount,  // 传递当前账号
           provider: selectedModel,
           temperature: 0.7,
           max_tokens: 2000
@@ -98,12 +112,21 @@ export function AIChatbot() {
       }
 
       setMessages(prev => [...prev, assistantMessage])
-    } catch (error) {
+    } catch (error: any) {
       console.error('发送消息失败:', error)
+      // 提取详细错误信息
+      let errorDetail = '未知错误'
+      if (error?.response?.data?.detail) {
+        const detail = error.response.data.detail
+        errorDetail = typeof detail === 'string' ? detail : detail.message || JSON.stringify(detail)
+      } else if (error?.message) {
+        errorDetail = error.message
+      }
+      
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: '抱歉，AI服务暂时不可用。请检查API配置或稍后重试。\n\n💡 提示：点击右上角设置按钮配置API密钥。'
+        content: `抱歉，AI服务请求失败。\n\n**错误详情:** ${errorDetail}\n\n💡 提示：请稍后重试，或点击右上角设置按钮检查API配置。`
       }
       setMessages(prev => [...prev, errorMessage])
     } finally {

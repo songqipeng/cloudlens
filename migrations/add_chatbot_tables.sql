@@ -1,9 +1,18 @@
 -- ============================================================
--- AI Chatbot 对话历史表
--- 用于存储用户与AI助手的对话记录
+-- AI Chatbot 相关表
+-- 包含：LLM配置、对话会话、对话消息
 -- ============================================================
 
 USE cloudlens;
+
+-- LLM 配置表（存储各AI提供商的API密钥）
+CREATE TABLE IF NOT EXISTS llm_configs (
+    provider VARCHAR(50) PRIMARY KEY COMMENT 'LLM提供商(claude/openai/deepseek)',
+    api_key_encrypted TEXT NOT NULL COMMENT '加密的API密钥',
+    is_active BOOLEAN DEFAULT TRUE COMMENT '是否启用',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='LLM配置表';
 
 -- 对话会话表
 CREATE TABLE IF NOT EXISTS chat_sessions (
