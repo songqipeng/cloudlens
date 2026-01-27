@@ -34,8 +34,7 @@ test.describe('CloudLens 生产环境完整功能测试', () => {
   test.beforeAll(async () => {
     // 启动浏览器
     browser = await chromium.launch({
-      headless: false, // 显示浏览器窗口
-      channel: 'chrome', // 使用系统安装的Chrome
+      headless: true, // 使用headless模式，更稳定
     });
 
     // 创建上下文，启用视频录制
