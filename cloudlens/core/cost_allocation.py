@@ -419,7 +419,7 @@ class CostAllocator:
         # 使用BillStorageManager的数据库抽象层
         from cloudlens.core.bill_storage import BillStorageManager
         storage = BillStorageManager(self.bill_storage_path)
-        db = storage.db
+        db = storage._get_db()  # 使用延迟初始化方法获取数据库连接
         placeholder = "%s" if storage.db_type == "mysql" else "?"
         
         query = f"SELECT product_code, SUM(pretax_amount) as total FROM bill_items WHERE 1=1"

@@ -73,7 +73,7 @@ export default function AdvancedDiscountTrendPage() {
     setError(null)
     
     const dateParams = getDateRangeParams()
-    const baseApiOptions = { timeout: 30000, retries: 1 } as any // 降低超时时间，更快失败
+    const baseApiOptions = { timeout: 90000, retries: 2 } as any // 增加超时时间到90秒，支持复杂查询
     
     // 定义所有API调用，每个都独立处理错误
     const apiCalls = {
@@ -84,7 +84,7 @@ export default function AdvancedDiscountTrendPage() {
       subscription: () => apiGet<SubscriptionTypesResponse>(`/discounts/subscription-types?account=${currentAccount}${dateParams}`, {}, baseApiOptions),
       opts: () => apiGet<OptimizationSuggestionsResponse>(`/discounts/optimization-suggestions?account=${currentAccount}${dateParams}`, {}, baseApiOptions),
       anom: () => apiGet<AnomaliesResponse>(`/discounts/anomalies?account=${currentAccount}&threshold=0.10${dateParams}`, {}, baseApiOptions),
-      insights: () => apiGet(`/discounts/insights?account=${currentAccount}${dateParams}`, {}, { timeout: 20000, retries: 0 } as any),
+      insights: () => apiGet(`/discounts/insights?account=${currentAccount}${dateParams}`, {}, { timeout: 90000, retries: 2 } as any),
     }
     
     // 使用 Promise.allSettled 让每个API独立加载，互不阻塞

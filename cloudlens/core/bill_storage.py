@@ -34,15 +34,20 @@ class BillStorageManager:
         """
         # 只使用MySQL（SQLite已废弃）
         self.db_type = "mysql"
-        self.db = None  # 延迟初始化，避免导入时连接MySQL
+        self._db = None  # 延迟初始化，避免导入时连接MySQL（使用_db作为内部变量）
         self.db_path = None
         
         self._init_database()
     
+    @property
+    def db(self) -> DatabaseAdapter:
+        """延迟获取数据库适配器（property方式，兼容现有代码）"""
+        if self._db is None:
+            self._db = DatabaseFactory.create_adapter("mysql")
+        return self._db
+    
     def _get_db(self) -> DatabaseAdapter:
-        """延迟获取数据库适配器"""
-        if self.db is None:
-            self.db = DatabaseFactory.create_adapter("mysql")
+        """延迟获取数据库适配器（保留原方法以兼容）"""
         return self.db
     
     def _get_placeholder(self) -> str:
@@ -509,7 +514,120 @@ class BillStorageManager:
             logger.error(f"获取折扣分析数据失败: {str(e)}")
             return {'monthly': [], 'products': [], 'instances': [], 'start_cycle': '', 'end_cycle': ''}
 
-
+    def get_discount_analysis_for_chatbot(self, account_name: str) -> str:
+        """
+        获取折扣分析数据（格式化为文本，供AI Chatbot使用）
+        
+        Args:
+            account_name: 账号名称
+            
+        Returns:
+            格式化的折扣分析文本
+        """
+        placeholder = self._get_placeholder()
+        
+        try:
+            # 按区域和订阅类型获取折扣率
+            region_sql = f"""
+                SELECT 
+                    region,
+                    subscription_type,
+                    COUNT(*) as records,
+                    SUM(COALESCE(invoice_discount, 0)) as total_discount,
+                    SUM(COALESCE(pretax_amount, 0)) as total_pretax,
+                    ROUND(
+                        SUM(ABS(COALESCE(invoice_discount, 0))) / 
+                        (SUM(ABS(COALESCE(invoice_discount, 0))) + SUM(COALESCE(pretax_amount, 0))) * 100, 
+                        2
+                    ) as discount_rate
+                FROM bill_items 
+                WHERE account_id = {placeholder}
+                AND product_name LIKE '%ECS%'
+                GROUP BY region, subscription_type
+                HAVING total_pretax > 100
+                ORDER BY total_pretax DESC
+                LIMIT 20
+            """
+            
+            region_results = self._get_db().query(region_sql, (account_name,))
+            
+            # 构建文本输出
+            lines = []
+            
+            if region_results:
+                lines.append("按区域和订阅类型的ECS折扣率:")
+                for row in region_results:
+                    region = row.get('region', '未知')
+                    sub_type = row.get('subscription_type', '未知')
+                    sub_type_cn = '包年包月' if sub_type == 'Subscription' else '按量付费'
+                    discount = row.get('discount_rate', 0) or 0
+                    pretax = row.get('total_pretax', 0) or 0
+                    lines.append(f"- {region} ({sub_type_cn}): 折扣率{discount:.1f}%, 实付¥{pretax:,.0f}")
+            
+            # 按产品获取折扣率
+            product_sql = f"""
+                SELECT 
+                    product_name,
+                    COUNT(*) as records,
+                    SUM(COALESCE(invoice_discount, 0)) as total_discount,
+                    SUM(COALESCE(pretax_amount, 0)) as total_pretax,
+                    ROUND(
+                        SUM(ABS(COALESCE(invoice_discount, 0))) / 
+                        (SUM(ABS(COALESCE(invoice_discount, 0))) + SUM(COALESCE(pretax_amount, 0))) * 100, 
+                        2
+                    ) as discount_rate
+                FROM bill_items 
+                WHERE account_id = {placeholder}
+                GROUP BY product_name
+                HAVING total_pretax > 100
+                ORDER BY total_pretax DESC
+                LIMIT 15
+            """
+            
+            product_results = self._get_db().query(product_sql, (account_name,))
+            
+            if product_results:
+                lines.append("\n各产品折扣率 (Top 15):")
+                for row in product_results:
+                    name = row.get('product_name', '未知')
+                    discount = row.get('discount_rate', 0) or 0
+                    pretax = row.get('total_pretax', 0) or 0
+                    lines.append(f"- {name}: 折扣率{discount:.1f}%, 实付¥{pretax:,.0f}")
+            
+            # 按月趋势
+            monthly_sql = f"""
+                SELECT 
+                    billing_cycle,
+                    SUM(COALESCE(invoice_discount, 0)) as total_discount,
+                    SUM(COALESCE(pretax_amount, 0)) as total_pretax,
+                    ROUND(
+                        SUM(ABS(COALESCE(invoice_discount, 0))) / 
+                        (SUM(ABS(COALESCE(invoice_discount, 0))) + SUM(COALESCE(pretax_amount, 0))) * 100, 
+                        2
+                    ) as discount_rate
+                FROM bill_items 
+                WHERE account_id = {placeholder}
+                GROUP BY billing_cycle
+                HAVING total_pretax > 100
+                ORDER BY billing_cycle DESC
+                LIMIT 6
+            """
+            
+            monthly_results = self._get_db().query(monthly_sql, (account_name,))
+            
+            if monthly_results:
+                lines.append("\n近6个月整体折扣率趋势:")
+                for row in monthly_results:
+                    month = row.get('billing_cycle', '未知')
+                    discount = row.get('discount_rate', 0) or 0
+                    pretax = row.get('total_pretax', 0) or 0
+                    lines.append(f"- {month}: 折扣率{discount:.1f}%, 实付¥{pretax:,.0f}")
+            
+            return "\n".join(lines) if lines else ""
+            
+        except Exception as e:
+            logger.error(f"获取折扣分析数据失败: {str(e)}")
+            return ""
 
 
 

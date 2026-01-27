@@ -1166,7 +1166,7 @@ async def get_trend(
                 from cloudlens.core.bill_storage import BillStorageManager
                 from cloudlens.core.config import ConfigManager
                 storage = BillStorageManager()
-                db = storage.db
+                db = storage._get_db()  # 使用延迟初始化方法获取数据库连接
                 cm = ConfigManager()
                 account_config = cm.get_account(account)
                 if not account_config:

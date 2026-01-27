@@ -6,6 +6,7 @@ AI Chatbot API模块
 """
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from typing import Dict, List, Optional, Any
 import logging
 from pydantic import BaseModel
@@ -80,6 +81,15 @@ def get_llm_client(provider: str = "claude", api_key: Optional[str] = None) -> L
 
             return _llm_clients[provider]
         else:
+            # 如果请求的provider没有配置，尝试回退到其他已配置的provider
+            fallback_config = db.query(
+                "SELECT provider, api_key_encrypted FROM llm_configs WHERE is_active = TRUE LIMIT 1"
+            )
+            if fallback_config and fallback_config[0].get("api_key_encrypted"):
+                fallback_provider = fallback_config[0]["provider"]
+                logger.warning(f"Provider {provider} 未配置，回退到 {fallback_provider}")
+                return get_llm_client(provider=fallback_provider)
+            
             raise HTTPException(
                 status_code=400,
                 detail=f"未配置 {provider} 的API密钥，请在设置中配置"
@@ -123,7 +133,7 @@ class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     session_id: Optional[str] = None
     account: Optional[str] = None
-    provider: Optional[str] = "claude"  # LLM提供商
+    provider: Optional[str] = None  # LLM提供商，默认从环境变量LLM_PROVIDER获取
     temperature: float = 0.7
     max_tokens: int = 2000
 
@@ -342,6 +352,47 @@ async def _get_user_context(account_id: Optional[str], account_name: Optional[st
     except Exception as e:
         logger.warning(f"获取实例数据失败: {str(e)}")
     
+    try:
+        # 6. 获取折扣分析数据（从 bill_items 表）
+        bill_storage = _get_bill_storage()
+        discount_data = bill_storage.get_discount_analysis_for_chatbot(account_name)
+        if discount_data:
+            context_parts.append(f"""
+=== 折扣分析数据 ===
+{discount_data}""")
+    except Exception as e:
+        logger.warning(f"获取折扣分析数据失败: {str(e)}")
+    
+    try:
+        # 7. 获取ECS实例规格统计（从 resource_cache）
+        ecs_data = cache_manager.get(resource_type="ecs", account_name=account_name)
+        if ecs_data and isinstance(ecs_data, list) and len(ecs_data) > 0:
+            # 按规格系列统计
+            spec_families = {}
+            for inst in ecs_data:
+                if isinstance(inst, dict):
+                    spec = inst.get('spec', '')
+                    cost = inst.get('cost', 0)
+                    region = inst.get('region', '')
+                    # 提取规格系列（如 ecs.c6.xlarge -> c6）
+                    parts = spec.split('.') if spec else []
+                    family = parts[1] if len(parts) > 1 else 'unknown'
+                    if family not in spec_families:
+                        spec_families[family] = {'count': 0, 'total_cost': 0, 'regions': set()}
+                    spec_families[family]['count'] += 1
+                    spec_families[family]['total_cost'] += cost
+                    spec_families[family]['regions'].add(region)
+            
+            context_parts.append(f"""
+=== ECS实例规格系列分布 ===
+共{len(ecs_data)}个实例，按规格系列统计:""")
+            for family in sorted(spec_families.keys(), key=lambda x: spec_families[x]['total_cost'], reverse=True)[:10]:
+                info = spec_families[family]
+                regions = ', '.join(list(info['regions'])[:3])
+                context_parts.append(f"- {family}系列: {info['count']}台, 月成本约¥{info['total_cost']:,.0f}, 区域: {regions}")
+    except Exception as e:
+        logger.warning(f"获取ECS规格统计失败: {str(e)}")
+    
     if not context_parts:
         return f"账号 {account_name} 暂无可用数据。"
     
@@ -419,8 +470,9 @@ async def chat(
             for msg in req.messages
         ]
         
-        # 调用LLM（使用请求指定的provider）
-        llm = get_llm_client(provider=req.provider or "claude")
+        # 调用LLM（使用请求指定的provider，或从环境变量获取默认值）
+        default_provider = os.environ.get("LLM_PROVIDER", "claude")
+        llm = get_llm_client(provider=req.provider or default_provider)
         result = await llm.chat(
             messages=messages,
             system_prompt=system_prompt,
@@ -478,6 +530,128 @@ async def chat(
         else:
             detail = f"服务异常: {error_msg}"
         raise HTTPException(status_code=500, detail=detail)
+
+
+@router.post("/chat/stream")
+async def chat_stream(
+    req: ChatRequest,
+    account: Optional[str] = Query(None, description="账号名称（URL参数）")
+):
+    """流式发送聊天消息（Server-Sent Events）"""
+    try:
+        # 优先使用 URL query param，其次使用 request body
+        account_name = account or req.account
+        
+        # 获取账号ID
+        account_id = _get_account_id(account_name)
+        
+        # 获取或创建会话ID
+        session_id = req.session_id
+        if not session_id:
+            session_id = str(uuid.uuid4())
+            _get_db().execute(
+                "INSERT INTO chat_sessions (id, account_id, title, created_at) VALUES (%s, %s, %s, NOW())",
+                (session_id, account_id, "新对话")
+            )
+        
+        # 获取用户上下文
+        context = await _get_user_context(account_id, account_name)
+        system_prompt = _build_system_prompt(context)
+        
+        # 获取历史消息
+        history_messages = []
+        if session_id:
+            history = _get_db().query(
+                "SELECT role, content FROM chat_messages WHERE session_id = %s ORDER BY created_at ASC LIMIT 10",
+                (session_id,)
+            )
+            for msg in history:
+                history_messages.append({
+                    "role": msg["role"],
+                    "content": msg["content"]
+                })
+        
+        # 添加当前用户消息
+        messages = history_messages + [
+            {"role": msg.role, "content": msg.content}
+            for msg in req.messages
+        ]
+        
+        # 保存用户消息
+        for msg in req.messages:
+            _get_db().execute(
+                "INSERT INTO chat_messages (id, session_id, role, content, created_at) VALUES (%s, %s, %s, %s, NOW())",
+                (str(uuid.uuid4()), session_id, msg.role, msg.content)
+            )
+        
+        # 更新会话标题（如果是第一条消息）
+        if len(history_messages) == 0 and req.messages:
+            first_message = req.messages[0].content[:50]
+            _get_db().execute(
+                "UPDATE chat_sessions SET title = %s WHERE id = %s",
+                (first_message, session_id)
+            )
+        
+        # 获取LLM客户端
+        default_provider = os.environ.get("LLM_PROVIDER", "deepseek")
+        llm = get_llm_client(provider=req.provider or default_provider)
+        
+        async def generate():
+            """生成SSE流"""
+            full_response = []
+            try:
+                # 发送session_id
+                yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
+                
+                # 流式生成内容
+                if hasattr(llm, 'chat_stream'):
+                    for chunk in llm.chat_stream(
+                        messages=messages,
+                        system_prompt=system_prompt,
+                        temperature=req.temperature,
+                        max_tokens=req.max_tokens
+                    ):
+                        full_response.append(chunk)
+                        yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
+                else:
+                    # 不支持流式的客户端，回退到普通模式
+                    result = await llm.chat(
+                        messages=messages,
+                        system_prompt=system_prompt,
+                        temperature=req.temperature,
+                        max_tokens=req.max_tokens
+                    )
+                    full_response.append(result["message"])
+                    yield f"data: {json.dumps({'type': 'content', 'content': result['message']})}\n\n"
+                
+                # 保存完整AI回复
+                complete_message = "".join(full_response)
+                message_id = str(uuid.uuid4())
+                _get_db().execute(
+                    "INSERT INTO chat_messages (id, session_id, role, content, created_at) VALUES (%s, %s, %s, %s, NOW())",
+                    (message_id, session_id, "assistant", complete_message)
+                )
+                
+                # 发送完成信号
+                yield f"data: {json.dumps({'type': 'done', 'model': llm.model})}\n\n"
+            except Exception as e:
+                logger.error(f"流式响应失败: {str(e)}")
+                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+        
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"  # 禁用nginx缓冲
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"流式聊天请求失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"服务异常: {str(e)}")
 
 
 @router.get("/sessions")

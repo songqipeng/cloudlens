@@ -252,6 +252,42 @@ class DeepSeekClient(LLMClient):
             logger.error(f"DeepSeek API调用失败: {str(e)}")
             raise
 
+    def chat_stream(
+        self,
+        messages: List[Dict[str, str]],
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2000
+    ):
+        """流式发送聊天请求到DeepSeek API（生成器）"""
+        # 构建消息列表
+        deepseek_messages = []
+        if system_prompt:
+            deepseek_messages.append({
+                "role": "system",
+                "content": system_prompt
+            })
+
+        for msg in messages:
+            if msg["role"] != "system":
+                deepseek_messages.append({
+                    "role": msg["role"],
+                    "content": msg["content"]
+                })
+
+        # 调用流式API
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=deepseek_messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=True
+        )
+
+        for chunk in response:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
+
 
 def create_llm_client(provider: str = "claude") -> LLMClient:
     """

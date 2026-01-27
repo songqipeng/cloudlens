@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useRef, useEffect } from 'react'
-import { apiPost } from '@/lib/api'
 import { MessageCircle, X, Send, Loader2, Sparkles, ChevronDown, Zap } from 'lucide-react'
 
 interface Message {
@@ -63,7 +62,7 @@ export function AIChatbot() {
     }
   }, [isOpen])
 
-  // 发送消息
+  // 发送消息（流式响应）
   const handleSend = async () => {
     if (!input.trim() || loading) return
 
@@ -76,6 +75,15 @@ export function AIChatbot() {
     setMessages(prev => [...prev, userMessage])
     setInput('')
     setLoading(true)
+
+    // 先添加一个空的助手消息，用于流式更新
+    const assistantMessageId = (Date.now() + 1).toString()
+    const assistantMessage: Message = {
+      id: assistantMessageId,
+      role: 'assistant',
+      content: ''
+    }
+    setMessages(prev => [...prev, assistantMessage])
 
     try {
       // 从 URL 获取当前账号
@@ -91,27 +99,80 @@ export function AIChatbot() {
         currentAccount = localStorage.getItem("currentAccount")
       }
 
-      const response = await apiPost<ChatResponse>(
-        '/v1/chatbot/chat',
-        {
+      // 使用流式 API - 通过 Nginx 代理访问后端
+      const streamUrl = `/api/v1/chatbot/chat/stream${currentAccount ? `?account=${encodeURIComponent(currentAccount)}` : ''}`
+      
+      const response = await fetch(streamUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           messages: [{ role: 'user', content: userMessage.content }],
           session_id: sessionId,
-          account: currentAccount,  // 传递当前账号
           provider: selectedModel,
           temperature: 0.7,
           max_tokens: 2000
-        }
-      )
+        })
+      })
 
-      setSessionId(response.session_id)
-
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: response.message
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      setMessages(prev => [...prev, assistantMessage])
+      const reader = response.body?.getReader()
+      if (!reader) {
+        throw new Error('无法获取响应流')
+      }
+
+      const decoder = new TextDecoder()
+      let accumulatedContent = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const text = decoder.decode(value)
+        const lines = text.split('\n')
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6))
+              
+              if (data.type === 'session') {
+                setSessionId(data.session_id)
+              } else if (data.type === 'content') {
+                accumulatedContent += data.content
+                // 更新消息内容
+                setMessages(prev => prev.map(msg => 
+                  msg.id === assistantMessageId 
+                    ? { ...msg, content: accumulatedContent }
+                    : msg
+                ))
+              } else if (data.type === 'error') {
+                throw new Error(data.error)
+              }
+              // type === 'done' 表示完成，不需要额外处理
+            } catch (e) {
+              // 忽略 JSON 解析错误（可能是空行）
+              if (line.slice(6).trim()) {
+                console.warn('SSE 解析警告:', e)
+              }
+            }
+          }
+        }
+      }
+
+      // 如果没有收到任何内容，显示错误
+      if (!accumulatedContent) {
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessageId 
+            ? { ...msg, content: '抱歉，AI 没有返回任何内容。请稍后重试。' }
+            : msg
+        ))
+      }
+
     } catch (error: any) {
       console.error('发送消息失败:', error)
       // 提取详细错误信息
@@ -123,12 +184,12 @@ export function AIChatbot() {
         errorDetail = error.message
       }
       
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `抱歉，AI服务请求失败。\n\n**错误详情:** ${errorDetail}\n\n💡 提示：请稍后重试，或点击右上角设置按钮检查API配置。`
-      }
-      setMessages(prev => [...prev, errorMessage])
+      // 更新助手消息为错误信息
+      setMessages(prev => prev.map(msg => 
+        msg.id === assistantMessageId 
+          ? { ...msg, content: `抱歉，AI服务请求失败。\n\n**错误详情:** ${errorDetail}\n\n💡 提示：请稍后重试，或点击右上角设置按钮检查API配置。` }
+          : msg
+      ))
     } finally {
       setLoading(false)
     }
@@ -329,7 +390,7 @@ export function AIChatbot() {
                   </div>
                 </div>
               ))}
-              {loading && (
+              {loading && messages[messages.length - 1]?.content === '' && (
                 <div className="flex justify-start">
                   <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-blue-500" />

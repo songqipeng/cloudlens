@@ -337,7 +337,7 @@ class CostTrendAnalyzer:
         try:
             from cloudlens.core.bill_storage import BillStorageManager
             storage = BillStorageManager(self.bills_db_path)
-            db = storage.db
+            db = storage._get_db()  # 使用延迟初始化方法获取数据库连接
             
             # 计算起始和结束日期
             if start_date and end_date:

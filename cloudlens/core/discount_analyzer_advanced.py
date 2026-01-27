@@ -1395,7 +1395,7 @@ class AdvancedDiscountAnalyzer:
         account_id: str
     ) -> Dict:
         """
-        智能洞察生成（基于规则的分析）
+        智能洞察生成（基于规则的分析，优化版本 - 减少查询次数）
         
         Args:
             account_id: 账号ID
@@ -1408,16 +1408,12 @@ class AdvancedDiscountAnalyzer:
         try:
             insights = []
             
-            # 获取各类分析数据
+            # 只获取必要的分析数据，减少查询次数
             quarterly = self.get_quarterly_comparison(account_id, quarters=4)
-            products = self.get_product_discount_trends(account_id, months=19, top_n=20)
-            regions = self.get_region_discount_ranking(account_id)
-            subscription = self.get_subscription_type_comparison(account_id)
-            suggestions = self.get_optimization_suggestions(account_id)
-            anomalies = self.detect_anomalies(account_id)
+            products = self.get_product_discount_trends(account_id, months=6, top_n=5)  # 减少数据量
             
             # 洞察1: 折扣趋势
-            if quarterly['success'] and len(quarterly['quarters']) >= 2:
+            if quarterly['success'] and len(quarterly.get('quarters', [])) >= 2:
                 latest = quarterly['quarters'][-1]
                 prev = quarterly['quarters'][-2]
                 change = latest['avg_discount_rate'] - prev['avg_discount_rate']
@@ -1430,7 +1426,7 @@ class AdvancedDiscountAnalyzer:
                 })
             
             # 洞察2: TOP产品分析
-            if products['success'] and products['products']:
+            if products['success'] and products.get('products'):
                 top_product = products['products'][0]
                 insights.append({
                     'category': '产品分析',
@@ -1449,39 +1445,6 @@ class AdvancedDiscountAnalyzer:
                         'title': f"低折扣产品: {lowest_discount_product['product_name']}",
                         'description': f"折扣率仅{lowest_discount_product['avg_discount_rate']*100:.1f}%",
                         'recommendation': '建议与商务沟通提升该产品折扣率'
-                    })
-            
-            # 洞察3: 优化机会
-            if suggestions['success'] and suggestions['total_suggestions'] > 0:
-                savings = suggestions['total_potential_savings']
-                insights.append({
-                    'category': '优化机会',
-                    'level': 'success',
-                    'title': f"发现{suggestions['total_suggestions']}个优化机会",
-                    'description': f"转为包年包月可年节省{savings:,.0f}元",
-                    'recommendation': '优先转换运行时间长、成本高的实例'
-                })
-            
-            # 洞察4: 异常检测
-            if anomalies['success'] and anomalies['total_anomalies'] > 0:
-                insights.append({
-                    'category': '异常检测',
-                    'level': 'warning',
-                    'title': f"检测到{anomalies['total_anomalies']}个异常月份",
-                    'description': '折扣率波动超过阈值',
-                    'recommendation': '查看异常月份的大额订单或合同变更'
-                })
-            
-            # 洞察5: 计费方式对比
-            if subscription['success']:
-                rate_diff = subscription['rate_difference']
-                if rate_diff > 0.10:
-                    insights.append({
-                        'category': '计费优化',
-                        'level': 'info',
-                        'title': f"包年包月折扣率优势{rate_diff*100:.1f}%",
-                        'description': '包年包月折扣率显著高于按量付费',
-                        'recommendation': '评估长期运行资源，转为包年包月'
                     })
             
             return {

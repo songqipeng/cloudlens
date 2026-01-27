@@ -25,12 +25,27 @@ def get_provider(account_config: CloudAccount):
             account_config.access_key_secret,
             account_config.region,
         )
+    elif account_config.provider == "mock":
+        from cloudlens.providers.mock.provider import MockProvider
+
+        return MockProvider(
+            account_config.name,
+            account_config.access_key_id,
+            account_config.access_key_secret,
+            account_config.region,
+        )
     else:
         raise ValueError(
             f"不支持的云厂商: {account_config.provider}。\n"
-            f"当前支持的厂商: aliyun (阿里云), tencent (腾讯云)\n"
+            f"当前支持的厂商: aliyun (阿里云), tencent (腾讯云), mock (模拟数据)\n"
             f"AWS和火山引擎支持正在开发中。"
         )
+
+
+def is_mock_mode() -> bool:
+    """检查是否启用Mock模式"""
+    import os
+    return os.getenv("CLOUDLENS_MOCK_MODE", "false").lower() == "true"
 
 
 def smart_resolve_account(cm, ctx_mgr, account_name=None):
