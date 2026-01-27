@@ -167,14 +167,14 @@ class MockProvider(BaseProvider):
             resources.append(UnifiedResource(
                 id=instance_id,
                 name=name,
-                type=ResourceType.ECS,
+                provider="mock",
                 region=self.region,
+                resource_type=ResourceType.ECS,
                 status=status,
                 spec=spec,
-                cost=monthly_cost,
                 tags=self._generate_tags(),
-                created_time=created_time.isoformat(),
-                expired_time=expired_time.isoformat() if expired_time else None,
+                created_time=created_time,
+                expired_time=expired_time,
                 vpc_id=self._generate_id("vpc"),
                 public_ips=[self._generate_ip(True)] if random.random() > 0.3 else [],
                 private_ips=[self._generate_ip(False)],
@@ -219,14 +219,14 @@ class MockProvider(BaseProvider):
             resources.append(UnifiedResource(
                 id=instance_id,
                 name=name,
-                type=ResourceType.RDS,
+                provider="mock",
                 region=self.region,
+                resource_type=ResourceType.RDS,
                 status=status,
                 spec=spec,
-                cost=monthly_cost,
                 tags=self._generate_tags(),
-                created_time=created_time.isoformat(),
-                expired_time=expired_time.isoformat() if expired_time else None,
+                created_time=created_time,
+                expired_time=expired_time,
             ))
 
         return resources
@@ -266,14 +266,14 @@ class MockProvider(BaseProvider):
             resources.append(UnifiedResource(
                 id=instance_id,
                 name=name,
-                type=ResourceType.REDIS,
+                provider="mock",
                 region=self.region,
+                resource_type=ResourceType.REDIS,
                 status=status,
                 spec=spec,
-                cost=monthly_cost,
                 tags=self._generate_tags(),
-                created_time=created_time.isoformat(),
-                expired_time=expired_time.isoformat() if expired_time else None,
+                created_time=created_time,
+                expired_time=expired_time,
             ))
 
         return resources
