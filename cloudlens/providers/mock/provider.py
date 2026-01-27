@@ -109,15 +109,15 @@ class MockProvider(BaseProvider):
 
     def check_instances_count(self) -> int:
         """返回该区域的ECS实例数量"""
-        # 根据区域分配不同数量的实例
+        # 根据区域分配不同数量的实例（增加到1000+总资源）
         region_weights = {
-            "cn-hangzhou": 200,  # 杭州最多
-            "cn-shanghai": 180,
-            "cn-beijing": 150,
-            "cn-shenzhen": 120,
-            "cn-hongkong": 80,
-            "ap-southeast-1": 50,
-            "us-west-1": 20,
+            "cn-hangzhou": 250,  # 杭州最多
+            "cn-shanghai": 220,
+            "cn-beijing": 180,
+            "cn-shenzhen": 150,
+            "cn-hongkong": 100,
+            "ap-southeast-1": 70,
+            "us-west-1": 30,
         }
         return region_weights.get(self.region, 50)
 
@@ -185,11 +185,11 @@ class MockProvider(BaseProvider):
     def list_rds(self) -> List[UnifiedResource]:
         """返回模拟的 RDS 实例列表"""
         resources = []
-        # 根据区域分配RDS数量
+        # 根据区域分配RDS数量（增加到120+总RDS）
         region_counts = {
-            "cn-hangzhou": 25, "cn-shanghai": 20, "cn-beijing": 18,
-            "cn-shenzhen": 15, "cn-hongkong": 10, "ap-southeast-1": 8,
-            "us-west-1": 4,
+            "cn-hangzhou": 30, "cn-shanghai": 25, "cn-beijing": 22,
+            "cn-shenzhen": 18, "cn-hongkong": 12, "ap-southeast-1": 10,
+            "us-west-1": 5,
         }
         count = region_counts.get(self.region, 5)
 
@@ -234,10 +234,11 @@ class MockProvider(BaseProvider):
     def list_redis(self) -> List[UnifiedResource]:
         """返回模拟的 Redis 实例列表"""
         resources = []
+        # 增加到80+总Redis
         region_counts = {
-            "cn-hangzhou": 15, "cn-shanghai": 12, "cn-beijing": 10,
-            "cn-shenzhen": 8, "cn-hongkong": 6, "ap-southeast-1": 4,
-            "us-west-1": 2,
+            "cn-hangzhou": 20, "cn-shanghai": 16, "cn-beijing": 14,
+            "cn-shenzhen": 12, "cn-hongkong": 8, "ap-southeast-1": 6,
+            "us-west-1": 4,
         }
         count = region_counts.get(self.region, 3)
 

@@ -20,6 +20,17 @@ class AnalysisService:
         Returns:
             所有region的列表
         """
+        # 检查是否为Mock模式
+        import os
+        if os.getenv("CLOUDLENS_MOCK_MODE", "false").lower() == "true" or access_key.startswith("MOCK_"):
+            # Mock模式返回模拟区域列表
+            mock_regions = [
+                "cn-hangzhou", "cn-shanghai", "cn-beijing", "cn-shenzhen",
+                "cn-hongkong", "ap-southeast-1", "us-west-1"
+            ]
+            logger.info(f"Mock模式：返回 {len(mock_regions)} 个模拟区域")
+            return mock_regions
+        
         try:
             # 使用任意一个region来调用DescribeRegions API
             client = AcsClient(access_key, secret_key, "cn-hangzhou")
