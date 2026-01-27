@@ -187,9 +187,16 @@ def _estimate_monthly_cost(resource) -> float:
 
 def _fetch_resources_for_region(account_config: CloudAccount, region: str, resource_type: str) -> List[Any]:
     """在新地区中获取特定类型的资源"""
-    from cloudlens.providers.aliyun.provider import AliyunProvider
+    from cloudlens.cli.utils import is_mock_mode, get_provider
+    
     try:
-        region_provider = AliyunProvider(account_config.name, account_config.access_key_id, account_config.access_key_secret, region)
+        # 检查Mock模式
+        if is_mock_mode() or account_config.provider == "mock":
+            from cloudlens.providers.mock.provider import MockProvider
+            region_provider = MockProvider(account_config.name, account_config.access_key_id, account_config.access_key_secret, region)
+        else:
+            from cloudlens.providers.aliyun.provider import AliyunProvider
+            region_provider = AliyunProvider(account_config.name, account_config.access_key_id, account_config.access_key_secret, region)
         
         if resource_type == "ecs":
             if region_provider.check_instances_count() > 0:
