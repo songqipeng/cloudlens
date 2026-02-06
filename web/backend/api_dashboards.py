@@ -282,7 +282,7 @@ async def get_summary(
         def update_cache_task():
             try:
                 # 延迟导入，避免在导入时触发其他模块的初始化
-                from web.backend.api import _update_dashboard_summary_cache
+                from web.backend.api_service import _update_dashboard_summary_cache
                 _update_dashboard_summary_cache(account, account_config)
             except Exception as e:
                 logger.error(f"Background summary update failed: {e}")
@@ -314,7 +314,7 @@ async def get_dashboard_trend(
             account = ctx.get_last_account()
         
         # 复用原有趋势计算逻辑 (api.py 中的 get_trend)
-        from web.backend.api import get_trend
+        from web.backend.api_service import get_trend
         return await get_trend(
             account=account, 
             days=days, 
@@ -332,7 +332,7 @@ def get_dashboard_idle(account: Optional[str] = None):
     """获取闲置资源"""
     try:
         provider, account_name = _get_provider_for_account(account)
-        from web.backend.api import get_idle_resources
+        from web.backend.api_service import get_trend, get_idle_resources
         return get_idle_resources(account=account_name)
     except Exception as e:
         raise handle_api_error(e, "get_dashboard_idle")

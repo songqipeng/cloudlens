@@ -8,6 +8,7 @@ import logging
 from datetime import datetime
 
 from cloudlens.core.ai_optimizer import AIOptimizer, OptimizationSuggestion
+from cloudlens.core.cache.decorators import cache_response
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +20,13 @@ _ai_optimizer = AIOptimizer()
 
 # API端点
 @router.get("/suggestions")
+@cache_response(ttl_seconds=1800, key_prefix="ai_optimizer_suggestions")  # 缓存30分钟
 def get_optimization_suggestions(
     account: Optional[str] = None,
-    limit: int = Query(20, ge=1, le=100)
+    limit: int = Query(20, ge=1, le=100),
+    force_refresh: bool = Query(False, description="强制刷新缓存")
 ) -> Dict[str, Any]:
-    """获取优化建议列表"""
+    """获取优化建议列表（已缓存30分钟）"""
     try:
         account_id = None
         if account:
@@ -60,15 +63,23 @@ def get_optimization_suggestions(
         }
     except Exception as e:
         logger.error(f"获取优化建议失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"获取优化建议失败: {str(e)}")
+        # 返回空数据而不是抛出异常，避免前端显示错误
+        return {
+            "success": False,
+            "data": [],
+            "error": f"获取优化建议失败: {str(e)}",
+            "message": "无法加载优化建议，请稍后重试或检查数据是否充足"
+        }
 
 
 @router.get("/predict")
+@cache_response(ttl_seconds=3600, key_prefix="ai_optimizer_predict")  # 缓存1小时
 def predict_cost(
     account: Optional[str] = None,
-    days: int = Query(30, ge=1, le=365)
+    days: int = Query(30, ge=1, le=365),
+    force_refresh: bool = Query(False, description="强制刷新缓存")
 ) -> Dict[str, Any]:
-    """预测未来成本"""
+    """预测未来成本（已缓存1小时）"""
     try:
         account_id = None
         if account:
@@ -83,6 +94,7 @@ def predict_cost(
         if not prediction:
             return {
                 "success": False,
+                "data": None,
                 "message": "无法生成成本预测（数据不足）"
             }
         
@@ -92,7 +104,13 @@ def predict_cost(
         }
     except Exception as e:
         logger.error(f"成本预测失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"成本预测失败: {str(e)}")
+        # 返回空数据而不是抛出异常
+        return {
+            "success": False,
+            "data": None,
+            "error": f"成本预测失败: {str(e)}",
+            "message": "无法生成成本预测，请稍后重试或检查数据是否充足"
+        }
 
 
 @router.get("/analyze/{resource_type}/{resource_id}")

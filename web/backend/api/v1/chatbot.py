@@ -441,6 +441,7 @@ async def chat(
             "usage": result["usage"],
             "model": result["model"]
         }
+        import json
         _get_db().execute(
             "INSERT INTO chat_messages (id, session_id, role, content, metadata, created_at) VALUES (%s, %s, %s, %s, %s, NOW())",
             (message_id, session_id, "assistant", result["message"], json.dumps(metadata))

@@ -7,6 +7,7 @@ from web.backend.api_base import handle_api_error
 from cloudlens.core.config import ConfigManager, CloudAccount
 from cloudlens.core.context import ContextManager
 from cloudlens.core.cache import CacheManager
+from cloudlens.core.cache.decorators import cache_response
 
 logger = logging.getLogger(__name__)
 
@@ -78,12 +79,13 @@ def _get_account_id(account_config, account_name: str) -> str:
 
 
 @router.get("/discounts/trend")
+@cache_response(ttl_seconds=3600, key_prefix="discounts_trend")  # 缓存1小时
 def get_discounts_trend(
     account: Optional[str] = Query(None, description="账号名称"),
     months: int = Query(19, ge=1, le=999, description="分析月数"),
     force_refresh: bool = Query(False, description="强制刷新缓存"),
 ):
-    """折扣趋势分析"""
+    """折扣趋势分析（已缓存1小时）"""
     from cloudlens.core.discount_analyzer_db import DiscountAnalyzerDB
     try:
         provider, account_name = _get_provider_for_account(account)
@@ -158,8 +160,9 @@ def get_discounts_by_products(
 
 
 @router.get("/discounts/quarterly")
+@cache_response(ttl_seconds=7200, key_prefix="discounts_quarterly")  # 缓存2小时
 def get_discounts_quarterly(account: Optional[str] = None, quarters: int = 8):
-    """季度折扣分析"""
+    """季度折扣分析（已缓存2小时）"""
     from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
@@ -175,8 +178,9 @@ def get_discounts_quarterly(account: Optional[str] = None, quarters: int = 8):
 
 
 @router.get("/discounts/yearly")
+@cache_response(ttl_seconds=7200, key_prefix="discounts_yearly")  # 缓存2小时
 def get_discounts_yearly(account: Optional[str] = None):
-    """年度折扣分析"""
+    """年度折扣分析（已缓存2小时）"""
     from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
@@ -192,8 +196,9 @@ def get_discounts_yearly(account: Optional[str] = None):
 
 
 @router.get("/discounts/product-trends")
+@cache_response(ttl_seconds=3600, key_prefix="discounts_product_trends")  # 缓存1小时
 def get_product_discount_trends(account: Optional[str] = None, months: int = 19):
-    """产品折扣趋势"""
+    """产品折扣趋势（已缓存1小时）"""
     from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
@@ -209,8 +214,9 @@ def get_product_discount_trends(account: Optional[str] = None, months: int = 19)
 
 
 @router.get("/discounts/regions")
+@cache_response(ttl_seconds=3600, key_prefix="discounts_regions")  # 缓存1小时
 def get_discounts_by_regions(account: Optional[str] = None, months: int = 19):
-    """按地域统计折扣"""
+    """按地域统计折扣（已缓存1小时）"""
     from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
@@ -226,8 +232,9 @@ def get_discounts_by_regions(account: Optional[str] = None, months: int = 19):
 
 
 @router.get("/discounts/subscription-types")
+@cache_response(ttl_seconds=3600, key_prefix="discounts_subscription_types")  # 缓存1小时
 def get_discounts_by_subscription_types(account: Optional[str] = None, months: int = 19):
-    """按订阅类型统计折扣"""
+    """按订阅类型统计折扣（已缓存1小时）"""
     from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
@@ -243,8 +250,9 @@ def get_discounts_by_subscription_types(account: Optional[str] = None, months: i
 
 
 @router.get("/discounts/optimization-suggestions")
+@cache_response(ttl_seconds=3600, key_prefix="discounts_optimization_suggestions")  # 缓存1小时
 def get_discount_optimization_suggestions(account: Optional[str] = None):
-    """折扣优化建议"""
+    """折扣优化建议（已缓存1小时）"""
     from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
@@ -260,8 +268,9 @@ def get_discount_optimization_suggestions(account: Optional[str] = None):
 
 
 @router.get("/discounts/anomalies")
+@cache_response(ttl_seconds=3600, key_prefix="discounts_anomalies")  # 缓存1小时
 def get_discount_anomalies(account: Optional[str] = None, months: int = 19):
-    """折扣异常检测"""
+    """折扣异常检测（已缓存1小时）"""
     from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
@@ -294,8 +303,9 @@ def get_product_region_discount_matrix(account: Optional[str] = None):
 
 
 @router.get("/discounts/moving-average")
+@cache_response(ttl_seconds=3600, key_prefix="discounts_moving_average")  # 缓存1小时
 def get_discounts_moving_average(account: Optional[str] = None, windows: str = "3,6,12"):
-    """折扣移动平均"""
+    """折扣移动平均（已缓存1小时）"""
     from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
@@ -312,8 +322,9 @@ def get_discounts_moving_average(account: Optional[str] = None, windows: str = "
 
 
 @router.get("/discounts/cumulative")
+@cache_response(ttl_seconds=3600, key_prefix="discounts_cumulative")  # 缓存1小时
 def get_discounts_cumulative(account: Optional[str] = None):
-    """折扣累计统计"""
+    """折扣累计统计（已缓存1小时）"""
     from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)
@@ -346,8 +357,9 @@ def get_instance_lifecycle_discounts(account: Optional[str] = None):
 
 
 @router.get("/discounts/insights")
+@cache_response(ttl_seconds=10800, key_prefix="discounts_insights")  # 缓存3小时（这个API最慢）
 def get_discount_insights(account: Optional[str] = None):
-    """折扣洞察"""
+    """折扣洞察（已缓存3小时，计算耗时较长）"""
     from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
     try:
         provider, account_name = _get_provider_for_account(account)

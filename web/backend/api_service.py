@@ -27,6 +27,24 @@ from web.backend.api_resources import _get_cost_map, _estimate_monthly_cost, _es
 from web.backend.error_handler import api_error_handler
 from pydantic import BaseModel
 
+def _get_provider_for_account(account: Optional[str] = None):
+    """获取指定账号的 Provider (本地辅助函数)"""
+    cm = ConfigManager()
+    if not account:
+        accounts = cm.list_accounts()
+        if not accounts:
+            raise HTTPException(status_code=404, detail="No accounts configured")
+        account_config = accounts[0]
+        account_name = account_config.name
+    else:
+        account_config = cm.get_account(account)
+        if not account_config:
+            raise HTTPException(status_code=404, detail=f"Account '{account}' not found")
+        account_name = account
+    
+    from cloudlens.cli.utils import get_provider
+    return get_provider(account_config), account_name
+
 router = APIRouter(prefix="/api")
 
 class AccountInfo(BaseModel):
@@ -230,16 +248,19 @@ def trigger_analysis(req: TriggerAnalysisRequest, background_tasks: BackgroundTa
     try:
         data, cached = AnalysisService.analyze_idle_resources(req.account, req.days, req.force)
         
-        # 清除 dashboard_idle 缓存，确保 dashboard 页面能获取最新数据
+        # 清除 dashboard_idle 和 dashboard_summary 缓存，确保仪表盘能获取最新数据
         cache_manager = CacheManager(ttl_seconds=86400)
         cache_manager.clear(resource_type="dashboard_idle", account_name=req.account)
+        cache_manager.clear(resource_type="dashboard_summary", account_name=req.account)
+        cache_manager.clear(resource_type=f"resource_list_{req.account}", account_name=req.account)
+        
         # 同时更新 dashboard_idle 缓存
         cache_manager.set(resource_type="dashboard_idle", account_name=req.account, data=data)
         
         return {
             "status": "success", 
             "count": len(data), 
-            "cached": cached,
+            "cached": False,
             "data": data
         }
     except Exception as e:
@@ -297,114 +318,20 @@ async def get_summary(account: Optional[str] = None, force_refresh: bool = Query
     logger.debug(f"缓存未命中，直接获取真实数据，账号: {account}")
     account_config = cm.get_account(account)
     if not account_config:
-        print(f"[DEBUG get_summary] 账号 '{account}' 未找到")
+        logger.error(f"[get_summary] 账号 '{account}' 未找到")
         raise HTTPException(status_code=404, detail=f"Account '{account}' not found")
     
-    # 直接获取资源统计（不依赖复杂的缓存逻辑）
-    logger.info(f"[get_summary] 直接获取资源数据: {account}")
-    
-    # 初始化结果
-    total_cost = 0.0
-    trend = "暂无数据"
-    trend_pct = 0.0
-    idle_count = 0
-    total_resources = 0
-    resource_breakdown = {"ecs": 0, "rds": 0, "redis": 0}
-    tag_coverage = 0.0
-    savings_potential = 0.0
-    
+    # 直接调用完整的计算逻辑并更新缓存
+    # _update_dashboard_summary_cache 已经包含了 成本、资源、趋势、告警、标签等所有指标的计算
     try:
-        # 1. 获取资源统计 - 直接调用list_resources函数
-        from web.backend.api import list_resources as get_resources
-        
-        # 获取ECS数量
-        try:
-            ecs_result = await get_resources(type="ecs", page=1, pageSize=1000, account=account, force_refresh=False)
-            if isinstance(ecs_result, dict) and "data" in ecs_result:
-                ecs_count = ecs_result["data"].get("pagination", {}).get("total", 0)
-            else:
-                ecs_count = len(ecs_result) if isinstance(ecs_result, list) else 0
-            resource_breakdown["ecs"] = ecs_count
-            logger.info(f"  ECS数量: {ecs_count}")
-        except Exception as e:
-            logger.warning(f"  获取ECS数量失败: {str(e)}")
-        
-        # 获取RDS数量
-        try:
-            rds_result = await get_resources(type="rds", page=1, pageSize=1000, account=account, force_refresh=False)
-            if isinstance(rds_result, dict) and "data" in rds_result:
-                rds_count = rds_result["data"].get("pagination", {}).get("total", 0)
-            else:
-                rds_count = len(rds_result) if isinstance(rds_result, list) else 0
-            resource_breakdown["rds"] = rds_count
-            logger.info(f"  RDS数量: {rds_count}")
-        except Exception as e:
-            logger.warning(f"  获取RDS数量失败: {str(e)}")
-        
-        # 获取Redis数量
-        try:
-            redis_result = await get_resources(type="redis", page=1, pageSize=1000, account=account, force_refresh=False)
-            if isinstance(redis_result, dict) and "data" in redis_result:
-                redis_count = redis_result["data"].get("pagination", {}).get("total", 0)
-            else:
-                redis_count = len(redis_result) if isinstance(redis_result, list) else 0
-            resource_breakdown["redis"] = redis_count
-            logger.info(f"  Redis数量: {redis_count}")
-        except Exception as e:
-            logger.warning(f"  获取Redis数量失败: {str(e)}")
-        
-        total_resources = sum(resource_breakdown.values())
-        logger.info(f"  资源总数: {total_resources}")
-        
-        # 2. 获取成本数据
-        try:
-            from datetime import datetime, timedelta
-            now = datetime.now()
-            current_cycle = now.strftime("%Y-%m")
-            
-            billing_data = _get_billing_overview_from_db(account_config, billing_cycle=current_cycle)
-            if billing_data:
-                total_cost = float(billing_data.get("total_pretax", 0))
-                logger.info(f"  总成本: {total_cost}")
-        except Exception as e:
-            logger.warning(f"  获取成本数据失败: {str(e)}")
-        
-        # 3. 获取闲置资源数量
-        try:
-            cache_manager = CacheManager(ttl_seconds=86400)
-            idle_data = cache_manager.get(resource_type="dashboard_idle", account_name=account)
-            if not idle_data:
-                idle_data = cache_manager.get(resource_type="idle_result", account_name=account)
-            if idle_data:
-                idle_count = len(idle_data)
-                logger.info(f"  闲置资源: {idle_count}")
-        except Exception as e:
-            logger.warning(f"  获取闲置资源失败: {str(e)}")
-        
-        # 构建返回结果
-        result = {
-            "account": account,
-            "total_cost": total_cost,
-            "idle_count": idle_count,
-            "cost_trend": trend,
-            "trend_pct": trend_pct,
-            "total_resources": total_resources,
-            "resource_breakdown": resource_breakdown,
-            "alert_count": 0,
-            "tag_coverage": tag_coverage,
-            "savings_potential": savings_potential,
-            "cached": False,
+        result_data = _update_dashboard_summary_cache(account, account_config, force_refresh=force_refresh)
+        return {
+            **result_data,
+            "cached": False
         }
-        
-        logger.info(f"[get_summary] 成功返回数据: total_resources={total_resources}, total_cost={total_cost}")
-        return result
-        
     except Exception as e:
         import traceback
-        error_msg = f"获取仪表盘数据失败: {str(e)}\n{traceback.format_exc()}"
-        logger.error(error_msg)
-        print(error_msg)
-        
+        logger.error(f"获取仪表盘摘要失败: {str(e)}\n{traceback.format_exc()}")
         # 发生错误时返回默认值
         return {
             "account": account,
@@ -565,351 +492,53 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
         logger.warning(f"获取闲置资源数据失败: {str(e)}")
         idle_count = 0
 
-    # Get Resource Statistics (Task 1.1) - 优化：使用缓存或快速查询
-    # 初始化资源列表变量
-    instances = []
-    rds_list = []
-    redis_list = []
-    
+    # Get Resource Statistics (Consistent Global View)
     try:
-        from cloudlens.cli.utils import get_provider
-        provider = get_provider(account_config)
-        
-        # 尝试从缓存获取资源列表（避免重复查询）
-        # 如果force_refresh为True，跳过缓存，强制重新查询
-        cache_manager = CacheManager(ttl_seconds=86400)
-        resource_cache_key = f"resource_list_{account}"
-        cached_resources = None
-        
-        if not force_refresh:
-            cached_resources = cache_manager.get(resource_type=resource_cache_key, account_name=account)
-        
-        if cached_resources:
-            instances = cached_resources.get("instances", []) or []
-            rds_list = cached_resources.get("rds", []) or []
-            redis_list = cached_resources.get("redis", []) or []
-            logger.info(f"从缓存获取资源列表 (账号: {account}): ECS={len(instances)}, RDS={len(rds_list)}, Redis={len(redis_list)}")
-        else:
-            # 初始化变量
-            instances = []
-            rds_list = []
-            redis_list = []
-            
-            # 如果缓存中没有，尝试从资源API的缓存中获取（避免重复查询）
-            # 资源API使用不同的缓存键：resource_type=ecs/rds/redis
-            logger.info(f"资源列表缓存未命中，尝试从资源API缓存获取 (账号: {account})")
-            try:
-                # 尝试从资源API的缓存获取
-                ecs_cached = cache_manager.get(resource_type="ecs", account_name=account)
-                rds_cached = cache_manager.get(resource_type="rds", account_name=account)
-                redis_cached = cache_manager.get(resource_type="redis", account_name=account)
-                
-                if ecs_cached:
-                    instances = ecs_cached if isinstance(ecs_cached, list) else []
-                    logger.info(f"从资源API缓存获取ECS: {len(instances)} 个")
-                if rds_cached:
-                    rds_list = rds_cached if isinstance(rds_cached, list) else []
-                    logger.info(f"从资源API缓存获取RDS: {len(rds_list)} 个")
-                if redis_cached:
-                    redis_list = redis_cached if isinstance(redis_cached, list) else []
-                    logger.info(f"从资源API缓存获取Redis: {len(redis_list)} 个")
-                
-                if instances or rds_list or redis_list:
-                    logger.info(f"从资源API缓存获取成功 (账号: {account}): ECS={len(instances)}, RDS={len(rds_list)}, Redis={len(redis_list)}")
-            except Exception as e:
-                logger.warning(f"从资源API缓存获取失败: {str(e)}")
-            
-            # 如果从缓存获取失败或数据不完整，先尝试从数据库读取
-            if not instances and not rds_list and not redis_list:
-                logger.info(f"缓存未命中，尝试从数据库缓存表读取 (账号: {account})")
-                try:
-                    from cloudlens.core.cache_manager import get_db_connection
-                    import json
-                    
-                    conn = get_db_connection()
-                    if conn:
-                        cursor = conn.cursor()
-                        
-                        # 查询ECS缓存
-                        cursor.execute("""
-                            SELECT data FROM cache_data 
-                            WHERE account_name = %s AND resource_type = 'ecs' 
-                            AND expires_at > NOW()
-                            ORDER BY created_at DESC LIMIT 1
-                        """, (account,))
-                        ecs_row = cursor.fetchone()
-                        if ecs_row and ecs_row[0]:
-                            instances = json.loads(ecs_row[0])
-                            logger.info(f"从数据库获取ECS: {len(instances)} 个")
-                        
-                        # 查询RDS缓存
-                        cursor.execute("""
-                            SELECT data FROM cache_data 
-                            WHERE account_name = %s AND resource_type = 'rds' 
-                            AND expires_at > NOW()
-                            ORDER BY created_at DESC LIMIT 1
-                        """, (account,))
-                        rds_row = cursor.fetchone()
-                        if rds_row and rds_row[0]:
-                            rds_list = json.loads(rds_row[0])
-                            logger.info(f"从数据库获取RDS: {len(rds_list)} 个")
-                        
-                        # 查询Redis缓存
-                        cursor.execute("""
-                            SELECT data FROM cache_data 
-                            WHERE account_name = %s AND resource_type = 'redis' 
-                            AND expires_at > NOW()
-                            ORDER BY created_at DESC LIMIT 1
-                        """, (account,))
-                        redis_row = cursor.fetchone()
-                        if redis_row and redis_row[0]:
-                            redis_list = json.loads(redis_row[0])
-                            logger.info(f"从数据库获取Redis: {len(redis_list)} 个")
-                        
-                        cursor.close()
-                        conn.close()
-                        
-                        logger.info(f"从数据库获取资源: ECS={len(instances)}, RDS={len(rds_list)}, Redis={len(redis_list)}")
-                except Exception as e:
-                    logger.warning(f"从数据库读取失败: {str(e)}")
-            
-            # 如果数据库也没有数据，才执行API查询
-            if not instances and not rds_list and not redis_list:
-                logger.info(f"数据库也为空，开始查询所有区域 (账号: {account})")
-            # 查询资源（查询所有区域，而不是只查询配置的 region）
-            def get_instances():
-                try:
-                    from cloudlens.core.services.analysis_service import AnalysisService
-                    from cloudlens.providers.aliyun.provider import AliyunProvider
-                    
-                    # 获取所有区域
-                    all_regions = AnalysisService._get_all_regions(
-                        account_config.access_key_id,
-                        account_config.access_key_secret
-                    )
-                    
-                    all_instances = []
-                    for region in all_regions:
-                        try:
-                            region_provider = AliyunProvider(
-                                account_name=account_config.name,
-                                access_key=account_config.access_key_id,
-                                secret_key=account_config.access_key_secret,
-                                region=region,
-                            )
-                            # 快速检查是否有资源
-                            count = region_provider.check_instances_count()
-                            if count > 0:
-                                region_instances = region_provider.list_instances()
-                                all_instances.extend(region_instances)
-                                logger.info(f"区域 {region}: 找到 {len(region_instances)} 个ECS实例")
-                        except Exception as e:
-                            logger.warning(f"查询区域 {region} 的ECS实例失败: {str(e)}")
-                            continue
-                    
-                    logger.info(f"总共找到 {len(all_instances)} 个ECS实例（从 {len(all_regions)} 个区域）")
-                    return all_instances
-                except Exception as e:
-                    logger.warning(f"获取ECS列表失败: {str(e)}")
-                    # 如果查询所有区域失败，回退到只查询配置的 region
-                    try:
-                        return provider.list_instances()
-                    except:
-                        return []
-            
-            def get_rds():
-                try:
-                        from cloudlens.core.services.analysis_service import AnalysisService
-                        from cloudlens.providers.aliyun.provider import AliyunProvider
-                        
-                        # 获取所有区域
-                        all_regions = AnalysisService._get_all_regions(
-                            account_config.access_key_id,
-                            account_config.access_key_secret
-                        )
-                        
-                        all_rds = []
-                        for region in all_regions:
-                            try:
-                                region_provider = AliyunProvider(
-                                    account_name=account_config.name,
-                                    access_key=account_config.access_key_id,
-                                    secret_key=account_config.access_key_secret,
-                                    region=region,
-                                )
-                                region_rds = region_provider.list_rds()
-                                if region_rds and len(region_rds) > 0:
-                                    all_rds.extend(region_rds)
-                                    logger.info(f"区域 {region}: 找到 {len(region_rds)} 个RDS实例")
-                                else:
-                                    logger.debug(f"区域 {region}: 没有RDS实例")
-                            except Exception as e:
-                                logger.warning(f"查询区域 {region} 的RDS实例失败: {str(e)}")
-                                import traceback
-                                logger.debug(f"RDS查询异常详情: {traceback.format_exc()}")
-                                continue
-                        
-                        logger.info(f"总共找到 {len(all_rds)} 个RDS实例（从 {len(all_regions)} 个区域）")
-                        return all_rds
-                except Exception as e:
-                    logger.warning(f"获取RDS列表失败: {str(e)}")
-                    # 如果查询所有区域失败，回退到只查询配置的 region
-                    try:
-                        return provider.list_rds()
-                    except:
-                        return []
-            
-            def get_redis():
-                try:
-                        from cloudlens.core.services.analysis_service import AnalysisService
-                        from cloudlens.providers.aliyun.provider import AliyunProvider
-                        
-                        # 获取所有区域
-                        all_regions = AnalysisService._get_all_regions(
-                            account_config.access_key_id,
-                            account_config.access_key_secret
-                        )
-                        
-                        all_redis = []
-                        for region in all_regions:
-                            try:
-                                region_provider = AliyunProvider(
-                                    account_name=account_config.name,
-                                    access_key=account_config.access_key_id,
-                                    secret_key=account_config.access_key_secret,
-                                    region=region,
-                                )
-                                region_redis = region_provider.list_redis()
-                                if region_redis and len(region_redis) > 0:
-                                    all_redis.extend(region_redis)
-                                    logger.info(f"区域 {region}: 找到 {len(region_redis)} 个Redis实例")
-                                else:
-                                    logger.debug(f"区域 {region}: 没有Redis实例")
-                            except Exception as e:
-                                logger.warning(f"查询区域 {region} 的Redis实例失败: {str(e)}")
-                                import traceback
-                                logger.debug(f"Redis查询异常详情: {traceback.format_exc()}")
-                                continue
-                        
-                        logger.info(f"总共找到 {len(all_redis)} 个Redis实例（从 {len(all_regions)} 个区域）")
-                        return all_redis
-                except Exception as e:
-                    logger.warning(f"获取Redis列表失败: {str(e)}")
-                    # 如果查询所有区域失败，回退到只查询配置的 region
-                    try:
-                        return provider.list_redis()
-                    except:
-                        return []
-            
-            # 并行查询资源（优化性能）
-            with ThreadPoolExecutor(max_workers=5) as executor:
-                instances_future = executor.submit(get_instances)
-                rds_future = executor.submit(get_rds)
-                redis_future = executor.submit(get_redis)
-                
-                try:
-                    # 调大超时时间或容忍部分失败
-                    instances = instances_future.result(timeout=90) or []
-                    rds_list = rds_future.result(timeout=30) or []
-                    redis_list = redis_future.result(timeout=30) or []
-                    
-                    # 如果查询结果为空，尝试从之前的缓存中恢复（避免显示0资源）
-                    if not instances and not rds_list and not redis_list:
-                        resource_cache_key = f"resource_list_{account}"
-                        cached_resources_retry = cache_manager.get(resource_type=resource_cache_key, account_name=account)
-                        if cached_resources_retry:
-                            instances = cached_resources_retry.get("instances", []) or []
-                            rds_list = cached_resources_retry.get("rds", []) or []
-                            redis_list = cached_resources_retry.get("redis", []) or []
-                            logger.info(f"⚠️ 实时查询资源为空，从缓存中恢复了 {len(instances)} 个实例")
-                    else:
-                        # 只有在非空时才更新长期资源列表缓存
-                        cache_manager_short = CacheManager(ttl_seconds=1800) # 30分钟
-                        
-                        # Convert items to dict for JSON serialization
-                        instances_dict = [inst.to_dict() if hasattr(inst, "to_dict") else inst for inst in instances]
-                        rds_dict = [r.to_dict() if hasattr(r, "to_dict") else r for r in rds_list]
-                        redis_dict = [r.to_dict() if hasattr(r, "to_dict") else r for r in redis_list]
-                        
-                        cache_manager_short.set(
-                            resource_type=f"resource_list_{account}",
-                            account_name=account,
-                            data={"instances": instances_dict, "rds": rds_dict, "redis": redis_dict}
-                        )
-                except Exception as e:
-                    logger.warning(f"查询资源列表发生异常: {str(e)}")
-                    # 发生异常时也尝试从缓存恢复
-                    resource_cache_key = f"resource_list_{account}"
-                    cached_resources_err = cache_manager.get(resource_type=resource_cache_key, account_name=account)
-                    if cached_resources_err:
-                        instances = cached_resources_err.get("instances", []) or []
-                        rds_list = cached_resources_err.get("rds", []) or []
-                        redis_list = cached_resources_err.get("redis", []) or []
-        
-        # 确保变量存在（处理作用域问题）- 移到try块外，确保在所有情况下都能执行
-        try:
-            _ = instances
-        except NameError:
-            instances = []
-        try:
-            _ = rds_list
-        except NameError:
-            rds_list = []
-        try:
-            _ = redis_list
-        except NameError:
-            redis_list = []
-        
-        # 计算资源统计（确保在所有情况下都能执行）
-        resource_breakdown = {
-            "ecs": len(instances) if instances else 0,
-            "rds": len(rds_list) if rds_list else 0,
-            "redis": len(redis_list) if redis_list else 0,
-        }
-        total_resources = sum(resource_breakdown.values())
-        
-        # 详细日志输出，便于调试
-        logger.info(f"资源统计结果 (账号: {account}):")
-        logger.info(f"  ECS: {resource_breakdown['ecs']} (instances类型: {type(instances).__name__}, 长度: {len(instances) if instances else 0})")
-        logger.info(f"  RDS: {resource_breakdown['rds']} (rds_list类型: {type(rds_list).__name__}, 长度: {len(rds_list) if rds_list else 0})")
-        logger.info(f"  Redis: {resource_breakdown['redis']} (redis_list类型: {type(redis_list).__name__}, 长度: {len(redis_list) if redis_list else 0})")
-        logger.info(f"  总数: {total_resources}")
-        
-        # Tag Coverage - 统计所有资源（ECS + RDS + Redis）的标签覆盖率
-        all_resources = list(instances) + list(rds_list) + list(redis_list)
-        tagged_count = 0
-        for resource in all_resources:
-            has_tags = False
-            # 检查资源是否有tags属性且tags不为空
-            if hasattr(resource, 'tags'):
-                # UnifiedResource对象，tags是字典
-                if resource.tags and isinstance(resource.tags, dict) and len(resource.tags) > 0:
-                    has_tags = True
-            elif isinstance(resource, dict):
-                # 字典格式的资源，检查tags字段
-                tags = resource.get('tags') or resource.get('Tags') or {}
-                if tags and isinstance(tags, dict) and len(tags) > 0:
-                    has_tags = True
-            
-            # 如果tags为空，尝试从raw_data中提取
-            if not has_tags and hasattr(resource, 'raw_data') and resource.raw_data:
-                raw_tags = resource.raw_data.get('Tags') or resource.raw_data.get('tags') or {}
-                if raw_tags:
-                    # 处理阿里云API返回的Tags格式: {'Tag': [{'TagKey': '...', 'TagValue': '...'}]}
-                    if isinstance(raw_tags, dict) and 'Tag' in raw_tags:
-                        tag_list = raw_tags['Tag']
-                        if isinstance(tag_list, list) and len(tag_list) > 0:
-                            has_tags = True
-                    elif isinstance(raw_tags, dict) and len(raw_tags) > 0:
-                        has_tags = True
-            
-            if has_tags:
-                tagged_count += 1
-        
-        tag_coverage = (tagged_count / total_resources * 100) if total_resources > 0 else 0
-        logger.info(f"标签覆盖率计算: 总资源数={total_resources}, 有标签资源数={tagged_count}, 覆盖率={tag_coverage:.2f}%")
+        instances, rds_list, redis_list = _get_global_resources_consistent(account, account_config, force_refresh)
+    except Exception as e:
+        logger.warning(f"获取一致性全局资源失败: {str(e)}")
+        instances, rds_list, redis_list = [], [], []
+    
+    # 确保变量存在
+    instances = instances or []
+    rds_list = rds_list or []
+    redis_list = redis_list or []
 
-        # --- [NEW] 计算安全告警数量 ---
+    # 计算资源统计（确保在所有情况下都能执行）
+    resource_breakdown = {
+        "ecs": len(instances) if instances else 0,
+        "rds": len(rds_list) if rds_list else 0,
+        "redis": len(redis_list) if redis_list else 0,
+    }
+    total_resources = sum(resource_breakdown.values())
+    all_resources = instances + rds_list + redis_list
+    
+    # 详细日志输出，便于调试
+    logger.info(f"资源统计结果 (账号: {account}):")
+    logger.info(f"  ECS: {resource_breakdown['ecs']} (instances类型: {type(instances).__name__}, 长度: {len(instances) if instances else 0})")
+    logger.info(f"  RDS: {resource_breakdown['rds']} (rds_list类型: {type(rds_list).__name__}, 长度: {len(rds_list) if rds_list else 0})")
+    logger.info(f"  Redis: {resource_breakdown['redis']} (redis_list类型: {type(redis_list).__name__}, 长度: {len(redis_list) if redis_list else 0})")
+    logger.info(f"  总数: {total_resources}")
+    
+    # Tag Coverage - 统计所有资源（ECS + RDS + Redis）的标签覆盖率
+    # 计算标签覆盖率和安全告警 (Consistent via SecurityComplianceAnalyzer)
+    try:
+        print("DEBUG: Starting Security Analysis in Thread...")
+        from cloudlens.core.security_compliance import SecurityComplianceAnalyzer
+        from cloudlens.core.security_scanner import PublicIPScanner
+        
+        analyzer = SecurityComplianceAnalyzer()
+        
+        # 1. 标签覆盖率 (与安全页面逻辑完全对齐)
+        tag_coverage, no_tags = analyzer.check_missing_tags(all_resources)
+        print(f"DEBUG: Tag Coverage Calculated: {tag_coverage}")
+        
+        # 2. 安全告警 (公网暴露 + 停止实例 + 抢占式实例 + 扫描漏洞)
+        exposed = analyzer.detect_public_exposure(all_resources)
+        stopped_instances = analyzer.check_stopped_instances(instances)
+        # 新增：加入抢占式实例统计，对齐安全页面
+        preemptible_instances = analyzer.check_preemptible_instances(instances)
+        
         try:
             from cloudlens.core.security_compliance import SecurityComplianceAnalyzer
             from cloudlens.core.security_scanner import PublicIPScanner
@@ -1029,31 +658,106 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
             total_cost = round(float(billing_total_cost), 2)
             savings_potential = min(float(savings_potential), float(total_cost) * 0.95) if total_cost else 0.0
         
+        print(f"DEBUG: Alert Count Calculated: {alert_count}")
+        logger.info(f"指标对齐计算: 标签覆盖率={tag_coverage}%, 告警数={alert_count} (暴露={len(exposed)}, 停止={len(stopped_instances)}, 抢占={len(preemptible_instances)}, 漏洞={high_risk_count})")
     except Exception as e:
-        # Fallback if resource query fails
-        logger.warning(f"获取资源统计失败: {str(e)}")
-        # 确保所有变量都有默认值（使用 try-except 处理作用域问题）
-        try:
-            _ = total_resources
-        except NameError:
-            total_resources = 0
-        try:
-            _ = resource_breakdown
-        except NameError:
-            resource_breakdown = {"ecs": 0, "rds": 0, "redis": 0}
-        try:
-            _ = tag_coverage
-        except NameError:
-            tag_coverage = 0.0
-        try:
-            _ = alert_count
-        except NameError:
-            alert_count = 0
-        try:
-            _ = savings_potential
-        except NameError:
-            savings_potential = 0.0
+        import traceback
+        print(f"DEBUG: CRITICAL FAILURE in Analysis: {e}")
+        traceback.print_exc()
+        logger.warning(f"对齐计算失败: {str(e)}")
+        tag_coverage = 0.0
+        alert_count = 0
+        stopped_instances = []
+        preemptible_instances = []
 
+    # --- [NEW] 中间保存: 资源统计和标签覆盖率已完成,先存入缓存 ---
+    try:
+        interim_result = {
+            "account": account,
+            "total_cost": total_cost or 0.0,
+            "idle_count": len(idle_data) if idle_data else 0,
+            "cost_trend": "计算中...",
+            "trend_pct": 0.0,
+            "total_resources": total_resources,
+            "resource_breakdown": resource_breakdown,
+            "alert_count": alert_count,
+            "tag_coverage": tag_coverage,
+            "savings_potential": 0.0, # 初始为0，后续计算
+            "loading": True  # 标记为还在加载详情
+        }
+        cache_manager.set(resource_type="dashboard_summary", account_name=account, data=interim_result)
+        logger.info(f"✅ 已保存中间缓存 (资源统计已完成)")
+    except Exception as e:
+        logger.warning(f"保存中间缓存失败: {str(e)}")
+    # -------------------------------------------------------------
+    # Savings Potential: Calculate based on actual cost of idle resources
+    savings_potential = 0.0
+    if idle_data and account_config:
+        # Get cost map for ECS resources (idle_data typically contains ECS instances)
+        cost_map = _get_cost_map("ecs", account_config)
+        
+        # Calculate total cost of idle resources
+        for idle_item in idle_data:
+            instance_id = idle_item.get("instance_id") or idle_item.get("id")
+            if instance_id:
+                # Try to get real cost from cost_map
+                cost = cost_map.get(instance_id)
+                if cost is None:
+                    # If not found, try to estimate from resource spec
+                    spec = idle_item.get("spec", "")
+                    if spec:
+                        cost = _estimate_monthly_cost_from_spec(spec, "ecs")
+                    else:
+                        # Default fallback estimate
+                        cost = 300  # Average ECS cost
+                savings_potential += cost
+        
+        # 新增：累加停止实例的潜在节省（假设节省70%的磁盘/预留等费用）
+        if stopped_instances:
+            for stop_item in stopped_instances:
+                instance_id = stop_item.get("id")
+                if instance_id:
+                    cost = cost_map.get(instance_id) or 300
+                    savings_potential += (cost * 0.7)
+        
+        logger.info(f"优化潜力计算: 闲置资源贡献={sum(item.get('savings', 0) for item in idle_data)}, 停止实例贡献={len(stopped_instances) * 210} (推估), 总计={savings_potential:.2f}")
+        
+        # Ensure savings potential doesn't exceed total cost
+        if total_cost is not None:
+            savings_potential = min(savings_potential, float(total_cost) * 0.95)  # Cap at 95% of total cost
+
+    # 如果成本趋势没有历史数据，则用"当前资源月度成本（折后优先）"作为统一口径的 total_cost
+    if total_cost is None and account_config:
+        ecs_cost_map = _get_cost_map("ecs", account_config)
+        rds_cost_map = _get_cost_map("rds", account_config)
+        redis_cost_map = _get_cost_map("redis", account_config)
+
+        estimated_total = 0.0
+        for inst in instances:
+            cost = ecs_cost_map.get(inst.id)
+            if cost is None:
+                cost = _estimate_monthly_cost(inst)
+            estimated_total += float(cost or 0)
+        for rds in rds_list:
+            cost = rds_cost_map.get(rds.id)
+            if cost is None:
+                cost = _estimate_monthly_cost(rds)
+            estimated_total += float(cost or 0)
+        for r in redis_list:
+            cost = redis_cost_map.get(r.id)
+            if cost is None:
+                cost = _estimate_monthly_cost(r)
+            estimated_total += float(cost or 0)
+
+        total_cost = round(float(estimated_total), 2)
+        # 再做一次 savings cap（此时 total_cost 已可用）
+        savings_potential = min(float(savings_potential), float(total_cost) * 0.95) if total_cost else 0.0
+
+    # 用账单全量口径覆盖 total_cost（更贴近真实账单）
+    if billing_total_cost is not None:
+        total_cost = round(float(billing_total_cost), 2)
+        savings_potential = min(float(savings_potential), float(total_cost) * 0.95) if total_cost else 0.0
+    
     # 确保所有必需字段都有值（最终检查）
     if total_cost is None:
         total_cost = 0.0
@@ -1097,6 +801,90 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
         return result_data
     except Exception as e:
         logger.warning(f"⚠️ 保存缓存失败: {str(e)}")
+        return result_data
+
+
+def _get_global_resources_consistent(account_name: str, account_config, force_refresh: bool = False):
+    """
+    统一的全局资源获取函数，确保所有 Overview 接口看到的是同一份数据。
+    支持 ECS, RDS, Redis 全地域扫描 + 账户级缓存。
+    """
+    cache_manager = CacheManager(ttl_seconds=3600)  # 1小时缓存
+    cache_key = f"resource_list_{account_name}"
+    
+    if not force_refresh:
+        cached_all = cache_manager.get(resource_type=cache_key, account_name=account_name)
+        if cached_all:
+            logger.info(f"♻️ 使用全局一致性资源缓存: {account_name}")
+            return cached_all.get("instances", []), cached_all.get("rds", []), cached_all.get("redis", [])
+
+    logger.info(f"🔍 开始全球资源扫描 (越过缓存: {force_refresh}) - 账号: {account_name}")
+    from cloudlens.core.providers.aliyun_provider import AliyunProvider
+    
+    # 1. 扫描 ECS
+    all_regions = AliyunProvider.get_all_regions()
+    
+    def fetch_ecs():
+        res = []
+        for r in all_regions:
+            try:
+                p = AliyunProvider(account_config.name, account_config.access_key_id, account_config.access_key_secret, region=r)
+                count = p.check_instances_count()
+                if count > 0:
+                    region_instances = p.list_instances()
+                    res.extend(region_instances)
+                    logger.info(f"  [Scan ECS] 地域 {r}: 发现 {len(region_instances)} 个实例")
+            except Exception as e:
+                logger.debug(f"  [Scan ECS] 地域 {r} 失败: {e}")
+        return res
+
+    # 2. 扫描 RDS/Redis (这里简化为多线程或多地域)
+    def fetch_rds():
+        res = []
+        for r in all_regions:
+            try:
+                p = AliyunProvider(account_config.name, account_config.access_key_id, account_config.access_key_secret, region=r)
+                rds_list = p.list_rds()
+                if rds_list:
+                    res.extend(rds_list)
+                    logger.info(f"  [Scan RDS] 地域 {r}: 发现 {len(rds_list)} 个实例")
+            except: pass
+        return res
+
+    def fetch_redis():
+        res = []
+        for r in all_regions:
+            try:
+                p = AliyunProvider(account_config.name, account_config.access_key_id, account_config.access_key_secret, region=r)
+                redis_list = p.list_redis()
+                if redis_list:
+                    res.extend(redis_list)
+                    logger.info(f"  [Scan Redis] 地域 {r}: 发现 {len(redis_list)} 个实例")
+            except: pass
+        return res
+
+    # 为了速度，使用线程池
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        f_ecs = executor.submit(fetch_ecs)
+        f_rds = executor.submit(fetch_rds)
+        f_redis = executor.submit(fetch_redis)
+        
+        instances = f_ecs.result()
+        rds_list = f_rds.result()
+        redis_list = f_redis.result()
+
+    logger.info(f"✅ 全球扫描完成: ECS={len(instances)}, RDS={len(rds_list)}, Redis={len(redis_list)}")
+
+    # 序列化为 dict 以便缓存（使用增强后的 to_dict）
+    data_to_cache = {
+        "instances": [i.to_dict() if hasattr(i, 'to_dict') else i for i in instances],
+        "rds": [i.to_dict() if hasattr(i, 'to_dict') else i for i in rds_list],
+        "redis": [i.to_dict() if hasattr(i, 'to_dict') else i for i in redis_list]
+    }
+    cache_manager.set(resource_type=cache_key, account_name=account_name, data=data_to_cache)
+    
+    return instances, rds_list, redis_list
 
 
 @router.get("/dashboard/trend")
@@ -1483,13 +1271,17 @@ def _get_billing_overview_from_db(
         # 构造正确的 account_id 格式：{access_key_id[:10]}-{account_name}
         account_id = f"{account_config.access_key_id[:10]}-{account_config.name}"
         
+        # 优先尝试 prefix 匹配，因为 LTAI5tECY4-ydzn 这种格式如果 AK 前缀变化会无法匹配
+        # 实际 bill_items 表中使用的是抓取时构造的 account_id
+        
         # 验证 account_id 是否存在（精确匹配）
         account_result = db.query_one("""
             SELECT DISTINCT account_id 
             FROM bill_items 
-            WHERE account_id = %s
+            WHERE account_id = %s OR account_id LIKE %s
+            ORDER BY (account_id = %s) DESC
             LIMIT 1
-        """, (account_id,))
+        """, (account_id, f"%-{account_config.name}", account_id))
         
         if not account_result:
             # 如果精确匹配失败，尝试模糊匹配（兼容旧数据）
@@ -2620,13 +2412,25 @@ def get_security_overview(
     
     try:
         from cloudlens.core.security_compliance import SecurityComplianceAnalyzer
+        cm = ConfigManager()
+        account_config = cm.get_account(account_name)
         
-        instances = provider.list_instances()
-        rds_list = provider.list_rds()
-        redis_list = provider.list_redis()
+        # 统一全局资源获取 (Consistent Global View)
+        try:
+            instances, rds_list, redis_list = _get_global_resources_consistent(account_name, account_config, force_refresh)
+        except Exception as e:
+            logger.warning(f"获取一致性全局资源失败，使用当前地域兜底: {e}")
+            instances = provider.list_instances()
+            rds_list = provider.list_rds()
+            redis_list = provider.list_redis()
+            
         all_resources = instances + rds_list + redis_list
-        
         analyzer = SecurityComplianceAnalyzer()
+        
+        # 获取扫描漏洞 (对齐仪表盘)
+        from cloudlens.core.security_scanner import PublicIPScanner
+        last_scan = PublicIPScanner.load_last_results()
+        high_risk_count = last_scan.get("summary", {}).get("high_risk_count", 0) if last_scan else 0
         
         # 公网暴露检测
         exposed = analyzer.detect_public_exposure(all_resources)
@@ -2721,7 +2525,8 @@ def get_security_overview(
             "stopped_count": len(stopped),
             "tag_coverage": tag_coverage,
             "missing_tags_count": len(no_tags),
-            "alert_count": len(exposed) + len(stopped) + len(preemptible),
+            # 统一口径: 暴露 + 停止 + 抢占 + 漏洞 (对齐仪表盘)
+            "alert_count": len(exposed) + len(stopped) + len(preemptible) + (high_risk_count if 'high_risk_count' in locals() else 0),
             "encryption_rate": encryption_info.get("encryption_rate", 100),
             "encrypted_count": encryption_info.get("encrypted", 0),
             "unencrypted_count": encryption_info.get("unencrypted_count", 0),
@@ -2733,6 +2538,10 @@ def get_security_overview(
             "score_deductions": score_deductions,
             "suggestions": suggestions,
         }
+        
+        # 详细日志输出，用于与 Dashboard 对齐
+        hr_count = high_risk_count if 'high_risk_count' in locals() else 0
+        logger.info(f"指标对齐计算 (Security): 标签覆盖率={tag_coverage}%, 告警数={result_data['alert_count']} (暴露={len(exposed)}, 停止={len(stopped)}, 抢占={len(preemptible)}, 漏洞={hr_count})")
         
         # 保存到缓存（24小时有效）
         cache_manager.set(resource_type="security_overview", account_name=account_name, data=result_data)
@@ -3079,21 +2888,12 @@ def get_optimization_suggestions(
                 "recommendation": get_translation("optimization.idle_resources.recommendation", lang),
             })
         
-        # 3. 停止实例建议（优先使用缓存，避免重复调用API）
-        instances = None
+        # 3. 停止实例建议 (Consistent Global View)
         try:
-            # 尝试从缓存获取实例列表
-            instances_cache = cache_manager.get(resource_type="ecs_instances", account_name=account_name)
-            if instances_cache:
-                instances = instances_cache
-            else:
-                instances = provider.list_instances()
-                # 缓存实例列表（5分钟有效）
-                if instances:
-                    cache_manager.set(resource_type="ecs_instances", account_name=account_name, data=instances, ttl_seconds=300)
+            instances, rds_list, redis_list = _get_global_resources_consistent(account_name, account_config, force_refresh)
         except Exception as e:
-            logger.warning(f"获取实例列表失败，使用空列表: {e}")
-            instances = []
+            logger.warning(f"获取一致性全局资源失败，使用空列表: {e}")
+            instances, rds_list, redis_list = [], [], []
         
         analyzer = SecurityComplianceAnalyzer()
         stopped = analyzer.check_stopped_instances(instances or [])

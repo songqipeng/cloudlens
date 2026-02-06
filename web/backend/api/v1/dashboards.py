@@ -250,34 +250,16 @@ async def get_summary(
 
         logger.info(f"[get_summary] 缓存未命中，同步获取仪表盘数据: {account}")
         
-        # 尝试导入并调用更新函数
+        # 调用 api_service 中的后台任务更新函数
         try:
-            import importlib.util
-            import os
-            
-            # 找到项目根目录下的 web/backend/api.py
-            # 当前文件在 web/backend/api/v1/dashboards.py
-            # 需要向上移动三级到达 web/backend
-            backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-            api_file_path = os.path.join(backend_dir, 'api.py')
-            
-            if os.path.exists(api_file_path):
-                spec = importlib.util.spec_from_file_location("api_legacy", api_file_path)
-                api_legacy = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(api_legacy)
-                
-                if hasattr(api_legacy, '_update_dashboard_summary_cache'):
-                    logger.info(f"调用 api.py 中的 _update_dashboard_summary_cache...")
-                    api_legacy._update_dashboard_summary_cache(account, account_config, force_refresh=force_refresh)
-                else:
-                    logger.error("_update_dashboard_summary_cache 函数未在 api.py 中找到")
-            else:
-                logger.error(f"未找到 api.py 文件: {api_file_path}")
-                
+            from web.backend.api_service import _update_dashboard_summary_cache
+            result = _update_dashboard_summary_cache(account, account_config, force_refresh=force_refresh)
+            if result:
+                return {"success": True, "data": result, "cached": False}
         except Exception as e:
             logger.error(f"同步更新摘要缓存失败: {e}", exc_info=True)
 
-        # 再次尝试从缓存获取（刚才同步更新过了）
+        # 兜底：再次尝试从缓存获取
         result = cache_manager.get(resource_type="dashboard_summary", account_name=account)
         if result:
             return {"success": True, "data": result, "cached": False}
@@ -323,51 +305,18 @@ async def get_dashboard_trend(
             ctx = ContextManager()
             account = ctx.get_last_account()
         
-        # 复用原有趋势计算逻辑 - 直接从api.py导入
-        import importlib.util
-        import os
-        
-        # 获取api.py的绝对路径
-        # dashboards.py 在 web/backend/api/v1/dashboards.py
-        # api.py 在 web/backend/api.py
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        # 从 web/backend/api/v1/ 回到 web/backend/
-        backend_dir = os.path.dirname(os.path.dirname(current_dir))
-        api_file_path = os.path.join(backend_dir, 'api.py')
-        api_file_path = os.path.abspath(api_file_path)
-        
-        if os.path.exists(api_file_path):
-            try:
-                spec = importlib.util.spec_from_file_location("api_legacy", api_file_path)
-                api_legacy = importlib.util.module_from_spec(spec)
-                # 设置模块的__file__属性，避免相对导入问题
-                api_legacy.__file__ = api_file_path
-                spec.loader.exec_module(api_legacy)
-                
-                if hasattr(api_legacy, 'get_trend'):
-                    # 调用async函数
-                    result = await api_legacy.get_trend(
-                        account=account, 
-                        days=days, 
-                        start_date=start_date, 
-                        end_date=end_date,
-                        granularity=granularity,
-                        force_refresh=force_refresh
-                    )
-                    return result
-                else:
-                    logger.error("get_trend function not found in api.py")
-            except Exception as e:
-                logger.error(f"Failed to import/execute get_trend: {e}", exc_info=True)
-        else:
-            logger.error(f"api.py file not found at: {api_file_path}")
-        
-        # 如果无法导入，返回错误
-        raise HTTPException(
-            status_code=501,
-            detail="Trend calculation not available. Please check server logs."
+        # 使用重命名后的 api_service 避免冲突
+        from web.backend.api_service import get_trend
+        return await get_trend(
+            account=account, 
+            days=days, 
+            start_date=start_date, 
+            end_date=end_date,
+            granularity=granularity,
+            force_refresh=force_refresh
         )
     except Exception as e:
+        logger.error(f"Error in get_dashboard_trend: {str(e)}", exc_info=True)
         raise handle_api_error(e, "get_dashboard_trend")
 
 

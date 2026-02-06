@@ -149,7 +149,7 @@ def get_discounts_by_products(
         return {
             "success": True, 
             "data": {
-                "products": result.get('product_analysis', {}),
+                "products": result.get('product_discounts', {}),
                 "analysis_periods": [m['month'] for m in result.get('monthly_trend', [])]
             }
         }
