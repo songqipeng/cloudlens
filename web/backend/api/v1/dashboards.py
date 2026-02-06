@@ -298,26 +298,29 @@ async def get_dashboard_trend(
     granularity: Optional[str] = Query("daily", description="数据粒度: daily(按天) 或 monthly(按月)"),
     force_refresh: bool = Query(False, description="强制刷新缓存")
 ):
-    """获取成本趋势数据"""
+    """获取成本趋势数据（异常时返回空数据，避免 5xx 导致成本页报错）"""
     try:
         # Resolve account
         if not account:
             ctx = ContextManager()
             account = ctx.get_last_account()
-        
+        if not account:
+            return {"chart_data": [], "success": True, "message": "未选择账号"}
+
         # 使用重命名后的 api_service 避免冲突
         from web.backend.api_service import get_trend
         return await get_trend(
-            account=account, 
-            days=days, 
-            start_date=start_date, 
+            account=account,
+            days=days,
+            start_date=start_date,
             end_date=end_date,
             granularity=granularity,
             force_refresh=force_refresh
         )
     except Exception as e:
         logger.error(f"Error in get_dashboard_trend: {str(e)}", exc_info=True)
-        raise handle_api_error(e, "get_dashboard_trend")
+        # 成本页依赖此接口，返回 200 + 空数据，避免控制台 5xx 报错
+        return {"chart_data": [], "success": False, "error": str(e)}
 
 
 @router.get("/dashboard/idle")
