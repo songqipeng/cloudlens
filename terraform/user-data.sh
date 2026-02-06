@@ -16,6 +16,13 @@ echo "=========================================="
 
 # 确保SSH服务正常启动
 echo "[0/9] 确保SSH服务正常..."
+# 写入兼容性配置，避免密钥交换阶段被关闭（kex_exchange_identification）
+if [ -d /etc/ssh/sshd_config.d ]; then
+    sudo tee /etc/ssh/sshd_config.d/99-cloudlens-kex.conf << 'SSHKEX'
+KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group14-sha256,diffie-hellman-group14-sha1
+Ciphers aes128-gcm@openssh.com,aes256-gcm@openssh.com,aes128-ctr,aes256-ctr
+SSHKEX
+fi
 sudo systemctl enable sshd
 sudo systemctl start sshd
 sleep 2
