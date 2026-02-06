@@ -1,7 +1,8 @@
 #!/bin/bash
 # CloudLens EC2实例初始化脚本
 
-set -e
+# 不使用 set -e，允许部分步骤失败但继续执行
+set +e
 
 # 日志文件
 LOG_FILE="/var/log/cloudlens-init.log"
@@ -17,7 +18,13 @@ echo "=========================================="
 echo "[0/9] 确保SSH服务正常..."
 sudo systemctl enable sshd
 sudo systemctl start sshd
+sleep 2
 sudo systemctl status sshd || echo "⚠️  SSH服务状态检查失败，但继续执行"
+# 确保SSH服务正在监听
+ss -tlnp | grep :22 || echo "⚠️  SSH端口22未监听，尝试重启服务"
+sudo systemctl restart sshd
+sleep 3
+sudo systemctl status sshd --no-pager | head -10
 
 # 更新系统（跳过有冲突的包）
 echo "[1/9] 更新系统..."
@@ -169,8 +176,11 @@ sudo yum install -y amazon-cloudwatch-agent || echo "⚠️  CloudWatch Agent安
 
 # 最终确保SSH服务运行
 echo "最终检查SSH服务..."
-sudo systemctl restart sshd || true
-sudo systemctl status sshd || true
+sudo systemctl restart sshd
+sleep 3
+sudo systemctl enable sshd
+sudo systemctl status sshd --no-pager | head -10
+ss -tlnp | grep :22 && echo "✅ SSH服务正在监听端口22" || echo "❌ SSH服务未监听端口22"
 echo "SSH服务配置完成"
 
 # 完成
