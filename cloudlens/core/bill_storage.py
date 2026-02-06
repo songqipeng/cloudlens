@@ -34,16 +34,21 @@ class BillStorageManager:
         """
         # 只使用MySQL（SQLite已废弃）
         self.db_type = "mysql"
-        self.db = None  # 延迟初始化，避免导入时连接MySQL
+        self._db = None  # 内部存储适配器
         self.db_path = None
         
         self._init_database()
     
+    @property
+    def db(self) -> DatabaseAdapter:
+        """获取数据库适配器（自动初始化）"""
+        return self._get_db()
+
     def _get_db(self) -> DatabaseAdapter:
         """延迟获取数据库适配器"""
-        if self.db is None:
-            self.db = DatabaseFactory.create_adapter("mysql")
-        return self.db
+        if self._db is None:
+            self._db = DatabaseFactory.create_adapter("mysql")
+        return self._db
     
     def _get_placeholder(self) -> str:
         """获取SQL占位符（只支持MySQL）"""
@@ -269,6 +274,113 @@ class BillStorageManager:
                 logger.warning(f"Invalid limit value: {limit}, ignoring")
 
         return self._get_db().query(sql, tuple(params) if params else None)
+
+    @monitor_db_query
+    def get_discount_analysis_data(
+        self,
+        account_id: str,
+        months: int = 6
+    ) -> Dict:
+        """
+        获取折扣分析所需的聚合数据
+        
+        Args:
+            account_id: 账号ID
+            months: 分析月数
+            
+        Returns:
+            包含月度趋势、产品分布、实例分布的字典
+        """
+        placeholder = self._get_placeholder()
+        
+        # 确定时间范围
+        cycles_res = self.db.query(f"""
+            SELECT DISTINCT billing_cycle 
+            FROM bill_items 
+            WHERE account_id = {placeholder}
+            ORDER BY billing_cycle DESC
+            LIMIT {placeholder}
+        """, (account_id, months))
+        
+        if not cycles_res:
+            return {
+                'monthly': [],
+                'products': [],
+                'instances': [],
+                'start_cycle': '',
+                'end_cycle': ''
+            }
+        
+        cycles = [r['billing_cycle'] for r in cycles_res]
+        start_cycle = cycles[-1]
+        end_cycle = cycles[0]
+        
+        # 1. 月度趋势聚合
+        monthly_sql = f"""
+            SELECT 
+                billing_cycle as month,
+                SUM(pretax_amount + invoice_discount) as official_price,
+                SUM(invoice_discount) as discount_amount,
+                SUM(pretax_amount) as actual_amount,
+                CASE 
+                    WHEN SUM(pretax_amount + invoice_discount) > 0 
+                    THEN SUM(invoice_discount) / SUM(pretax_amount + invoice_discount)
+                    ELSE 0 
+                END as discount_rate
+            FROM bill_items
+            WHERE account_id = {placeholder}
+              AND billing_cycle BETWEEN {placeholder} AND {placeholder}
+            GROUP BY billing_cycle
+            ORDER BY billing_cycle ASC
+        """
+        monthly_res = self.db.query(monthly_sql, (account_id, start_cycle, end_cycle))
+        
+        # 2. 产品分布聚合
+        products_sql = f"""
+            SELECT 
+                product_name as product,
+                SUM(invoice_discount) as discount_amount,
+                CASE 
+                    WHEN SUM(pretax_amount + invoice_discount) > 0 
+                    THEN SUM(invoice_discount) / SUM(pretax_amount + invoice_discount)
+                    ELSE 0 
+                END as discount_rate
+            FROM bill_items
+            WHERE account_id = {placeholder}
+              AND billing_cycle BETWEEN {placeholder} AND {placeholder}
+            GROUP BY product_name
+            ORDER BY discount_amount DESC
+            LIMIT 20
+        """
+        products_res = self.db.query(products_sql, (account_id, start_cycle, end_cycle))
+        
+        # 3. 实例分布聚合
+        instances_sql = f"""
+            SELECT 
+                instance_id,
+                SUM(invoice_discount) as discount_amount,
+                CASE 
+                    WHEN SUM(pretax_amount + invoice_discount) > 0 
+                    THEN SUM(invoice_discount) / SUM(pretax_amount + invoice_discount)
+                    ELSE 0 
+                END as discount_rate
+            FROM bill_items
+            WHERE account_id = {placeholder}
+              AND billing_cycle BETWEEN {placeholder} AND {placeholder}
+              AND instance_id != ''
+            GROUP BY instance_id
+            ORDER BY discount_amount DESC
+            LIMIT 50
+        """
+        instances_res = self.db.query(instances_sql, (account_id, start_cycle, end_cycle))
+        
+        return {
+            'monthly': monthly_res,
+            'products': products_res,
+            'instances': instances_res,
+            'start_cycle': start_cycle,
+            'end_cycle': end_cycle
+        }
 
     def get_billing_cycles(self, account_id: str) -> List[Dict]:
         """

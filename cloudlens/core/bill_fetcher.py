@@ -420,6 +420,18 @@ class BillFetcher:
                     if daily_records:
                         all_records.extend(daily_records)
                         logger.info(f"日期 {date_str} 获取到 {len(daily_records)} 条记录")
+                        
+                        # 如果是数据库模式，按天实时保存数据，提高容错性和进度透明度
+                        if self.use_database:
+                            if not account_id:
+                                account_id = account_name or self.access_key_id[:10]
+                            
+                            inserted, skipped = self._storage.insert_bill_items(
+                                account_id=account_id,
+                                billing_cycle=billing_cycle,
+                                items=daily_records
+                            )
+                            logger.info(f"日期 {date_str} 实时入库: 插入 {inserted}, 跳过 {skipped}")
                 except Exception as e:
                     logger.warning(f"获取日期 {date_str} 的账单失败: {str(e)}")
                 
@@ -429,26 +441,17 @@ class BillFetcher:
             
             if all_records:
                 total_records += len(all_records)
-                logger.info(f"账期 {billing_cycle} 共获取 {len(all_records)} 条记录")
+                logger.info(f"账期 {billing_cycle} 获取周期结束，共获取 {len(all_records)} 条记录")
                 
-                if self.use_database:
-                    # 数据库模式：保存到数据库
-                    if not account_id:
-                        account_id = account_name or self.access_key_id[:10]
-                    
-                    inserted, skipped = self._storage.insert_bill_items(
-                        account_id=account_id,
-                        billing_cycle=billing_cycle,
-                        items=all_records
-                    )
-                    result[billing_cycle] = {'inserted': inserted, 'skipped': skipped}
-                    
-                else:
-                    # CSV模式：保存到CSV
+                if not self.use_database:
+                    # CSV模式：月度结束时统一保存
                     csv_filename = f"{account_name or 'bill'}-{billing_cycle}-detail.csv"
                     csv_path = output_dir / csv_filename
                     self.save_to_csv(all_records, csv_path, billing_cycle)
                     result[billing_cycle] = csv_path
+                else:
+                    # 数据库模式：返回一个汇总统计
+                    result[billing_cycle] = {'status': 'completed', 'records': len(all_records)}
             else:
                 logger.warning(f"账期 {billing_cycle} 没有数据")
             

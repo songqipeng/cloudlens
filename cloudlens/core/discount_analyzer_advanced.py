@@ -29,6 +29,10 @@ class AdvancedDiscountAnalyzer:
         from cloudlens.core.bill_storage import BillStorageManager
         self.storage = BillStorageManager(db_path)
         self.db_type = self.storage.db_type
+        
+        # 防御性检查
+        if self.db is None:
+            logger.error("AdvancedDiscountAnalyzer初始化异常: self.db为None，将在首次查询时尝试重新连接")
     
     def _get_placeholder(self) -> str:
         """获取SQL占位符"""
@@ -36,10 +40,40 @@ class AdvancedDiscountAnalyzer:
     
     def _query_db(self, sql: str, params: Optional[Tuple] = None) -> List:
         """执行数据库查询（统一接口）"""
+        # 防御性代码：确保数据库连接不为空
+        if self.db is None:
+            logger.warning("执行查询时发现 self.db 为 None，尝试重新建立连接...")
+            try:
+                # 尝试从 storage 重新获取
+                if hasattr(self, 'storage') and self.storage:
+                    self.db = self.storage.db
+                
+                # 如果还是 None，尝试直接创建
+                if self.db is None:
+                    from cloudlens.core.database import DatabaseFactory
+                    self.db = DatabaseFactory.create_adapter("mysql")
+                    logger.info("数据库连接已重新建立")
+            except Exception as e:
+                logger.error(f"重新建立数据库连接失败: {str(e)}")
+        
+        # double check
+        if self.db is None:
+            raise RuntimeError("数据库连接不可用 (AdvancedDiscountAnalyzer.db is None)")
+
         # 替换占位符
         placeholder = self._get_placeholder()
         sql = sql.replace("?", placeholder) if self.db_type == "mysql" else sql
         return self.storage.query(sql, params)
+    
+    def _get_date_filter_params(self, months: int) -> Tuple[str, str]:
+        """根据月数计算起始月份"""
+        if months >= 99:  # 特殊值，表示全部历史
+            return "", ""
+        
+        from dateutil.relativedelta import relativedelta
+        start_date_obj = datetime.now() - relativedelta(months=months-1)
+        start_month = start_date_obj.strftime("%Y-%m")
+        return f" AND billing_cycle >= {self._get_placeholder()}", start_month
     
     # ==================== Phase 1: 核心分析功能 ====================
     
@@ -69,6 +103,14 @@ class AdvancedDiscountAnalyzer:
             placeholder = self._get_placeholder()
             time_filter = ""
             params = [account_id]
+            
+            # 如果没指定 start_date，根据 months 计算
+            if not start_date and months > 0:
+                months_filter, months_start = self._get_date_filter_params(months if months < 99 else 24) # 季度分析默认限制两年
+                if months_filter:
+                    time_filter += months_filter
+                    params.append(months_start)
+            
             if start_date:
                 time_filter += f" AND billing_cycle >= {placeholder}"
                 params.append(start_date)
@@ -79,7 +121,6 @@ class AdvancedDiscountAnalyzer:
             params.append(quarters)
             
             # 使用数据库抽象层查询
-            # MySQL使用CAST(... AS UNSIGNED)，SQLite使用CAST(... AS INT)
             cast_expr = "CAST(SUBSTR(billing_cycle, 6, 2) AS UNSIGNED)" if self.db_type == "mysql" else "CAST(SUBSTR(billing_cycle, 6, 2) AS INT)"
             rows = self._query_db(f"""
                 SELECT 
@@ -305,6 +346,14 @@ class AdvancedDiscountAnalyzer:
             placeholder = self._get_placeholder()
             time_filter = ""
             params = [account_id]
+            
+            # 强制应用 months 过滤，防止全表扫描
+            if not start_date:
+                months_filter, months_start = self._get_date_filter_params(months)
+                if months_filter:
+                    time_filter += months_filter
+                    params.append(months_start)
+            
             if start_date:
                 time_filter += f" AND billing_cycle >= {placeholder}"
                 params.append(start_date)
@@ -464,6 +513,14 @@ class AdvancedDiscountAnalyzer:
             placeholder = self._get_placeholder()
             time_filter = ""
             params = [account_id]
+            
+            # 强制应用 months 过滤
+            if not start_date:
+                months_filter, months_start = self._get_date_filter_params(months)
+                if months_filter:
+                    time_filter += months_filter
+                    params.append(months_start)
+            
             if start_date:
                 time_filter += f" AND billing_cycle >= {placeholder}"
                 params.append(start_date)
@@ -568,6 +625,14 @@ class AdvancedDiscountAnalyzer:
             placeholder = self._get_placeholder()
             time_filter = ""
             params = [account_id]
+            
+            # 强制应用 months 过滤
+            if not start_date:
+                months_filter, months_start = self._get_date_filter_params(months)
+                if months_filter:
+                    time_filter += months_filter
+                    params.append(months_start)
+                    
             if start_date:
                 time_filter += f" AND billing_cycle >= {placeholder}"
                 params.append(start_date)
@@ -730,6 +795,14 @@ class AdvancedDiscountAnalyzer:
             placeholder = self._get_placeholder()
             time_filter = ""
             params = [account_id]
+            
+            # 强制应用 months 过滤
+            if not start_date:
+                months_filter, months_start = self._get_date_filter_params(months if months < 99 else 24)
+                if months_filter:
+                    time_filter += months_filter
+                    params.append(months_start)
+                    
             if start_date:
                 time_filter += f" AND billing_cycle >= {placeholder}"
                 params.append(start_date)
@@ -811,14 +884,13 @@ class AdvancedDiscountAnalyzer:
                         'suggestion': f"建议转为包年包月，预计年节省 ¥{potential_savings:,.0f}"
                     })
             
-            # 计算总节省潜力
-            total_potential_savings = sum(s['annual_potential_savings'] for s in suggestions)
+            total_savings = sum(s['annual_potential_savings'] for s in suggestions)
             
             return {
                 'success': True,
                 'suggestions': suggestions,
                 'total_suggestions': len(suggestions),
-                'total_potential_savings': total_potential_savings
+                'total_potential_savings': total_savings
             }
         
         except Exception as e:

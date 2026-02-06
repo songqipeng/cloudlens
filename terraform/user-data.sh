@@ -13,12 +13,18 @@ echo "CloudLens EC2实例初始化"
 echo "开始时间: $(date)"
 echo "=========================================="
 
+# 确保SSH服务正常启动
+echo "[0/9] 确保SSH服务正常..."
+sudo systemctl enable sshd
+sudo systemctl start sshd
+sudo systemctl status sshd || echo "⚠️  SSH服务状态检查失败，但继续执行"
+
 # 更新系统（跳过有冲突的包）
-echo "[1/8] 更新系统..."
+echo "[1/9] 更新系统..."
 sudo yum update -y --skip-broken || echo "⚠️  部分包更新失败，继续执行"
 
 # 安装Docker
-echo "[2/8] 安装Docker..."
+echo "[2/9] 安装Docker..."
 if ! command -v docker &> /dev/null; then
     sudo yum install -y docker
     sudo systemctl start docker
@@ -30,7 +36,7 @@ else
 fi
 
 # 安装Docker Compose
-echo "[3/8] 安装Docker Compose..."
+echo "[3/9] 安装Docker Compose..."
 if ! command -v docker-compose &> /dev/null; then
     sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
     sudo chmod +x /usr/local/bin/docker-compose
@@ -40,18 +46,18 @@ else
 fi
 
 # 安装其他工具
-echo "[4/8] 安装必要工具..."
+echo "[4/9] 安装必要工具..."
 sudo yum install -y git wget jq --skip-broken || sudo yum install -y git wget jq --allowerasing || echo "⚠️  部分工具安装失败，继续执行"
 
 # 创建目录
-echo "[5/8] 创建必要目录..."
+echo "[5/9] 创建必要目录..."
 mkdir -p /opt/cloudlens
 mkdir -p /opt/cloudlens/logs
 mkdir -p /opt/cloudlens/data
 mkdir -p /root/.cloudlens
 
 # 挂载EBS卷（如果存在）
-echo "[6/8] 配置EBS数据卷..."
+echo "[6/9] 配置EBS数据卷..."
 if [ -b /dev/nvme1n1 ] || [ -b /dev/xvdf ]; then
     DATA_DEVICE=$(lsblk -o NAME,TYPE | grep disk | grep -v nvme0n1 | awk '{print $1}' | head -1)
     if [ -n "$DATA_DEVICE" ]; then
@@ -72,7 +78,7 @@ if [ -b /dev/nvme1n1 ] || [ -b /dev/xvdf ]; then
 fi
 
 # 克隆或更新代码
-echo "[7/8] 准备CloudLens代码..."
+echo "[7/9] 准备CloudLens代码..."
 if [ ! -d "/opt/cloudlens/app" ]; then
     echo "克隆CloudLens代码..."
     cd /opt/cloudlens
@@ -87,7 +93,7 @@ else
 fi
 
 # 配置环境变量
-echo "[8/8] 配置环境变量..."
+echo "[8/9] 配置环境变量..."
 cd /opt/cloudlens/app
 
 if [ ! -f ".env" ]; then
@@ -158,8 +164,14 @@ else
 fi
 
 # 配置CloudWatch日志代理（可选）
-echo "配置CloudWatch日志..."
+echo "[9/9] 配置CloudWatch日志..."
 sudo yum install -y amazon-cloudwatch-agent || echo "⚠️  CloudWatch Agent安装失败"
+
+# 最终确保SSH服务运行
+echo "最终检查SSH服务..."
+sudo systemctl restart sshd || true
+sudo systemctl status sshd || true
+echo "SSH服务配置完成"
 
 # 完成
 echo ""

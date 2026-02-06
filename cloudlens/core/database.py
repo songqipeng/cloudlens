@@ -119,6 +119,7 @@ class MySQLAdapter(DatabaseAdapter):
             'database': config.get('database', 'cloudlens'),
             'charset': config.get('charset', 'utf8mb4'),
             'collation': config.get('collation', 'utf8mb4_unicode_ci'),
+            'ssl_disabled': config.get('ssl_disabled', True),
         }
 
         # 延迟创建连接池（避免导入时立即连接MySQL）
@@ -350,6 +351,7 @@ class DatabaseFactory:
             'database': database,
             'charset': kwargs.get('charset') or os.getenv("MYSQL_CHARSET", "utf8mb4"),
             'pool_size': int(kwargs.get('pool_size') or os.getenv("MYSQL_POOL_SIZE", 20)),
+            'ssl_disabled': str(kwargs.get('ssl_disabled', os.getenv("MYSQL_SSL_DISABLED", "True"))).lower() == "true",
         }
         
         # 调试日志：记录实际使用的配置

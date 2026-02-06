@@ -15,28 +15,35 @@ class SecurityComplianceAnalyzer:
     """安全合规分析器"""
 
     @staticmethod
-    def detect_public_exposure(instances: List[UnifiedResource]) -> List[Dict]:
+    def detect_public_exposure(resources: List[UnifiedResource]) -> List[Dict]:
         """
         检测公网暴露的资源（所有类型）
-
-        Returns:
-            暴露资源列表
         """
         exposed = []
+        for res in resources:
+            # 支持对象和字典
+            public_ips = []
+            if isinstance(res, dict):
+                public_ips = res.get("public_ips") or res.get("PublicIps", [])
+            else:
+                public_ips = getattr(res, "public_ips", [])
+            
+            if public_ips:
+                res_id = res.get("id") if isinstance(res, dict) else res.id
+                res_name = res.get("name") if isinstance(res, dict) else res.name
+                res_type = res.get("type") if isinstance(res, dict) else (res.resource_type.value if hasattr(res.resource_type, 'value') else res.resource_type)
+                res_region = res.get("region") if isinstance(res, dict) else res.region
 
-        for inst in instances:
-            if inst.public_ips:
                 exposed.append(
                     {
-                        "id": inst.id,
-                        "name": inst.name,
-                        "type": inst.resource_type.value,
-                        "public_ips": inst.public_ips,
-                        "region": inst.region,
-                        "risk_level": "HIGH" if len(inst.public_ips) > 1 else "MEDIUM",
+                        "id": res_id,
+                        "name": res_name,
+                        "type": res_type,
+                        "public_ips": public_ips,
+                        "region": res_region,
+                        "risk_level": "HIGH" if len(public_ips) > 1 else "MEDIUM",
                     }
                 )
-
         return exposed
 
     @staticmethod
@@ -109,21 +116,56 @@ class SecurityComplianceAnalyzer:
         return stopped
 
     @staticmethod
-    def check_missing_tags(instances: List[UnifiedResource]) -> Tuple[float, List[Dict]]:
-        """检查缺失标签的资源（影响成本分摊和管理）"""
-        total = len(instances)
+    def check_missing_tags(resources: List[UnifiedResource]) -> Tuple[float, List[Dict]]:
+        """
+        检查缺失标签的资源（集成仪表盘健壮识别逻辑）
+        """
+        total = len(resources)
         no_tags = []
 
-        for inst in instances:
-            # 假设 raw_data 中有 Tags 字段
-            tags = inst.raw_data.get("Tags", {}).get("Tag", []) if inst.raw_data else []
-            if not tags or len(tags) == 0:
+        for res in resources:
+            has_tags = False
+            tags_data = {}
+            
+            # 1. 提取标签数据
+            if isinstance(res, dict):
+                tags_data = res.get("tags") or res.get("Tags") or {}
+                res_id = res.get("id")
+                res_name = res.get("name")
+                # 处理 resource_type。在 dict 中常以 'type' 存在
+                res_type = res.get("type") or "unknown"
+                res_region = res.get("region")
+            else:
+                tags_data = getattr(res, "tags", {})
+                res_id = res.id
+                res_name = res.name
+                res_type = res.resource_type.value if hasattr(res.resource_type, 'value') else res.resource_type
+                res_region = res.region
+
+            # 2. 多重逻辑校验是否有标签
+            if tags_data and isinstance(tags_data, dict) and len(tags_data) > 0:
+                has_tags = True
+            
+            # 3. 兼容深度嵌套格式 (阿里云格式)
+            if not has_tags:
+                raw = res.get("raw_data") if isinstance(res, dict) else getattr(res, "raw_data", {})
+                if raw:
+                    raw_tags = raw.get("Tags") or raw.get("tags") or {}
+                    if isinstance(raw_tags, dict):
+                        if "Tag" in raw_tags:
+                            tag_list = raw_tags["Tag"]
+                            if isinstance(tag_list, list) and len(tag_list) > 0:
+                                has_tags = True
+                        elif len(raw_tags) > 0:
+                            has_tags = True
+
+            if not has_tags:
                 no_tags.append(
                     {
-                        "id": inst.id,
-                        "name": inst.name,
-                        "type": inst.resource_type.value,
-                        "region": inst.region,
+                        "id": res_id,
+                        "name": res_name,
+                        "type": res_type,
+                        "region": res_region,
                     }
                 )
 

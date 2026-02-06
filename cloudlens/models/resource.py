@@ -69,7 +69,11 @@ class UnifiedResource:
             "type": self.resource_type.value,
             "status": self.status.value,
             "ip": ", ".join(self.public_ips if self.public_ips else self.private_ips),
+            "public_ips": self.public_ips,
+            "private_ips": self.private_ips,
             "spec": self.spec,
             "charge_type": self.charge_type,
-            "expired_time": self.expired_time.strftime("%Y-%m-%d") if self.expired_time else "N/A"
+            "expired_time": self.expired_time.strftime("%Y-%m-%d") if self.expired_time else "N/A",
+            "tags": self.tags,
+            "raw_data": self.raw_data
         }
