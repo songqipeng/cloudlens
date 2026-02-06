@@ -72,8 +72,8 @@ services:
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
-      - ./cloudlens:/app/cloudlens:ro
-      - ./web:/app/web:ro
+      - ./web:/app/web
+      - ./cloudlens:/app/cloudlens
       - ./config:/app/config:ro
       - ./logs:/app/logs
       - ./migrations:/app/migrations:ro
@@ -100,7 +100,10 @@ services:
 
   # 前端 Web 服务
   frontend:
-    image: ${DOCKER_HUB_USERNAME:-songqipeng}/cloudlens-frontend:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: web/frontend/Dockerfile
+    image: cloudlens-frontend-local
     container_name: cloudlens-frontend
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
