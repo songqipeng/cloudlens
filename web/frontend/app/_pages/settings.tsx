@@ -74,16 +74,26 @@ export default function SettingsPage() {
   async function handleSaveLlmConfig() {
     setSavingLlm(true)
     try {
-      const promises = Object.entries(apiKeys).map(([provider, api_key]) => {
-        if (api_key.trim()) {
+      // 检查是否有任何输入
+      const hasAnyInput = Object.values(apiKeys).some(key => key.trim())
+      if (!hasAnyInput) {
+        toastError('请至少输入一个API密钥')
+        setSavingLlm(false)
+        return
+      }
+
+      const promises = Object.entries(apiKeys)
+        .filter(([_, api_key]) => api_key.trim()) // 只处理非空的密钥
+        .map(([provider, api_key]) => {
           return apiPost('/v1/chatbot/configs', {
             provider,
-            api_key,
+            api_key: api_key.trim(),
             is_active: true
+          }).catch((error) => {
+            console.error(`保存${provider}配置失败:`, error)
+            throw new Error(`${provider}配置保存失败: ${error.message || error}`)
           })
-        }
-        return Promise.resolve()
-      })
+        })
 
       await Promise.all(promises)
 
@@ -91,12 +101,14 @@ export default function SettingsPage() {
       const llmData = await apiGet<LLMConfig[]>("/v1/chatbot/configs")
       setLlmConfigs(llmData)
 
-      // 清空输入框
+      // 清空输入框（安全原因：不显示明文密钥）
       setApiKeys({ claude: '', openai: '', deepseek: '' })
 
       toastSuccess('API密钥配置已保存')
-    } catch (e) {
-      toastError('保存失败: ' + String(e))
+    } catch (e: any) {
+      const errorMessage = e?.message || e?.detail || String(e)
+      console.error('保存LLM配置失败:', e)
+      toastError(`保存失败: ${errorMessage}`)
     } finally {
       setSavingLlm(false)
     }

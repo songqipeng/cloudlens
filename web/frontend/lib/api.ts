@@ -295,7 +295,11 @@ export async function apiPost<T = any>(
                 ...options,
                 signal: controller.signal,
             }).catch((fetchError) => {
-                // 捕获网络错误（如 Failed to fetch）
+                // 如果是AbortError（超时），不要在这里处理，让下面的catch处理
+                if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+                    throw fetchError  // 重新抛出，让下面的catch处理
+                }
+                // 捕获其他网络错误（如 Failed to fetch）
                 console.error(`[API] 网络错误: ${url}`, fetchError)
                 const locale = getCurrentLocale() as Locale
                 const networkErrorMessage = locale === 'zh'

@@ -40,10 +40,10 @@ export default function AdvancedDiscountTrendPage() {
   const [activeTab, setActiveTab] = useState("overview")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  
+
   // 时间范围状态
   const [dateRange, setDateRange] = useState<DateRange>({ startDate: null, endDate: null })
-  
+
   // Data states for different analyses
   const [quarterlyData, setQuarterlyData] = useState<QuarterlyResponse | null>(null)
   const [yearlyData, setYearlyData] = useState<YearlyResponse | null>(null)
@@ -68,25 +68,29 @@ export default function AdvancedDiscountTrendPage() {
 
   const fetchAllData = async (forceRefresh = false) => {
     if (!currentAccount) return
-    
+
     setLoading(true)
     setError(null)
-    
+
     const dateParams = getDateRangeParams()
+    // 优先使用缓存，除非强制刷新
+    const forceParam = forceRefresh ? '&force_refresh=true' : '&force_refresh=false'
     const baseApiOptions = { timeout: 30000, retries: 1 } as any // 降低超时时间，更快失败
-    
+
     // 定义所有API调用，每个都独立处理错误
+    // 注意：insights API最慢，使用更长的超时时间，但优先使用缓存
     const apiCalls = {
-      quarterly: () => apiGet<QuarterlyResponse>(`/discounts/quarterly?account=${currentAccount}&quarters=8${dateParams}`, {}, baseApiOptions),
-      yearly: () => apiGet<YearlyResponse>(`/discounts/yearly?account=${currentAccount}${dateParams}`, {}, baseApiOptions),
-      products: () => apiGet<ProductTrendsResponse>(`/discounts/product-trends?account=${currentAccount}&months=19&top_n=10${dateParams}`, {}, baseApiOptions),
-      regions: () => apiGet<RegionsResponse>(`/discounts/regions?account=${currentAccount}${dateParams}`, {}, baseApiOptions),
-      subscription: () => apiGet<SubscriptionTypesResponse>(`/discounts/subscription-types?account=${currentAccount}${dateParams}`, {}, baseApiOptions),
-      opts: () => apiGet<OptimizationSuggestionsResponse>(`/discounts/optimization-suggestions?account=${currentAccount}${dateParams}`, {}, baseApiOptions),
-      anom: () => apiGet<AnomaliesResponse>(`/discounts/anomalies?account=${currentAccount}&threshold=0.10${dateParams}`, {}, baseApiOptions),
-      insights: () => apiGet(`/discounts/insights?account=${currentAccount}${dateParams}`, {}, { timeout: 20000, retries: 0 } as any),
+      quarterly: () => apiGet<QuarterlyResponse>(`/discounts/quarterly?account=${currentAccount}&quarters=8${dateParams}${forceParam}`, {}, baseApiOptions),
+      yearly: () => apiGet<YearlyResponse>(`/discounts/yearly?account=${currentAccount}${dateParams}${forceParam}`, {}, baseApiOptions),
+      products: () => apiGet<ProductTrendsResponse>(`/discounts/product-trends?account=${currentAccount}&months=19&top_n=10${dateParams}${forceParam}`, {}, baseApiOptions),
+      regions: () => apiGet<RegionsResponse>(`/discounts/regions?account=${currentAccount}${dateParams}${forceParam}`, {}, baseApiOptions),
+      subscription: () => apiGet<SubscriptionTypesResponse>(`/discounts/subscription-types?account=${currentAccount}${dateParams}${forceParam}`, {}, baseApiOptions),
+      opts: () => apiGet<OptimizationSuggestionsResponse>(`/discounts/optimization-suggestions?account=${currentAccount}${dateParams}${forceParam}`, {}, baseApiOptions),
+      anom: () => apiGet<AnomaliesResponse>(`/discounts/anomalies?account=${currentAccount}&threshold=0.10${dateParams}${forceParam}`, {}, baseApiOptions),
+      // insights API最慢，优先使用缓存，超时时间缩短到60秒（因为缓存应该很快）
+      insights: () => apiGet(`/discounts/insights?account=${currentAccount}${dateParams}${forceParam}`, {}, { timeout: forceRefresh ? 180000 : 60000, retries: 0 } as any),
     }
-    
+
     // 使用 Promise.allSettled 让每个API独立加载，互不阻塞
     const results = await Promise.allSettled([
       apiCalls.quarterly(),
@@ -98,24 +102,24 @@ export default function AdvancedDiscountTrendPage() {
       apiCalls.anom(),
       apiCalls.insights(),
     ])
-    
+
     // 处理每个结果，成功则设置数据，失败则记录错误但不阻塞其他数据
     const [quarterlyResult, yearlyResult, productsResult, regionsResult, subscriptionResult, optsResult, anomResult, insightsResult] = results
-    
+
     // 处理季度数据
     if (quarterlyResult.status === 'fulfilled') {
       setQuarterlyData(quarterlyResult.value)
     } else {
       console.warn("季度数据加载失败:", quarterlyResult.reason)
     }
-    
+
     // 处理年度数据
     if (yearlyResult.status === 'fulfilled') {
       setYearlyData(yearlyResult.value)
     } else {
       console.warn("年度数据加载失败:", yearlyResult.reason)
     }
-    
+
     // 处理产品趋势数据
     if (productsResult.status === 'fulfilled') {
       setProductTrends(productsResult.value)
@@ -124,35 +128,35 @@ export default function AdvancedDiscountTrendPage() {
       // 如果产品趋势失败，设置一个空数据避免UI错误
       setProductTrends({ success: false, data: { products: [] } } as any)
     }
-    
+
     // 处理区域数据
     if (regionsResult.status === 'fulfilled') {
       setRegionsData(regionsResult.value)
     } else {
       console.warn("区域数据加载失败:", regionsResult.reason)
     }
-    
+
     // 处理订阅类型数据
     if (subscriptionResult.status === 'fulfilled') {
       setSubscriptionData(subscriptionResult.value)
     } else {
       console.warn("订阅类型数据加载失败:", subscriptionResult.reason)
     }
-    
+
     // 处理优化建议数据
     if (optsResult.status === 'fulfilled') {
       setSuggestions(optsResult.value)
     } else {
       console.warn("优化建议数据加载失败:", optsResult.reason)
     }
-    
+
     // 处理异常数据
     if (anomResult.status === 'fulfilled') {
       setAnomaliesData(anomResult.value)
     } else {
       console.warn("异常数据加载失败:", anomResult.reason)
     }
-    
+
     // 处理Insights数据
     if (insightsResult.status === 'fulfilled') {
       setInsights(insightsResult.value)
@@ -160,13 +164,13 @@ export default function AdvancedDiscountTrendPage() {
       console.warn("Insights数据加载失败:", insightsResult.reason)
       setInsights(null)
     }
-    
+
     // 检查是否有任何数据加载成功
-    const hasAnyData = quarterlyResult.status === 'fulfilled' || 
-                      yearlyResult.status === 'fulfilled' || 
-                      productsResult.status === 'fulfilled' ||
-                      regionsResult.status === 'fulfilled'
-    
+    const hasAnyData = quarterlyResult.status === 'fulfilled' ||
+      yearlyResult.status === 'fulfilled' ||
+      productsResult.status === 'fulfilled' ||
+      regionsResult.status === 'fulfilled'
+
     if (!hasAnyData) {
       // 如果所有核心数据都失败了，显示错误
       const firstError = results.find(r => r.status === 'rejected')
@@ -179,7 +183,7 @@ export default function AdvancedDiscountTrendPage() {
       // 至少有一些数据加载成功，清除错误
       setError(null)
     }
-    
+
     setLoading(false)
   }
 
@@ -371,7 +375,7 @@ function OverviewTab({ quarterly, yearly, products, regions, subscription, sugge
   const latestYear = yearly?.data?.years?.[yearly.data.years.length - 1]
   const topProducts = products?.data?.products?.slice(0, 5) || []
   const topRegions = regions?.data?.regions?.slice(0, 5) || []
-  
+
   return (
     <>
       {/* Key Metrics */}
@@ -505,7 +509,7 @@ function OverviewTab({ quarterly, yearly, products, regions, subscription, sugge
                 }
               }
               const theme = getColorTheme()
-              
+
               return (
                 <div
                   key={idx}
@@ -619,7 +623,7 @@ function TimeAnalysisTab({ quarterly, yearly, anomalies, formatCurrency, formatP
 function ProductAnalysisTab({ products, formatCurrency, formatPercent, t }: any) {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([])
   const topProducts = products?.data?.products || []
-  
+
   useEffect(() => {
     // 默认选择TOP 5产品
     if (topProducts.length > 0 && selectedProducts.length === 0) {
@@ -634,7 +638,7 @@ function ProductAnalysisTab({ products, formatCurrency, formatPercent, t }: any)
     topProducts.forEach((product: any) => {
       product.trends.forEach((t: any) => allMonths.add(t.month))
     })
-    
+
     Array.from(allMonths).sort().forEach((month) => {
       const dataPoint: any = { month }
       topProducts.forEach((product: any) => {
@@ -666,7 +670,7 @@ function ProductAnalysisTab({ products, formatCurrency, formatPercent, t }: any)
                 variant={selectedProducts.includes(product.product_name) ? "default" : "outline"}
                 size="sm"
                 onClick={() => {
-                  setSelectedProducts(prev => 
+                  setSelectedProducts(prev =>
                     prev.includes(product.product_name)
                       ? prev.filter(p => p !== product.product_name)
                       : [...prev, product.product_name]
@@ -942,7 +946,7 @@ function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent, t 
 
   useEffect(() => {
     if (!currentAccount) return
-    
+
     const fetchData = async () => {
       setLoading(true)
       try {
@@ -958,7 +962,7 @@ function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent, t 
         setLoading(false)
       }
     }
-    
+
     fetchData()
   }, [currentAccount])
 
@@ -976,7 +980,7 @@ function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent, t 
   const ma3Data = movingAvgData?.data?.moving_averages?.ma_3 || []
   const ma6Data = movingAvgData?.data?.moving_averages?.ma_6 || []
   const ma12Data = movingAvgData?.data?.moving_averages?.ma_12 || []
-  
+
   // 合并数据
   const combinedMAData = ma3Data.map((item: any, idx: number) => ({
     month: item.month,
@@ -1060,7 +1064,7 @@ function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent, t 
         </CardHeader>
         <CardContent>
           <div className="space-y-2 text-sm">
-            <p>• <strong>{t.discountAdvanced.advanced.trendSmoothing}:</strong> 12{t.discountAdvanced.advanced.monthMovingAverage} {t.discountAdvanced.advanced.trendDesc} {ma12Data[ma12Data.length-1]?.ma > ma12Data[0]?.ma ? t.discountAdvanced.advanced.rising : t.discountAdvanced.advanced.falling} {t.discountAdvanced.advanced.trend}</p>
+            <p>• <strong>{t.discountAdvanced.advanced.trendSmoothing}:</strong> 12{t.discountAdvanced.advanced.monthMovingAverage} {t.discountAdvanced.advanced.trendDesc} {ma12Data[ma12Data.length - 1]?.ma > ma12Data[0]?.ma ? t.discountAdvanced.advanced.rising : t.discountAdvanced.advanced.falling} {t.discountAdvanced.advanced.trend}</p>
             <p>• <strong>{t.discountAdvanced.advanced.cumulativeSavings}:</strong> 19{t.discountAdvanced.overview.months} {t.discountAdvanced.advanced.cumulativeSavingsDesc} {formatCurrency(cumulativeData?.data?.total_discount || 0)}，{t.discountAdvanced.advanced.monthlyAverage} {formatCurrency((cumulativeData?.data?.total_discount || 0) / 19)}</p>
             <p>• <strong>{t.discountAdvanced.advanced.dataInsights}:</strong> {t.discountAdvanced.advanced.dataInsightsDesc}</p>
           </div>

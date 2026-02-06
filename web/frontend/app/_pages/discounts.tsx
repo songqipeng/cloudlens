@@ -114,12 +114,13 @@ export default function DiscountsPage() {
     setError(null)
     setStatusText(force ? t.discounts.forceRefreshing || "正在强制刷新..." : t.common.loading || "正在加载...")
     try {
-      const timeoutMs = force ? 60000 : 15000
+      // 优先使用缓存，除非强制刷新
+      const timeoutMs = force ? 60000 : 10000  // 使用缓存时超时时间更短
       const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
       const res = await apiGet(
         "/billing/discounts",
         { billing_cycle: billingCycle, force_refresh: force ? "true" : "false" },
-        { signal }
+        { signal, timeout: timeoutMs } as any
       )
       window.clearTimeout(timeoutId)
       if (reqSeq === reqSeqRef.current && res?.success) setData(res.data as DiscountsResponse)

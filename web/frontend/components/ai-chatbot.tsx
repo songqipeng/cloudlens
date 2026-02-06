@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { apiPost } from '@/lib/api'
-import { MessageCircle, X, Send, Loader2, Sparkles, ChevronDown, Zap } from 'lucide-react'
+import { MessageCircle, X, Send, Loader2, Sparkles, ChevronDown, Zap, Trash2, Minimize2 } from 'lucide-react'
 
 interface Message {
   id: string
@@ -60,8 +60,19 @@ export function AIChatbot() {
   useEffect(() => {
     if (isOpen) {
       inputRef.current?.focus()
+      
+      // 检查是否有旧的错误消息，如果有且是API配置错误，提示用户清空
+      const lastMessage = messages[messages.length - 1]
+      if (lastMessage && lastMessage.role === 'assistant' && 
+          (lastMessage.content.includes('AI服务暂时不可用') || 
+           lastMessage.content.includes('API配置') ||
+           lastMessage.content.includes('认证失败'))) {
+        // 不自动清除，让用户手动清除（避免误删重要消息）
+        // 但可以在控制台提示
+        console.log('💡 检测到旧的错误消息，建议点击清空按钮清除后重新发送消息')
+      }
     }
-  }, [isOpen])
+  }, [isOpen, messages])
 
   // 发送消息
   const handleSend = async () => {
@@ -100,8 +111,19 @@ export function AIChatbot() {
           provider: selectedModel,
           temperature: 0.7,
           max_tokens: 2000
+        },
+        currentAccount ? { account: currentAccount } : undefined,  // 显式传递 account 参数
+        {
+          timeout: 120000,  // AI Chatbot请求需要更长时间（120秒），因为需要获取上下文和调用LLM
+          retries: 1  // 不重试，避免重复请求
         }
       )
+
+      console.log('[AI Chatbot] 收到响应:', {
+        hasMessage: !!response.message,
+        messageLength: response.message?.length,
+        session_id: response.session_id
+      })
 
       setSessionId(response.session_id)
 
@@ -113,20 +135,31 @@ export function AIChatbot() {
 
       setMessages(prev => [...prev, assistantMessage])
     } catch (error: any) {
-      console.error('发送消息失败:', error)
-      // 提取详细错误信息
-      let errorDetail = '未知错误'
-      if (error?.response?.data?.detail) {
-        const detail = error.response.data.detail
-        errorDetail = typeof detail === 'string' ? detail : detail.message || JSON.stringify(detail)
+      console.error('[AI Chatbot] 发送消息失败:', error)
+      // 解析错误信息，给出可操作提示
+      let errorContent = '抱歉，AI服务暂时不可用。请检查API配置或稍后重试。'
+      if (error?.detail?.message) {
+        const detailMsg = error.detail.message
+        if (detailMsg.includes('401') || detailMsg.includes('Authentication') || detailMsg.includes('invalid')) {
+          errorContent = '❌ API密钥认证失败\n\n可能的原因：\n1. API密钥无效或已过期\n2. API密钥格式不正确\n3. 请到设置页面重新配置API密钥\n\n💡 提示：\n- 访问"设置" → "AI 模型配置"重新输入有效的API密钥\n- 配置后，点击右上角🗑️按钮清空此错误消息，然后重新发送'
+        } else if (detailMsg.includes('429') || detailMsg.includes('rate limit')) {
+          errorContent = '⚠️ 请求频率过高，请稍后再试'
+        } else if (detailMsg.includes('500') || detailMsg.includes('Internal')) {
+          errorContent = '❌ 服务器内部错误，请稍后重试'
+        } else {
+          errorContent = `❌ 错误：${detailMsg.substring(0, 200)}\n\n💡 如果已重新配置API密钥，请点击右上角🗑️按钮清空此消息后重试`
+        }
       } else if (error?.message) {
-        errorDetail = error.message
+        errorContent = `❌ ${error.message}\n\n💡 如果已重新配置API密钥，请点击右上角🗑️按钮清空此消息后重试`
+      } else if (error?.detail) {
+        const detailStr = JSON.stringify(error.detail)
+        errorContent = `❌ 请求失败\n\n错误详情：${detailStr.substring(0, 300)}\n\n💡 如果已重新配置API密钥，请点击右上角🗑️按钮清空此消息后重试`
       }
-      
+
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `抱歉，AI服务请求失败。\n\n**错误详情:** ${errorDetail}\n\n💡 提示：请稍后重试，或点击右上角设置按钮检查API配置。`
+        content: errorContent
       }
       setMessages(prev => [...prev, errorMessage])
     } finally {
@@ -263,12 +296,25 @@ export function AIChatbot() {
                 )}
               </div>
 
+              {/* 清空对话按钮 */}
+              {messages.length > 0 && (
+                <button
+                  onClick={handleClearChat}
+                  className="p-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                  aria-label="清空对话"
+                  title="清空对话"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+
               <button
                 onClick={() => setIsOpen(false)}
                 className="p-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all"
-                aria-label="关闭"
+                aria-label="最小化"
+                title="最小化"
               >
-                <X className="w-4 h-4" />
+                <Minimize2 className="w-4 h-4" />
               </button>
             </div>
           </div>

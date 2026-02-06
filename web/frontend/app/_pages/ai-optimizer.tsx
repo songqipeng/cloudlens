@@ -41,37 +41,119 @@ export default function AIOptimizerPage() {
   const [prediction, setPrediction] = useState<CostPrediction | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchData()
+    if (currentAccount) {
+      fetchData()
+    } else {
+      setLoading(false)
+    }
   }, [currentAccount])
 
   const fetchData = async () => {
     try {
       setLoading(true)
-      const [suggestionsRes, predictionRes] = await Promise.all([
-        apiGet("/ai-optimizer/suggestions", { account: currentAccount, limit: 20 }),
-        apiGet("/ai-optimizer/predict", { account: currentAccount, days: 30 })
+      // 先尝试使用缓存（快速返回）
+      try {
+        const [cachedSuggestions, cachedPrediction] = await Promise.allSettled([
+          apiGet("/ai-optimizer/suggestions", { account: currentAccount, limit: 20, force_refresh: false }, { timeout: 10000 } as any),
+          apiGet("/ai-optimizer/predict", { account: currentAccount, days: 30, force_refresh: false }, { timeout: 10000 } as any)
+        ])
+        
+        // 处理缓存结果
+        if (cachedSuggestions.status === 'fulfilled' && cachedSuggestions.value?.success) {
+          setSuggestions(cachedSuggestions.value.data || [])
+        }
+        if (cachedPrediction.status === 'fulfilled' && cachedPrediction.value?.success && cachedPrediction.value.data) {
+          setPrediction(cachedPrediction.value.data)
+        }
+        
+        // 如果有缓存数据，先显示，然后后台刷新
+        if ((cachedSuggestions.status === 'fulfilled' && cachedSuggestions.value?.success) || 
+            (cachedPrediction.status === 'fulfilled' && cachedPrediction.value?.success)) {
+          setLoading(false)
+          // 后台刷新最新数据（不阻塞UI）
+          Promise.allSettled([
+            apiGet("/ai-optimizer/suggestions", { account: currentAccount, limit: 20, force_refresh: true }, { timeout: 60000 } as any),
+            apiGet("/ai-optimizer/predict", { account: currentAccount, days: 30, force_refresh: true }, { timeout: 60000 } as any)
+          ]).then(([suggestionsRes, predictionRes]) => {
+            if (suggestionsRes.status === 'fulfilled' && suggestionsRes.value?.success) {
+              setSuggestions(suggestionsRes.value.data || [])
+            }
+            if (predictionRes.status === 'fulfilled' && predictionRes.value?.success && predictionRes.value.data) {
+              setPrediction(predictionRes.value.data)
+            }
+          }).catch(err => {
+            console.warn("后台刷新AI优化数据失败:", err)
+          })
+          return
+        }
+      } catch (e) {
+        console.warn("获取缓存数据失败，尝试直接获取:", e)
+      }
+      
+      // 如果没有缓存，直接获取（可能较慢）
+      const [suggestionsRes, predictionRes] = await Promise.allSettled([
+        apiGet("/ai-optimizer/suggestions", { account: currentAccount, limit: 20, force_refresh: true }, { timeout: 60000, retries: 1 } as any),
+        apiGet("/ai-optimizer/predict", { account: currentAccount, days: 30, force_refresh: true }, { timeout: 60000, retries: 1 } as any)
       ])
 
-      if (suggestionsRes.success) {
-        setSuggestions(suggestionsRes.data || [])
+      if (suggestionsRes.status === 'fulfilled' && suggestionsRes.value?.success) {
+        setSuggestions(suggestionsRes.value.data || [])
+      } else if (suggestionsRes.status === 'rejected') {
+        console.error("获取优化建议失败:", suggestionsRes.reason)
+        const errorMsg = suggestionsRes.reason?.message || String(suggestionsRes.reason)
+        if (!errorMsg.includes('timeout') && !errorMsg.includes('abort')) {
+          setError(`获取优化建议失败: ${errorMsg}`)
+        }
+        setSuggestions([])  // 设置为空数组，避免显示错误
       }
 
-      if (predictionRes.success && predictionRes.data) {
-        setPrediction(predictionRes.data)
+      if (predictionRes.status === 'fulfilled' && predictionRes.value?.success && predictionRes.value.data) {
+        setPrediction(predictionRes.value.data)
+      } else if (predictionRes.status === 'rejected') {
+        console.error("获取成本预测失败:", predictionRes.reason)
+        // 成本预测失败不影响主要功能，只记录日志
+        setPrediction(null)  // 设置为null，避免显示错误
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to fetch AI optimizer data:", e)
+      const errorMsg = e?.message || String(e)
+      if (!errorMsg.includes('timeout') && !errorMsg.includes('abort')) {
+        setError(`加载失败: ${errorMsg}`)
+      }
+      // 即使失败也设置空数据，避免一直loading
+      setSuggestions([])
+      setPrediction(null)
     } finally {
       setLoading(false)
+      setError(null)  // 清除之前的错误
     }
   }
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    await fetchData()
-    setRefreshing(false)
+    setError(null)
+    try {
+      // 强制刷新，不使用缓存
+      const [suggestionsRes, predictionRes] = await Promise.allSettled([
+        apiGet("/ai-optimizer/suggestions", { account: currentAccount, limit: 20, force_refresh: true }, { timeout: 60000, retries: 1 } as any),
+        apiGet("/ai-optimizer/predict", { account: currentAccount, days: 30, force_refresh: true }, { timeout: 60000, retries: 1 } as any)
+      ])
+      
+      if (suggestionsRes.status === 'fulfilled' && suggestionsRes.value?.success) {
+        setSuggestions(suggestionsRes.value.data || [])
+      }
+      if (predictionRes.status === 'fulfilled' && predictionRes.value?.success && predictionRes.value.data) {
+        setPrediction(predictionRes.value.data)
+      }
+    } catch (e: any) {
+      console.error("刷新失败:", e)
+      setError(`刷新失败: ${e?.message || String(e)}`)
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   const getPriorityColor = (priority: string) => {
@@ -131,10 +213,15 @@ export default function AIOptimizerPage() {
           <div>
             <h2 className="text-3xl font-bold tracking-tight">AI成本优化</h2>
             <p className="text-muted-foreground mt-1">智能分析和优化建议</p>
+            {error && (
+              <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-sm text-yellow-800 dark:text-yellow-200">
+                ⚠️ {error}
+              </div>
+            )}
           </div>
-          <Button onClick={handleRefresh} disabled={refreshing}>
+          <Button onClick={handleRefresh} disabled={refreshing || loading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
-            刷新
+            {refreshing ? "刷新中..." : "刷新"}
           </Button>
         </div>
 
