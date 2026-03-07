@@ -9,7 +9,7 @@ import { DateRangeSelector, DateRange } from "@/components/discount/DateRangeSel
 import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
-import { RefreshCw, TrendingUp, TrendingDown, AlertTriangle, DollarSign } from "lucide-react"
+import { RefreshCw, TrendingUp, TrendingDown, AlertTriangle, DollarSign, BarChart3 } from "lucide-react"
 import {
   LineChart,
   Line,
@@ -235,6 +235,36 @@ export default function AdvancedDiscountTrendPage() {
             <p className="text-sm text-muted-foreground">{error}</p>
           </CardContent>
         </Card>
+      </DashboardLayout>
+    )
+  }
+
+  // 无数据时：季度、年度、产品均无，则展示友好空状态，避免空白图表和 0/undefined
+  const quarters = quarterlyData?.data?.quarters ?? []
+  const years = yearlyData?.data?.years ?? []
+  const products = productTrends?.data?.products ?? []
+  const hasNoDiscountData = quarters.length === 0 && years.length === 0 && products.length === 0
+
+  if (hasNoDiscountData) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">{t.discountAdvanced.title}</h2>
+            <p className="text-muted-foreground mt-1">{t.discountAdvanced.description}</p>
+          </div>
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+              <BarChart3 className="h-14 w-14 text-muted-foreground/60 mb-4" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">{t.discountAdvanced.noDiscountData}</h3>
+              <p className="text-sm text-muted-foreground max-w-md mb-6">{t.discountAdvanced.noDiscountDataHint}</p>
+              <Button variant="outline" size="sm" onClick={() => fetchAllData(true)} disabled={loading}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                {t.discountAdvanced.refresh}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </DashboardLayout>
     )
   }

@@ -595,6 +595,8 @@ export interface Translations {
     refresh: string
     loading: string
     loadFailed: string
+    noDiscountData: string
+    noDiscountDataHint: string
     tabs: {
       overview: string
       timeAnalysis: string
@@ -1089,6 +1091,8 @@ const en: Translations = {
     refresh: 'Refresh',
     loading: 'Loading advanced discount analysis...',
     loadFailed: 'Load Failed',
+    noDiscountData: 'No discount data for this account in the selected period',
+    noDiscountDataHint: 'Sync billing data or select another account/period to see discount analysis.',
     tabs: {
       overview: 'Overview',
       timeAnalysis: 'Time Analysis',
@@ -1913,6 +1917,8 @@ const zh: Translations = {
     refresh: '刷新',
     loading: '正在加载高级折扣分析...',
     loadFailed: '加载失败',
+    noDiscountData: '当前账号在所选时间范围内暂无折扣数据',
+    noDiscountDataHint: '请先同步账单数据，或切换账号/时间范围后再查看折扣分析。',
     tabs: {
       overview: '总览',
       timeAnalysis: '时间分析',
