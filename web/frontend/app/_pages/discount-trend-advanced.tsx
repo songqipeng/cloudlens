@@ -261,13 +261,13 @@ export default function AdvancedDiscountTrendPage() {
     apiGet<{ success?: boolean; data?: { rows?: unknown[]; billing_cycle?: string } }>(
       `/billing/discounts?account=${encodeURIComponent(currentAccount)}&billing_cycle=${cycle}`
     )
-      .then((res) => {
+      .then((res: unknown) => {
         if (cancelled) return
-        const raw = res?.data ?? res
-        const rows = Array.isArray(raw?.rows) ? raw.rows : []
+        const payload = res && typeof res === "object" && "data" in res ? (res as { data?: { rows?: unknown[]; billing_cycle?: string } }).data : res as { rows?: unknown[]; billing_cycle?: string } | undefined
+        const rows = Array.isArray(payload?.rows) ? payload.rows : []
         setBssFallbackData({
           rows: rows as Array<{ product_name: string; product_code: string; subscription_type?: string; pretax_gross_amount?: number; pretax_amount?: number }>,
-          billing_cycle: raw?.billing_cycle || cycle,
+          billing_cycle: payload?.billing_cycle || cycle,
         })
       })
       .catch(() => {
