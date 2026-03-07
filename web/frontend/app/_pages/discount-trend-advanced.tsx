@@ -53,6 +53,9 @@ export default function AdvancedDiscountTrendPage() {
   const [suggestions, setSuggestions] = useState<OptimizationSuggestionsResponse | null>(null)
   const [anomalies, setAnomaliesData] = useState<AnomaliesResponse | null>(null)
   const [insights, setInsights] = useState<any>(null)
+  // 当 DB 无折扣数据时，用 BSS 账单产品列表兜底展示（每项显示「无折扣」）
+  const [bssFallbackLoading, setBssFallbackLoading] = useState(false)
+  const [bssFallbackData, setBssFallbackData] = useState<{ rows: Array<{ product_name: string; product_code: string; subscription_type?: string; pretax_gross_amount?: number; pretax_amount?: number }>; billing_cycle: string } | null>(null)
 
   // 构建时间范围查询参数
   const getDateRangeParams = () => {
@@ -245,6 +248,41 @@ export default function AdvancedDiscountTrendPage() {
   const products = productTrends?.data?.products ?? []
   const hasNoDiscountData = quarters.length === 0 && years.length === 0 && products.length === 0
 
+  // 当 DB 无折扣数据时，尝试从 BSS 拉取账单产品列表，用于展示「有产品、无折扣」
+  useEffect(() => {
+    if (!hasNoDiscountData || !currentAccount) {
+      setBssFallbackData(null)
+      setBssFallbackLoading(false)
+      return
+    }
+    let cancelled = false
+    setBssFallbackLoading(true)
+    const cycle = new Date().toISOString().slice(0, 7)
+    apiGet<{ success?: boolean; data?: { rows?: unknown[]; billing_cycle?: string } }>(
+      `/billing/discounts?account=${encodeURIComponent(currentAccount)}&billing_cycle=${cycle}`
+    )
+      .then((res) => {
+        if (cancelled) return
+        const rows = (res?.data?.rows ?? []) as Array<{ product_name: string; product_code: string; subscription_type?: string; pretax_gross_amount?: number; pretax_amount?: number }>
+        setBssFallbackData({ rows, billing_cycle: res?.data?.billing_cycle || cycle })
+      })
+      .catch(() => {
+        if (!cancelled) setBssFallbackData({ rows: [], billing_cycle: "" })
+      })
+      .finally(() => {
+        if (!cancelled) setBssFallbackLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [hasNoDiscountData, currentAccount])
+
+  const formatCurrencyFallback = (value: number) => {
+    if (value >= 1000000) return `¥${Math.round(value / 1000000)}M`
+    if (value >= 1000) return `¥${Math.round(value / 1000)}K`
+    return `¥${Math.round(value)}`
+  }
+
   if (hasNoDiscountData) {
     return (
       <DashboardLayout>
@@ -253,17 +291,68 @@ export default function AdvancedDiscountTrendPage() {
             <h2 className="text-3xl font-bold tracking-tight">{t.discountAdvanced.title}</h2>
             <p className="text-muted-foreground mt-1">{t.discountAdvanced.description}</p>
           </div>
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-              <BarChart3 className="h-14 w-14 text-muted-foreground/60 mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">{t.discountAdvanced.noDiscountData}</h3>
-              <p className="text-sm text-muted-foreground max-w-md mb-6">{t.discountAdvanced.noDiscountDataHint}</p>
+          {bssFallbackLoading ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                <RefreshCw className="h-10 w-10 animate-spin text-muted-foreground mb-4" />
+                <p className="text-sm text-muted-foreground">{t.discountAdvanced.loadingBillProducts}</p>
+              </CardContent>
+            </Card>
+          ) : bssFallbackData && bssFallbackData.rows.length > 0 ? (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">{t.discountAdvanced.billProductsTitle}</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {t.discountAdvanced.noDiscountDataHint}
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-2 font-medium">产品</th>
+                          <th className="text-left p-2 font-medium">计费方式</th>
+                          <th className="text-right p-2 font-medium">原价(税前)</th>
+                          <th className="text-right p-2 font-medium">应付(税前)</th>
+                          <th className="text-right p-2 font-medium">折扣</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bssFallbackData.rows.map((row, i) => (
+                          <tr key={row.product_code + (row.subscription_type ?? "") + i} className="border-b border-border/50">
+                            <td className="p-2">{row.product_name || row.product_code}</td>
+                            <td className="p-2">{row.subscription_type ?? "-"}</td>
+                            <td className="p-2 text-right font-mono">{formatCurrencyFallback(Number(row.pretax_gross_amount ?? 0))}</td>
+                            <td className="p-2 text-right font-mono">{formatCurrencyFallback(Number(row.pretax_amount ?? 0))}</td>
+                            <td className="p-2 text-right">{t.discounts.noDiscount}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">账期：{bssFallbackData.billing_cycle}</p>
+                </CardContent>
+              </Card>
               <Button variant="outline" size="sm" onClick={() => fetchAllData(true)} disabled={loading}>
-                <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 {t.discountAdvanced.refresh}
               </Button>
-            </CardContent>
-          </Card>
+            </>
+          ) : (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                <BarChart3 className="h-14 w-14 text-muted-foreground/60 mb-4" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">{t.discountAdvanced.noDiscountData}</h3>
+                <p className="text-sm text-muted-foreground max-w-md mb-6">{t.discountAdvanced.noDiscountDataHint}</p>
+                <Button variant="outline" size="sm" onClick={() => fetchAllData(true)} disabled={loading}>
+                  <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                  {t.discountAdvanced.refresh}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </DashboardLayout>
     )

@@ -585,6 +585,7 @@ export interface Translations {
     waited: string
     discountUnit: string
     discountOff: string
+    noDiscount: string
     selectAccountFirst: string
   }
 
@@ -598,6 +599,8 @@ export interface Translations {
     loadFailed: string
     noDiscountData: string
     noDiscountDataHint: string
+    billProductsTitle: string
+    loadingBillProducts: string
     tabs: {
       overview: string
       timeAnalysis: string
@@ -1084,6 +1087,7 @@ const en: Translations = {
     waited: 'Waited {seconds}s',
     discountUnit: 'Discount Unit',
     discountOff: 'Discount Off',
+    noDiscount: 'No discount',
     selectAccountFirst: 'Please select account first',
   },
   discountAdvanced: {
@@ -1095,6 +1099,8 @@ const en: Translations = {
     loadFailed: 'Load Failed',
     noDiscountData: 'No discount data for this account in the selected period',
     noDiscountDataHint: 'Sync billing data or select another account/period to see discount analysis.',
+    billProductsTitle: 'Bill products (current billing cycle)',
+    loadingBillProducts: 'Loading bill products...',
     tabs: {
       overview: 'Overview',
       timeAnalysis: 'Time Analysis',
@@ -1911,6 +1917,7 @@ const zh: Translations = {
     waited: '已等待 {seconds}s',
     discountUnit: '折',
     discountOff: '折',
+    noDiscount: '无折扣',
     selectAccountFirst: '请先选择账号',
   },
   discountAdvanced: {
@@ -1922,6 +1929,8 @@ const zh: Translations = {
     loadFailed: '加载失败',
     noDiscountData: '当前账号在所选时间范围内暂无折扣数据',
     noDiscountDataHint: '请先同步账单数据，或切换账号/时间范围后再查看折扣分析。',
+    billProductsTitle: '账单产品（当前账期）',
+    loadingBillProducts: '正在加载账单产品...',
     tabs: {
       overview: '总览',
       timeAnalysis: '时间分析',

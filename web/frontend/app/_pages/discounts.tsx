@@ -270,10 +270,11 @@ export default function DiscountsPage() {
         const pretax = Number(row.pretax_amount || 0)
         const calculatedDiscount = gross > 0 ? gross - pretax : 0
         const calculatedRate = gross > 0 ? (pretax / gross) : null
-        
+        const noDiscount = !row.free && (Number(row.discount_amount || 0) === 0) && gross > 0
+
         return (
           <div className="font-mono">
-            <div className="font-semibold">{fmtZhe(row.discount_zhe, row.free)}</div>
+            <div className="font-semibold">{noDiscount ? t.discounts.noDiscount : fmtZhe(row.discount_zhe, row.free)}</div>
             <div className="text-[11px] text-muted-foreground">
               {calculatedRate === null ? "-" : `${t.discounts.actualPaymentRate} ${calculatedRate.toFixed(4)}`}
             </div>
