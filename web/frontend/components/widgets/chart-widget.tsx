@@ -64,7 +64,7 @@ export function ChartWidget({
               fontSize={12}
               tickFormatter={(value) => {
                 if (config.format === "currency") {
-                  return value >= 10000 ? `¥${(value / 10000).toFixed(1)}万` : `¥${value}`
+                  return value >= 10000 ? `¥${Math.round(value / 10000)}万` : `¥${Math.round(value)}`
                 }
                 return value.toLocaleString()
               }}
@@ -106,7 +106,7 @@ export function ChartWidget({
               fontSize={12}
               tickFormatter={(value) => {
                 if (config.format === "currency") {
-                  return value >= 10000 ? `¥${(value / 10000).toFixed(1)}万` : `¥${value}`
+                  return value >= 10000 ? `¥${Math.round(value / 10000)}万` : `¥${Math.round(value)}`
                 }
                 return value.toLocaleString()
               }}

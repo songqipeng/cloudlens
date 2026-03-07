@@ -115,7 +115,7 @@ export default function CostPage() {
     nas: "文件存储 NAS",
   }
 
-  const currency = (n: number) => `¥${(n || 0).toLocaleString()}`
+  const currency = (n: number) => `¥${Math.round(n || 0).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 
   // 账单口径：优先使用后端返回的 categories（带 code/name/amount）
   const rawCategories: Array<{ code: string; name?: string; amount: number }> =
@@ -179,7 +179,7 @@ export default function CostPage() {
                   <CardTitle className="text-sm text-muted-foreground">{t.costAnalysis.currentMonthCost}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold">¥{overview?.current_month?.toLocaleString() || 0}</div>
+                  <div className="text-3xl font-bold">¥{Math.round(overview?.current_month || 0).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
                 </CardContent>
               </Card>
 
@@ -188,7 +188,7 @@ export default function CostPage() {
                   <CardTitle className="text-sm text-muted-foreground">{t.costAnalysis.lastMonthCost}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold">¥{overview?.last_month?.toLocaleString() || 0}</div>
+                  <div className="text-3xl font-bold">¥{Math.round(overview?.last_month || 0).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
                 </CardContent>
               </Card>
 

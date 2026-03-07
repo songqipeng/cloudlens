@@ -365,7 +365,7 @@ export default function CostTrendPage() {
                                     {locale === 'zh' ? '总成本' : 'Total Cost'}
                                 </div>
                                 <div className="text-2xl font-bold">
-                                    ¥{summary.total_cost?.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                                    ¥{summary.total_cost?.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}
                                 </div>
                             </CardContent>
                         </Card>
@@ -378,7 +378,7 @@ export default function CostTrendPage() {
                                     }
                                 </div>
                                 <div className="text-2xl font-bold">
-                                    ¥{(granularity === 'daily' ? summary.avg_daily_cost : summary.avg_monthly_cost)?.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                                    ¥{(granularity === 'daily' ? summary.avg_daily_cost : summary.avg_monthly_cost)?.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}
                                 </div>
                             </CardContent>
                         </Card>
@@ -391,7 +391,7 @@ export default function CostTrendPage() {
                                     }
                                 </div>
                                 <div className="text-2xl font-bold">
-                                    ¥{(granularity === 'daily' ? summary.max_daily_cost : summary.max_monthly_cost)?.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                                    ¥{(granularity === 'daily' ? summary.max_daily_cost : summary.max_monthly_cost)?.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}
                                 </div>
                             </CardContent>
                         </Card>
@@ -404,7 +404,7 @@ export default function CostTrendPage() {
                                     }
                                 </div>
                                 <div className="text-2xl font-bold">
-                                    ¥{(granularity === 'daily' ? summary.min_daily_cost : summary.min_monthly_cost)?.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                                    ¥{(granularity === 'daily' ? summary.min_daily_cost : summary.min_monthly_cost)?.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || '0'}
                                 </div>
                             </CardContent>
                         </Card>

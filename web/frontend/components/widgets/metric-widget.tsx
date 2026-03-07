@@ -27,7 +27,7 @@ export function MetricWidget({
   const formatValue = (val: number) => {
     switch (format) {
       case "currency":
-        return `¥${val.toLocaleString()}`
+        return `¥${Math.round(val).toLocaleString()}`
       case "percentage":
         return `${val.toFixed(1)}%`
       default:

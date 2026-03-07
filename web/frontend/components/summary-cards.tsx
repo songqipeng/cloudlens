@@ -20,32 +20,22 @@ interface SummaryProps {
     savingsPotential?: number | null
 }
 
-// 数字格式化（支持动画）- Finout 风格：等宽字体
-function AnimatedNumber({ value, decimals = 2, useWan = false }: { value: number | undefined | null; decimals?: number; useWan?: boolean }) {
-    // 处理 undefined/null 的情况，默认为 0
+// 数字格式化（支持动画）- 成本不保留小数
+function AnimatedNumber({ value, decimals = 0, useWan = false }: { value: number | undefined | null; decimals?: number; useWan?: boolean }) {
     const safeValue = value ?? 0
-    
-    // 确保 safeValue 是数字类型
     const numValue = typeof safeValue === 'number' ? safeValue : Number(safeValue) || 0
     
     if (useWan && numValue >= 10000) {
-        // 以万为单位，保留一位小数，使用w代替万避免换行
         const wanValue = numValue / 10000
         return (
             <span className="animate-count-up font-mono tabular-nums">
-                ¥{wanValue.toLocaleString(undefined, { 
-                    minimumFractionDigits: 1, 
-                    maximumFractionDigits: 1 
-                })}w
+                ¥{wanValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}w
             </span>
         )
     }
     return (
         <span className="animate-count-up font-mono tabular-nums">
-            ¥{numValue.toLocaleString(undefined, { 
-                minimumFractionDigits: decimals, 
-                maximumFractionDigits: decimals 
-            })}
+            ¥{numValue.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}
         </span>
     )
 }

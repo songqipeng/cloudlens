@@ -316,7 +316,7 @@ export default function CostAllocationPage() {
                                 <div key={index} className="flex items-center justify-between p-2 border rounded">
                                   <span className="text-sm">{alloc.target}</span>
                                   <div className="text-right">
-                                    <div className="font-medium">¥{alloc.amount.toFixed(2)}</div>
+                                    <div className="font-medium">¥{Math.round(alloc.amount).toLocaleString()}</div>
                                     <div className="text-xs text-muted-foreground">{alloc.percentage.toFixed(1)}%</div>
                                   </div>
                                 </div>
@@ -342,7 +342,7 @@ export default function CostAllocationPage() {
                                     />
                                   ))}
                                 </Pie>
-                                <Tooltip formatter={(value: any) => `¥${Number(value).toFixed(2)}`} />
+                                <Tooltip formatter={(value: any) => `¥${Math.round(Number(value)).toLocaleString()}`} />
                                 <Legend />
                               </RechartsPieChart>
                             </ResponsiveContainer>

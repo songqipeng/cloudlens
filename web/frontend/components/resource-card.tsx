@@ -49,7 +49,7 @@ export const ResourceCard = React.memo(({ resource, onClick }: ResourceCardProps
                             <div>ID: {resource.id}</div>
                             {resource.region && <div>{t.resources.region || 'Region'}: {resource.region}</div>}
                             {resource.instanceType && <div>{t.resources.spec || 'Spec'}: {resource.instanceType}</div>}
-                            {resource.cost !== undefined && <div>{t.resources.monthlyCost || 'Cost'}: ¥{resource.cost.toFixed(2)}</div>}
+                            {resource.cost !== undefined && <div>{t.resources.monthlyCost || 'Cost'}: ¥{Math.round(resource.cost).toLocaleString()}</div>}
                         </div>
                     </div>
                 </div>

@@ -256,7 +256,7 @@ export default function AIOptimizerPage() {
                 {prediction ? `¥${prediction.predicted_cost.toLocaleString()}` : "N/A"}
               </div>
               <div className="text-sm text-muted-foreground mt-1">
-                {prediction ? `日均: ¥${prediction.avg_daily_cost.toFixed(2)}` : "数据不足"}
+                {prediction ? `日均: ¥${Math.round(prediction.avg_daily_cost).toLocaleString()}` : "数据不足"}
               </div>
             </CardContent>
           </Card>

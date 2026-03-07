@@ -200,7 +200,7 @@ export function CostTrendChart({
                                     axisLine={false}
                                     tick={{ fill: '#94a3b8' }}
                                     tickFormatter={(value) => {
-                                        if (value >= 10000) return `¥${(value / 10000).toFixed(1)}万`
+                                        if (value >= 10000) return `¥${Math.round(value / 10000)}万`
                                         return `¥${value}`
                                     }}
                                 />
@@ -267,7 +267,7 @@ export function CostTrendChart({
                                     axisLine={false}
                                     tick={{ fill: '#94a3b8' }}
                                     tickFormatter={(value) => {
-                                        if (value >= 10000) return `¥${(value / 10000).toFixed(1)}万`
+                                        if (value >= 10000) return `¥${Math.round(value / 10000)}万`
                                         return `¥${value}`
                                     }}
                                 />
@@ -324,7 +324,7 @@ export function CostTrendChart({
                                 axisLine={false}
                                 tick={{ fill: '#94a3b8' }}
                                 tickFormatter={(value) => {
-                                    if (value >= 10000) return `¥${(value / 10000).toFixed(1)}万`
+                                    if (value >= 10000) return `¥${Math.round(value / 10000)}万`
                                     return `¥${value}`
                                 }}
                             />
@@ -383,7 +383,7 @@ export function CostTrendChart({
                                     axisLine={false}
                                     tick={{ fill: '#94a3b8' }}
                                     tickFormatter={(value) => {
-                                        if (value >= 10000) return `¥${(value / 10000).toFixed(1)}万`
+                                        if (value >= 10000) return `¥${Math.round(value / 10000)}万`
                                         return `¥${value}`
                                     }}
                                 />
@@ -434,7 +434,7 @@ export function CostTrendChart({
                                     axisLine={false}
                                     tick={{ fill: '#94a3b8' }}
                                     tickFormatter={(value) => {
-                                        if (value >= 10000) return `¥${(value / 10000).toFixed(1)}万`
+                                        if (value >= 10000) return `¥${Math.round(value / 10000)}万`
                                         return `¥${value}`
                                     }}
                                 />
@@ -479,7 +479,7 @@ export function CostTrendChart({
                                 axisLine={false}
                                 tick={{ fill: '#94a3b8' }}
                                 tickFormatter={(value) => {
-                                    if (value >= 10000) return `¥${(value / 10000).toFixed(1)}万`
+                                    if (value >= 10000) return `¥${Math.round(value / 10000)}万`
                                     return `¥${value}`
                                 }}
                             />

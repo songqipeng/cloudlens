@@ -203,9 +203,9 @@ export default function AdvancedDiscountTrendPage() {
   }, [currentAccount, dateRange])
 
   const formatCurrency = (value: number) => {
-    if (value >= 1000000) return `¥${(value / 1000000).toFixed(2)}M`
-    if (value >= 1000) return `¥${(value / 1000).toFixed(0)}K`
-    return `¥${value.toFixed(0)}`
+    if (value >= 1000000) return `¥${Math.round(value / 1000000)}M`
+    if (value >= 1000) return `¥${Math.round(value / 1000)}K`
+    return `¥${Math.round(value)}`
   }
 
   const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`

@@ -91,7 +91,7 @@ interface DiscountTrendResponse {
   cached?: boolean
 }
 
-const fmtCny = (n: number) => `¥${(Number.isFinite(n) ? n : 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const fmtCny = (n: number) => `¥${Math.round(Number.isFinite(n) ? n : 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 const fmtPct = (n: number) => `${(Number.isFinite(n) ? n * 100 : 0).toFixed(2)}%`
 
 const getTrendIcon = (trend: string, t: any) => {
