@@ -274,7 +274,7 @@ export default function DiscountsPage() {
 
         return (
           <div className="font-mono">
-            <div className="font-semibold">{noDiscount ? t.discounts.noDiscount : fmtZhe(row.discount_zhe, row.free)}</div>
+            <div className="font-semibold">{noDiscount ? (t.discounts?.noDiscount ?? "无折扣") : fmtZhe(row.discount_zhe, row.free)}</div>
             <div className="text-[11px] text-muted-foreground">
               {calculatedRate === null ? "-" : `${t.discounts.actualPaymentRate} ${calculatedRate.toFixed(4)}`}
             </div>

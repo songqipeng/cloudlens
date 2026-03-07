@@ -263,8 +263,12 @@ export default function AdvancedDiscountTrendPage() {
     )
       .then((res) => {
         if (cancelled) return
-        const rows = (res?.data?.rows ?? []) as Array<{ product_name: string; product_code: string; subscription_type?: string; pretax_gross_amount?: number; pretax_amount?: number }>
-        setBssFallbackData({ rows, billing_cycle: res?.data?.billing_cycle || cycle })
+        const raw = res?.data ?? res
+        const rows = Array.isArray(raw?.rows) ? raw.rows : []
+        setBssFallbackData({
+          rows: rows as Array<{ product_name: string; product_code: string; subscription_type?: string; pretax_gross_amount?: number; pretax_amount?: number }>,
+          billing_cycle: raw?.billing_cycle || cycle,
+        })
       })
       .catch(() => {
         if (!cancelled) setBssFallbackData({ rows: [], billing_cycle: "" })
@@ -295,14 +299,14 @@ export default function AdvancedDiscountTrendPage() {
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                 <RefreshCw className="h-10 w-10 animate-spin text-muted-foreground mb-4" />
-                <p className="text-sm text-muted-foreground">{t.discountAdvanced.loadingBillProducts}</p>
+                <p className="text-sm text-muted-foreground">{t.discountAdvanced?.loadingBillProducts ?? "正在加载账单产品..."}</p>
               </CardContent>
             </Card>
-          ) : bssFallbackData && bssFallbackData.rows.length > 0 ? (
+          ) : bssFallbackData && Array.isArray(bssFallbackData.rows) && bssFallbackData.rows.length > 0 ? (
             <>
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">{t.discountAdvanced.billProductsTitle}</CardTitle>
+                  <CardTitle className="text-base">{t.discountAdvanced?.billProductsTitle ?? "账单产品（当前账期）"}</CardTitle>
                   <p className="text-sm text-muted-foreground">
                     {t.discountAdvanced.noDiscountDataHint}
                   </p>
@@ -321,12 +325,12 @@ export default function AdvancedDiscountTrendPage() {
                       </thead>
                       <tbody>
                         {bssFallbackData.rows.map((row, i) => (
-                          <tr key={row.product_code + (row.subscription_type ?? "") + i} className="border-b border-border/50">
-                            <td className="p-2">{row.product_name || row.product_code}</td>
+                          <tr key={String(row.product_code) + String(row.subscription_type ?? "") + i} className="border-b border-border/50">
+                            <td className="p-2">{row.product_name || row.product_code || "-"}</td>
                             <td className="p-2">{row.subscription_type ?? "-"}</td>
                             <td className="p-2 text-right font-mono">{formatCurrencyFallback(Number(row.pretax_gross_amount ?? 0))}</td>
                             <td className="p-2 text-right font-mono">{formatCurrencyFallback(Number(row.pretax_amount ?? 0))}</td>
-                            <td className="p-2 text-right">{t.discounts.noDiscount}</td>
+                            <td className="p-2 text-right">{t.discounts?.noDiscount ?? "无折扣"}</td>
                           </tr>
                         ))}
                       </tbody>
