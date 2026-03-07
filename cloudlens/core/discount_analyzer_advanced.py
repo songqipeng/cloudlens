@@ -29,10 +29,7 @@ class AdvancedDiscountAnalyzer:
         from cloudlens.core.bill_storage import BillStorageManager
         self.storage = BillStorageManager(db_path)
         self.db_type = self.storage.db_type
-        
-        # 防御性检查
-        if self.db is None:
-            logger.error("AdvancedDiscountAnalyzer初始化异常: self.db为None，将在首次查询时尝试重新连接")
+        self.db = self.storage.db  # 使用 storage 的数据库适配器，供 _query_db 等使用
     
     def _get_placeholder(self) -> str:
         """获取SQL占位符"""
@@ -104,9 +101,10 @@ class AdvancedDiscountAnalyzer:
             time_filter = ""
             params = [account_id]
             
-            # 如果没指定 start_date，根据 months 计算
-            if not start_date and months > 0:
-                months_filter, months_start = self._get_date_filter_params(months if months < 99 else 24) # 季度分析默认限制两年
+            # 如果没指定 start_date，根据季度数换算月数计算起始月份（1 季度 = 3 个月）
+            months_from_quarters = quarters * 3 if quarters > 0 else 24
+            if not start_date and quarters > 0:
+                months_filter, months_start = self._get_date_filter_params(min(months_from_quarters, 99))
                 if months_filter:
                     time_filter += months_filter
                     params.append(months_start)
