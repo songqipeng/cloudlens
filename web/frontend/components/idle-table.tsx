@@ -173,6 +173,7 @@ export function IdleTable({ data, scanning = false, scanProgress = null }: IdleT
             </div>
             <p className="text-base font-medium text-foreground">{locale === 'zh' ? '暂无闲置资源' : 'No Idle Resources'}</p>
             <p className="text-sm mt-1 opacity-70">{locale === 'zh' ? '所有资源运行正常' : 'All resources are running normally'}</p>
+            <p className="text-xs mt-3 text-muted-foreground/80 max-w-md text-center">{t.dashboard.idleEmptyHint}</p>
           </div>
         </CardContent>
       </Card>

@@ -81,6 +81,7 @@ export interface Translations {
     monthlySavingsPotential: string
     costTrendChart: string
     idleResourcesTable: string
+    idleEmptyHint: string
     selectAccount: string
     selectAccountDesc: string
     goToAccountManagement: string
@@ -947,6 +948,7 @@ const en: Translations = {
     monthlySavingsPotential: 'Monthly Savings Potential',
     costTrendChart: 'Cost Trend',
     idleResourcesTable: 'Idle Resources',
+    idleEmptyHint: 'Idle detection uses cloud monitoring (e.g. CPU/memory). Click "Scan" above to run a scan; if already scanned, this means no idle resources or utilization is normal.',
     selectAccount: 'Please Select Account',
     selectAccountDesc: 'Please select a cloud account from the left sidebar',
     goToAccountManagement: 'Go to Account Management',
@@ -1773,6 +1775,7 @@ const zh: Translations = {
     monthlySavingsPotential: '月度节省潜力',
     costTrendChart: '成本趋势',
     idleResourcesTable: '闲置资源',
+    idleEmptyHint: '闲置检测依赖云监控（如 CPU/内存等）。若尚未扫描请点击上方「扫描」；已扫描则表示当前无闲置或利用率正常。',
     selectAccount: '请选择账号',
     selectAccountDesc: '请在左侧侧边栏选择要查看的云账号',
     goToAccountManagement: '前往账号管理',
