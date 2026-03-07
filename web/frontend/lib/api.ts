@@ -41,9 +41,22 @@ export class ApiError extends Error {
         public detail: any,
         message?: string
     ) {
-        super(message || detail?.error || detail?.detail || `API request failed: ${status}`)
+        const msg = message ?? toApiErrorMessage(detail) ?? `API request failed: ${status}`
+        super(typeof msg === 'string' ? msg : `API request failed: ${status}`)
         this.name = "ApiError"
     }
+}
+
+/** 将 API 返回的 detail/error 规范为可读字符串，避免 [object Object] */
+function toApiErrorMessage(raw: any, defaultMsg?: string): string {
+    if (raw == null) return defaultMsg ?? ''
+    if (typeof raw === 'string') return raw
+    if (typeof raw === 'object') {
+        const d = raw.detail ?? raw.error ?? raw.message
+        if (typeof d === 'string') return d
+        if (d != null && typeof d === 'object') return (d as any).detail ?? (d as any).message ?? defaultMsg ?? ''
+    }
+    return defaultMsg ?? String(raw)
 }
 
 /**
@@ -168,17 +181,18 @@ export async function apiGet<T = any>(
                     const defaultMessage = locale === 'zh'
                         ? `API请求失败: ${res.status} ${res.statusText}`
                         : `API request failed: ${res.status} ${res.statusText}`
-                    const errorMessage = errorData?.detail || errorData?.error || errorData?.message || defaultMessage
+                    const raw = errorData?.detail ?? errorData?.error ?? errorData?.message
+                    const messageStr = toApiErrorMessage(raw, defaultMessage) || defaultMessage
                     console.error(`[API Error] ${res.status} ${res.statusText}: ${url}`, errorData)
 
                     // 对于4xx错误，不重试
                     if (res.status >= 400 && res.status < 500 && res.status !== 408) {
                         pendingRequests.delete(requestKey)
-                        throw new ApiError(res.status, errorData, `${errorMessage} (${url})`)
+                        throw new ApiError(res.status, errorData, `${messageStr} (${url})`)
                     }
 
                     // 对于5xx和408错误，进行重试
-                    lastError = new ApiError(res.status, errorData, `${errorMessage} (${url})`)
+                    lastError = new ApiError(res.status, errorData, `${messageStr} (${url})`)
                     if (i === retries - 1) {
                         pendingRequests.delete(requestKey)
                         throw lastError
@@ -319,9 +333,10 @@ export async function apiPost<T = any>(
                 const defaultMessage = locale === 'zh'
                     ? `API请求失败: ${res.status} ${res.statusText}`
                     : `API request failed: ${res.status} ${res.statusText}`
-                const errorMessage = errorData?.detail || errorData?.error || errorData?.message || defaultMessage
+                const raw = errorData?.detail ?? errorData?.error ?? errorData?.message
+                const messageStr = toApiErrorMessage(raw, defaultMessage) || defaultMessage
                 console.error(`[API Error] ${res.status} ${res.statusText}: ${url}`, errorData)
-                throw new ApiError(res.status, errorData, `${errorMessage} (${url})`)
+                throw new ApiError(res.status, errorData, `${messageStr} (${url})`)
             }
 
             return await res.json()
@@ -393,9 +408,10 @@ export async function apiPut<T = any>(
                 const defaultMessage = locale === 'zh'
                     ? `API请求失败: ${res.status} ${res.statusText}`
                     : `API request failed: ${res.status} ${res.statusText}`
-                const errorMessage = errorData?.detail || errorData?.error || errorData?.message || defaultMessage
+                const raw = errorData?.detail ?? errorData?.error ?? errorData?.message
+                const messageStr = toApiErrorMessage(raw, defaultMessage) || defaultMessage
                 console.error(`[API Error] ${res.status} ${res.statusText}: ${url}`, errorData)
-                throw new ApiError(res.status, errorData, `${errorMessage} (${url})`)
+                throw new ApiError(res.status, errorData, `${messageStr} (${url})`)
             }
 
             return await res.json()
@@ -445,9 +461,10 @@ export async function apiDelete<T = any>(
                 const defaultMessage = locale === 'zh'
                     ? `API请求失败: ${res.status} ${res.statusText}`
                     : `API request failed: ${res.status} ${res.statusText}`
-                const errorMessage = errorData?.detail || errorData?.error || errorData?.message || defaultMessage
+                const raw = errorData?.detail ?? errorData?.error ?? errorData?.message
+                const messageStr = toApiErrorMessage(raw, defaultMessage) || defaultMessage
                 console.error(`[API Error] ${res.status} ${res.statusText}: ${url}`, errorData)
-                throw new ApiError(res.status, errorData, `${errorMessage} (${url})`)
+                throw new ApiError(res.status, errorData, `${messageStr} (${url})`)
             }
 
             return await res.json()

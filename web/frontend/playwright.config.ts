@@ -29,10 +29,9 @@ export default defineConfig({
     ['json', { outputFile: 'test-results/results.json' }],
   ],
   
-  // 共享配置
+  // 共享配置（BASE_URL 或 PLAYWRIGHT_BASE_URL 可指定远端，如 https://cloudlens.songqipeng.com）
   use: {
-    // 基础URL
-    baseURL: 'http://localhost:3000',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || process.env.BASE_URL || 'http://localhost:3000',
     
     // 浏览器上下文选项
     viewport: { width: 1920, height: 1080 },

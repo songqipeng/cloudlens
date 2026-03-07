@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:chrome": "playwright test tests/dashboard-error-display.spec.ts --project=chromium",
+    "test:chrome:remote": "BASE_URL=https://cloudlens.songqipeng.com playwright test tests/dashboard-error-display.spec.ts --project=chromium"
   },
   "dependencies": {
     "@types/react-grid-layout": "^1.3.6",

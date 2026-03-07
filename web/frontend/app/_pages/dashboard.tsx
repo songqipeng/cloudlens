@@ -19,6 +19,7 @@ export default function DashboardPage() {
   const [chartData, setChartData] = useState<any>(null)
   const [idleData, setIdleData] = useState<any>([])
   const [error, setError] = useState<string | null>(null)
+  const [errorStatus, setErrorStatus] = useState<number | null>(null)
   const [scanning, setScanning] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState<string>("")
   const loadingStartTime = useRef<number | null>(null)
@@ -291,6 +292,7 @@ pip install -r requirements.txt
       setLoading(true)
       loadingStartTime.current = Date.now()
       setError(null)
+      setErrorStatus(null)
       setSummary(null)
       setChartData(null)
       setIdleData([])
@@ -592,16 +594,29 @@ pip install -r requirements.txt
         }, 500)
       } catch (e: any) {
         console.error("[Dashboard] 加载失败:", e)
-        // 即使失败也尝试显示部分数据（如果有的话）
-        const errorMsg = e?.message || e?.detail || String(e) || "加载失败"
+        // 安全提取可读错误信息，避免 [object Object]
+        let errorMsg = "加载失败"
+        if (e instanceof ApiError) {
+          errorMsg = e.message || (typeof e.detail === "string" ? e.detail : e.detail?.detail ?? e.detail?.error ?? errorMsg)
+        } else if (e instanceof Error) {
+          errorMsg = e.message
+        } else if (typeof e === "string") {
+          errorMsg = e
+        } else if (e?.detail != null) {
+          const d = e.detail
+          errorMsg = typeof d === "string" ? d : (d?.detail ?? d?.message ?? errorMsg)
+        } else if (e?.message != null) {
+          errorMsg = String(e.message)
+        }
+        if (typeof errorMsg !== "string") errorMsg = "加载失败"
         setError(errorMsg)
+        setErrorStatus(e instanceof ApiError ? e.status : null)
         setLoadingMessage("")
         setLoading(false)
         loadingStartTime.current = null
 
         // 如果 summary 数据已加载，至少显示这部分
         if (!summary) {
-          // 如果完全没有数据，显示错误
           console.error("[Dashboard] 无法获取任何数据")
         }
       }
@@ -658,6 +673,14 @@ pip install -r requirements.txt
   }
 
   if (error) {
+    // 兜底：若错误信息里仍包含 [object Object]（旧构建或异常路径），替换为可读文案
+    const displayError =
+      typeof error === "string" && error.includes("[object Object]")
+        ? "请求失败。若为账号相关，请先在设置中添加该账号或切换账号后重试。"
+        : error
+    // 仪表盘 summary 接口 404 多为账号未配置，直接提示去添加账号
+    const isAccountNotFound = errorStatus === 404
+    const accountSettingsHref = currentAccount ? `/a/${encodeURIComponent(currentAccount)}/settings/accounts` : "/settings/accounts"
     return (
       <DashboardLayout>
         <div className="min-h-screen flex items-center justify-center">
@@ -674,13 +697,28 @@ pip install -r requirements.txt
             </div>
             <div>
               <h3 className="text-xl font-semibold text-foreground mb-2">{t.common.error}</h3>
-              <p className="text-muted-foreground text-sm">{error}</p>
-              <button
-                onClick={() => window.location.reload()}
-                className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-              >
-                {t.common.refresh}
-              </button>
+              <p className="text-muted-foreground text-sm">{displayError}</p>
+              {isAccountNotFound && (
+                <p className="text-muted-foreground text-sm mt-2">
+                  请先在设置中添加账号「{currentAccount}」，或切换到已配置的账号。
+                </p>
+              )}
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                {isAccountNotFound && (
+                  <Link
+                    href={accountSettingsHref}
+                    className="inline-flex px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+                  >
+                    {t.dashboard.goToAccountManagement}
+                  </Link>
+                )}
+                <button
+                  onClick={() => window.location.reload()}
+                  className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg text-sm font-medium hover:bg-secondary/90 transition-colors"
+                >
+                  {t.common.refresh}
+                </button>
+              </div>
             </div>
           </div>
         </div>
