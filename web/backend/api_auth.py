@@ -3,8 +3,8 @@
 认证相关 API 端点
 """
 
-from fastapi import APIRouter, HTTPException, Depends, status
-from pydantic import BaseModel, EmailStr
+from fastapi import APIRouter, HTTPException, Depends, status, Response, Request
+from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import logging
 
@@ -14,6 +14,7 @@ from web.backend.auth_middleware import get_current_user, require_admin
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+AUTH_COOKIE_NAME = "cloudlens_auth_token"
 
 
 # 请求模型
@@ -27,7 +28,7 @@ class RegisterRequest(BaseModel):
     """注册请求"""
     username: str
     password: str
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
 
 
 class ChangePasswordRequest(BaseModel):
@@ -38,7 +39,7 @@ class ChangePasswordRequest(BaseModel):
 
 class UpdateUserRequest(BaseModel):
     """更新用户请求"""
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
     role: Optional[str] = None
     enabled: Optional[bool] = None
 
@@ -46,13 +47,39 @@ class UpdateUserRequest(BaseModel):
 # 响应模型
 class LoginResponse(BaseModel):
     """登录响应"""
-    token: str
     user: Dict[str, Any]
     expires_in: int
 
 
+def _use_secure_cookie(request: Request) -> bool:
+    """生产环境下启用 Secure，便于本地开发使用 http。"""
+    host = request.headers.get("host", "")
+    if host.startswith("localhost") or host.startswith("127.0.0.1"):
+        return False
+    return True
+
+
+def _set_auth_cookie(response: Response, token: str, expires_in: int, request: Request) -> None:
+    """设置登录 Cookie。"""
+    response.set_cookie(
+        key=AUTH_COOKIE_NAME,
+        value=token,
+        max_age=expires_in,
+        expires=expires_in,
+        httponly=True,
+        samesite="lax",
+        secure=_use_secure_cookie(request),
+        path="/",
+    )
+
+
+def _clear_auth_cookie(response: Response) -> None:
+    """清理登录 Cookie。"""
+    response.delete_cookie(key=AUTH_COOKIE_NAME, path="/")
+
+
 @router.post("/login", response_model=LoginResponse)
-def login(request: LoginRequest) -> LoginResponse:
+def login(login_request: LoginRequest, response: Response, http_request: Request) -> LoginResponse:
     """
     用户登录
     
@@ -61,14 +88,29 @@ def login(request: LoginRequest) -> LoginResponse:
     """
     jwt_auth = get_jwt_auth()
     
-    result = jwt_auth.login(request.username, request.password)
+    result = jwt_auth.login(login_request.username, login_request.password)
     if not result:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="用户名或密码错误"
         )
-    
-    return LoginResponse(**result)
+
+    _set_auth_cookie(response, result["token"], result["expires_in"], http_request)
+
+    return LoginResponse(
+        user=result["user"],
+        expires_in=result["expires_in"],
+    )
+
+
+@router.post("/logout")
+def logout(response: Response) -> Dict[str, Any]:
+    """退出登录并清理认证 Cookie。"""
+    _clear_auth_cookie(response)
+    return {
+        "status": "success",
+        "message": "已退出登录",
+    }
 
 
 @router.post("/register")

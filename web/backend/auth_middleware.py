@@ -4,7 +4,7 @@
 用于 FastAPI 的 JWT 认证和权限验证
 """
 
-from fastapi import HTTPException, Depends, status
+from fastapi import HTTPException, Depends, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict, Any
 import logging
@@ -14,11 +14,13 @@ from cloudlens.core.auth import get_jwt_auth, JWTAuth
 logger = logging.getLogger(__name__)
 
 # HTTP Bearer Token 安全方案
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
+AUTH_COOKIE_NAME = "cloudlens_auth_token"
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> Dict[str, Any]:
     """
     获取当前用户（从 JWT Token）
@@ -32,7 +34,13 @@ def get_current_user(
     Raises:
         HTTPException: 如果 Token 无效或过期
     """
-    token = credentials.credentials
+    token = credentials.credentials if credentials else request.cookies.get(AUTH_COOKIE_NAME)
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="未登录",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     jwt_auth = get_jwt_auth()
     
     payload = jwt_auth.verify_token(token)
@@ -78,6 +86,7 @@ def require_admin(
 
 
 def optional_auth(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))
 ) -> Optional[Dict[str, Any]]:
     """
@@ -89,10 +98,10 @@ def optional_auth(
     Returns:
         用户信息（如果有 Token 且有效），否则返回 None
     """
-    if not credentials:
+    token = credentials.credentials if credentials else request.cookies.get(AUTH_COOKIE_NAME)
+    if not token:
         return None
-    
-    token = credentials.credentials
+
     jwt_auth = get_jwt_auth()
     
     payload = jwt_auth.verify_token(token)

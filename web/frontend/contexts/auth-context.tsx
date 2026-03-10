@@ -1,10 +1,12 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { login as authLogin, logout as authLogout, isAuthenticated, getCurrentUser } from '@/lib/auth'
+import { login as authLogin, logout as authLogout, fetchCurrentUser, getCurrentUser } from '@/lib/auth'
 
 interface User {
   username: string
+  role?: string
+  email?: string | null
 }
 
 interface AuthContextType {
@@ -12,7 +14,7 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   login: (username: string, password: string) => Promise<boolean>
-  logout: () => void
+  logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -24,37 +26,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // 初始化时检查登录状态
   useEffect(() => {
-    const checkAuth = () => {
-      const isAuth = isAuthenticated()
-      setAuthenticated(isAuth)
-      
-      if (isAuth) {
-        const currentUser = getCurrentUser()
-        setUser(currentUser)
-      } else {
-        setUser(null)
-      }
-      
+    const checkAuth = async () => {
+      const currentUser = await fetchCurrentUser()
+      setAuthenticated(Boolean(currentUser))
+      setUser(currentUser)
       setLoading(false)
     }
 
-    checkAuth()
+    void checkAuth()
   }, [])
 
   const login = async (username: string, password: string): Promise<boolean> => {
-    const success = authLogin(username, password)
-    
-    if (success) {
+    const currentUser = await authLogin(username, password)
+
+    if (currentUser) {
       setAuthenticated(true)
-      setUser({ username })
+      setUser(currentUser)
       return true
     }
-    
+
+    setAuthenticated(false)
+    setUser(null)
     return false
   }
 
-  const logout = () => {
-    authLogout()
+  const logout = async (): Promise<void> => {
+    await authLogout()
     setAuthenticated(false)
     setUser(null)
     

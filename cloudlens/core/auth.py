@@ -20,9 +20,44 @@ logger = logging.getLogger(__name__)
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", secrets.token_urlsafe(32))
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24  # Token 有效期 24 小时
+PASSWORD_SCHEME = "pbkdf2_sha256"
+PASSWORD_ITERATIONS = 600000
 
 # 用户存储文件
 USERS_FILE = Path.home() / ".cloudlens" / "users.json"
+
+
+def _hash_password(password: str, salt: Optional[str] = None) -> Dict[str, str]:
+    """生成带盐密码哈希。"""
+    salt_value = salt or secrets.token_hex(16)
+    password_hash = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt_value.encode("utf-8"),
+        PASSWORD_ITERATIONS,
+    ).hex()
+    return {
+        "password_hash": password_hash,
+        "password_salt": salt_value,
+        "password_scheme": PASSWORD_SCHEME,
+    }
+
+
+def _verify_password(password: str, user: Dict[str, Any]) -> bool:
+    """兼容旧 SHA256 及新 PBKDF2 哈希校验。"""
+    stored_hash = user.get("password_hash", "")
+    scheme = user.get("password_scheme")
+
+    if scheme == PASSWORD_SCHEME:
+        salt = user.get("password_salt", "")
+        if not salt:
+            return False
+        candidate = _hash_password(password, salt=salt)["password_hash"]
+        return secrets.compare_digest(stored_hash, candidate)
+
+    # 兼容旧版本：直接使用 SHA256
+    legacy_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    return secrets.compare_digest(stored_hash, legacy_hash)
 
 
 class UserManager:
@@ -71,18 +106,15 @@ class UserManager:
             logger.warning(f"用户已存在: {username}")
             return False
         
-        # 加密密码（使用 SHA256）
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
-        
         users[username] = {
             "username": username,
-            "password_hash": password_hash,
             "email": email,
             "role": role,
             "created_at": datetime.now().isoformat(),
             "last_login": None,
             "enabled": True
         }
+        users[username].update(_hash_password(password))
         
         self._save_users(users)
         logger.info(f"用户创建成功: {username}")
@@ -112,10 +144,13 @@ class UserManager:
             return False
         
         # 验证密码
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
-        if user["password_hash"] != password_hash:
+        if not _verify_password(password, user):
             logger.warning(f"密码错误: {username}")
             return False
+
+        # 老密码在本次登录后自动升级到更安全的 PBKDF2 哈希
+        if user.get("password_scheme") != PASSWORD_SCHEME:
+            user.update(_hash_password(password))
         
         # 更新最后登录时间
         user["last_login"] = datetime.now().isoformat()
@@ -162,8 +197,7 @@ class UserManager:
             return False
         
         # 加密新密码
-        new_password_hash = hashlib.sha256(new_password.encode()).hexdigest()
-        users[username]["password_hash"] = new_password_hash
+        users[username].update(_hash_password(new_password))
         
         self._save_users(users)
         logger.info(f"密码已修改: {username}")

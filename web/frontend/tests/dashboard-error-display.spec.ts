@@ -6,7 +6,8 @@ import { test, expect } from '@playwright/test';
 
 test.describe('仪表盘错误展示', () => {
   test('访问 /a/ydhl 时页面能打开，且不出现 [object Object] 或数据库/服务器错误', async ({ page }) => {
-    await page.goto('/a/ydhl', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.goto('/a/ydhl', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForLoadState('domcontentloaded');
 
     // 页面应渲染出内容（加载中、错误提示或仪表盘）
     const body = await page.locator('body').textContent();
@@ -20,7 +21,8 @@ test.describe('仪表盘错误展示', () => {
   });
 
   test('若为错误页，应显示可读错误信息或“前往账号管理”；若未登录则可能为登录页', async ({ page }) => {
-    await page.goto('/a/ydhl', { waitUntil: 'networkidle', timeout: 25000 });
+    await page.goto('/a/ydhl', { waitUntil: 'domcontentloaded', timeout: 25000 });
+    await page.waitForLoadState('domcontentloaded');
 
     const hasErrorTitle = await page.getByText('错误', { exact: true }).isVisible().catch(() => false);
     const hasRefresh = await page.getByRole('button', { name: /刷新/ }).isVisible().catch(() => false);

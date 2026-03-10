@@ -20,7 +20,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // 检查认证token
+  // 检查认证 cookie（实际有效性由后端 /api/auth/me 和 API 鉴权负责）
   const authToken = request.cookies.get('cloudlens_auth_token')?.value
 
   if (!authToken) {
@@ -28,23 +28,6 @@ export function middleware(request: NextRequest) {
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('redirect', pathname)
     return NextResponse.redirect(loginUrl)
-  }
-
-  // 验证token（简单验证：检查是否过期）
-  try {
-    const payload = JSON.parse(atob(authToken))
-    if (!payload.exp || payload.exp < Date.now()) {
-      // token已过期
-      const response = NextResponse.redirect(new URL('/login', request.url))
-      // 清除过期的cookie
-      response.cookies.delete('cloudlens_auth_token')
-      return response
-    }
-  } catch {
-    // token无效
-    const response = NextResponse.redirect(new URL('/login', request.url))
-    response.cookies.delete('cloudlens_auth_token')
-    return response
   }
 
   return NextResponse.next()

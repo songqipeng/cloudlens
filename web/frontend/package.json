@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:auth:local": "playwright test tests/auth-flow.spec.ts --project=chromium",
+    "test:regression:local": "playwright test tests/auth-flow.spec.ts tests/dashboard-error-display.spec.ts --project=chromium",
     "test:chrome": "playwright test tests/dashboard-error-display.spec.ts --project=chromium",
     "test:chrome:remote": "BASE_URL=https://cloudlens.songqipeng.com playwright test tests/dashboard-error-display.spec.ts --project=chromium",
     "test:regression:discount": "BASE_URL=https://cloudlens.songqipeng.com playwright test tests/dashboard-error-display.spec.ts --project=chromium -g discounts"

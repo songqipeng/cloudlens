@@ -1,114 +1,127 @@
 /**
- * CloudLens 简单认证工具
- * 用于前端登录验证和状态管理
+ * CloudLens 认证工具
+ * 前端不再保存密码或伪 Token，统一走后端真实认证。
  */
 
-// 有效用户凭证
-const VALID_CREDENTIALS = {
-  username: 'demo',
-  password: '123demo654'
+export interface AuthUser {
+  username: string
+  role?: string
+  email?: string | null
 }
 
-// 存储键名
-const AUTH_TOKEN_KEY = 'cloudlens_auth_token'
-const AUTH_USER_KEY = 'cloudlens_auth_user'
-
-// 简单的token生成（base64编码）
-function generateToken(username: string): string {
-  const payload = {
-    username,
-    exp: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7天过期
-    iat: Date.now()
-  }
-  return btoa(JSON.stringify(payload))
+interface LoginResponse {
+  user: AuthUser
+  expires_in: number
 }
 
-// 验证token是否有效
-function verifyToken(token: string): { valid: boolean; username?: string } {
-  try {
-    const payload = JSON.parse(atob(token))
-    if (payload.exp && payload.exp > Date.now()) {
-      return { valid: true, username: payload.username }
-    }
-    return { valid: false }
-  } catch {
-    return { valid: false }
+const AUTH_USER_KEY = "cloudlens_auth_user"
+
+function getAuthApiBase(): string {
+  if (typeof window === "undefined") {
+    return "http://127.0.0.1:8000/api/auth"
   }
+
+  const hostname = window.location.hostname
+  const isLocalDev = hostname === "localhost" || hostname === "127.0.0.1"
+  return isLocalDev ? "http://localhost:8000/api/auth" : `${window.location.origin}/api/auth`
+}
+
+function saveUser(user: AuthUser | null): void {
+  if (typeof window === "undefined") return
+  if (!user) {
+    localStorage.removeItem(AUTH_USER_KEY)
+    return
+  }
+  localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user))
+}
+
+function clearStoredAuth(): void {
+  if (typeof window === "undefined") return
+  localStorage.removeItem(AUTH_USER_KEY)
+}
+
+async function requestAuth<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`${getAuthApiBase()}${path}`, {
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+    ...options,
+  })
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData?.detail || errorData?.message || "认证请求失败")
+  }
+
+  return res.json()
 }
 
 /**
  * 登录验证
  */
-export function login(username: string, password: string): boolean {
-  if (username === VALID_CREDENTIALS.username && password === VALID_CREDENTIALS.password) {
-    const token = generateToken(username)
-    
-    // 存储到localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(AUTH_TOKEN_KEY, token)
-      localStorage.setItem(AUTH_USER_KEY, JSON.stringify({ username }))
-      
-      // 同时设置cookie供middleware使用
-      document.cookie = `${AUTH_TOKEN_KEY}=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`
-    }
-    
-    return true
+export async function login(username: string, password: string): Promise<AuthUser | null> {
+  try {
+    const result = await requestAuth<LoginResponse>("/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    })
+    saveUser(result.user)
+    return result.user
+  } catch {
+    clearStoredAuth()
+    return null
   }
-  return false
 }
 
 /**
  * 登出
  */
-export function logout(): void {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem(AUTH_TOKEN_KEY)
-    localStorage.removeItem(AUTH_USER_KEY)
-    
-    // 清除cookie
-    document.cookie = `${AUTH_TOKEN_KEY}=; path=/; max-age=0`
+export async function logout(): Promise<void> {
+  try {
+    await requestAuth("/logout", { method: "POST" })
+  } catch {
+    // 即使后端退出失败，也继续清理本地状态
+  } finally {
+    clearStoredAuth()
+  }
+}
+
+/**
+ * 获取当前用户（优先向后端确认）
+ */
+export async function fetchCurrentUser(): Promise<AuthUser | null> {
+  try {
+    const user = await requestAuth<AuthUser>("/me", { method: "GET" })
+    saveUser(user)
+    return user
+  } catch {
+    clearStoredAuth()
+    return null
   }
 }
 
 /**
  * 检查是否已登录
  */
-export function isAuthenticated(): boolean {
-  if (typeof window === 'undefined') return false
-  
-  const token = localStorage.getItem(AUTH_TOKEN_KEY)
-  if (!token) return false
-  
-  const result = verifyToken(token)
-  if (!result.valid) {
-    // token无效，清理
-    logout()
-    return false
-  }
-  
-  return true
+export async function isAuthenticated(): Promise<boolean> {
+  const user = await fetchCurrentUser()
+  return Boolean(user)
 }
 
 /**
- * 获取当前用户
+ * 从本地缓存读取当前用户（仅用于快速展示）
  */
-export function getCurrentUser(): { username: string } | null {
-  if (typeof window === 'undefined') return null
-  
+export function getCurrentUser(): AuthUser | null {
+  if (typeof window === "undefined") return null
+
   const userStr = localStorage.getItem(AUTH_USER_KEY)
   if (!userStr) return null
-  
+
   try {
-    return JSON.parse(userStr)
+    return JSON.parse(userStr) as AuthUser
   } catch {
     return null
   }
-}
-
-/**
- * 获取认证token
- */
-export function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null
-  return localStorage.getItem(AUTH_TOKEN_KEY)
 }

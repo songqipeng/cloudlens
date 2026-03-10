@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
-import { login } from '@/lib/auth'
+import { useAuth } from '@/contexts/auth-context'
 
 export default function LoginPage() {
   const router = useRouter()
+  const { login } = useAuth()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -77,12 +78,15 @@ export default function LoginPage() {
       return
     }
 
-    await new Promise(resolve => setTimeout(resolve, 800))
-
     const success = login(username, password)
-    
-    if (success) {
-      router.push('/')
+
+    const redirectPath = typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('redirect') || '/'
+      : '/'
+    const authed = await success
+
+    if (authed) {
+      router.push(redirectPath)
       router.refresh()
     } else {
       setError('// ERROR: AUTH_FAILED - INVALID_CREDENTIALS')

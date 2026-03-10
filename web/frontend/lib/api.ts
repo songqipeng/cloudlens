@@ -170,6 +170,7 @@ export async function apiGet<T = any>(
                 }, timeout)
 
                 const res = await fetch(url, {
+                    credentials: options?.credentials ?? "include",
                     ...options,
                     signal: controller.signal
                 })
@@ -301,6 +302,7 @@ export async function apiPost<T = any>(
 
             const res = await fetch(url, {
                 method: "POST",
+                credentials: options?.credentials ?? "include",
                 headers: {
                     "Content-Type": "application/json",
                     ...options?.headers,
@@ -392,6 +394,7 @@ export async function apiPut<T = any>(
 
             const res = await fetch(url, {
                 method: "PUT",
+                credentials: options?.credentials ?? "include",
                 headers: {
                     "Content-Type": "application/json",
                     ...options?.headers,
@@ -450,6 +453,7 @@ export async function apiDelete<T = any>(
 
             const res = await fetch(url, {
                 method: "DELETE",
+                credentials: options?.credentials ?? "include",
                 ...options,
                 signal: controller.signal,
             })
