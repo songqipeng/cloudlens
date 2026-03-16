@@ -96,6 +96,12 @@ variable "ssh_public_key" {
   default     = ""
 }
 
+variable "local_ssh_key_path" {
+  description = "本机私钥路径（用于 output 的 ssh_command 提示，例如 ~/.ssh/cloudlens-key）"
+  type        = string
+  default     = "cloudlens-key"
+}
+
 variable "mysql_user" {
   description = "MySQL用户名"
   type        = string

@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 import uuid
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 from web.backend.api_base import handle_api_error
 from cloudlens.core.llm_client import create_llm_client, LLMClient, ClaudeClient, OpenAIClient, DeepSeekClient
@@ -144,27 +145,128 @@ def _get_account_id(account: Optional[str] = None) -> Optional[str]:
     if not account:
         ctx = ContextManager()
         account = ctx.get_last_account()
-    
+
     if not account:
         return None
-        
+
     account_config = cm.get_account(account)
     if account_config:
         return f"{account_config.access_key_id[:10]}-{account}"
     return None
 
 
+def _is_ecs_count_question(text: str) -> bool:
+    """判断是否为「有几台ECS」类问题，这类问题直接查资源列表返回，不交给 LLM"""
+    if not text or not text.strip():
+        return False
+    t = text.strip().lower()
+    if "几台" not in t and "多少台" not in t and "几台服务器" not in t:
+        return False
+    return "ecs" in t or "服务器" in t or "实例" in t
+
+
+def _get_ecs_count_answer(account_name: str) -> Optional[str]:
+    """根据资源列表返回「有几台 ECS」的一句标准答案；无数据时返回 0 台提示。"""
+    if not account_name:
+        return None
+    cache_manager = CacheManager(ttl_seconds=3600)
+    cache_key = f"resource_list_{account_name}"
+    instances_list = None
+    raw = cache_manager.get(resource_type=cache_key, account_name=account_name)
+    if raw and isinstance(raw, dict):
+        instances_list = raw.get("instances") or []
+    if not instances_list or len(instances_list) == 0:
+        instances_list = cache_manager.get(resource_type="ecs_instances", account_name=account_name) or []
+    total = len(instances_list) if instances_list else 0
+    if total == 0:
+        return "系统当前显示 0 台 ECS；若您实际有实例，请到仪表盘点击刷新后再问。"
+    running = sum(
+        1 for i in instances_list
+        if isinstance(i, dict) and "RUNNING" in str(i.get("status", "")).upper()
+    )
+    stopped = sum(
+        1 for i in instances_list
+        if isinstance(i, dict) and "STOPPED" in str(i.get("status", "")).upper()
+    )
+    if running + stopped < total:
+        stopped = total - running
+    return f"您共有 {total} 台 ECS，其中 {running} 台运行中、{stopped} 台已停止。"
+
+
 async def _get_user_context(account_id: Optional[str], account_name: Optional[str] = None) -> str:
     """获取丰富的用户数据上下文（用于构建系统提示词）"""
     if not account_name:
         return "用户没有配置云账号，无法获取成本数据。"
-    
+
     context_parts = []
     cache_manager = CacheManager(ttl_seconds=3600)  # 1小时缓存
-    
+
+    # 【优先】ECS 服务器统计（来自资源列表）：放在最前，回答「有几台ECS」时只认这个
+    try:
+        cache_key = f"resource_list_{account_name}"
+        instances_list = None
+        raw = cache_manager.get(resource_type=cache_key, account_name=account_name)
+        if raw and isinstance(raw, dict):
+            instances_list = raw.get("instances") or []
+        if not instances_list or len(instances_list) == 0:
+            instances_list = cache_manager.get(resource_type="ecs_instances", account_name=account_name) or []
+        if instances_list and len(instances_list) > 0:
+            total_instances = len(instances_list)
+            running = sum(1 for i in instances_list if isinstance(i, dict) and "RUNNING" in str(i.get("status", "")).upper())
+            stopped = sum(1 for i in instances_list if isinstance(i, dict) and "STOPPED" in str(i.get("status", "")).upper())
+            if running + stopped < total_instances:
+                stopped = total_instances - running
+            region_count = {}
+            spec_count = {}
+            for inst in instances_list:
+                if isinstance(inst, dict):
+                    region = inst.get("region", "未知")
+                    spec = inst.get("spec", "未知")
+                    region_count[region] = region_count.get(region, 0) + 1
+                    spec_count[spec] = spec_count.get(spec, 0) + 1
+            context_parts.append("""【用户问「有几台ECS」时请直接使用下面数字回答，不要用账单或成本推断】
+
+=== ECS 服务器统计（按资源列表） ===
+""")
+            context_parts.append(f"共 {total_instances} 台：运行中 {running} 台，已停止 {stopped} 台\n")
+            context_parts.append("区域分布 (Top 5):")
+            for region, count in sorted(region_count.items(), key=lambda x: x[1], reverse=True)[:5]:
+                context_parts.append(f"- {region}: {count}台")
+            context_parts.append("\n规格分布 (Top 5):")
+            for spec, count in sorted(spec_count.items(), key=lambda x: x[1], reverse=True)[:5]:
+                context_parts.append(f"- {spec}: {count}台")
+        else:
+            # 无资源列表时也写明，避免模型用「成本为0」推断成「0台实例」
+            context_parts.append("""【用户问「有几台ECS」时请只按本段回答，不要用账单推断】
+
+=== ECS 服务器统计（按资源列表） ===
+当前无资源列表数据，显示 0 台。若用户实际有实例，请建议其到仪表盘点击刷新后再问。
+""")
+    except Exception as e:
+        logger.warning(f"获取 ECS 资源列表失败: {str(e)}")
+
     try:
         # 1. 从 dashboard_summary 缓存获取核心数据
         summary = cache_manager.get(resource_type="dashboard_summary", account_name=account_name)
+        # 无缓存或资源数全为 0 时尝试刷新一次，确保 AI 能基于系统数据回答（如「有几台 ECS」）
+        need_refresh = not summary or not isinstance(summary, dict)
+        if not need_refresh and summary.get("resource_breakdown"):
+            rb = summary.get("resource_breakdown", {})
+            if (rb.get("ecs", 0) == 0 and rb.get("rds", 0) == 0 and rb.get("redis", 0) == 0):
+                need_refresh = True
+        if need_refresh and account_name:
+            account_config = ConfigManager().get_account(account_name)
+            if account_config:
+                try:
+                    from web.backend.api_service import _update_dashboard_summary_cache
+                    with ThreadPoolExecutor(max_workers=1) as executor:
+                        future = executor.submit(
+                            _update_dashboard_summary_cache, account_name, account_config, True
+                        )
+                        future.result(timeout=25)
+                    summary = cache_manager.get(resource_type="dashboard_summary", account_name=account_name)
+                except (FuturesTimeoutError, Exception) as e:
+                    logger.warning(f"刷新仪表盘摘要失败或超时: {e}")
         if summary and isinstance(summary, dict):
             total_cost = summary.get("total_cost", 0)
             trend_pct = summary.get("trend_pct", 0)
@@ -185,7 +287,14 @@ async def _get_user_context(account_id: Optional[str], account_name: Optional[st
 
 资源分布:""")
             for res_type, count in resource_breakdown.items():
-                context_parts.append(f"- {res_type.upper()}: {count}台")
+                if res_type == "ecs" and (summary.get("ecs_running") is not None or summary.get("ecs_stopped") is not None):
+                    run = summary.get("ecs_running", 0)
+                    stop = summary.get("ecs_stopped", 0)
+                    context_parts.append(f"- ECS: {count}台（运行中 {run} 台，已停止 {stop} 台）")
+                else:
+                    context_parts.append(f"- {res_type.upper()}: {count}台")
+            if resource_breakdown.get("ecs") == 0:
+                context_parts.append("(若用户表示实际有 ECS 但此处为 0，可能是包年包月未在当月体现或资源扫描未覆盖，请建议用户在仪表盘点击刷新或以控制台为准。)")
         else:
             context_parts.append(f"账号 {account_name} 暂无仪表盘摘要数据。")
             
@@ -309,38 +418,7 @@ async def _get_user_context(account_id: Optional[str], account_name: Optional[st
     except Exception as e:
         logger.warning(f"获取账单对比数据失败: {str(e)}")
     
-    try:
-        # 5. 获取实例统计（从 ecs_instances 缓存）
-        instances_cache = cache_manager.get(resource_type="ecs_instances", account_name=account_name)
-        if instances_cache and isinstance(instances_cache, list) and len(instances_cache) > 0:
-            total_instances = len(instances_cache)
-            running = sum(1 for i in instances_cache if isinstance(i, dict) and str(i.get('status', '')).upper() == 'RUNNING')
-            stopped = total_instances - running
-            
-            # 区域分布
-            region_count = {}
-            spec_count = {}
-            for inst in instances_cache:
-                if isinstance(inst, dict):
-                    region = inst.get('region', '未知')
-                    spec = inst.get('spec', '未知')
-                    region_count[region] = region_count.get(region, 0) + 1
-                    spec_count[spec] = spec_count.get(spec, 0) + 1
-            
-            context_parts.append(f"""
-=== ECS实例统计 ===
-总实例数: {total_instances}
-运行中: {running}, 已停止: {stopped}
-
-区域分布 (Top 5):""")
-            for region, count in sorted(region_count.items(), key=lambda x: x[1], reverse=True)[:5]:
-                context_parts.append(f"- {region}: {count}台")
-            
-            context_parts.append("\n规格分布 (Top 5):")
-            for spec, count in sorted(spec_count.items(), key=lambda x: x[1], reverse=True)[:5]:
-                context_parts.append(f"- {spec}: {count}台")
-    except Exception as e:
-        logger.warning(f"获取实例数据失败: {str(e)}")
+    # ECS 服务器统计已放在上下文最前，此处不再重复
     
     if not context_parts:
         return f"账号 {account_name} 暂无可用数据。"
@@ -352,22 +430,24 @@ def _build_system_prompt(context: str) -> str:
     """构建系统提示词"""
     return f"""你是一个专业的云成本管理助手，名为CloudLens AI。你的职责是帮助用户分析和优化云资源成本。
 
-用户当前的云成本情况：
+【重要】以下数据来自 CloudLens 系统当前账号的实时/缓存数据，请务必优先基于这些数据直接回答用户问题：
 {context}
 
-请遵循以下原则：
-1. 用中文回答所有问题
-2. 提供准确、专业的成本分析建议
-3. 如果数据不足，明确告知用户
-4. 建议要具体、可操作
-5. 使用友好的语气，但保持专业性
+回答原则：
+1. 用中文回答，语气友好且专业。
+2. 当上下文中已有具体数字时，必须直接引用回答，不要泛泛地说「请去控制台查看」。
+3. 仅当上下文明确标注「暂无」「获取失败」或「暂无可用数据」时，才建议用户去控制台或刷新后重试。
+4. 建议要具体、可操作；若数据不足，可简短说明并给出下一步建议。
+
+【重要】当用户问「有几台ECS」「几台服务器」时：
+- 必须仅根据上下文中的「ECS 服务器统计」或「资源分布」里的 ECS 数量，用一句话直接回答，例如：「您共有 7 台 ECS，其中 X 台运行中、Y 台已停止。」
+- 禁止用「本月ECS成本」或账单推断实例数量——成本为 0 可能是包年包月或已关机，不代表 0 台实例。
+- 若资源数据为 0 台，只回复一句：「系统当前显示 0 台；若您实际有实例，请到仪表盘点击刷新后再问。」不要展开成本分析，不要问用户是否关机/释放。
 
 你可以帮助用户：
-- 分析成本变化原因
-- 识别闲置资源
-- 提供优化建议
-- 解释账单明细
-- 预测未来成本
+- 直接回答资源数量（有几台 ECS 等）、成本金额、趋势与分布
+- 分析成本变化原因、识别闲置资源、提供优化建议
+- 解释账单明细、预测未来成本
 """
 
 
@@ -396,10 +476,31 @@ async def chat(
                 (session_id, account_id, "新对话")
             )
         
+        # 「有几台 ECS」类问题：直接查资源列表返回一句答案，不交给 LLM，避免被成本数据带偏
+        last_user_content = (req.messages[-1].content if req.messages else "").strip()
+        if last_user_content and _is_ecs_count_question(last_user_content) and account_name:
+            direct_answer = _get_ecs_count_answer(account_name)
+            if direct_answer:
+                for msg in req.messages:
+                    _get_db().execute(
+                        "INSERT INTO chat_messages (id, session_id, role, content, created_at) VALUES (%s, %s, %s, %s, NOW())",
+                        (str(uuid.uuid4()), session_id, msg.role, msg.content)
+                    )
+                _get_db().execute(
+                    "INSERT INTO chat_messages (id, session_id, role, content, metadata, created_at) VALUES (%s, %s, %s, %s, %s, NOW())",
+                    (str(uuid.uuid4()), session_id, "assistant", direct_answer, json.dumps({"usage": {"prompt_tokens": 0, "completion_tokens": 0}, "model": "cloudlens-resource"}))
+                )
+                return ChatResponse(
+                    message=direct_answer,
+                    session_id=session_id,
+                    usage={"prompt_tokens": 0, "completion_tokens": 0},
+                    model="cloudlens-resource",
+                )
+
         # 获取用户上下文
         context = await _get_user_context(account_id, account_name)
         system_prompt = _build_system_prompt(context)
-        
+
         # 获取历史消息（如果有session_id）
         history_messages = []
         if session_id:

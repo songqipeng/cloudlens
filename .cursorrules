@@ -48,6 +48,16 @@ CloudLens 是云资源管理工具，包含：
 - **前端/Web**: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS, Recharts
 - **后端 API**: FastAPI (web/backend)
 
+## 远端部署与 SSH ⭐
+- **连接远端必须用项目约定方式**，否则会因未使用正确密钥而 `Permission denied (publickey)`。
+- **正确做法**：使用项目内脚本 `scripts/ssh-cloudlens.sh`，或显式指定配置：`ssh -F ~/.ssh/config cloudlens-aws`（依赖 `~/.ssh/config` 中 Host `cloudlens-aws` 及对应 IdentityFile，如 `~/.ssh/cloudlens-key`）。
+- **错误做法**：不要直接用 `ssh ec2-user@18.167.167.25`（未带本机 SSH 配置）。
+- **部署命令示例**（在项目根目录执行）：
+  ```bash
+  bash scripts/ssh-cloudlens.sh "cd /opt/cloudlens/app && git pull origin main && DOCKER_BUILDKIT=0 docker-compose build frontend && docker-compose up -d frontend"
+  ```
+- 远端应用目录：`/opt/cloudlens/app`；生产地址：https://cloudlens.songqipeng.com
+
 # ---------- 代码风格指南（业界最佳实践）---------- 
 
 ## Python 代码规范

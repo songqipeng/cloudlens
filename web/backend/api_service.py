@@ -360,6 +360,8 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
     idle_count = 0
     total_resources = 0
     resource_breakdown = {"ecs": 0, "rds": 0, "redis": 0}
+    ecs_running = 0
+    ecs_stopped = 0
     tag_coverage = 0.0
     alert_count = 0
     savings_potential = 0.0
@@ -512,7 +514,20 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
     }
     total_resources = sum(resource_breakdown.values())
     all_resources = instances + rds_list + redis_list
-    
+
+    # ECS 按状态统计（来自资源列表，用于「有几台服务器、几台开机/关机」等问答）
+    ecs_running = 0
+    ecs_stopped = 0
+    for i in instances:
+        st = getattr(i, "status", None) if not isinstance(i, dict) else i.get("status")
+        if st is None:
+            continue
+        s = str(st).upper()
+        if "RUNNING" in s:
+            ecs_running += 1
+        elif "STOPPED" in s:
+            ecs_stopped += 1
+
     # 详细日志输出，便于调试
     logger.info(f"资源统计结果 (账号: {account}):")
     logger.info(f"  ECS: {resource_breakdown['ecs']} (instances类型: {type(instances).__name__}, 长度: {len(instances) if instances else 0})")
@@ -570,6 +585,8 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
                 "trend_pct": 0.0,
                 "total_resources": total_resources,
                 "resource_breakdown": resource_breakdown,
+                "ecs_running": ecs_running,
+                "ecs_stopped": ecs_stopped,
                 "alert_count": alert_count,
                 "tag_coverage": tag_coverage,
                 "savings_potential": 0.0, # 初始为0，后续计算
@@ -680,6 +697,8 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
             "trend_pct": 0.0,
             "total_resources": total_resources,
             "resource_breakdown": resource_breakdown,
+            "ecs_running": ecs_running,
+            "ecs_stopped": ecs_stopped,
             "alert_count": alert_count,
             "tag_coverage": tag_coverage,
             "savings_potential": 0.0, # 初始为0，后续计算
@@ -786,6 +805,8 @@ def _update_dashboard_summary_cache(account: str, account_config, force_refresh:
         "trend_pct": float(trend_pct),
         "total_resources": int(total_resources),
         "resource_breakdown": dict(resource_breakdown),
+        "ecs_running": int(ecs_running) if ecs_running is not None else 0,
+        "ecs_stopped": int(ecs_stopped) if ecs_stopped is not None else 0,
         "alert_count": int(alert_count),
         "tag_coverage": round(float(tag_coverage), 2),
         "savings_potential": float(savings_potential),
@@ -876,6 +897,11 @@ def _get_global_resources_consistent(account_name: str, account_config, force_re
 
     logger.info(f"✅ 全球扫描完成: ECS={len(instances)}, RDS={len(rds_list)}, Redis={len(redis_list)}")
 
+    # 全为 0 时不写入缓存，避免因 API 失败或账号/地域问题导致的错误“0 台”被长期缓存（用户实际可能有实例）
+    if len(instances) == 0 and len(rds_list) == 0 and len(redis_list) == 0:
+        logger.warning("全球扫描结果全为 0，本次不缓存，下次请求将重新扫描")
+        return instances, rds_list, redis_list
+
     # 序列化为 dict 以便缓存（使用增强后的 to_dict）
     data_to_cache = {
         "instances": [i.to_dict() if hasattr(i, 'to_dict') else i for i in instances],
@@ -883,7 +909,7 @@ def _get_global_resources_consistent(account_name: str, account_config, force_re
         "redis": [i.to_dict() if hasattr(i, 'to_dict') else i for i in redis_list]
     }
     cache_manager.set(resource_type=cache_key, account_name=account_name, data=data_to_cache)
-    
+
     return instances, rds_list, redis_list
 
 
@@ -2363,6 +2389,74 @@ def get_cost_breakdown(
             },
             "cached": False,
         }
+
+
+@router.get("/cost/yearly-by-product")
+def get_cost_yearly_by_product(
+    account: Optional[str] = Query(None, description="账号名称，如 ydhl"),
+    year: int = Query(2025, description="年份，如 2025"),
+):
+    """
+    按年汇总指定账号的账单（按产品），用于本地查看「去年花了多少、花在哪些产品」。
+    数据来源：MySQL bill_items（需已同步该年账单）。
+    """
+    try:
+        provider, account_name = _get_provider_for_account(account)
+        cm = ConfigManager()
+        account_config = cm.get_account(account_name)
+        if not account_config:
+            raise HTTPException(status_code=404, detail=f"账号 '{account_name}' 不存在")
+        account_id = f"{account_config.access_key_id[:10]}-{account_config.name}"
+        from cloudlens.core.database import DatabaseFactory
+        db = DatabaseFactory.create_adapter("mysql")
+        # 解析 bill_items 中实际存在的 account_id（支持模糊匹配）
+        row = db.query_one(
+            "SELECT DISTINCT account_id FROM bill_items WHERE account_id = %s LIMIT 1",
+            (account_id,),
+        )
+        if not row:
+            row = db.query_one(
+                "SELECT DISTINCT account_id FROM bill_items WHERE account_id LIKE %s LIMIT 1",
+                (f"%{account_name}%",),
+            )
+        if not row:
+            return {
+                "success": True,
+                "year": year,
+                "total": 0,
+                "by_product": [],
+                "message": "该账号在本年度无账单记录，请先同步账单。",
+            }
+        aid = row.get("account_id") if isinstance(row, dict) else row[0]
+        start_cycle = f"{year}-01"
+        end_cycle = f"{year}-12"
+        rows = db.query("""
+            SELECT product_code, product_name, SUM(pretax_amount) AS total_pretax
+            FROM bill_items
+            WHERE account_id = %s AND billing_cycle >= %s AND billing_cycle <= %s AND pretax_amount IS NOT NULL
+            GROUP BY product_code, product_name
+            ORDER BY total_pretax DESC
+        """, (aid, start_cycle, end_cycle))
+        by_product = []
+        total = 0.0
+        for r in rows:
+            code = (r.get("product_code") or r[0]) or "-"
+            name = (r.get("product_name") or r[1]) or code
+            amt = float(r.get("total_pretax") or r[2] or 0)
+            total += amt
+            by_product.append({"product_code": code, "product_name": name, "amount": round(amt, 2)})
+        return {
+            "success": True,
+            "year": year,
+            "account": account_name,
+            "total": round(total, 2),
+            "by_product": by_product,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("yearly-by-product 查询失败")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ==================== Phase 2: Security APIs ====================

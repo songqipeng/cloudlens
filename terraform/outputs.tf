@@ -24,8 +24,8 @@ output "alb_zone_id" {
 }
 
 output "ssh_command" {
-  description = "SSH连接命令"
-  value       = "ssh -i ~/.ssh/${var.create_key_pair ? aws_key_pair.cloudlens[0].key_name : var.existing_key_name}.pem ec2-user@${aws_instance.cloudlens.public_ip}"
+  description = "SSH连接命令（使用本机实际存在的 key 路径）"
+  value       = "ssh -i ~/.ssh/${var.create_key_pair ? var.local_ssh_key_path : join("", [var.existing_key_name, ".pem"])} ec2-user@${aws_instance.cloudlens.public_ip}"
 }
 
 output "deployment_info" {
@@ -35,6 +35,6 @@ output "deployment_info" {
     public_ip      = aws_instance.cloudlens.public_ip
     domain_name    = "https://${var.domain_name}"
     alb_dns        = aws_lb.cloudlens.dns_name
-    ssh_command    = "ssh -i ~/.ssh/${var.create_key_pair ? aws_key_pair.cloudlens[0].key_name : var.existing_key_name}.pem ec2-user@${aws_instance.cloudlens.public_ip}"
+    ssh_command    = "ssh -i ~/.ssh/${var.create_key_pair ? var.local_ssh_key_path : join("", [var.existing_key_name, ".pem"])} ec2-user@${aws_instance.cloudlens.public_ip}"
   }
 }
