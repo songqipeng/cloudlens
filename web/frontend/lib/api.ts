@@ -528,6 +528,26 @@ export async function apiUploadForm<T = any>(
     }
 }
 
+/**
+ * 下载报告等二进制文件。endpoint 不含 /api 前缀。
+ */
+export async function apiDownload(endpoint: string, filename: string): Promise<void> {
+    const url = buildUrl(endpoint)
+    const res = await fetch(url, { credentials: "include" })
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        const raw = errorData?.detail ?? errorData?.error ?? errorData?.message
+        throw new ApiError(res.status, errorData, toApiErrorMessage(raw, `下载失败: ${res.status}`))
+    }
+    const blob = await res.blob()
+    const objectUrl = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = objectUrl
+    link.download = filename
+    link.click()
+    URL.revokeObjectURL(objectUrl)
+}
+
 
 
 

@@ -230,8 +230,7 @@ class AIOptimizer:
     ) -> Optional[Dict[str, Any]]:
         """预测未来成本"""
         try:
-            # 使用Prophet模型进行成本预测
-            # 这里简化处理，返回基于历史趋势的预测
+            # 按最近账单的日均金额外推，不是 Prophet 时序模型
             from datetime import datetime, timedelta
             from cloudlens.core.bill_storage import BillStorageManager
             

@@ -101,7 +101,6 @@ except Exception as e:
     api_modules = [
         ("api_config", "配置和账号管理"),
         ("api_cost", "成本分析"),
-        ("api_billing", "账单查询"),
         ("api_discounts", "折扣分析"),
         ("api_resources", "资源管理"),
         ("api_budgets", "预算管理"),
@@ -109,7 +108,6 @@ except Exception as e:
         ("api_dashboards", "仪表盘"),
         ("api_security", "安全检查"),
         ("api_optimization", "优化建议"),
-        ("api_reports", "报告生成"),
     ]
 
     for module_name, module_desc in api_modules:
@@ -158,17 +156,7 @@ try:
 except Exception as e:
     logger.warning(f"✗ Failed to register backup router: {e}")
 
-# 保留原api.py作为后备（在所有模块化路由之后注册，优先级最低）
-# 注意：所有端点已迁移到api/v1/，api.py仅作为后备保留
-try:
-    from web.backend.api import router as legacy_api_router
-    app.include_router(legacy_api_router, tags=["Legacy"])
-    logger.info("⚠️  Legacy API router registered (fallback)")
-except ImportError:
-    # api.py可能不存在或已移除，这是正常的
-    logger.info("ℹ️  Legacy API router not found (expected if fully migrated)")
-except Exception as e:
-    logger.warning(f"✗ Failed to register legacy API router: {e}")
+# 业务路由只注册 api/v1。api.py 已删除，不再做同名回退导入。
 
 # OpenAPI 自定义配置
 def custom_openapi():

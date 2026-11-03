@@ -38,7 +38,7 @@ cloudlens/
 │   ├── idle_detector.py         # 闲置资源检测
 │   ├── cost_analyzer.py         # 成本分析
 │   ├── cost_trend_analyzer.py   # 成本趋势分析
-│   ├── cost_predictor.py        # 成本预测（Prophet ML）
+│   ├── cost_predictor.py        # 成本预测（线性回归）
 │   ├── discount_analyzer.py    # 折扣分析（基础）
 │   ├── discount_analyzer_advanced.py  # 高级折扣分析
 │   ├── discount_analyzer_db.py # 折扣分析（数据库版）
@@ -221,7 +221,7 @@ cloudlens/
   - `cost_allocation.py`：成本分配
 - **AI 和优化**：
   - `ai_optimizer.py`：AI 优化建议
-  - `cost_predictor.py`：成本预测（Prophet ML）
+  - `cost_predictor.py`：成本预测（线性回归）
 
 ### 云厂商实现 (`providers/`)
 

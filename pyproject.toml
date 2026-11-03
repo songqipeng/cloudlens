@@ -52,7 +52,7 @@ exclude_lines = [
 
 [tool.black]
 line-length = 120
-target-version = ['py38']
+target-version = ['py39']
 extend-exclude = '''
 /(
   migrations
@@ -67,7 +67,7 @@ line_length = 120
 skip_glob = ["*/migrations/*", "*/venv/*"]
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true

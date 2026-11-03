@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { FileText, Download, FileSpreadsheet, FileCode, FileType, Sparkles, CheckCircle2, Clock, AlertCircle } from "lucide-react"
 import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
-import { apiPost } from "@/lib/api"
+import { apiDownload, apiGet, apiPost } from "@/lib/api"
 import { toastError, toastSuccess } from "@/components/ui/toast"
 
 interface ReportType {
@@ -24,13 +24,22 @@ interface ReportFormat {
   icon: React.ReactNode
 }
 
+interface SavedReport {
+  id: string
+  name: string
+  type: string
+  format: string
+  created_at: string
+  filename: string
+}
+
 export default function ReportsPage() {
   const { currentAccount } = useAccount()
   const { t } = useLocale()
   const [reportType, setReportType] = useState("comprehensive")
   const [format, setFormat] = useState("excel")
   const [generating, setGenerating] = useState(false)
-  const [recentReports, setRecentReports] = useState<any[]>([])
+  const [recentReports, setRecentReports] = useState<SavedReport[]>([])
   
   const reportTypes: ReportType[] = [
     {
@@ -84,9 +93,28 @@ export default function ReportsPage() {
     },
   ]
 
-  useEffect(() => {
-    // TODO: fetchRecentReports()
+  const loadRecentReports = useCallback(async () => {
+    try {
+      const data = await apiGet<{ success: boolean; data: SavedReport[] }>("/reports")
+      setRecentReports(Array.isArray(data?.data) ? data.data : [])
+    } catch (error) {
+      console.error("获取报告历史失败:", error)
+      setRecentReports([])
+    }
   }, [])
+
+  useEffect(() => {
+    void loadRecentReports()
+  }, [currentAccount, loadRecentReports])
+
+  const handleDownload = async (report: SavedReport) => {
+    try {
+      await apiDownload(`/reports/${report.id}/download`, report.filename || `${report.id}.${report.format}`)
+    } catch (error) {
+      console.error("下载报告失败:", error)
+      toastError(t.reports.generateFailed + ": " + String(error))
+    }
+  }
 
   const handleGenerate = async () => {
     if (!currentAccount) {
@@ -102,22 +130,20 @@ export default function ReportsPage() {
       })
 
       if (data.success) {
-        if (data.data.format === "html") {
-          const blob = new Blob([data.data.content], { type: "text/html" })
+        const file = data.data || {}
+        if (file.format === "html" && file.content) {
+          const blob = new Blob([file.content], { type: "text/html" })
           const url = URL.createObjectURL(blob)
           const a = document.createElement("a")
           a.href = url
-          a.download = `report-${Date.now()}.html`
+          a.download = file.filename || `report-${Date.now()}.html`
           a.click()
           URL.revokeObjectURL(url)
-        } else if (data.data.download_url) {
-          window.open(data.data.download_url, "_blank")
+        } else if (file.id) {
+          await apiDownload(`/reports/${file.id}/download`, file.filename || `report.${file.format || "bin"}`)
         }
-
-        setTimeout(() => {
-          setGenerating(false)
-          toastSuccess(t.reports.generateSuccess)
-        }, 500)
+        await loadRecentReports()
+        toastSuccess(t.reports.generateSuccess)
         return
       }
       throw new Error(t.reports.generateFailed)
@@ -282,16 +308,22 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {recentReports.map((report, idx) => (
-                  <div key={idx} className="p-3 border border-border/50 rounded-lg hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center justify-between">
+                {recentReports.map((report) => (
+                  <div key={report.id} className="p-3 border border-border/50 rounded-lg hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="font-medium">{report.name}</div>
                         <div className="text-sm text-muted-foreground">
                           {report.type} · {report.format} · {report.created_at}
                         </div>
                       </div>
-                      <button className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">{t.reports.download}</button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDownload(report)}
+                        className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                      >
+                        {t.reports.download}
+                      </button>
                     </div>
                   </div>
                 ))}

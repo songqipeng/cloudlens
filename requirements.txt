@@ -30,7 +30,8 @@ tencentcloud-sdk-python>=3.0.1000
 cos-python-sdk-v5>=1.9.0
 
 # 报告可选特性
-# PDF 支持需要额外安装 weasyprint 或 wkhtmltopdf（未默认安装）
+reportlab>=4.0.0
+# PDF 中文需要系统字体（macOS Arial Unicode / Linux Noto CJK）；没有字体时退回 Helvetica
 
 
 
