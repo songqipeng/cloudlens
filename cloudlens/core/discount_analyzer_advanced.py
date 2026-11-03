@@ -772,7 +772,8 @@ class AdvancedDiscountAnalyzer:
         account_id: str,
         min_running_months: int = 6,
         start_date: Optional[str] = None,
-        end_date: Optional[str] = None
+        end_date: Optional[str] = None,
+        months: int = 24,
     ) -> Dict:
         """
         优化建议：识别长期运行的按量付费实例
@@ -842,8 +843,11 @@ class AdvancedDiscountAnalyzer:
                 if isinstance(row, dict):
                     current_rate = float(row['avg_discount_rate'] or 0)
                     total_cost = float(row['total_cost'] or 0)
+                    avg_monthly = float(row['avg_monthly_cost'] or 0)
                     estimated_subscription_rate = min(current_rate + 0.13, 0.70)
-                    potential_savings = total_cost * (estimated_subscription_rate - current_rate)
+                    # 年化 = 月均 × 12 × 折扣提升幅度（勿用窗口总花费当成年省）
+                    lift = max(0.0, estimated_subscription_rate - current_rate)
+                    potential_savings = round(avg_monthly * 12 * lift, 2)
                     
                     suggestions.append({
                         'instance_id': row['instance_id'],
@@ -854,7 +858,7 @@ class AdvancedDiscountAnalyzer:
                         'last_month': row['last_month'],
                         'running_months': int(row['running_months'] or 0),
                         'total_cost': total_cost,
-                        'avg_monthly_cost': float(row['avg_monthly_cost'] or 0),
+                        'avg_monthly_cost': avg_monthly,
                         'current_discount_rate': current_rate,
                         'estimated_subscription_rate': estimated_subscription_rate,
                         'annual_potential_savings': potential_savings,
@@ -864,7 +868,9 @@ class AdvancedDiscountAnalyzer:
                     # SQLite返回元组
                     current_rate = float(row[8] or 0)
                     estimated_subscription_rate = min(current_rate + 0.13, 0.70)
-                    potential_savings = float(row[6] or 0) * (estimated_subscription_rate - current_rate)
+                    avg_monthly = float(row[7] or 0)
+                    lift = max(0.0, estimated_subscription_rate - current_rate)
+                    potential_savings = round(avg_monthly * 12 * lift, 2)
                     
                     suggestions.append({
                         'instance_id': row[0],
@@ -1477,14 +1483,21 @@ class AdvancedDiscountAnalyzer:
         
         try:
             insights = []
-            
-            # 获取各类分析数据
-            quarterly = self.get_quarterly_comparison(account_id, quarters=4)
-            products = self.get_product_discount_trends(account_id, months=19, top_n=20)
-            regions = self.get_region_discount_ranking(account_id)
-            subscription = self.get_subscription_type_comparison(account_id)
-            suggestions = self.get_optimization_suggestions(account_id)
-            anomalies = self.detect_anomalies(account_id)
+
+            def _safe(name: str, fn):
+                try:
+                    return fn()
+                except Exception as exc:
+                    logger.error(f"智能洞察子任务失败 {name}: {exc}")
+                    return {'success': False, 'error': str(exc)}
+
+            # 获取各类分析数据（单项失败不影响其余洞察）
+            quarterly = _safe("quarterly", lambda: self.get_quarterly_comparison(account_id, quarters=4))
+            products = _safe("products", lambda: self.get_product_discount_trends(account_id, months=19, top_n=20))
+            regions = _safe("regions", lambda: self.get_region_discount_ranking(account_id))
+            subscription = _safe("subscription", lambda: self.get_subscription_type_comparison(account_id))
+            suggestions = _safe("suggestions", lambda: self.get_optimization_suggestions(account_id))
+            anomalies = _safe("anomalies", lambda: self.detect_anomalies(account_id))
             
             # 洞察1: 折扣趋势
             if quarterly['success'] and len(quarterly['quarters']) >= 2:

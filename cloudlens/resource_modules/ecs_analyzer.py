@@ -3,6 +3,7 @@ from typing import List, Dict, Tuple
 from cloudlens.core.analyzer_registry import AnalyzerRegistry
 from cloudlens.core.base_analyzer import BaseResourceAnalyzer
 from cloudlens.core.idle_detector import IdleDetector
+from cloudlens.core.rules_manager import RulesManager
 from cloudlens.providers.aliyun.provider import AliyunProvider
 
 
@@ -14,6 +15,7 @@ class ECSAnalyzer(BaseResourceAnalyzer):
         super().__init__(access_key_id, access_key_secret, account_name)
         self.provider = AliyunProvider(account_name, access_key_id, access_key_secret, region)
         self.region = region
+        self.detector = IdleDetector(RulesManager().get_rules())
 
     def get_resource_type(self) -> str:
         return "ecs"
@@ -29,7 +31,16 @@ class ECSAnalyzer(BaseResourceAnalyzer):
         return IdleDetector.fetch_ecs_metrics(self.provider, instance_id, days)
 
     def is_idle(self, instance, metrics: Dict, thresholds: Dict = None) -> Tuple[bool, List[str]]:
-        return IdleDetector.is_ecs_idle(metrics, thresholds)
+        status = getattr(instance, "status", None)
+        tags = getattr(instance, "tags", None) or {}
+        assessment = self.detector.classify_ecs(
+            metrics,
+            instance_tags=[{"Key": k, "Value": v} for k, v in tags.items()],
+            status=status.value if hasattr(status, "value") else status,
+            charge_type=getattr(instance, "charge_type", None),
+            created_time=getattr(instance, "created_time", None),
+        )
+        return assessment.is_idle, assessment.reasons
 
     def get_optimization_suggestions(self, instance, metrics: Dict) -> str:
         return "考虑下线或降配以节省成本"

@@ -12,6 +12,21 @@ interface IdleInstance {
     spec: string
     reason?: string  // 后端返回的字段（字符串）
     reasons?: string[]  // 兼容旧格式（数组）
+    level?: string  // critical_idle / stopped_prepaid / low_utilization
+    level_label?: string
+    priority?: "P1" | "P2"
+    suggestion?: string
+}
+
+const LEVEL_LABELS_EN: Record<string, string> = {
+    critical_idle: "Critical Idle",
+    stopped_prepaid: "Stopped but Billed",
+    low_utilization: "Low Utilization",
+}
+
+const PRIORITY_BADGE_CLASSES: Record<string, string> = {
+    P1: "bg-red-500/15 text-red-500 border-red-500/30",
+    P2: "bg-yellow-500/15 text-yellow-500 border-yellow-500/30",
 }
 
 interface IdleTableProps {
@@ -53,8 +68,8 @@ export function IdleTable({ data, scanning = false, scanProgress = null }: IdleT
     
     if (sortBy) {
         filtered = [...filtered].sort((a, b) => {
-            const aVal = a[sortBy]
-            const bVal = b[sortBy]
+            const aVal = String(a[sortBy] ?? "")
+            const bVal = String(b[sortBy] ?? "")
             const comparison = aVal.localeCompare(bVal)
             return sortOrder === "asc" ? comparison : -comparison
         })
@@ -244,13 +259,19 @@ export function IdleTable({ data, scanning = false, scanProgress = null }: IdleT
                                         )}
                                     </div>
                                 </th>
+                                <th className="px-6 py-4 font-semibold">{locale === 'zh' ? '等级' : 'Level'}</th>
                                 <th className="px-6 py-4 font-semibold">{locale === 'zh' ? '闲置原因' : 'Idle Reason'}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border/20">
                             {filtered.map((item) => {
                                 const instanceId = item.id || item.instance_id || ""
-                                const reason = item.reason || (item.reasons && item.reasons[0]) || (locale === 'zh' ? '未知原因' : 'Unknown')
+                                const reasonList = item.reasons && item.reasons.length > 0 ? item.reasons : (item.reason ? [item.reason] : [])
+                                const priority = item.priority
+                                const levelLabel = locale === 'zh'
+                                    ? (item.level_label || '闲置')
+                                    : (LEVEL_LABELS_EN[item.level || ""] || 'Idle')
+                                const badgeClass = PRIORITY_BADGE_CLASSES[priority || ""] || PRIORITY_BADGE_CLASSES.P2
                                 return (
                                     <tr key={instanceId} className="hover:bg-primary/8 transition-all duration-200 group border-b border-border/10">
                                         <td className="px-6 py-4">
@@ -263,10 +284,20 @@ export function IdleTable({ data, scanning = false, scanProgress = null }: IdleT
                                         <td className="px-6 py-4">
                                             <span className="text-sm text-muted-foreground">{item.region}</span>
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-yellow-500/15 text-yellow-500 border border-yellow-500/30 shadow-sm">
-                                                {reason}
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold border shadow-sm ${badgeClass}`}>
+                                                {priority ? `${priority} ${levelLabel}` : levelLabel}
                                             </span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="space-y-1 text-sm text-foreground/90">
+                                                {reasonList.length > 0
+                                                    ? reasonList.map((r) => <div key={r}>{r}</div>)
+                                                    : <div>{locale === 'zh' ? '未知原因' : 'Unknown'}</div>}
+                                            </div>
+                                            {item.suggestion && (
+                                                <div className="text-xs text-muted-foreground mt-1.5">💡 {item.suggestion}</div>
+                                            )}
                                         </td>
                                     </tr>
                                 )

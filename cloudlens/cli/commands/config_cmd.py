@@ -173,13 +173,26 @@ def configure_rules():
     ecs_rules = current_rules["idle_rules"]["ecs"]
     
     cpu_threshold = IntPrompt.ask(
-        "CPU利用率阈值 (%)", 
+        "严重闲置 CPU 平均利用率阈值 (%)", 
         default=ecs_rules.get("cpu_threshold_percent", 5)
     )
     
-    net_threshold = IntPrompt.ask(
-        "公网带宽阈值 (Bytes/s)", 
-        default=ecs_rules.get("network_threshold_bytes_sec", 1000)
+    legacy_net = ecs_rules.get("network_threshold_bytes_sec")
+    default_net_kbps = ecs_rules.get(
+        "critical_network_bps", legacy_net * 8 if legacy_net is not None else 50000
+    ) // 1000
+    net_threshold_kbps = IntPrompt.ask(
+        "严重闲置网络平均带宽阈值 (Kbps)", 
+        default=default_net_kbps
+    )
+
+    low_cpu = IntPrompt.ask(
+        "低利用率 CPU 平均利用率阈值 (%)",
+        default=ecs_rules.get("low_cpu_percent", 10)
+    )
+    low_memory = IntPrompt.ask(
+        "低利用率内存平均利用率阈值 (%)",
+        default=ecs_rules.get("low_memory_percent", 20)
     )
     
     # 标签白名单
@@ -201,7 +214,10 @@ def configure_rules():
     if Confirm.ask("\n是否保存上述配置?"):
         new_rules = current_rules.copy()
         new_rules["idle_rules"]["ecs"]["cpu_threshold_percent"] = cpu_threshold
-        new_rules["idle_rules"]["ecs"]["network_threshold_bytes_sec"] = net_threshold
+        new_rules["idle_rules"]["ecs"].pop("network_threshold_bytes_sec", None)
+        new_rules["idle_rules"]["ecs"]["critical_network_bps"] = net_threshold_kbps * 1000
+        new_rules["idle_rules"]["ecs"]["low_cpu_percent"] = low_cpu
+        new_rules["idle_rules"]["ecs"]["low_memory_percent"] = low_memory
         new_rules["idle_rules"]["ecs"]["exclude_tags"] = new_tags
         
         rm.set_rules(new_rules)

@@ -33,6 +33,7 @@ import type {
   OptimizationSuggestionsResponse,
   AnomaliesResponse,
 } from "@/types/discount-analysis"
+import { buildDiscountInsights } from "@/lib/discount-insights"
 
 export default function AdvancedDiscountTrendPage() {
   const { currentAccount } = useAccount()
@@ -52,7 +53,6 @@ export default function AdvancedDiscountTrendPage() {
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionTypesResponse | null>(null)
   const [suggestions, setSuggestions] = useState<OptimizationSuggestionsResponse | null>(null)
   const [anomalies, setAnomaliesData] = useState<AnomaliesResponse | null>(null)
-  const [insights, setInsights] = useState<any>(null)
   // 当 DB 无折扣数据时，用 BSS 账单产品列表兜底展示（每项显示「无折扣」）
   const [bssFallbackLoading, setBssFallbackLoading] = useState(false)
   const [bssFallbackData, setBssFallbackData] = useState<{ rows: Array<{ product_name: string; product_code: string; subscription_type?: string; pretax_gross_amount?: number; pretax_amount?: number }>; billing_cycle: string } | null>(null)
@@ -70,10 +70,21 @@ export default function AdvancedDiscountTrendPage() {
   }
 
   const fetchAllData = async (forceRefresh = false) => {
-    if (!currentAccount) return
+    if (!currentAccount) {
+      setLoading(false)
+      return
+    }
 
     setLoading(true)
     setError(null)
+    // 切账号时先清空，避免短暂展示上一账号数据
+    setQuarterlyData(null)
+    setYearlyData(null)
+    setProductTrends(null)
+    setRegionsData(null)
+    setSubscriptionData(null)
+    setSuggestions(null)
+    setAnomaliesData(null)
 
     const dateParams = getDateRangeParams()
     // 优先使用缓存，除非强制刷新
@@ -90,8 +101,6 @@ export default function AdvancedDiscountTrendPage() {
       subscription: () => apiGet<SubscriptionTypesResponse>(`/discounts/subscription-types?account=${currentAccount}${dateParams}${forceParam}`, {}, baseApiOptions),
       opts: () => apiGet<OptimizationSuggestionsResponse>(`/discounts/optimization-suggestions?account=${currentAccount}${dateParams}${forceParam}`, {}, baseApiOptions),
       anom: () => apiGet<AnomaliesResponse>(`/discounts/anomalies?account=${currentAccount}&threshold=0.10${dateParams}${forceParam}`, {}, baseApiOptions),
-      // insights API最慢，优先使用缓存，超时时间缩短到60秒（因为缓存应该很快）
-      insights: () => apiGet(`/discounts/insights?account=${currentAccount}${dateParams}${forceParam}`, {}, { timeout: forceRefresh ? 180000 : 60000, retries: 0 } as any),
     }
 
     // 使用 Promise.allSettled 让每个API独立加载，互不阻塞
@@ -103,11 +112,10 @@ export default function AdvancedDiscountTrendPage() {
       apiCalls.subscription(),
       apiCalls.opts(),
       apiCalls.anom(),
-      apiCalls.insights(),
     ])
 
     // 处理每个结果，成功则设置数据，失败则记录错误但不阻塞其他数据
-    const [quarterlyResult, yearlyResult, productsResult, regionsResult, subscriptionResult, optsResult, anomResult, insightsResult] = results
+    const [quarterlyResult, yearlyResult, productsResult, regionsResult, subscriptionResult, optsResult, anomResult] = results
 
     // 处理季度数据
     if (quarterlyResult.status === 'fulfilled') {
@@ -160,14 +168,6 @@ export default function AdvancedDiscountTrendPage() {
       console.warn("异常数据加载失败:", anomResult.reason)
     }
 
-    // 处理Insights数据
-    if (insightsResult.status === 'fulfilled') {
-      setInsights(insightsResult.value)
-    } else {
-      console.warn("Insights数据加载失败:", insightsResult.reason)
-      setInsights(null)
-    }
-
     // 检查是否有任何数据加载成功
     const hasAnyData = quarterlyResult.status === 'fulfilled' ||
       yearlyResult.status === 'fulfilled' ||
@@ -205,48 +205,11 @@ export default function AdvancedDiscountTrendPage() {
     fetchAllData()
   }, [currentAccount, dateRange])
 
-  const formatCurrency = (value: number) => {
-    if (value >= 1000000) return `¥${Math.round(value / 1000000)}M`
-    if (value >= 1000) return `¥${Math.round(value / 1000)}K`
-    return `¥${Math.round(value)}`
-  }
-
-  const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
-
-  if (loading && !quarterlyData) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-            <p className="text-muted-foreground">{t.discountAdvanced.loading}</p>
-          </div>
-        </div>
-      </DashboardLayout>
-    )
-  }
-
-  if (error) {
-    return (
-      <DashboardLayout>
-        <Card className="border-destructive">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-destructive mb-2">
-              <AlertTriangle className="h-5 w-5" />
-              <p className="font-semibold">{t.discountAdvanced.loadFailed}</p>
-            </div>
-            <p className="text-sm text-muted-foreground">{error}</p>
-          </CardContent>
-        </Card>
-      </DashboardLayout>
-    )
-  }
-
-  // 无数据时：季度、年度、产品均无，则展示友好空状态，避免空白图表和 0/undefined
+  // 必须在任何条件 return 之前计算并注册 hooks，否则 loading→就绪 会触发 React #310 白屏
   const quarters = quarterlyData?.data?.quarters ?? []
   const years = yearlyData?.data?.years ?? []
   const products = productTrends?.data?.products ?? []
-  const hasNoDiscountData = quarters.length === 0 && years.length === 0 && products.length === 0
+  const hasNoDiscountData = !loading && !error && quarters.length === 0 && years.length === 0 && products.length === 0
 
   // 当 DB 无折扣数据时，尝试从 BSS 拉取账单产品列表，用于展示「有产品、无折扣」
   useEffect(() => {
@@ -280,6 +243,43 @@ export default function AdvancedDiscountTrendPage() {
       cancelled = true
     }
   }, [hasNoDiscountData, currentAccount])
+
+  const formatCurrency = (value: number) => {
+    if (value >= 1000000) return `¥${Math.round(value / 1000000)}M`
+    if (value >= 1000) return `¥${Math.round(value / 1000)}K`
+    return `¥${Math.round(value)}`
+  }
+
+  const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+            <p className="text-muted-foreground">{t.discountAdvanced.loading}</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout>
+        <Card className="border-destructive">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-destructive mb-2">
+              <AlertTriangle className="h-5 w-5" />
+              <p className="font-semibold">{t.discountAdvanced.loadFailed}</p>
+            </div>
+            <p className="text-sm text-muted-foreground">{error}</p>
+          </CardContent>
+        </Card>
+      </DashboardLayout>
+    )
+  }
 
   const formatCurrencyFallback = (value: number) => {
     if (value >= 1000000) return `¥${Math.round(value / 1000000)}M`
@@ -425,7 +425,6 @@ export default function AdvancedDiscountTrendPage() {
               subscription={subscriptionData}
               suggestions={suggestions}
               anomalies={anomalies}
-              insights={insights}
               formatCurrency={formatCurrency}
               formatPercent={formatPercent}
               t={t}
@@ -492,12 +491,25 @@ export default function AdvancedDiscountTrendPage() {
 
 // ==================== Tab Components ====================
 
-function OverviewTab({ quarterly, yearly, products, regions, subscription, suggestions, anomalies, insights, formatCurrency, formatPercent, t }: any) {
+function OverviewTab({ quarterly, yearly, products, regions, subscription, suggestions, anomalies, formatCurrency, formatPercent, t }: any) {
   // 计算关键指标
   const latestQuarter = quarterly?.data?.quarters?.[quarterly.data.quarters.length - 1]
   const latestYear = yearly?.data?.years?.[yearly.data.years.length - 1]
   const topProducts = products?.data?.products?.slice(0, 5) || []
   const topRegions = regions?.data?.regions?.slice(0, 5) || []
+  const quarterChartData = (quarterly?.data?.quarters || []).map((q: any) => ({
+    ...q,
+    total_discount: Number(q.total_discount) || 0,
+    avg_discount_rate: Number(q.avg_discount_rate) || 0,
+  }))
+  const insightItems = buildDiscountInsights({
+    quarters: quarterly?.data?.quarters,
+    products: products?.data?.products,
+    suggestionCount: suggestions?.data?.total_suggestions || 0,
+    potentialSavings: suggestions?.data?.total_potential_savings || 0,
+    anomalyCount: anomalies?.data?.total_anomalies || 0,
+    rateDifference: subscription?.data?.rate_difference || 0,
+  })
 
   return (
     <>
@@ -565,12 +577,12 @@ function OverviewTab({ quarterly, yearly, products, regions, subscription, sugge
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <ComposedChart data={quarterly?.data?.quarters || []}>
+              <ComposedChart data={quarterChartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="period" />
-                <YAxis yAxisId="left" />
-                <YAxis yAxisId="right" orientation="right" />
-                <Tooltip formatter={(value: any) => typeof value === 'number' && value < 1 ? formatPercent(value) : formatCurrency(value)} />
+                <YAxis yAxisId="left" type="number" domain={[0, "auto"]} width={72} tickFormatter={(v) => formatCurrency(Number(v) || 0)} />
+                <YAxis yAxisId="right" type="number" domain={[0, "auto"]} orientation="right" width={56} tickFormatter={(v) => formatPercent(Number(v) || 0)} />
+                <Tooltip formatter={(value: any, name: string) => name === t.discountAdvanced.overview.discountRate ? formatPercent(Number(value) || 0) : formatCurrency(Number(value) || 0)} />
                 <Legend />
                 <Bar yAxisId="left" dataKey="total_discount" fill="#8884d8" name={t.discountAdvanced.overview.discountAmount} />
                 <Line yAxisId="right" type="monotone" dataKey="avg_discount_rate" stroke="#82ca9d" name={t.discountAdvanced.overview.discountRate} />
@@ -605,7 +617,7 @@ function OverviewTab({ quarterly, yearly, products, regions, subscription, sugge
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {insights?.data?.insights?.map((insight: any, idx: number) => {
+            {insightItems.map((insight: any, idx: number) => {
               // 根据类型确定颜色主题
               const getColorTheme = () => {
                 if (insight.level === 'success') {
@@ -654,12 +666,9 @@ function OverviewTab({ quarterly, yearly, products, regions, subscription, sugge
                 </div>
               )
             })}
-            {(!insights || !insights.data?.insights?.length) && (
+            {insightItems.length === 0 && (
               <div className="text-sm text-muted-foreground">
-                <p>{t.discountAdvanced.overview.generatingInsights}</p>
-                <p className="mt-2 text-xs text-muted-foreground/70">
-                  {insights === null ? "（Insights数据加载超时，其他数据已正常加载）" : ""}
-                </p>
+                <p>{t.discountAdvanced.overview.noInsights}</p>
               </div>
             )}
           </div>
@@ -679,11 +688,16 @@ function TimeAnalysisTab({ quarterly, yearly, anomalies, formatCurrency, formatP
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={400}>
-            <ComposedChart data={quarterly?.data?.quarters || []}>
+            <ComposedChart data={(quarterly?.data?.quarters || []).map((q: any) => ({
+              ...q,
+              total_paid: Number(q.total_paid) || 0,
+              total_discount: Number(q.total_discount) || 0,
+              avg_discount_rate: Number(q.avg_discount_rate) || 0,
+            }))}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="period" />
-              <YAxis yAxisId="left" tickFormatter={formatCurrency} />
-              <YAxis yAxisId="right" orientation="right" tickFormatter={formatPercent} />
+              <YAxis yAxisId="left" type="number" domain={[0, "auto"]} tickFormatter={formatCurrency} />
+              <YAxis yAxisId="right" type="number" domain={[0, "auto"]} orientation="right" tickFormatter={formatPercent} />
               <Tooltip />
               <Legend />
               <Bar yAxisId="left" dataKey="total_paid" fill="#8884d8" name={t.discountAdvanced.timeAnalysis.paidAmount} />
@@ -746,27 +760,31 @@ function TimeAnalysisTab({ quarterly, yearly, anomalies, formatCurrency, formatP
 function ProductAnalysisTab({ products, formatCurrency, formatPercent, t }: any) {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([])
   const topProducts = products?.data?.products || []
+  const productKey = topProducts.map((p: any) => p.product_name).join("|")
 
   useEffect(() => {
-    // 默认选择TOP 5产品
-    if (topProducts.length > 0 && selectedProducts.length === 0) {
+    // 账号/产品列表变化时重置为 TOP 5，避免勾选残留导致空白图
+    if (topProducts.length > 0) {
       setSelectedProducts(topProducts.slice(0, 5).map((p: any) => p.product_name))
+    } else {
+      setSelectedProducts([])
     }
-  }, [topProducts])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productKey])
 
   // 准备多产品趋势数据
   const trendData: any[] = []
   if (topProducts.length > 0) {
     const allMonths = new Set<string>()
     topProducts.forEach((product: any) => {
-      product.trends.forEach((t: any) => allMonths.add(t.month))
+      (product.trends || []).forEach((t: any) => allMonths.add(t.month))
     })
 
     Array.from(allMonths).sort().forEach((month) => {
       const dataPoint: any = { month }
       topProducts.forEach((product: any) => {
         if (selectedProducts.includes(product.product_name)) {
-          const trend = product.trends.find((t: any) => t.month === month)
+          const trend = (product.trends || []).find((t: any) => t.month === month)
           if (trend) {
             dataPoint[product.product_name] = trend.discount_rate
           }
@@ -863,7 +881,7 @@ function ProductAnalysisTab({ products, formatCurrency, formatPercent, t }: any)
                     <td className="p-2 text-right">{formatPercent(product.volatility)}</td>
                     <td className="p-2 text-right">
                       <span className={product.trend_change_pct > 0 ? 'text-green-600' : 'text-red-600'}>
-                        {product.trend_change_pct > 0 ? '+' : ''}{product.trend_change_pct.toFixed(1)}%
+                        {product.trend_change_pct > 0 ? '+' : ''}{(Number(product.trend_change_pct) || 0).toFixed(1)}%
                       </span>
                     </td>
                   </tr>
@@ -928,7 +946,7 @@ function RegionAnalysisTab({ regions, formatCurrency, formatPercent, t }: any) {
                     <td className="p-2 text-right">{formatPercent(region.avg_discount_rate)}</td>
                     <td className="p-2 text-right">{region.instance_count}</td>
                     <td className="p-2 text-right">{region.product_count}</td>
-                    <td className="p-2 text-right">{region.consumption_percentage.toFixed(1)}%</td>
+                    <td className="p-2 text-right">{(Number(region.consumption_percentage) || 0).toFixed(1)}%</td>
                   </tr>
                 ))}
               </tbody>
@@ -1041,7 +1059,7 @@ function BillingAnalysisTab({ subscription, suggestions, formatCurrency, formatP
               <tbody>
                 {suggestionsData.slice(0, 20).map((suggestion: any, idx: number) => (
                   <tr key={idx} className="border-b hover:bg-muted/50">
-                    <td className="p-2 font-mono text-xs">{suggestion.instance_id.substring(0, 20)}...</td>
+                    <td className="p-2 font-mono text-xs">{String(suggestion.instance_id || "-").substring(0, 20)}...</td>
                     <td className="p-2">{suggestion.product_name}</td>
                     <td className="p-2">{suggestion.region_name}</td>
                     <td className="p-2 text-right">{suggestion.running_months}</td>
@@ -1188,7 +1206,7 @@ function AdvancedAnalysisTab({ currentAccount, formatCurrency, formatPercent, t 
         <CardContent>
           <div className="space-y-2 text-sm">
             <p>• <strong>{t.discountAdvanced.advanced.trendSmoothing}:</strong> 12{t.discountAdvanced.advanced.monthMovingAverage} {t.discountAdvanced.advanced.trendDesc} {ma12Data[ma12Data.length - 1]?.ma > ma12Data[0]?.ma ? t.discountAdvanced.advanced.rising : t.discountAdvanced.advanced.falling} {t.discountAdvanced.advanced.trend}</p>
-            <p>• <strong>{t.discountAdvanced.advanced.cumulativeSavings}:</strong> 19{t.discountAdvanced.overview.months} {t.discountAdvanced.advanced.cumulativeSavingsDesc} {formatCurrency(cumulativeData?.data?.total_discount || 0)}，{t.discountAdvanced.advanced.monthlyAverage} {formatCurrency((cumulativeData?.data?.total_discount || 0) / 19)}</p>
+            <p>• <strong>{t.discountAdvanced.advanced.cumulativeSavings}:</strong> {cumulativeChartData.length || 0}{t.discountAdvanced.overview.months} {t.discountAdvanced.advanced.cumulativeSavingsDesc} {formatCurrency(cumulativeData?.data?.total_discount || 0)}，{t.discountAdvanced.advanced.monthlyAverage} {formatCurrency((cumulativeData?.data?.total_discount || 0) / Math.max(cumulativeChartData.length || 1, 1))}</p>
             <p>• <strong>{t.discountAdvanced.advanced.dataInsights}:</strong> {t.discountAdvanced.advanced.dataInsightsDesc}</p>
           </div>
         </CardContent>

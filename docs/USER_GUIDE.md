@@ -313,7 +313,7 @@ npm run dev
 - **虚拟标签** (`/virtual-tags`): 虚拟标签创建和管理
 - **告警管理** (`/alerts`): 告警规则和通知配置
 - **安全合规** (`/security`): 安全评分和检查结果
-- **优化建议** (`/optimization`): 资源优化建议
+- **省钱机会** (`/optimization`): 框架合同对照 + 利用率，年化可省；支持 PDF 导入合同。CLI：`cl savings scan`
 - **报告生成** (`/reports`): 生成和下载报告
 
 详细说明请参考 [Web 快速开始指南](docs/WEB_QUICKSTART.md)

@@ -12,7 +12,7 @@ import { apiGet } from "@/lib/api"
 import { RabbitLoading } from "@/components/loading"
 
 export default function CostPage() {
-  const { currentAccount } = useAccount()
+  const { currentAccount, loading: accountLoading } = useAccount()
   const { t, locale } = useLocale()
   const [overview, setOverview] = useState<any>(null)
   const [trend, setTrend] = useState<any>(null)
@@ -20,13 +20,20 @@ export default function CostPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (accountLoading) {
+      setLoading(true)
+      return
+    }
     if (!currentAccount) {
       setLoading(false)
+      setOverview(null)
+      setTrend(null)
+      setBreakdown(null)
       return
     }
     fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentAccount])
+  }, [currentAccount, accountLoading])
 
   const fetchData = async () => {
     if (!currentAccount) return
@@ -159,15 +166,23 @@ export default function CostPage() {
             <h2 className="text-3xl font-bold tracking-tight">{t.costAnalysis.title}</h2>
             <p className="text-muted-foreground mt-1">{t.costAnalysis.description}</p>
           </div>
-          <Link
-            href={currentAccount ? `/a/${encodeURIComponent(currentAccount)}/cost-trend` : '/cost-trend'}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all text-sm font-medium"
-          >
-            📊 {locale === 'zh' ? '成本趋势分析' : 'Cost Trend Analysis'}
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={currentAccount ? `/a/${encodeURIComponent(currentAccount)}/cost/attribution` : '/cost/attribution'}
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all text-sm font-medium"
+            >
+              {t.costAnalysis.attribution}
+            </Link>
+            <Link
+              href={currentAccount ? `/a/${encodeURIComponent(currentAccount)}/cost-trend` : '/cost-trend'}
+              className="px-4 py-2 rounded-lg border border-white/10 text-sm font-medium hover:bg-white/5 transition-all"
+            >
+              {locale === 'zh' ? '成本趋势分析' : 'Cost Trend Analysis'}
+            </Link>
+          </div>
         </div>
 
-        {loading ? (
+        {loading || accountLoading ? (
           <div className="flex items-center justify-center h-64">
             <RabbitLoading delay={3000} />
           </div>

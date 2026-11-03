@@ -77,12 +77,11 @@ class AnalysisService:
         cache = CacheManager(ttl_seconds=86400)
         
         if not force_refresh:
-            # 尝试从新缓存键获取
+            # 空列表也是有效缓存命中（账号确实无闲置时不应反复全量扫）
             cached_data = cache.get(resource_type="idle_result", account_name=account_name)
-            # 兼容旧缓存键
-            if not cached_data:
+            if cached_data is None:
                 cached_data = cache.get(resource_type="dashboard_idle", account_name=account_name)
-            if cached_data:
+            if cached_data is not None:
                 return cached_data, True
 
         # 2. Load Rules
@@ -216,6 +215,7 @@ class AnalysisService:
                 "analyzing"
             )
         
+        detector = IdleDetector(rules)
         for idx, inst in enumerate(instances):
             try:
                 # 每处理10个实例或每10%更新一次进度
@@ -235,30 +235,50 @@ class AnalysisService:
                     logger.warning(f"实例 {inst.id} 没有对应的provider，跳过分析")
                     continue
                 
-                # Metrics
-                metrics = IdleDetector.fetch_ecs_metrics(instance_provider, inst.id, days)
-                
-                # Detection
-                detector = IdleDetector(rules)
                 # 转换 tags 格式：UnifiedResource.tags 是 Dict[str, str]，需要转换为列表格式
                 tags_list = None
                 if inst.tags and isinstance(inst.tags, dict):
                     tags_list = [{"Key": k, "Value": v} for k, v in inst.tags.items()]
-                is_idle, reasons = detector.is_ecs_idle(metrics, tags_list)
-                
-                if is_idle:
+                status = inst.status.value if hasattr(inst.status, "value") else inst.status
+
+                # 已停机的实例无需拉取监控（停机包年包月直接判定，其余跳过）
+                metrics = {}
+                if status == "Running":
+                    metrics = IdleDetector.fetch_ecs_metrics(instance_provider, inst.id, days)
+
+                assessment = detector.classify_ecs(
+                    metrics,
+                    instance_tags=tags_list,
+                    status=status,
+                    charge_type=inst.charge_type,
+                    created_time=inst.created_time,
+                    observation_days=days,
+                )
+
+                if assessment.is_idle:
+                    reasons = list(assessment.reasons)
+                    if assessment.billing_advice:
+                        reasons.append(assessment.billing_advice)
                     idle_instances.append({
                         "instance_id": inst.id,
                         "name": inst.name or "-",
                         "region": inst.region,
                         "spec": inst.spec,
+                        "level": assessment.level,
+                        "level_label": assessment.label,
+                        "priority": assessment.priority,
+                        "reason": f"{assessment.label}: {'；'.join(assessment.reasons)}",
                         "reasons": reasons,
+                        "suggestion": assessment.suggestion,
+                        "charge_type": inst.charge_type,
+                        "metrics": assessment.metrics,
                     })
             except Exception as e:
                 logger.warning(f"分析实例 {inst.id if hasattr(inst, 'id') else 'unknown'} 失败: {str(e)}")
                 # 继续处理下一个实例，不中断整个分析过程
                 continue
         
+        idle_instances.sort(key=lambda item: item.get("priority") or "P9")
         logger.info(f"分析完成: 共 {len(idle_instances)} 个闲置资源（从 {total_instances} 个实例中）")
         
         if progress_callback:

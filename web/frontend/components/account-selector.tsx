@@ -22,9 +22,9 @@ export function AccountSelector() {
         const k = keyword.trim().toLowerCase()
         if (!k) return accounts
         return accounts.filter(a =>
-            a.name.toLowerCase().includes(k) ||
-            a.region.toLowerCase().includes(k) ||
-            a.access_key_id.toLowerCase().includes(k)
+            (a.name || "").toLowerCase().includes(k) ||
+            (a.region || "").toLowerCase().includes(k) ||
+            (a.access_key_id || "").toLowerCase().includes(k)
         )
     }, [accounts, keyword])
 
@@ -58,13 +58,22 @@ export function AccountSelector() {
                     <div className="flex-1 min-w-0 text-left">
                         <div className="text-[11px] text-muted-foreground leading-none mb-1">{locale === 'zh' ? '当前账号' : 'Current Account'}</div>
                         <div className="font-semibold text-foreground truncate leading-snug">
-                            {selectedAccount 
+                            {selectedAccount
                                 ? (selectedAccount.alias || selectedAccount.name)
-                                : (locale === 'zh' ? '请选择账号' : 'Select Account')}
+                                : currentAccount
+                                  ? currentAccount
+                                  : loading
+                                    ? (locale === 'zh' ? '加载中…' : 'Loading…')
+                                    : (locale === 'zh' ? '请选择账号' : 'Select Account')}
                         </div>
                         {selectedAccount?.region && (
                             <div className="text-[11px] text-muted-foreground/90 truncate mt-0.5">
                                 {selectedAccount.region}
+                            </div>
+                        )}
+                        {!selectedAccount && currentAccount && loading && (
+                            <div className="text-[11px] text-muted-foreground/90 truncate mt-0.5">
+                                {locale === 'zh' ? '正在同步账号列表…' : 'Syncing accounts…'}
                             </div>
                         )}
                     </div>
@@ -189,7 +198,7 @@ export function AccountSelector() {
                                             )}
                                         </div>
                                         <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                                            {account.region} · AK {account.access_key_id.substring(0, 8)}...
+                                            {account.region || "—"} · AK {(account.access_key_id || "").substring(0, 8)}...
                                         </div>
                                     </div>
                                                 </div>

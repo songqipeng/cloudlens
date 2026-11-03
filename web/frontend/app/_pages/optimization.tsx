@@ -1,457 +1,846 @@
 "use client"
 
-import { useEffect, useMemo, useState, useRef } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Badge } from "@/components/ui/badge"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { useRouter } from "next/navigation"
-import { TrendingDown, DollarSign, AlertCircle, Tag, Server, Globe, Lock, Network, ArrowRight } from "lucide-react"
+import {
+  TrendingDown,
+  DollarSign,
+  AlertCircle,
+  FileText,
+  Server,
+  ShoppingCart,
+  Layers,
+  Download,
+  ChevronDown,
+  ChevronRight,
+  RefreshCw,
+} from "lucide-react"
 import { useAccount } from "@/contexts/account-context"
 import { useLocale } from "@/contexts/locale-context"
 import { apiGet } from "@/lib/api"
-import { LanguageSwitcher } from "@/components/language-switcher"
 import { SmartLoadingProgress } from "@/components/loading-progress"
+import { ContractPanel } from "@/components/savings/contract-panel"
+import type { SavingsOpportunitiesData, SavingsOpportunity } from "@/types/savings"
 
-interface Suggestion {
-  type: string
-  category: string
-  priority: string
-  title: string
-  description: string
-  savings_potential: number
-  resource_count: number
-  resources?: any[]
-  action?: string
-  recommendation?: string
+type MainTab = "overview" | "contract"
+type CategoryKey = "framework" | "idle" | "weak" | "other"
+
+const TYPE_META: Record<
+  string,
+  { label: string; icon: ReactNode; group: CategoryKey }
+> = {
+  framework_out_of_scope: {
+    label: "框外产品",
+    icon: <Layers className="w-4 h-4" />,
+    group: "framework",
+  },
+  framework_wrong_purchase: {
+    label: "未按约采购",
+    icon: <ShoppingCart className="w-4 h-4" />,
+    group: "framework",
+  },
+  idle_low_util: {
+    label: "低利用率",
+    icon: <Server className="w-4 h-4" />,
+    group: "idle",
+  },
+  weak_subscription: {
+    label: "弱建议·转包年",
+    icon: <TrendingDown className="w-4 h-4" />,
+    group: "weak",
+  },
 }
 
-interface OptimizationData {
-  suggestions: Suggestion[]
-  summary: {
-    total_suggestions: number
-    total_savings_potential: number
-    high_priority_count: number
-    medium_priority_count: number
-    low_priority_count: number
+const CATEGORY_META: Record<
+  CategoryKey,
+  { title: string; titleEn: string; desc: string; descEn: string }
+> = {
+  framework: {
+    title: "框架合规",
+    titleEn: "Framework",
+    desc: "框外产品与未按约采购",
+    descEn: "Out of scope & wrong purchase",
+  },
+  idle: {
+    title: "利用率",
+    titleEn: "Utilization",
+    desc: "低负载与闲置浪费",
+    descEn: "Low utilization waste",
+  },
+  weak: {
+    title: "弱建议",
+    titleEn: "Weak tips",
+    desc: "无合同时的保守转包年建议",
+    descEn: "Conservative tips without contract",
+  },
+  other: {
+    title: "其它优化",
+    titleEn: "Other",
+    desc: "来自旧优化缓存等",
+    descEn: "Legacy optimization cache",
+  },
+}
+
+function formatYen(n?: number) {
+  return `¥${Math.round(n || 0).toLocaleString("zh-CN")}`
+}
+
+function recentCycles(n = 12): string[] {
+  const out: string[] = []
+  const d = new Date()
+  for (let i = 0; i < n; i++) {
+    const x = new Date(d.getFullYear(), d.getMonth() - i, 1)
+    out.push(`${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`)
   }
+  return out
+}
+
+function groupOf(o: SavingsOpportunity): CategoryKey {
+  return TYPE_META[o.type]?.group || "other"
+}
+
+function cleanTitle(title: string, typeLabel?: string): string {
+  let t = title || ""
+  // 去掉「未按约采购：」「框外产品：」等与分组重复的前缀
+  t = t.replace(/^(未按约采购|框外产品|低利用率|弱建议[·・]?转包年|长期按量)[:：]\s*/u, "")
+  if (typeLabel) {
+    const esc = typeLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    t = t.replace(new RegExp(`^${esc}[:：]\\s*`, "u"), "")
+  }
+  return t || title
+}
+
+function OpportunityRow({
+  o,
+  open,
+  onToggle,
+  zh,
+  highLabel,
+  mediumLabel,
+  lowLabel,
+  hideTypeBadge = false,
+}: {
+  o: SavingsOpportunity
+  open: boolean
+  onToggle: () => void
+  zh: boolean
+  highLabel: string
+  mediumLabel: string
+  lowLabel: string
+  hideTypeBadge?: boolean
+}) {
+  const meta = TYPE_META[o.type] || {
+    label: o.category || o.type,
+    icon: <AlertCircle className="w-4 h-4" />,
+    group: "other" as const,
+  }
+  const annual = o.annual_savings ?? o.savings_potential ?? 0
+  const priorityVariant =
+    o.priority === "high" ? "danger" : o.priority === "medium" ? "warning" : "info"
+  const priorityLabel =
+    o.priority === "high" ? highLabel : o.priority === "medium" ? mediumLabel : lowLabel
+  const title = cleanTitle(o.title, meta.label)
+
+  return (
+    <div className="border-b border-border/30 last:border-0">
+      <button
+        type="button"
+        className="w-full text-left px-4 py-2.5 hover:bg-muted/30 transition"
+        onClick={onToggle}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="text-muted-foreground shrink-0 opacity-70">{meta.icon}</div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <h4 className="text-sm font-medium truncate">{title}</h4>
+                <Badge variant={priorityVariant} size="sm" className="shrink-0">
+                  {priorityLabel}
+                </Badge>
+                {!hideTypeBadge && (
+                  <Badge variant="default" size="sm" className="shrink-0 opacity-80">
+                    {meta.label}
+                  </Badge>
+                )}
+              </div>
+              {!open && (
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{o.description}</p>
+              )}
+            </div>
+          </div>
+          <div className="text-right shrink-0 pl-2">
+            <div className="text-sm font-semibold text-emerald-600 tabular-nums">
+              {formatYen(annual)}
+            </div>
+          </div>
+        </div>
+      </button>
+      {open && (
+        <div className="px-4 pb-3 pl-11 grid md:grid-cols-2 gap-3 text-sm">
+          <div>
+            <div className="text-[11px] text-muted-foreground mb-1">{zh ? "原因" : "Why"}</div>
+            <p className="text-sm text-foreground/90">{o.description || "—"}</p>
+            <div className="text-[11px] text-muted-foreground mt-3 mb-1">
+              {zh ? "建议动作" : "Recommendation"}
+            </div>
+            <p>{o.recommendation || o.action || "—"}</p>
+          </div>
+          <div>
+            <div className="text-[11px] text-muted-foreground mb-1">{zh ? "证据" : "Evidence"}</div>
+            <pre className="text-[11px] bg-muted/40 rounded-md p-2 overflow-auto max-h-36 whitespace-pre-wrap">
+              {JSON.stringify(o.evidence || o.resources?.[0] || {}, null, 2)}
+            </pre>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ItemList({
+  items,
+  zh,
+  expanded,
+  setExpanded,
+  highLabel,
+  mediumLabel,
+  lowLabel,
+  preview = 5,
+  hideTypeBadge = false,
+}: {
+  items: SavingsOpportunity[]
+  zh: boolean
+  expanded: string | null
+  setExpanded: (id: string | null) => void
+  highLabel: string
+  mediumLabel: string
+  lowLabel: string
+  preview?: number
+  hideTypeBadge?: boolean
+}) {
+  const [showAll, setShowAll] = useState(false)
+  const visible = showAll ? items : items.slice(0, preview)
+  return (
+    <div>
+      {visible.map((o) => {
+        const id = o.id || `${o.type}-${o.title}`
+        return (
+          <OpportunityRow
+            key={id}
+            o={o}
+            open={expanded === id}
+            onToggle={() => setExpanded(expanded === id ? null : id)}
+            zh={zh}
+            highLabel={highLabel}
+            mediumLabel={mediumLabel}
+            lowLabel={lowLabel}
+            hideTypeBadge={hideTypeBadge}
+          />
+        )
+      })}
+      {items.length > preview && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="w-full text-center text-xs text-muted-foreground hover:text-foreground py-2 border-t border-border/30"
+        >
+          {showAll
+            ? zh
+              ? "收起"
+              : "Collapse"
+            : zh
+              ? `还有 ${items.length - preview} 条，点击展开`
+              : `Show ${items.length - preview} more`}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function CategorySection({
+  category,
+  items,
+  defaultOpen,
+  zh,
+  expanded,
+  setExpanded,
+  highLabel,
+  mediumLabel,
+  lowLabel,
+}: {
+  category: CategoryKey
+  items: SavingsOpportunity[]
+  defaultOpen: boolean
+  zh: boolean
+  expanded: string | null
+  setExpanded: (id: string | null) => void
+  highLabel: string
+  mediumLabel: string
+  lowLabel: string
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  const meta = CATEGORY_META[category]
+  const total = items.reduce(
+    (s, o) => s + (Number(o.annual_savings ?? o.savings_potential) || 0),
+    0
+  )
+
+  const subgroups = useMemo(() => {
+    if (category !== "framework") return null
+    const oos = items.filter((o) => o.type === "framework_out_of_scope")
+    const wrong = items.filter((o) => o.type === "framework_wrong_purchase")
+    return [
+      { key: "wrong", title: zh ? "未按约采购" : "Wrong purchase", items: wrong },
+      { key: "oos", title: zh ? "框外产品" : "Out of scope", items: oos },
+    ].filter((g) => g.items.length > 0)
+  }, [category, items, zh])
+
+  if (items.length === 0) return null
+
+  return (
+    <section className="rounded-xl border border-border/60 overflow-hidden bg-card/20">
+      <button
+        type="button"
+        className="w-full flex items-center justify-between gap-3 px-4 py-3.5 hover:bg-muted/20 transition text-left"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          {open ? (
+            <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+          )}
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-semibold text-sm">{zh ? meta.title : meta.titleEn}</h3>
+              <Badge size="sm" variant="default">
+                {items.length}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {zh ? meta.desc : meta.descEn}
+            </p>
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <div className="text-lg font-bold text-emerald-600 tabular-nums">{formatYen(total)}</div>
+          <div className="text-[10px] text-muted-foreground">{zh ? "本组年化" : "group annual"}</div>
+        </div>
+      </button>
+      {open && (
+        <div className="border-t border-border/50">
+          {subgroups && subgroups.length > 0 ? (
+            <div className="divide-y divide-border/40">
+              {subgroups.map((g, idx) => (
+                <SubGroup
+                  key={g.key}
+                  title={g.title}
+                  items={g.items}
+                  defaultOpen={idx === 0}
+                  zh={zh}
+                  expanded={expanded}
+                  setExpanded={setExpanded}
+                  highLabel={highLabel}
+                  mediumLabel={mediumLabel}
+                  lowLabel={lowLabel}
+                />
+              ))}
+            </div>
+          ) : (
+            <ItemList
+              items={items}
+              zh={zh}
+              expanded={expanded}
+              setExpanded={setExpanded}
+              highLabel={highLabel}
+              mediumLabel={mediumLabel}
+              lowLabel={lowLabel}
+            />
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function SubGroup({
+  title,
+  items,
+  defaultOpen,
+  zh,
+  expanded,
+  setExpanded,
+  highLabel,
+  mediumLabel,
+  lowLabel,
+}: {
+  title: string
+  items: SavingsOpportunity[]
+  defaultOpen: boolean
+  zh: boolean
+  expanded: string | null
+  setExpanded: (id: string | null) => void
+  highLabel: string
+  mediumLabel: string
+  lowLabel: string
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  const subTotal = items.reduce(
+    (s, o) => s + (Number(o.annual_savings ?? o.savings_potential) || 0),
+    0
+  )
+  return (
+    <div>
+      <button
+        type="button"
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-muted/15 hover:bg-muted/30 transition text-left"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <div className="flex items-center gap-2 text-xs font-medium">
+          {open ? (
+            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+          )}
+          <span>{title}</span>
+          <Badge size="sm" variant="default">
+            {items.length}
+          </Badge>
+        </div>
+        <span className="text-xs font-semibold text-emerald-600 tabular-nums">
+          {formatYen(subTotal)}
+        </span>
+      </button>
+      {open && (
+        <ItemList
+          items={items}
+          zh={zh}
+          expanded={expanded}
+          setExpanded={setExpanded}
+          highLabel={highLabel}
+          mediumLabel={mediumLabel}
+          lowLabel={lowLabel}
+          hideTypeBadge
+          preview={5}
+        />
+      )}
+    </div>
+  )
 }
 
 export default function OptimizationPage() {
-  const router = useRouter()
-  const { currentAccount } = useAccount()
+  const { currentAccount, loading: accountLoading } = useAccount()
   const { t, locale } = useLocale()
-  const [data, setData] = useState<OptimizationData | null>(null)
+  const [data, setData] = useState<SavingsOpportunitiesData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [loadingProgress, setLoadingProgress] = useState<string>("")
-  const [expandedSuggestions, setExpandedSuggestions] = useState<Set<string>>(new Set())
-  const [filter, setFilter] = useState<string>("all")
+  const [loadingProgress, setLoadingProgress] = useState("")
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [mainTab, setMainTab] = useState<MainTab>("overview")
+  const [focusCategory, setFocusCategory] = useState<CategoryKey | "all">("all")
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [billingCycle, setBillingCycle] = useState<string>("")
+  const [includeLegacy, setIncludeLegacy] = useState(true)
   const loadingStartTime = useRef<number | null>(null)
+  const zh = locale === "zh"
+  const cycles = useMemo(() => recentCycles(18), [])
 
-  const base = useMemo(() => {
-    return currentAccount ? `/a/${encodeURIComponent(currentAccount)}` : ""
-  }, [currentAccount])
+  const fetchData = useCallback(
+    async (opts?: { force?: boolean }) => {
+      if (accountLoading) {
+        setLoading(true)
+        return
+      }
+      if (!currentAccount) {
+        setLoading(false)
+        setData(null)
+        setFetchError(null)
+        return
+      }
+      const force = Boolean(opts?.force)
+      try {
+        setLoading(true)
+        setFetchError(null)
+        loadingStartTime.current = Date.now()
+        setLoadingProgress(zh ? "正在扫描省钱机会…" : "Scanning…")
+        const result = await apiGet<{ success: boolean; data: SavingsOpportunitiesData }>(
+          "/optimization/savings-opportunities",
+          {
+            account: currentAccount,
+            force_refresh: force,
+            include_legacy: includeLegacy,
+            ...(billingCycle ? { billing_cycle: billingCycle } : {}),
+          },
+          { timeout: 180000, retries: 1 } as any
+        )
+        setData(result?.data || null)
+        setLoadingProgress("")
+      } catch (e: any) {
+        console.error(e)
+        const msg = e?.message || (zh ? "加载失败" : "Failed")
+        setLoadingProgress(msg)
+        setFetchError(msg)
+        setData(null)
+      } finally {
+        setLoading(false)
+        setTimeout(() => {
+          loadingStartTime.current = null
+        }, 400)
+      }
+    },
+    [currentAccount, accountLoading, zh, billingCycle, includeLegacy]
+  )
 
   useEffect(() => {
-    if (!currentAccount) {
-      setLoading(false)
-      return
-    }
-    fetchSuggestions()
+    fetchData({ force: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentAccount])
+  }, [currentAccount, accountLoading, billingCycle, includeLegacy])
 
-  const fetchSuggestions = async () => {
+  const opportunities: SavingsOpportunity[] = useMemo(() => {
+    if (!data) return []
+    return data.opportunities || data.suggestions || []
+  }, [data])
+
+  const grouped = useMemo(() => {
+    const buckets: Record<CategoryKey, SavingsOpportunity[]> = {
+      framework: [],
+      idle: [],
+      weak: [],
+      other: [],
+    }
+    for (const o of opportunities) {
+      buckets[groupOf(o)].push(o)
+    }
+    return buckets
+  }, [opportunities])
+
+  const summary = data?.summary
+  const annualTotal = summary?.annual_savings_total ?? summary?.total_savings_potential ?? 0
+  const byType = summary?.by_type_annual_savings || {}
+  const frameworkTotal =
+    (byType.framework_out_of_scope || 0) + (byType.framework_wrong_purchase || 0)
+  const idleTotal = byType.idle_low_util || 0
+  const weakTotal = byType.weak_subscription || 0
+  const otherTotal = Math.max(0, annualTotal - frameworkTotal - idleTotal - weakTotal)
+  const contractConfigured = Boolean(data?.contract?.configured)
+
+  const exportReport = async () => {
     if (!currentAccount) return
-
+    const q = new URLSearchParams({
+      account: currentAccount,
+      include_legacy: String(includeLegacy),
+      force_refresh: "false",
+    })
+    if (billingCycle) q.set("billing_cycle", billingCycle)
+    const host = typeof window !== "undefined" ? window.location.hostname : "localhost"
+    const base =
+      host === "localhost" || host === "127.0.0.1"
+        ? "http://localhost:8000/api"
+        : `${window.location.origin}/api`
     try {
-      setLoading(true)
-      loadingStartTime.current = Date.now()
-      setLoadingProgress(t.optimization.loadingProgress)
-      
-      // 先尝试使用缓存（快速返回）
-      try {
-        const cachedResult = await apiGet("/optimization/suggestions", { account: currentAccount, force_refresh: false }, { timeout: 10000 } as any)
-        if (cachedResult?.cached && cachedResult?.data) {
-          setData(cachedResult.data)
-          setLoadingProgress("")
-          setLoading(false)
-          loadingStartTime.current = null
-          return
-        }
-      } catch (e) {
-        // 缓存失败，继续强制刷新
-      }
-      
-      // 如果没有缓存，显示进度提示
-      setLoadingProgress(t.optimization.analyzingProgress)
-      
-      // optimization API 可能需要较长时间，增加超时时间到180秒，并支持超时回调
-      const result = await apiGet(
-        "/optimization/suggestions", 
-        { account: currentAccount, force_refresh: true }, 
-        { 
-          timeout: 180000, // 3分钟超时
-          retries: 2, // 最多重试2次
-          onTimeout: (attempt: number, totalRetries: number) => {
-            setLoadingProgress(`计算中... (${attempt}/${totalRetries}，已等待较长时间，建议使用缓存数据)`)
-          }
-        } as any
-      )
-      
-      if (result?.error) {
-        console.warn("优化建议生成时出现警告:", result.error)
-        // 即使有错误，也尝试显示部分数据
-      }
-      
-      setData(result.data || { suggestions: [], summary: {} })
-      setLoadingProgress("")
-    } catch (e: any) {
-      console.error("Failed to fetch suggestions:", e)
-      // 如果是超时错误，显示友好提示
-      if (e?.status === 408 || e?.message?.includes('超时') || e?.message?.includes('timeout') || e?.message?.includes('Timeout')) {
-        const timeoutMessage = e?.detail?.suggestion || t.optimization.timeoutMessage || "请求超时，请稍后重试"
-        setLoadingProgress(timeoutMessage)
-        // 超时时，尝试使用空数据而不是显示错误
-        setData({ 
-          suggestions: [], 
-          summary: {
-            total_suggestions: 0,
-            total_savings_potential: 0,
-            high_priority_count: 0,
-            medium_priority_count: 0,
-            low_priority_count: 0
-          }
-        })
-      } else {
-        // 其他错误
-        const errorMessage = e?.message || e?.detail?.error || t.common.error || "加载失败"
-        setLoadingProgress(errorMessage)
-        setData({ 
-          suggestions: [], 
-          summary: {
-            total_suggestions: 0,
-            total_savings_potential: 0,
-            high_priority_count: 0,
-            medium_priority_count: 0,
-            low_priority_count: 0
-          }
-        })
-      }
-    } finally {
-      setLoading(false)
-      // 延迟清除开始时间，让进度动画完成
-      setTimeout(() => {
-        loadingStartTime.current = null
-      }, 500)
+      const res = await fetch(`${base}/optimization/savings-report?${q.toString()}`, {
+        credentials: "include",
+      })
+      if (!res.ok) throw new Error(`export ${res.status}`)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `savings-${currentAccount}.html`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error(e)
+      window.open(`${base}/optimization/savings-report?${q.toString()}`, "_blank")
     }
   }
 
-  const toggleSuggestion = (type: string) => {
-    const newExpanded = new Set(expandedSuggestions)
-    if (newExpanded.has(type)) {
-      newExpanded.delete(type)
-    } else {
-      newExpanded.add(type)
-    }
-    setExpandedSuggestions(newExpanded)
-  }
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "high":
-        return "bg-red-500/10 text-red-500 border-red-500/20"
-      case "medium":
-        return "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
-      case "low":
-        return "bg-blue-500/10 text-blue-500 border-blue-500/20"
-      default:
-        return "bg-muted text-muted-foreground"
-    }
-  }
-
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case "成本优化":
-      case "Cost Optimization":
-        return <DollarSign className="w-4 h-4" />
-      case "安全优化":
-      case "Security Optimization":
-        return <Lock className="w-4 h-4" />
-      case "资源管理":
-      case "Resource Management":
-        return <Tag className="w-4 h-4" />
-      default:
-        return <TrendingDown className="w-4 h-4" />
-    }
-  }
-  
-  const getCategoryLabel = (category: string) => {
-    if (category === "成本优化" || category === "Cost Optimization") return t.optimization.costOptimization
-    if (category === "安全优化" || category === "Security Optimization") return t.optimization.securityOptimization
-    if (category === "资源管理" || category === "Resource Management") return t.optimization.resourceManagement
-    return category
-  }
-  
-  const getPriorityLabel = (priority: string) => {
-    if (priority === "high") return t.optimization.highPriority
-    if (priority === "medium") return t.optimization.mediumPriority
-    if (priority === "low") return t.optimization.lowPriority
-    return priority
-  }
-
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case "idle_resources":
-        return <Server className="w-5 h-5" />
-      case "stopped_instances":
-        return <Server className="w-5 h-5" />
-      case "unbound_eips":
-        return <Network className="w-5 h-5" />
-      case "missing_tags":
-        return <Tag className="w-5 h-5" />
-      case "spec_downgrade":
-        return <TrendingDown className="w-5 h-5" />
-      case "public_exposure":
-        return <Globe className="w-5 h-5" />
-      case "disk_encryption":
-        return <Lock className="w-5 h-5" />
-      default:
-        return <AlertCircle className="w-5 h-5" />
-    }
-  }
-
-  const filteredSuggestions = data?.suggestions.filter((s) => {
-    if (filter === "all") return true
-    return s.priority === filter
-  }) || []
+  const visibleCategories = (
+    ["framework", "idle", "weak", "other"] as CategoryKey[]
+  ).filter((k) => {
+    if (focusCategory === "all") return true
+    if (focusCategory === "weak") return k === "weak" || k === "other"
+    return focusCategory === k
+  })
 
   return (
     <DashboardLayout>
-      <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-5">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">{t.optimization.title}</h2>
-            <p className="text-muted-foreground mt-1">{t.optimization.description}</p>
+            <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
+              {zh ? "省钱机会" : t.optimization.title}
+            </h2>
+            <p className="text-muted-foreground mt-1 text-sm max-w-2xl">
+              {zh
+                ? "按类别查看框架合规、利用率与弱建议。金额为年化可省估算。"
+                : t.optimization.description}
+            </p>
           </div>
-          {!loading && (
-            <button
-              onClick={fetchSuggestions}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition shadow-lg shadow-primary/20"
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              className="text-sm rounded-md border px-2.5 py-2 bg-background"
+              value={billingCycle}
+              onChange={(e) => setBillingCycle(e.target.value)}
+              title="选择账期以匹配生效合同"
             >
-              {t.optimization.refresh}
+              <option value="">{zh ? "账期：最新" : "Cycle: latest"}</option>
+              {cycles.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <label className="inline-flex items-center gap-1.5 text-xs border rounded-md px-2.5 py-2">
+              <input
+                type="checkbox"
+                checked={includeLegacy}
+                onChange={(e) => setIncludeLegacy(e.target.checked)}
+              />
+              {zh ? "含其它缓存" : "Legacy"}
+            </label>
+            <button
+              type="button"
+              onClick={exportReport}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border text-sm hover:bg-muted"
+            >
+              <Download className="w-4 h-4" />
+              {zh ? "导出" : "Export"}
             </button>
-          )}
+            {!loading && (
+              <button
+                type="button"
+                onClick={() => fetchData({ force: true })}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                {t.optimization.refresh}
+              </button>
+            )}
+          </div>
         </div>
 
-        {loading ? (
-          <SmartLoadingProgress
-            message={loadingProgress || t.optimization.loadingProgress || "正在加载优化建议..."}
-            subMessage={t.optimization.loadingProgressDesc || "正在分析资源使用情况，这可能需要一些时间"}
-            loading={loading}
-            startTime={loadingStartTime.current || undefined}
-            estimatedDuration={60} // 预估60秒
+        {/* Tabs */}
+        <div className="flex gap-1 border-b border-border/60">
+          {(
+            [
+              ["overview", zh ? "机会总览" : "Overview", <DollarSign key="i" className="w-3.5 h-3.5" />],
+              ["contract", zh ? "框架合同" : "Contracts", <FileText key="i" className="w-3.5 h-3.5" />],
+            ] as [MainTab, string, ReactNode][]
+          ).map(([key, label, icon]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setMainTab(key)}
+              className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-sm border-b-2 -mb-px transition ${
+                mainTab === key
+                  ? "border-primary text-foreground font-medium"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {icon}
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {!currentAccount && !accountLoading && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900">
+            {zh ? "请先在左上角选择云账号。" : "Please select an account."}
+          </div>
+        )}
+
+        {mainTab === "contract" && currentAccount && (
+          <ContractPanel
+            account={currentAccount}
+            billingCycle={billingCycle || null}
+            onChanged={() => fetchData({ force: true })}
           />
-        ) : !data || data.suggestions.length === 0 ? (
-          <Card className="glass border border-border/50">
-            <CardContent className="py-12 text-center">
-              <TrendingDown className="w-16 h-16 mx-auto mb-4 opacity-50 text-muted-foreground" />
-              <p className="text-lg font-medium text-foreground mb-2">{t.optimization.noSuggestions}</p>
-              <p className="text-sm text-muted-foreground">{t.optimization.noSuggestionsDesc}</p>
-            </CardContent>
-          </Card>
-        ) : (
+        )}
+
+        {mainTab === "overview" && (
           <>
-            <div className="grid gap-4 md:grid-cols-4">
-              <Card className="glass border border-border/50 hover:shadow-xl transition-all">
-                <CardHeader>
-                  <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
-                    <TrendingDown className="w-4 h-4" />
-                    {t.optimization.totalSavingsPotential}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-green-500">¥{data.summary.total_savings_potential?.toLocaleString() || 0}</div>
-                  <p className="text-xs text-muted-foreground mt-1">{t.optimization.monthlySavingsPotential}</p>
-                </CardContent>
-              </Card>
+            {currentAccount && (
+              <ContractPanel
+                account={currentAccount}
+                billingCycle={billingCycle || null}
+                compact
+                onOpenFull={() => setMainTab("contract")}
+                onChanged={() => fetchData({ force: true })}
+              />
+            )}
 
-              <Card className="glass border border-border/50 hover:shadow-xl transition-all">
-                <CardHeader>
-                  <CardTitle className="text-sm text-muted-foreground">{t.optimization.suggestionCount}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold">{data.summary.total_suggestions || 0}</div>
-                  <p className="text-xs text-muted-foreground mt-1">{data.summary.total_suggestions || 0} {t.optimization.suggestions}</p>
-                </CardContent>
-              </Card>
-
-              <Card className="glass border border-border/50 hover:shadow-xl transition-all">
-                <CardHeader>
-                  <CardTitle className="text-sm text-muted-foreground">{t.optimization.highPriority}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-red-500">{data.summary.high_priority_count || 0}</div>
-                  <p className="text-xs text-muted-foreground mt-1">{t.optimization.needImmediateAttention}</p>
-                </CardContent>
-              </Card>
-
-              <Card className="glass border border-border/50 hover:shadow-xl transition-all">
-                <CardHeader>
-                  <CardTitle className="text-sm text-muted-foreground">{t.optimization.mediumPriority}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-yellow-500">{data.summary.medium_priority_count || 0}</div>
-                  <p className="text-xs text-muted-foreground mt-1">{t.optimization.suggestHandleSoon}</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => setFilter("all")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  filter === "all" ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" : "bg-muted/50 text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {t.optimization.all} ({data.summary.total_suggestions || 0})
-              </button>
-              <button
-                onClick={() => setFilter("high")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  filter === "high" ? "bg-red-500 text-white shadow-md shadow-red-500/20" : "bg-muted/50 text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {t.optimization.highPriority} ({data.summary.high_priority_count || 0})
-              </button>
-              <button
-                onClick={() => setFilter("medium")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  filter === "medium" ? "bg-yellow-500 text-white shadow-md shadow-yellow-500/20" : "bg-muted/50 text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {t.optimization.mediumPriority} ({data.summary.medium_priority_count || 0})
-              </button>
-              <button
-                onClick={() => setFilter("low")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  filter === "low" ? "bg-blue-500 text-white shadow-md shadow-blue-500/20" : "bg-muted/50 text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {t.optimization.lowPriority} ({data.summary.low_priority_count || 0})
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {filteredSuggestions.map((suggestion, idx) => (
-                <Card
-                  key={idx}
-                  className={`glass border border-border/50 hover:shadow-xl transition-all ${
-                    suggestion.priority === "high"
-                      ? "border-l-4 border-l-red-500"
-                      : suggestion.priority === "medium"
-                        ? "border-l-4 border-l-yellow-500"
-                        : "border-l-4 border-l-blue-500"
-                  }`}
-                >
-                  <div className="cursor-pointer" onClick={() => toggleSuggestion(suggestion.type)}>
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-4 flex-1">
-                          <div className={`p-2.5 rounded-xl ${getPriorityColor(suggestion.priority)}`}>{getTypeIcon(suggestion.type)}</div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <CardTitle className="text-lg">{suggestion.title}</CardTitle>
-                              <Badge className={getPriorityColor(suggestion.priority)}>
-                                {getPriorityLabel(suggestion.priority)}
-                              </Badge>
-                              <Badge variant="info" className="flex items-center gap-1">
-                                {getCategoryIcon(suggestion.category)}
-                                {getCategoryLabel(suggestion.category)}
-                              </Badge>
-                            </div>
-                            <p className="text-sm text-muted-foreground mb-3">{suggestion.description}</p>
-                            <div className="flex items-center gap-6 text-sm">
-                              <div>
-                                <span className="text-muted-foreground">{t.optimization.relatedResources}: </span>
-                                <span className="font-semibold text-foreground">{suggestion.resource_count}{t.optimization.unit ? ` ${t.optimization.unit}` : ''}</span>
-                              </div>
-                              {suggestion.savings_potential > 0 && (
-                                <div>
-                                  <span className="text-muted-foreground">{t.optimization.savingsPotential}: </span>
-                                  <span className="font-semibold text-green-500">¥{suggestion.savings_potential.toLocaleString()}{t.optimization.perMonth}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
+            {loading || accountLoading ? (
+              <SmartLoadingProgress
+                message={loadingProgress || (zh ? "正在扫描省钱机会…" : "Scanning…")}
+                subMessage={
+                  zh ? "首次扫描可能需要较长时间，请稍候" : t.optimization.loadingProgressDesc
+                }
+                loading={loading || accountLoading}
+                startTime={loadingStartTime.current || undefined}
+                estimatedDuration={45}
+              />
+            ) : (
+              <>
+                {/* KPI — clickable as category focus */}
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {(
+                    [
+                      {
+                        key: "all" as const,
+                        label: zh ? "年化可省合计" : "Annual total",
+                        value: annualTotal,
+                        hint: zh
+                          ? `${opportunities.length} 条 · 高 ${summary?.high_priority_count || 0} / 中 ${summary?.medium_priority_count || 0} / 低 ${summary?.low_priority_count || 0}`
+                          : `${opportunities.length} opportunities`,
+                        accent: "text-emerald-600",
+                        show: true,
+                      },
+                      {
+                        key: "framework" as const,
+                        label: zh ? "框架合规" : "Framework",
+                        value: frameworkTotal,
+                        hint: contractConfigured
+                          ? `${grouped.framework.length} 条`
+                          : zh
+                            ? "未配置合同"
+                            : "No contract",
+                        accent: "text-foreground",
+                        show: true,
+                      },
+                      {
+                        key: "idle" as const,
+                        label: zh ? "利用率" : "Utilization",
+                        value: idleTotal,
+                        hint: zh
+                          ? `${grouped.idle.length} 条 · 规格粗估`
+                          : `${grouped.idle.length} items`,
+                        accent: "text-foreground",
+                        show: grouped.idle.length > 0 || idleTotal > 0,
+                      },
+                      {
+                        key: "weak" as const,
+                        label: zh ? "弱建议 / 其它" : "Weak / Other",
+                        value: weakTotal + otherTotal,
+                        hint: zh
+                          ? `${grouped.weak.length + grouped.other.length} 条`
+                          : `${grouped.weak.length + grouped.other.length} items`,
+                        accent: "text-foreground",
+                        show: grouped.weak.length + grouped.other.length > 0,
+                      },
+                    ] as const
+                  )
+                    .filter((kpi) => kpi.show)
+                    .map((kpi) => (
+                      <button
+                        key={kpi.key}
+                        type="button"
+                        onClick={() =>
+                          setFocusCategory((prev) => (prev === kpi.key ? "all" : kpi.key))
+                        }
+                        className={`text-left rounded-xl border px-4 py-3 transition ${
+                          focusCategory === kpi.key
+                            ? "border-primary bg-primary/5"
+                            : "border-border/60 hover:bg-muted/30"
+                        }`}
+                      >
+                        <div className="text-xs text-muted-foreground">{kpi.label}</div>
+                        <div className={`text-2xl font-bold mt-1 tabular-nums ${kpi.accent}`}>
+                          {formatYen(kpi.value)}
                         </div>
-                        <svg
-                          className={`w-5 h-5 text-muted-foreground transition-transform flex-shrink-0 ${expandedSuggestions.has(suggestion.type) ? "rotate-180" : ""}`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </div>
-                    </CardHeader>
+                        <div className="text-[11px] text-muted-foreground mt-1 truncate">
+                          {kpi.hint}
+                        </div>
+                      </button>
+                    ))}
+                </div>
+
+                {!contractConfigured && !data?.contract?.period_miss && (
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+                    {zh
+                      ? "尚未发布生效的框架合同。当前主要展示利用率与弱建议；在「框架合同」页导入并发布后，可识别框外与未按约。"
+                      : "No active framework contract yet."}
                   </div>
+                )}
+                {data?.contract?.period_miss && (
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+                    {zh
+                      ? `账期 ${billingCycle || data.contract.billing_cycle || ""} 无匹配生效合同。当前仅展示弱建议与利用率。`
+                      : `No contract covers billing cycle ${billingCycle || ""}.`}
+                  </div>
+                )}
 
-                  {expandedSuggestions.has(suggestion.type) && (
-                    <CardContent className="border-t border-border/50 pt-4">
-                      {suggestion.recommendation && (
-                        <div className="mb-4 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-                          <div className="flex items-start gap-2">
-                            <AlertCircle className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
-                            <div>
-                              <div className="text-sm font-medium text-blue-400 mb-1">💡 {t.optimization.optimizationSuggestion}</div>
-                              <div className="text-sm text-muted-foreground">{suggestion.recommendation}</div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                {focusCategory !== "all" && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">
+                      {zh ? "已筛选：" : "Filter: "}
+                      {zh
+                        ? CATEGORY_META[focusCategory].title
+                        : CATEGORY_META[focusCategory].titleEn}
+                    </span>
+                    <button
+                      type="button"
+                      className="underline text-muted-foreground hover:text-foreground"
+                      onClick={() => setFocusCategory("all")}
+                    >
+                      {zh ? "清除" : "Clear"}
+                    </button>
+                  </div>
+                )}
 
-                      {suggestion.resources && suggestion.resources.length > 0 && (
-                        <div>
-                          <div className="text-sm font-semibold mb-3">{t.optimization.relatedResources} ({suggestion.resources.length}):</div>
-                          <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-                            {suggestion.resources.map((resource: any, rIdx: number) => (
-                              <div
-                                key={rIdx}
-                                className="p-3 bg-muted/30 rounded-lg text-sm hover:bg-muted/50 transition-colors cursor-pointer group"
-                                onClick={() => {
-                                  const resourceId = resource.instance_id || resource.id || resource.resource_id
-                                  if (resourceId && base) router.push(`${base}/resources/${resourceId}`)
-                                }}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-medium truncate">{resource.name || resource.resource_name || resource.id || "-"}</div>
-                                    <div className="text-xs text-muted-foreground truncate font-mono mt-1">{resource.instance_id || resource.id || resource.resource_id}</div>
-                                  </div>
-                                  <ArrowRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2" />
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  )}
-                </Card>
-              ))}
-            </div>
+                {fetchError ? (
+                  <div className="rounded-xl border border-red-500/30 bg-red-500/5 py-14 text-center px-4">
+                    <TrendingDown className="w-12 h-12 mx-auto mb-3 opacity-40 text-red-500" />
+                    <p className="font-medium">{zh ? "扫描失败" : "Scan failed"}</p>
+                    <p className="text-sm text-muted-foreground mt-1">{fetchError}</p>
+                    <button
+                      type="button"
+                      onClick={() => fetchData({ force: true })}
+                      className="mt-4 text-sm px-3 py-1.5 rounded-md border hover:bg-muted"
+                    >
+                      {zh ? "重试" : "Retry"}
+                    </button>
+                  </div>
+                ) : opportunities.length === 0 ? (
+                  <div className="rounded-xl border border-border/50 py-14 text-center">
+                    <TrendingDown className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                    <p className="font-medium">{t.optimization.noSuggestions}</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {t.optimization.noSuggestionsDesc}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {visibleCategories.map((cat) => (
+                      <CategorySection
+                        key={`${cat}-${focusCategory}`}
+                        category={cat}
+                        items={grouped[cat]}
+                        defaultOpen={
+                          focusCategory === cat ||
+                          (focusCategory === "weak" && (cat === "weak" || cat === "other")) ||
+                          (focusCategory === "all" && cat === "framework" && grouped[cat].length > 0)
+                        }
+                        zh={zh}
+                        expanded={expanded}
+                        setExpanded={setExpanded}
+                        highLabel={t.optimization.highPriority}
+                        mediumLabel={t.optimization.mediumPriority}
+                        lowLabel={t.optimization.lowPriority}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {summary?.note && (
+                  <p className="text-xs text-muted-foreground text-center pt-2">{summary.note}</p>
+                )}
+              </>
+            )}
           </>
         )}
       </div>
     </DashboardLayout>
   )
 }
-
-
-
-
-
-
-
-
-

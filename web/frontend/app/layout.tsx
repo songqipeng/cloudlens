@@ -28,9 +28,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh">
+    // suppressHydrationWarning：避免浏览器扩展（如有道 data-yd-*）改写 <html>/<body> 属性触发误报
+    <html lang="zh" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning
       >
         <LocaleProvider>
           <AuthProvider>

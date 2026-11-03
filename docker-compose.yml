@@ -92,9 +92,10 @@ services:
         echo "等待MySQL就绪（依赖depends_on healthcheck）..."
         sleep 5
         echo "初始化数据库表结构..."
-        mysql -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/init_mysql_schema.sql 2>&1 || echo "警告: init_mysql_schema.sql 执行失败或已存在"
-        mysql -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/add_chatbot_tables.sql 2>&1 || echo "警告: add_chatbot_tables.sql 执行失败或已存在"
-        mysql -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/add_anomaly_table.sql 2>&1 || echo "警告: add_anomaly_table.sql 执行失败或已存在"
+        mysql --skip-ssl -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/init_mysql_schema.sql 2>&1 || echo "警告: init_mysql_schema.sql 执行失败或已存在"
+        mysql --skip-ssl -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/add_chatbot_tables.sql 2>&1 || echo "警告: add_chatbot_tables.sql 执行失败或已存在"
+        mysql --skip-ssl -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/add_anomaly_table.sql 2>&1 || echo "警告: add_anomaly_table.sql 执行失败或已存在"
+        mysql --skip-ssl -h mysql -u cloudlens -pcloudlens123 cloudlens < /app/migrations/add_framework_contracts.sql 2>&1 || echo "警告: add_framework_contracts.sql 执行失败或已存在"
         echo "启动后端服务..."
         exec uvicorn web.backend.main:app --host 0.0.0.0 --port 8000
 

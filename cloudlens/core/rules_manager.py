@@ -10,8 +10,13 @@ class RulesManager:
         "version": "1.0",
         "idle_rules": {
             "ecs": {
+                # 严重闲置（P1）：CPU、内存、网络平均值同时低于阈值
                 "cpu_threshold_percent": 5,
-                "network_threshold_bytes_sec": 1000,
+                "critical_memory_percent": 10,
+                "critical_network_bps": 50000,
+                # 低利用率（P2）：CPU 或内存平均值低于阈值
+                "low_cpu_percent": 10,
+                "low_memory_percent": 20,
                 "exclude_tags": ["k8s.io", "ack.aliyun.com"]
             },
             "rds": {

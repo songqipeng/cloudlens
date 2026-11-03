@@ -26,7 +26,7 @@ const navItems = [
     { href: "/cost-allocation", label: "成本分配", icon: PieChart },
     { href: "/ai-optimizer", label: "AI优化", icon: Sparkles },
     { href: "/security", label: "Security", icon: Shield },
-    { href: "/optimization", label: "Optimization", icon: TrendingUp },
+    { href: "/optimization", label: "省钱机会", icon: TrendingUp },
     { href: "/reports", label: "Reports", icon: FileText },
     { href: "/settings", label: "Settings", icon: Settings },
 ]

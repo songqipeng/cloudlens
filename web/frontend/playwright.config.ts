@@ -7,10 +7,10 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests',
   
-  // 测试超时设置
-  timeout: 300000, // 5分钟
+  // 测试超时设置（全量业务页遍历 + headed Chrome 需要更长时间）
+  timeout: 600000, // 10分钟
   expect: {
-    timeout: 10000, // 10秒
+    timeout: 15000, // 15秒
   },
   
   // 完全并行运行测试
@@ -36,12 +36,13 @@ export default defineConfig({
     // 浏览器上下文选项
     viewport: { width: 1920, height: 1080 },
     
-    // 视频录制配置
-    video: 'on', // 录制所有测试的视频
-    screenshot: 'only-on-failure', // 仅在失败时截图
+    // 视频录制：默认关闭。本机 ffmpeg 可能被 macOS 杀掉，导致 Chrome 都拉不起来。
+    // 需要录像时：PW_VIDEO=on npx playwright test
+    video: process.env.PW_VIDEO === "on" ? "on" : "off",
+    screenshot: "only-on-failure",
     
-    // 追踪配置（可选）
-    trace: 'on', // 启用追踪
+    // 仅失败时保留 trace，避免全量回归收尾时写大包卡住
+    trace: 'retain-on-failure',
     
     // 动作超时
     actionTimeout: 30000,

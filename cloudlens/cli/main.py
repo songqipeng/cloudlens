@@ -17,6 +17,7 @@ from cloudlens.cli.commands.misc_cmd import dashboard, repl, scheduler
 from cloudlens.cli.commands.analyze_cmd import analyze
 from cloudlens.cli.commands.remediate_cmd import remediate  # 新增
 from cloudlens.cli.commands.bill_cmd import bill  # 账单管理
+from cloudlens.cli.commands.savings_cmd import savings  # 省钱机会
 
 
 @click.group()
@@ -57,6 +58,7 @@ cli.add_command(cache)
 cli.add_command(analyze)
 cli.add_command(remediate)  # 新增
 cli.add_command(bill)  # 账单管理
+cli.add_command(savings)  # 省钱机会 / 框架合同
 
 # 注册单个命令
 cli.add_command(dashboard)

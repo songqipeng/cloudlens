@@ -188,6 +188,36 @@ class BillStorageManager:
                         raw_data
                     ) VALUES ({', '.join([placeholder] * 35)})
                     ON DUPLICATE KEY UPDATE
+                        product_name = VALUES(product_name),
+                        product_code = VALUES(product_code),
+                        product_type = VALUES(product_type),
+                        subscription_type = VALUES(subscription_type),
+                        pricing_unit = VALUES(pricing_unit),
+                        `usage` = VALUES(`usage`),
+                        list_price = VALUES(list_price),
+                        list_price_unit = VALUES(list_price_unit),
+                        invoice_discount = VALUES(invoice_discount),
+                        pretax_amount = VALUES(pretax_amount),
+                        deducted_by_coupons = VALUES(deducted_by_coupons),
+                        deducted_by_cash_coupons = VALUES(deducted_by_cash_coupons),
+                        deducted_by_prepaid_card = VALUES(deducted_by_prepaid_card),
+                        payment_amount = VALUES(payment_amount),
+                        outstanding_amount = VALUES(outstanding_amount),
+                        currency = VALUES(currency),
+                        nick_name = VALUES(nick_name),
+                        resource_group = VALUES(resource_group),
+                        tag = VALUES(tag),
+                        instance_config = VALUES(instance_config),
+                        internet_ip = VALUES(internet_ip),
+                        intranet_ip = VALUES(intranet_ip),
+                        region = VALUES(region),
+                        zone = VALUES(zone),
+                        item = VALUES(item),
+                        cost_unit = VALUES(cost_unit),
+                        pip_code = VALUES(pip_code),
+                        service_period = VALUES(service_period),
+                        service_period_unit = VALUES(service_period_unit),
+                        raw_data = VALUES(raw_data),
                         updated_at = CURRENT_TIMESTAMP
                 """
                 
@@ -510,8 +540,8 @@ class BillStorageManager:
                 if official == 0:
                     official = actual + abs(discount)
                 
-                # 折扣率 = 折扣金额 / 官方价 * 100
-                discount_rate = (abs(discount) / official * 100) if official > 0 else 0
+                # 折扣率统一为 0~1 小数（与季度/年度/高级折扣 API、前端 fmtPct 一致）
+                discount_rate = (abs(discount) / official) if official > 0 else 0
                 
                 monthly_data.append({
                     'month': row['month'],
@@ -550,7 +580,7 @@ class BillStorageManager:
                 if official == 0:
                     official = actual + abs(discount)
                     
-                discount_rate = (abs(discount) / official * 100) if official > 0 else 0
+                discount_rate = (abs(discount) / official) if official > 0 else 0
                 
                 products_list.append({
                     'product_code': code,
@@ -593,7 +623,7 @@ class BillStorageManager:
                 if official == 0:
                     official = actual + abs(discount)
                     
-                discount_rate = (abs(discount) / official * 100) if official > 0 else 0
+                discount_rate = (abs(discount) / official) if official > 0 else 0
                 
                 instances_list.append({
                     'instance_id': row.get('instance_id', ''),

@@ -9,6 +9,10 @@
     "lint": "eslint",
     "test:auth:local": "playwright test tests/auth-flow.spec.ts --project=chromium",
     "test:regression:local": "playwright test tests/auth-flow.spec.ts tests/dashboard-error-display.spec.ts --project=chromium",
+    "test:regression:full": "playwright test tests/local-full-regression.spec.ts tests/auth-flow.spec.ts tests/dashboard-error-display.spec.ts --project=chromium",
+    "test:regression:full:headed": "playwright test tests/local-full-regression.spec.ts --project=chromium --headed",
+    "test:audit:tabs:headed": "playwright test tests/full-tab-discount-audit.spec.ts --project=chromium --headed",
+    "test:savings": "playwright test tests/savings-opportunities.spec.ts --project=chromium",
     "test:chrome": "playwright test tests/dashboard-error-display.spec.ts --project=chromium",
     "test:chrome:remote": "BASE_URL=https://cloudlens.songqipeng.com playwright test tests/dashboard-error-display.spec.ts --project=chromium",
     "test:regression:discount": "BASE_URL=https://cloudlens.songqipeng.com playwright test tests/dashboard-error-display.spec.ts --project=chromium -g discounts"

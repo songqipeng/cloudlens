@@ -56,11 +56,11 @@ class TestIdleDetector:
             "磁盘写IOPS": 100
         }
 
-        is_idle, reasons = detector.is_ecs_idle(metrics)
+        assessment = detector.classify_ecs(metrics)
 
-        # 至少2个指标满足才判定闲置
-        if is_idle:
-            assert len(reasons) >= 2
+        # CPU 恰好 5% 不满足严重闲置（< 5%），但满足低利用率（< 10%）
+        assert assessment.level == "low_utilization"
+        assert assessment.is_idle
 
     def test_is_ecs_idle_single_metric_low(self, detector):
         """测试: 只有一个指标低不应判定为闲置"""
@@ -95,7 +95,4 @@ class TestIdleDetector:
         assert len(reasons) >= 2
 
 
-# 注意: IdleDetector当前的逻辑是,如果提供的metrics缺少某些字段,
-# 将默认为0,这可能导致即使只有一个指标实际为低值,
-# 其他未提供的指标也被认为是0(满足阈值),从而误判为闲置。
-# 这是一个需要在实际使用中注意的边界情况。
+# 注意: 缺失的指标视为“无数据”而非 0，缺少 CPU 数据时不会判定为闲置。

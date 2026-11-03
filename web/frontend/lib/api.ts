@@ -10,10 +10,12 @@ import type { Locale } from "./i18n"
 // 使用环境变量配置API地址
 // 生产环境：使用相对路径 /api（由nginx代理）
 // 开发环境：使用 localhost:8000
+// Docker 本地调试：服务端用 INTERNAL_API_URL（容器互联），浏览器仍走 localhost
 const API_BASE = (() => {
     // 服务端渲染时的默认值
     if (typeof window === "undefined") {
-        return "http://127.0.0.1:8000/api"
+        const origin = (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "")
+        return origin.endsWith("/api") ? origin : `${origin}/api`
     }
     
     // 浏览器环境：检查是否为开发环境
@@ -485,7 +487,46 @@ export async function apiDelete<T = any>(
     throw new ApiError(500, { error: "Request failed after retries" })
 }
 
-
+/**
+ * multipart 文件上传（不设 Content-Type，由浏览器带 boundary）
+ */
+export async function apiUploadForm<T = any>(
+    endpoint: string,
+    formData: FormData,
+    params?: Record<string, any>,
+    options?: { timeout?: number }
+): Promise<T> {
+    const url = buildUrl(endpoint, params)
+    const timeout = options?.timeout ?? 120000
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeout)
+    try {
+        const res = await fetch(url, {
+            method: "POST",
+            credentials: "include",
+            body: formData,
+            signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}))
+            const locale = getCurrentLocale() as Locale
+            const defaultMessage = locale === "zh"
+                ? `上传失败: ${res.status}`
+                : `Upload failed: ${res.status}`
+            const raw = errorData?.detail ?? errorData?.error ?? errorData?.message
+            throw new ApiError(res.status, errorData, toApiErrorMessage(raw, defaultMessage) || defaultMessage)
+        }
+        return await res.json()
+    } catch (error) {
+        clearTimeout(timeoutId)
+        if (error instanceof ApiError) throw error
+        if (error instanceof Error && error.name === "AbortError") {
+            throw new ApiError(408, { error: "upload timeout" }, "上传超时")
+        }
+        throw new ApiError(500, { error: String(error) })
+    }
+}
 
 
 

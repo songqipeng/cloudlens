@@ -14,6 +14,23 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _should_cache_response(result: Any) -> bool:
+    """空的折扣分析不入库，否则账单同步后会长时间看不到数据。"""
+    if not isinstance(result, dict):
+        return True
+    if result.get("success") is False:
+        return False
+    data = result.get("data") if isinstance(result.get("data"), dict) else result
+    if not isinstance(data, dict):
+        return True
+    if data.get("success") is False:
+        return False
+    for key in ("quarters", "years", "products"):
+        if key in data and data.get(key) == []:
+            return False
+    return True
+
+
 def cache_response(
     ttl_seconds: int = 3600,
     key_prefix: str = "",
@@ -74,8 +91,8 @@ def cache_response(
             logger.debug(f"Cache miss: {cache_key} for account {account}")
             result = func(*args, **kwargs)
 
-            # 保存到缓存
-            if account and result is not None:
+            # 保存到缓存（空账单结果不缓存，避免同步后仍命中空数据）
+            if account and result is not None and _should_cache_response(result):
                 cache_manager.set(
                     resource_type=cache_key,
                     account_name=account,

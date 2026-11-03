@@ -2,7 +2,7 @@
 import json
 import logging
 import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 from aliyunsdkcore.client import AcsClient
 from aliyunsdkcore.request import CommonRequest
@@ -70,66 +70,60 @@ class CloudMonitor:
             logger.error(f"Failed to fetch metrics for {dimensions}: {e}")
             return []
 
-    def get_ecs_metrics(self, instance_id: str, days: int = 7) -> Dict[str, float]:
+    @staticmethod
+    def summarize_datapoints(datapoints: List[Dict[str, Any]]) -> Tuple[float, Optional[float]]:
+        """汇总监控数据点
+
+        Args:
+            datapoints: DescribeMetricList 返回的数据点列表
+
+        Returns:
+            (最大值, 平均值)。无数据时最大值为 0.0，平均值为 None（表示数据缺失，而非 0）
         """
-        获取 ECS 实例过去 N 天的关键性能指标 (Max)
-        
+        if not datapoints:
+            return 0.0, None
+        maximums = [float(p.get("Maximum", 0) or 0) for p in datapoints]
+        averages = [float(p["Average"]) for p in datapoints if p.get("Average") is not None]
+        avg = sum(averages) / len(averages) if averages else None
+        return max(maximums), avg
+
+    def get_ecs_metrics(self, instance_id: str, days: int = 7) -> Dict[str, Optional[float]]:
+        """
+        获取 ECS 实例过去 N 天的关键性能指标（最大值与平均值）
+
         Args:
             instance_id: ECS 实例 ID
             days: 查询天数，默认 7 天
-            
+
         Returns:
-            Dict: { "max_cpu": 12.5, "max_memory": 45.2, "max_traffic_in": 1024, ... }
+            Dict: { "max_cpu": 12.5, "avg_cpu": 3.2, "avg_memory": None, ... }
+            avg_* 为 None 表示该指标无数据（如未安装云监控插件时内存无数据）
         """
         end_time = datetime.datetime.now()
         start_time = end_time - datetime.timedelta(days=days)
         dimensions = json.dumps([{"instanceId": instance_id}])
-        
-        # 1. CPU Utilization (Percent)
-        cpu_data = self.get_metric_statistics(
-            "acs_ecs_dashboard", "CPUUtilization", dimensions, start_time, end_time
-        )
-        max_cpu = max([p.get("Maximum", 0) for p in cpu_data]) if cpu_data else 0.0
-        
-        # 2. Memory Utilization (Percent)
-        memory_data = self.get_metric_statistics(
-            "acs_ecs_dashboard", "memory_usedutilization", dimensions, start_time, end_time
-        )
-        max_memory = max([p.get("Maximum", 0) for p in memory_data]) if memory_data else 0.0
-        
-        # 3. Internet In Rate (bits/s)
-        net_in_data = self.get_metric_statistics(
-            "acs_ecs_dashboard", "InternetInRate", dimensions, start_time, end_time
-        )
-        max_net_in = max([p.get("Maximum", 0) for p in net_in_data]) if net_in_data else 0.0
 
-        # 4. Internet Out Rate (bits/s)
-        net_out_data = self.get_metric_statistics(
-            "acs_ecs_dashboard", "InternetOutRate", dimensions, start_time, end_time
-        )
-        max_net_out = max([p.get("Maximum", 0) for p in net_out_data]) if net_out_data else 0.0
-
-        # 5. Disk Read IOPS
-        disk_read_data = self.get_metric_statistics(
-            "acs_ecs_dashboard", "DiskReadIOPS", dimensions, start_time, end_time
-        )
-        max_disk_read = max([p.get("Maximum", 0) for p in disk_read_data]) if disk_read_data else 0.0
-
-        # 6. Disk Write IOPS
-        disk_write_data = self.get_metric_statistics(
-            "acs_ecs_dashboard", "DiskWriteIOPS", dimensions, start_time, end_time
-        )
-        max_disk_write = max([p.get("Maximum", 0) for p in disk_write_data]) if disk_write_data else 0.0
-
-        return {
-            "max_cpu": max_cpu,
-            "max_memory": max_memory,
-            "max_internet_in": max_net_in,
-            "max_internet_out": max_net_out,
-            "max_disk_read_iops": max_disk_read,
-            "max_disk_write_iops": max_disk_write,
-            "period_days": days
+        # 指标名 -> 结果键前缀；流量单位为 bits/s
+        metric_map = {
+            "CPUUtilization": "cpu",
+            "memory_usedutilization": "memory",
+            "InternetInRate": "internet_in",
+            "InternetOutRate": "internet_out",
+            "IntranetInRate": "intranet_in",
+            "IntranetOutRate": "intranet_out",
+            "DiskReadIOPS": "disk_read_iops",
+            "DiskWriteIOPS": "disk_write_iops",
         }
+
+        result: Dict[str, Optional[float]] = {"period_days": days}
+        for metric_name, key in metric_map.items():
+            datapoints = self.get_metric_statistics(
+                "acs_ecs_dashboard", metric_name, dimensions, start_time, end_time
+            )
+            max_value, avg_value = self.summarize_datapoints(datapoints)
+            result[f"max_{key}"] = max_value
+            result[f"avg_{key}"] = avg_value
+        return result
 
     def get_rds_metrics(self, instance_id: str, days: int = 7) -> Dict[str, float]:
         """

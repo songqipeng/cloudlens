@@ -18,7 +18,9 @@ const AUTH_USER_KEY = "cloudlens_auth_user"
 
 function getAuthApiBase(): string {
   if (typeof window === "undefined") {
-    return "http://127.0.0.1:8000/api/auth"
+    const origin = (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "")
+    const apiBase = origin.endsWith("/api") ? origin : `${origin}/api`
+    return `${apiBase}/auth`
   }
 
   const hostname = window.location.hostname

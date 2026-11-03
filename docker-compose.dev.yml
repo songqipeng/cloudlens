@@ -1,0 +1,155 @@
+# CloudLens 本地 Docker 调试环境
+# 启动：bash scripts/docker-dev.sh
+# 或：docker compose -f docker-compose.dev.yml up --build
+#
+# 访问：
+#   前端  http://localhost:3000
+#   后端  http://localhost:8000
+#   API   http://localhost:8000/docs
+#   调试  localhost:5678（VS Code / Cursor Attach）
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: cloudlens-mysql-dev
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-cloudlens_root_2024}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-cloudlens}
+      MYSQL_USER: ${MYSQL_USER:-cloudlens}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cloudlens123}
+    # 不映射 3306，避免与本机 Colima/已有服务冲突；需要客户端时用 3307
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data_dev:/var/lib/mysql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-cloudlens_root_2024}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - cloudlens-dev
+
+  redis:
+    image: redis:7-alpine
+    container_name: cloudlens-redis-dev
+    # 不映射 6379，避免与本机 Homebrew Redis 冲突
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data_dev:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - cloudlens-dev
+
+  backend:
+    build:
+      context: .
+      dockerfile: web/backend/Dockerfile
+    image: cloudlens-backend-dev
+    container_name: cloudlens-backend-dev
+    environment:
+      CLOUDLENS_DATABASE__DB_TYPE: mysql
+      CLOUDLENS_DATABASE__MYSQL_HOST: mysql
+      CLOUDLENS_DATABASE__MYSQL_PORT: 3306
+      CLOUDLENS_DATABASE__MYSQL_USER: ${MYSQL_USER:-cloudlens}
+      CLOUDLENS_DATABASE__MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cloudlens123}
+      CLOUDLENS_DATABASE__MYSQL_DATABASE: ${MYSQL_DATABASE:-cloudlens}
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-cloudlens}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cloudlens123}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-cloudlens}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-claude}
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost
+      CLOUDLENS_ENVIRONMENT: development
+      CLOUDLENS_DEBUG: "true"
+      CLOUDLENS_LOGGING__LOG_LEVEL: DEBUG
+      PYDEVD_DISABLE_FILE_VALIDATION: "1"
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+      - "${DEBUGPY_PORT:-5678}:5678"
+    volumes:
+      - ./web:/app/web
+      - ./cloudlens:/app/cloudlens
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+      - ./migrations:/app/migrations:ro
+      - ./scripts:/app/scripts:ro
+      - ~/.cloudlens:/root/.cloudlens
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - cloudlens-dev
+    stdin_open: true
+    tty: true
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        echo "等待 MySQL 可接受连接..."
+        for i in $$(seq 1 30); do
+          mysqladmin --skip-ssl ping -h mysql -u "$${MYSQL_USER}" -p"$${MYSQL_PASSWORD}" --silent && break
+          sleep 2
+        done
+        echo "初始化数据库表结构..."
+        mysql --skip-ssl -h mysql -u "$${MYSQL_USER}" -p"$${MYSQL_PASSWORD}" "$${MYSQL_DATABASE}" < /app/migrations/init_mysql_schema.sql || echo "警告: init_mysql_schema.sql 执行失败或已存在"
+        mysql --skip-ssl -h mysql -u "$${MYSQL_USER}" -p"$${MYSQL_PASSWORD}" "$${MYSQL_DATABASE}" < /app/migrations/add_chatbot_tables.sql || echo "警告: add_chatbot_tables.sql 执行失败或已存在"
+        mysql --skip-ssl -h mysql -u "$${MYSQL_USER}" -p"$${MYSQL_PASSWORD}" "$${MYSQL_DATABASE}" < /app/migrations/add_anomaly_table.sql || echo "警告: add_anomaly_table.sql 执行失败或已存在"
+        mysql --skip-ssl -h mysql -u "$${MYSQL_USER}" -p"$${MYSQL_PASSWORD}" "$${MYSQL_DATABASE}" < /app/migrations/add_framework_contracts.sql || echo "警告: add_framework_contracts.sql 执行失败或已存在"
+        echo "启动后端（热重载 + debugpy :5678）..."
+
+        exec python -Xfrozen_modules=off -m debugpy --listen 0.0.0.0:5678 \
+          -m uvicorn web.backend.main:app \
+          --host 0.0.0.0 --port 8000 \
+          --reload --reload-dir /app/web --reload-dir /app/cloudlens
+
+  frontend:
+    build:
+      context: ./web/frontend
+      dockerfile: Dockerfile.dev
+    image: cloudlens-frontend-dev
+    container_name: cloudlens-frontend-dev
+    environment:
+      NEXT_TELEMETRY_DISABLED: "1"
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      INTERNAL_API_URL: http://backend:8000
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ./web/frontend:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - cloudlens-dev
+    stdin_open: true
+    tty: true
+    command: ["sh", "-c", "npm install && npm run dev -- -H 0.0.0.0 -p 3000"]
+
+volumes:
+  mysql_data_dev:
+  redis_data_dev:
+  frontend_node_modules:
+
+networks:
+  cloudlens-dev:
+    driver: bridge

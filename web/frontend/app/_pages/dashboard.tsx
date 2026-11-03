@@ -448,7 +448,11 @@ pip install -r requirements.txt
           apiGet("/resources", { type: "ecs", account: currentAccount }, { timeout: 20000, retries: 1 }),
           apiGet("/resources", { type: "rds", account: currentAccount }, { timeout: 20000, retries: 1 }),
           apiGet("/resources", { type: "redis", account: currentAccount }, { timeout: 20000, retries: 1 }),
-          apiGet("/optimization/suggestions", { account: currentAccount }, { timeout: 30000, retries: 1 }),
+          apiGet(
+            "/optimization/savings-opportunities",
+            { account: currentAccount, include_legacy: true },
+            { timeout: 60000, retries: 1 }
+          ),
         ])
 
         // 处理安全概览数据（包含标签覆盖率和告警数量）
@@ -515,25 +519,27 @@ pip install -r requirements.txt
           console.warn("[Dashboard] ⚠️ 处理资源统计数据失败:", e)
         }
 
-        // 处理优化建议数据（包含节省潜力）
+        // 处理省钱机会数据（年化可省，与 Optimization 页同源）
         if (optimizationData.status === 'fulfilled' && optimizationData.value) {
           try {
             const optimizationInfo = optimizationData.value?.data || optimizationData.value
-            const savingsPotential = optimizationInfo?.summary?.total_savings_potential || optimizationInfo?.total_savings_potential || 0
+            const savingsPotential =
+              optimizationInfo?.summary?.annual_savings_total ??
+              optimizationInfo?.summary?.total_savings_potential ??
+              optimizationInfo?.total_savings_potential ??
+              0
 
-            console.log(`[Dashboard] 📊 节省潜力数据: ${savingsPotential}`)
+            console.log(`[Dashboard] 📊 年化可省: ${savingsPotential}`)
 
-            // 无论是否为0都更新，因为可能是真实数据
-            console.log("[Dashboard] ✅ 更新节省潜力数据到 summary")
             setSummary((prev: any) => ({
               ...(prev || {}),
               savings_potential: savingsPotential,
             }))
           } catch (e) {
-            console.warn("[Dashboard] ⚠️ 处理优化建议数据失败:", e)
+            console.warn("[Dashboard] ⚠️ 处理省钱机会数据失败:", e)
           }
         } else {
-          console.warn(`[Dashboard] ⚠️ 优化建议API调用失败: ${optimizationData.status}`)
+          console.warn(`[Dashboard] ⚠️ 省钱机会API调用失败: ${optimizationData.status}`)
         }
 
         setLoadingMessage(t.dashboard.loadingTrend || "正在加载成本趋势...")

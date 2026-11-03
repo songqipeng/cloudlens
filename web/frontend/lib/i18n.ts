@@ -618,6 +618,7 @@ export interface Translations {
       top5ProductDiscount: string
       aiInsights: string
       generatingInsights: string
+      noInsights: string
       months: string
       instances: string
       monthsUnit: string
@@ -706,6 +707,33 @@ export interface Translations {
     other: string
     viewAndAnalyze: string
     totalCost: string
+    attribution: string
+  }
+
+  costAttribution: {
+    title: string
+    description: string
+    whyChanged: string
+    currentPeriod: string
+    comparePeriod: string
+    mom: string
+    yoy: string
+    delta: string
+    noData: string
+    noDataDesc: string
+    recommendations: string
+    estimatedSavings: string
+    viewDetails: string
+    backToCost: string
+    impact: string
+    shareOfChange: string
+    products: string
+    highPriority: string
+    mediumPriority: string
+    lowPriority: string
+    newProduct: string
+    removedProduct: string
+    existingProduct: string
   }
 
   // Accounts
@@ -1118,6 +1146,7 @@ const en: Translations = {
       top5ProductDiscount: 'TOP 5 Product Discount Rate',
       aiInsights: '🤖 AI Insights',
       generatingInsights: 'Generating insights...',
+      noInsights: 'Not enough data to generate insights',
       months: 'months',
       instances: 'instances',
       monthsUnit: 'months',
@@ -1204,6 +1233,32 @@ const en: Translations = {
     other: 'Other',
     viewAndAnalyze: 'View and analyze cloud resource costs',
     totalCost: 'Total Cost',
+    attribution: 'Cost Attribution',
+  },
+  costAttribution: {
+    title: 'Cost Attribution',
+    description: 'See why cost changed between two billing cycles',
+    whyChanged: 'Why did cost change?',
+    currentPeriod: 'Current cycle',
+    comparePeriod: 'Compare cycle',
+    mom: 'Month over month',
+    yoy: 'Year over year',
+    delta: 'Change',
+    noData: 'Not enough billing data',
+    noDataDesc: 'Sync at least two billing cycles before running attribution.',
+    recommendations: 'Recommended actions',
+    estimatedSavings: 'Estimated monthly savings',
+    viewDetails: 'Details',
+    backToCost: 'Back to cost',
+    impact: 'Impact',
+    shareOfChange: 'Share of change',
+    products: 'Top product movers',
+    highPriority: 'High',
+    mediumPriority: 'Medium',
+    lowPriority: 'Low',
+    newProduct: 'New',
+    removedProduct: 'Removed',
+    existingProduct: 'Existing',
   },
   accounts: {
     title: 'Account Management',
@@ -1246,12 +1301,12 @@ const en: Translations = {
     accountNameImmutable: 'Account name cannot be modified and is used for data associations.',
   },
   optimization: {
-    title: 'Optimization Suggestions',
-    description: 'Detailed optimization suggestions based on resource analysis',
+    title: 'Savings Opportunities',
+    description: 'Find out-of-contract spend, non-compliant purchases, and low utilization (annualized savings)',
     noSuggestions: 'No optimization suggestions',
     noSuggestionsDesc: 'Current resource usage is good, no obvious optimization opportunities found',
-    totalSavingsPotential: 'Total Savings Potential',
-    monthlySavingsPotential: 'Monthly Savings Potential',
+    totalSavingsPotential: 'Annual Savings Potential',
+    monthlySavingsPotential: 'Annualized estimate; categories may overlap',
     suggestionCount: 'Suggestion Count',
     suggestions: 'suggestions',
     highPriority: 'High Priority',
@@ -1753,7 +1808,7 @@ const zh: Translations = {
     discountAnalysis: '折扣分析',
     virtualTags: '虚拟标签',
     security: '安全',
-    optimization: '优化',
+    optimization: '省钱机会',
     reports: '报告',
     settings: '设置',
   },
@@ -1948,6 +2003,7 @@ const zh: Translations = {
       top5ProductDiscount: 'TOP 5产品折扣率',
       aiInsights: '🤖 AI智能洞察',
       generatingInsights: '正在生成智能洞察...',
+      noInsights: '暂无足够数据生成洞察',
       months: '个月',
       instances: '个实例',
       monthsUnit: '个月份',
@@ -2034,6 +2090,32 @@ const zh: Translations = {
     other: '其他',
     viewAndAnalyze: '查看和分析云资源成本',
     totalCost: '总成本',
+    attribution: '成本归因',
+  },
+  costAttribution: {
+    title: '成本归因',
+    description: '对比两个账期，拆解成本为什么变化',
+    whyChanged: '这个月费用为什么变了？',
+    currentPeriod: '当前账期',
+    comparePeriod: '对比账期',
+    mom: '环比',
+    yoy: '同比',
+    delta: '变化',
+    noData: '账单数据不足',
+    noDataDesc: '请先同步至少两个账期的账单，再查看归因分析。',
+    recommendations: '优化建议',
+    estimatedSavings: '预计可节省',
+    viewDetails: '明细',
+    backToCost: '返回成本分析',
+    impact: '影响金额',
+    shareOfChange: '占变化比例',
+    products: '变化最大的产品',
+    highPriority: '高',
+    mediumPriority: '中',
+    lowPriority: '低',
+    newProduct: '新增',
+    removedProduct: '消失',
+    existingProduct: '已有',
   },
   accounts: {
     title: '账号管理',
@@ -2076,12 +2158,12 @@ const zh: Translations = {
     accountNameImmutable: '账号名称不可修改，用于数据关联',
   },
   optimization: {
-    title: '优化建议',
-    description: '基于资源分析提供的详细优化建议',
+    title: '省钱机会',
+    description: '对照框架合同与利用率，发现框外消费、未按约采购与低利用率浪费（金额为年化可省）',
     noSuggestions: '暂无优化建议',
     noSuggestionsDesc: '当前资源使用情况良好，未发现明显的优化机会',
-    totalSavingsPotential: '总节省潜力',
-    monthlySavingsPotential: '月度节省潜力',
+    totalSavingsPotential: '年化可省合计',
+    monthlySavingsPotential: '年化估算，类型间可能重叠',
     suggestionCount: '优化建议数',
     suggestions: '条优化建议',
     highPriority: '高优先级',

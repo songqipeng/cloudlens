@@ -43,9 +43,14 @@ def analyze_idle(account, days, no_cache):
     # 加载优化规则 (用于显示阈值)
     rm = RulesManager()
     rules = rm.get_rules()
-    cpu_threshold = rules["idle_rules"]["ecs"].get("cpu_threshold_percent", 5)
+    ecs_rules = rules["idle_rules"]["ecs"]
+    cpu_threshold = ecs_rules.get("cpu_threshold_percent", 5)
+    low_cpu = ecs_rules.get("low_cpu_percent", 10)
     
-    console.print(f"[cyan]🔍 分析最近 {days} 天的闲置资源 (CPU < {cpu_threshold}%)...[/cyan]")
+    console.print(
+        f"[cyan]🔍 分析最近 {days} 天的闲置资源 "
+        f"(按平均值分级: 严重闲置 CPU < {cpu_threshold}%，低利用率 CPU < {low_cpu}%)...[/cyan]"
+    )
 
     try:
         with Progress() as progress:
@@ -74,24 +79,37 @@ def display_idle_results(idle_instances):
         console.print("[green]✅ 未发现闲置资源[/green]")
         return
 
+    priority_styles = {"P1": "bold red", "P2": "yellow"}
+
     table = Table(title=f"闲置ECS实例 ({len(idle_instances)})")
+    table.add_column("等级", no_wrap=True)
     table.add_column("实例ID", style="cyan", no_wrap=True)
     table.add_column("名称", style="white")
     table.add_column("区域", style="blue")
     table.add_column("规格", style="magenta")
     table.add_column("闲置原因", style="yellow")
+    table.add_column("建议", style="green")
 
     for inst in idle_instances:
+        # 兼容旧缓存数据（无分级字段）
+        priority = inst.get("priority") or "-"
+        level_label = inst.get("level_label") or "闲置"
+        style = priority_styles.get(priority, "white")
         table.add_row(
+            f"[{style}]{priority} {level_label}[/{style}]",
             inst["instance_id"],
             inst["name"],
             inst["region"],
             inst["spec"],
-            "\n".join(inst["reasons"][:2]),  # 只显示前2个原因
+            "\n".join(inst.get("reasons", [])),
+            inst.get("suggestion") or "考虑释放或降配",
         )
 
     console.print(table)
-    console.print(f"\n[bold]💡 建议: 考虑释放或降配这些实例以节省成本[/bold]")
+    p1_count = sum(1 for inst in idle_instances if inst.get("priority") == "P1")
+    console.print(
+        f"\n[bold]💡 其中 {p1_count} 个为 P1（建议优先处理），操作前请确认业务影响[/bold]"
+    )
 
 
 @analyze.command("renewal")
@@ -700,18 +718,148 @@ def analyze_tags(account):
     console.print("\n[bold]💡 建议: 为所有资源添加 env、project 等标签以便管理[/bold]")
 
 
+def _resolve_bill_account_id(account: str = None) -> tuple:
+    """解析账号并构造与 bill_items.account_id 一致的 ID。"""
+    cm = ConfigManager()
+    ctx_mgr = ContextManager()
+    if not account:
+        account = ctx_mgr.get_last_account()
+    if not account:
+        accounts = cm.list_accounts()
+        account = accounts[0].name if accounts else None
+    if not account:
+        raise click.ClickException("未找到账号，请使用 --account 指定")
+    account_config = cm.get_account(account)
+    if not account_config:
+        raise click.ClickException(f"账号 '{account}' 不存在，请先 cl config list")
+    account_id = f"{account_config.access_key_id[:10]}-{account}"
+    return account, account_id
+
+
+def _as_percent(value) -> float:
+    """折扣率可能是 0-1 或已经是百分数。"""
+    rate = float(value or 0)
+    return rate * 100 if rate <= 1 else rate
+
+
+def _analyze_discount_from_db(account: str, months: int) -> None:
+    """从 MySQL 账单库分析折扣，与 Web 折扣页同源。"""
+    import os
+    from rich.panel import Panel
+    from cloudlens.core.discount_analyzer_db import DiscountAnalyzerDB
+    from cloudlens.core.discount_analyzer_advanced import AdvancedDiscountAnalyzer
+
+    account_name, account_id = _resolve_bill_account_id(account)
+    host = os.getenv("CLOUDLENS_DATABASE__MYSQL_HOST") or os.getenv("MYSQL_HOST") or "localhost"
+    port = os.getenv("CLOUDLENS_DATABASE__MYSQL_PORT") or os.getenv("MYSQL_PORT") or "3306"
+
+    console.print(Panel.fit(
+        f"[cyan]账号:[/cyan] {account_name}\n"
+        f"[cyan]account_id:[/cyan] {account_id}\n"
+        f"[cyan]数据库:[/cyan] {host}:{port}\n"
+        f"[cyan]分析月数:[/cyan] {months}",
+        title="📊 折扣分析（数据库）",
+        border_style="cyan",
+    ))
+
+    db_analyzer = DiscountAnalyzerDB()
+    trend = db_analyzer.analyze_discount_trend(account_id, months=months)
+    if not trend.get("success"):
+        console.print(f"[red]❌ 分析失败: {trend.get('error', '未知错误')}[/red]")
+        console.print("提示: 确认本机 CLI 连的是 Docker MySQL（默认 127.0.0.1:3307）")
+        console.print("      bash scripts/cl-dev.sh analyze discount --use-db --account cf")
+        return
+
+    summary = trend.get("summary") or {}
+    console.print(Panel.fit(
+        f"[bold green]最新折扣率:[/bold green] {float(summary.get('latest_discount_rate') or 0):.2f}%\n"
+        f"[bold yellow]平均折扣率:[/bold yellow] {_as_percent(summary.get('avg_discount_rate')):.2f}%\n"
+        f"[bold blue]折扣率变化:[/bold blue] {float(summary.get('trend_change_pct') or 0):+.2f}%\n"
+        f"[bold magenta]趋势方向:[/bold magenta] {summary.get('trend_icon', '')} {summary.get('trend', '-')}\n"
+        f"[bold]累计节省:[/bold] ¥{float(summary.get('total_discount') or 0):,.2f}",
+        title="💰 折扣趋势摘要",
+    ))
+
+    monthly = trend.get("monthly_trend") or []
+    if monthly:
+        table = Table(title="月度折扣")
+        table.add_column("账期", style="cyan")
+        table.add_column("原价", justify="right")
+        table.add_column("应付", justify="right")
+        table.add_column("折扣", justify="right", style="green")
+        table.add_column("折扣率", justify="right", style="yellow")
+        for row in monthly:
+            table.add_row(
+                str(row.get("month") or row.get("billing_cycle") or "-"),
+                f"¥{float(row.get('official_price') or 0):,.2f}",
+                f"¥{float(row.get('actual_amount') or row.get('paid_amount') or 0):,.2f}",
+                f"¥{float(row.get('discount_amount') or 0):,.2f}",
+                f"{float(row.get('discount_rate') or 0):.2f}%",
+            )
+        console.print(table)
+
+    advanced = AdvancedDiscountAnalyzer()
+    quarterly = advanced.get_quarterly_comparison(account_id, quarters=8)
+    if quarterly.get("success") and quarterly.get("quarters"):
+        qtable = Table(title="季度折扣")
+        qtable.add_column("季度", style="cyan")
+        qtable.add_column("折扣金额", justify="right", style="green")
+        qtable.add_column("折扣率", justify="right", style="yellow")
+        qtable.add_column("环比", justify="right")
+        for q in quarterly["quarters"]:
+            qtable.add_row(
+                str(q.get("period") or "-"),
+                f"¥{float(q.get('total_discount') or 0):,.2f}",
+                f"{float(q.get('avg_discount_rate') or 0) * 100:.2f}%",
+                f"{float(q.get('rate_change') or 0):+.1f}%",
+            )
+        console.print(qtable)
+
+    products = advanced.get_product_discount_trends(account_id, months=months, top_n=10)
+    if products.get("success") and products.get("products"):
+        ptable = Table(title="产品折扣 TOP 10")
+        ptable.add_column("产品", style="cyan")
+        ptable.add_column("消费", justify="right")
+        ptable.add_column("折扣", justify="right", style="green")
+        ptable.add_column("折扣率", justify="right", style="yellow")
+        for p in products["products"][:10]:
+            ptable.add_row(
+                str(p.get("product_name") or "-"),
+                f"¥{float(p.get('total_consumption') or 0):,.2f}",
+                f"¥{float(p.get('total_discount') or 0):,.2f}",
+                f"{float(p.get('avg_discount_rate') or 0) * 100:.2f}%",
+            )
+        console.print(ptable)
+
+    suggestions = advanced.get_optimization_suggestions(account_id)
+    if suggestions.get("success"):
+        console.print(
+            f"\n[bold]优化机会:[/bold] {suggestions.get('total_suggestions', 0)} 个实例，"
+            f"预计年节省 ¥{float(suggestions.get('total_potential_savings') or 0):,.0f}"
+        )
+
+    console.print("\n[dim]提示: 数据来自本机连接的 MySQL，与 Docker Web 共用同一套账单。[/dim]")
+
+
 @analyze.command("discount")
 @click.option("--bill-dir", help="账单CSV目录路径")
-@click.option("--months", default=6, type=int, help="分析月数")
+@click.option("--use-db", is_flag=True, help="从 MySQL 账单库分析（推荐，与 Web 同源）")
+@click.option("--account", "-a", help="账号名称（--use-db 时使用）")
+@click.option("--months", default=12, type=int, help="分析月数")
 @click.option("--export", is_flag=True, help="导出HTML报告")
 @click.option("--format", type=click.Choice(["html", "json", "excel"]), default="html", help="报告格式")
 @handle_exceptions
-def analyze_discount(bill_dir, months, export, format):
-    """折扣趋势分析 - 基于账单CSV分析最近6个月折扣变化"""
+def analyze_discount(bill_dir, months, export, format, use_db, account):
+    """折扣趋势分析 - 优先读数据库账单，也可分析 CSV"""
     from cloudlens.core.discount_analyzer import DiscountTrendAnalyzer
     from rich.panel import Panel
-    
+
+    if use_db:
+        _analyze_discount_from_db(account, months)
+        return
+
     console.print("[cyan]📊 分析账单折扣趋势...[/cyan]\n")
+
     
     analyzer = DiscountTrendAnalyzer()
     

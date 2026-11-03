@@ -379,9 +379,51 @@ GET /api/security/cis?account={account_name}
 
 ---
 
-### 优化建议
+### 优化建议 / 省钱机会
 
-#### 获取优化建议
+> 推荐使用 **省钱机会** API（年化可省 + 框架合同）。旧 `/optimization/suggestions` 仍保留兼容。
+
+#### 获取省钱机会
+
+```http
+GET /api/optimization/savings-opportunities?account={account_name}&billing_cycle=2026-06&include_legacy=true&force_refresh=false
+```
+
+**查询参数**：
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `account` | string | 否 | 账号名称 |
+| `billing_cycle` | string | 否 | 账期 `YYYY-MM`，用于选择生效合同 |
+| `include_legacy` | bool | 否 | 是否合并旧优化缓存（默认 true） |
+| `force_refresh` | bool | 否 | 跳过结果缓存 |
+
+**机会类型**：`framework_out_of_scope`（框外）、`framework_wrong_purchase`（未按约）、`idle_low_util`（低利用率）、`weak_subscription`（弱建议）。
+
+**响应摘要字段**：`summary.annual_savings_total`（年化可省）、`summary.by_type_annual_savings`、`contract.configured`。
+
+#### 导出省钱机会 HTML 报告
+
+```http
+GET /api/optimization/savings-report?account={account_name}&billing_cycle=2026-06
+```
+
+返回 `text/html` 附件。
+
+#### 框架合同
+
+```http
+GET    /api/contracts?account={account}&billing_cycle=YYYY-MM
+POST   /api/contracts/parse-pdf          # multipart: account + file(PDF) → draft
+POST   /api/contracts?account={account}  # 手工创建
+PUT    /api/contracts/{id}
+POST   /api/contracts/{id}/publish       # 发布；同账号其它 active 自动归档
+POST   /api/contracts/{id}/archive
+GET    /api/contracts/{id}/pdf           # 下载来源 PDF
+DELETE /api/contracts/{id}
+```
+
+#### 获取优化建议（旧接口，兼容）
 
 ```http
 GET /api/optimization/suggestions?account={account_name}&limit=20

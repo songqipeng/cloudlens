@@ -24,6 +24,7 @@ def register_v1_routes():
         tags,
         dashboards,
         optimization,
+        contracts,
         cost_allocation,
         ai,
         chatbot,
@@ -43,10 +44,12 @@ def register_v1_routes():
     api_router.include_router(tags.router, tags=["tags"])
     api_router.include_router(dashboards.router, tags=["dashboards"])
     api_router.include_router(optimization.router, tags=["optimization"])
+    api_router.include_router(contracts.router, tags=["contracts"])
     api_router.include_router(cost_allocation.router, tags=["cost-allocation"])
     api_router.include_router(ai.router, tags=["ai"])
     api_router.include_router(chatbot.router, tags=["chatbot"])
     api_router.include_router(anomaly.router, tags=["anomaly"])
+
 
 # 立即注册路由
 register_v1_routes()

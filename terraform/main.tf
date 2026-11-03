@@ -453,16 +453,16 @@ resource "aws_lb_target_group" "nginx" {
   health_check {
     enabled             = true
     healthy_threshold   = 2
-    unhealthy_threshold = 3
+    unhealthy_threshold = 5
     timeout             = 5
     interval            = 30
-    path                = "/health"
+    path                = "/alb-health"
     protocol            = "HTTP"
     matcher             = "200"
   }
-  
+
   deregistration_delay = 30
-  
+
   tags = {
     Name = "${var.project_name}-nginx-tg"
   }

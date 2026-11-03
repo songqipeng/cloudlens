@@ -666,6 +666,45 @@ def get_cost_overview(
         }
 
 
+@router.get("/cost/attribution")
+def get_cost_attribution(
+    account: Optional[str] = None,
+    current_cycle: Optional[str] = Query(None, description="当前账期 YYYY-MM，默认上一个自然月"),
+    compare_cycle: Optional[str] = Query(None, description="对比账期 YYYY-MM"),
+    compare_type: str = Query("mom", description="对比类型：mom / yoy / custom"),
+):
+    """对比两个账期的账单，拆解成本变化原因。
+
+    只读本地 bill_items，不调用云厂商写接口。多云账单只要落入同一张表即可复用。
+    """
+    _, account_name = _get_provider_for_account(account)
+    cm = ConfigManager()
+    account_config = cm.get_account(account_name)
+    access_key_id = account_config.access_key_id if account_config else None
+
+    try:
+        from cloudlens.core.cost_attribution import CostAttributionEngine
+
+        engine = CostAttributionEngine()
+        report = engine.analyze(
+            account_name=account_name,
+            current_cycle=current_cycle,
+            compare_cycle=compare_cycle,
+            compare_type=compare_type,
+            access_key_id=access_key_id,
+        )
+        return {
+            "success": True,
+            "data": report,
+        }
+    except ValueError as e:
+        logger.error("成本归因参数错误: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("成本归因分析失败")
+        raise HTTPException(status_code=500, detail=f"成本归因分析失败: {e}")
+
+
 @router.get("/cost/breakdown")
 def get_cost_breakdown(
     account: Optional[str] = None,

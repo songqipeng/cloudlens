@@ -12,6 +12,233 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
+
+def _bill_account_id(account_config, account_name: str) -> str:
+    """与 BillFetcher 一致：{ak前10位}-{account_name}"""
+    return f"{account_config.access_key_id[:10]}-{account_name}"
+
+
+def _load_idle_items(
+    account_name: str, force_refresh: bool = False
+) -> List[Dict[str, Any]]:
+    """优先读闲置缓存；缓存未命中时主动调用 AnalysisService（可较慢）。"""
+    try:
+        cache_manager = CacheManager(ttl_seconds=86400)
+        if not force_refresh:
+            for key in ("dashboard_idle", "idle_result"):
+                data = cache_manager.get(resource_type=key, account_name=account_name)
+                # 空列表表示「已扫描且无闲置」，也算命中，避免反复全区域扫描
+                if isinstance(data, list):
+                    return data
+                if isinstance(data, dict) and isinstance(data.get("data"), list):
+                    return data["data"]
+    except Exception as e:
+        logger.warning("加载闲置缓存失败: %s", e)
+
+    try:
+        from cloudlens.core.services.analysis_service import AnalysisService
+
+        logger.info(
+            "省钱扫描主动拉取闲置数据: account=%s force=%s",
+            account_name,
+            force_refresh,
+        )
+        items, _cached = AnalysisService.analyze_idle_resources(
+            account_name, days=7, force_refresh=force_refresh
+        )
+        if isinstance(items, list):
+            return items
+    except Exception as e:
+        logger.warning("主动分析闲置资源失败: %s", e)
+    return []
+
+
+def _merge_legacy_suggestions(
+    account_name: str, opportunities: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """合并旧版优化建议缓存（月省 ×12 → 年化）；仅用缓存，避免拉长扫描。"""
+    try:
+        cache_manager = CacheManager(ttl_seconds=86400)
+        legacy = cache_manager.get(
+            resource_type="optimization_suggestions", account_name=account_name
+        )
+        if not isinstance(legacy, dict):
+            return opportunities
+        existing_types = {
+            "framework_out_of_scope",
+            "framework_wrong_purchase",
+            "idle_low_util",
+            "weak_subscription",
+        }
+        # 闲置已由新引擎覆盖，跳过旧 idle
+        skip = {"idle_resources", "idle_low_util"}
+        for s in legacy.get("suggestions") or []:
+            typ = s.get("type") or "legacy"
+            if typ in skip or typ in existing_types:
+                continue
+            monthly = float(s.get("savings_potential") or 0)
+            annual = round(monthly * 12, 2)
+            opportunities.append(
+                {
+                    "id": f"legacy:{typ}",
+                    "type": typ,
+                    "category": s.get("category") or "其它优化",
+                    "priority": s.get("priority") or "low",
+                    "title": s.get("title") or typ,
+                    "description": s.get("description") or "",
+                    "annual_savings": annual,
+                    "resource_count": s.get("resource_count") or 0,
+                    "action": s.get("action"),
+                    "recommendation": s.get("recommendation"),
+                    "evidence": {"source": "legacy_optimization_cache", "monthly_savings": monthly},
+                }
+            )
+    except Exception as e:
+        logger.warning("合并旧优化建议失败: %s", e)
+    return opportunities
+
+
+@router.get("/optimization/savings-opportunities")
+def get_savings_opportunities(
+    account: Optional[str] = None,
+    billing_cycle: Optional[str] = Query(None, description="账期 YYYY-MM，用于选择生效合同"),
+    include_legacy: bool = Query(True, description="是否合并旧版优化建议缓存"),
+    force_refresh: bool = Query(False),
+):
+    """省钱机会统一扫描：框架合规 + 弱建议 + 利用率（金额为年化可省）。"""
+    try:
+        provider, account_name = _get_provider_for_account(account)
+        cm = ConfigManager()
+        account_config = cm.get_account(account_name)
+        if not account_config:
+            raise HTTPException(status_code=404, detail=f"账号不存在: {account_name}")
+
+        cache_manager = CacheManager(ttl_seconds=1800)
+        cache_key_extra = f"{billing_cycle or 'latest'}:legacy{int(include_legacy)}"
+        if not force_refresh:
+            cached = cache_manager.get(
+                resource_type=f"savings_opportunities:{cache_key_extra}",
+                account_name=account_name,
+            )
+            if cached is not None:
+                return {"success": True, "data": cached, "cached": True}
+
+        from cloudlens.core.framework_contract import SavingsOpportunityScanner
+
+        # force_refresh 时同步刷新闲置数据，避免利用率机会过期
+        idle_items = _load_idle_items(account_name, force_refresh=force_refresh)
+        scanner = SavingsOpportunityScanner()
+        result = scanner.scan(
+            account_name=account_name,
+            bill_account_id=_bill_account_id(account_config, account_name),
+            idle_items=idle_items,
+            billing_cycle=billing_cycle,
+        )
+
+        ops = list(result.get("opportunities") or [])
+        if include_legacy:
+            ops = _merge_legacy_suggestions(account_name, ops)
+            ops.sort(
+                key=lambda x: (
+                    {"high": 0, "medium": 1, "low": 2}.get(x.get("priority", "low"), 9),
+                    -float(x.get("annual_savings") or 0),
+                )
+            )
+            result["opportunities"] = ops
+            by_type: Dict[str, float] = {}
+            for o in ops:
+                t = o.get("type") or "other"
+                by_type[t] = by_type.get(t, 0) + float(o.get("annual_savings") or 0)
+            result["summary"]["by_type_annual_savings"] = {
+                k: round(v, 2) for k, v in by_type.items()
+            }
+            result["summary"]["annual_savings_total"] = round(
+                sum(float(o.get("annual_savings") or 0) for o in ops), 2
+            )
+            result["summary"]["total_opportunities"] = len(ops)
+            result["summary"]["high_priority_count"] = sum(
+                1 for o in ops if o.get("priority") == "high"
+            )
+            result["summary"]["medium_priority_count"] = sum(
+                1 for o in ops if o.get("priority") == "medium"
+            )
+            result["summary"]["low_priority_count"] = sum(
+                1 for o in ops if o.get("priority") == "low"
+            )
+
+        # 兼容旧优化页字段：同步一份 suggestions 形态
+        suggestions = []
+        for o in result.get("opportunities") or []:
+            suggestions.append(
+                {
+                    "type": o.get("type"),
+                    "category": o.get("category"),
+                    "priority": o.get("priority"),
+                    "title": o.get("title"),
+                    "description": o.get("description"),
+                    "savings_potential": o.get("annual_savings"),
+                    "annual_savings": o.get("annual_savings"),
+                    "resource_count": o.get("resource_count") or 1,
+                    "resources": [o.get("evidence")] if o.get("evidence") else [],
+                    "action": o.get("action"),
+                    "recommendation": o.get("recommendation"),
+                    "evidence": o.get("evidence"),
+                    "id": o.get("id"),
+                }
+            )
+        result["suggestions"] = suggestions
+        result["summary"]["total_savings_potential"] = result["summary"].get(
+            "annual_savings_total", 0
+        )
+        result["summary"]["total_suggestions"] = result["summary"].get(
+            "total_opportunities", 0
+        )
+        result["billing_cycle"] = billing_cycle
+
+        cache_manager.set(
+            resource_type=f"savings_opportunities:{cache_key_extra}",
+            account_name=account_name,
+            data=result,
+        )
+        return {"success": True, "data": result, "cached": False}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise handle_api_error(e, "get_savings_opportunities")
+
+
+@router.get("/optimization/savings-report")
+def get_savings_report(
+    account: Optional[str] = None,
+    billing_cycle: Optional[str] = Query(None),
+    include_legacy: bool = Query(True),
+    force_refresh: bool = Query(False),
+):
+    """导出省钱机会 HTML 报告。"""
+    from fastapi.responses import HTMLResponse
+    from cloudlens.core.framework_contract import render_savings_report_html
+
+    try:
+        payload = get_savings_opportunities(
+            account=account,
+            billing_cycle=billing_cycle,
+            include_legacy=include_legacy,
+            force_refresh=force_refresh,
+        )
+        data = payload.get("data") or {}
+        _, account_name = _get_provider_for_account(account)
+        html_doc = render_savings_report_html(account_name, data)
+        filename = f"savings-{account_name}.html"
+        return HTMLResponse(
+            content=html_doc,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise handle_api_error(e, "get_savings_report")
+
+
 def _fetch_all_instances(account_config) -> List[Any]:
     """并发获取所有区域的实例"""
     from cloudlens.core.services.analysis_service import AnalysisService

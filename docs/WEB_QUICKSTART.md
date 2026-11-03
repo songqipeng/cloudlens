@@ -158,7 +158,7 @@ wait
 - **资源管理**: `http://localhost:3000/resources` - 查看和管理资源
 - **成本分析**: `http://localhost:3000/cost` - 查看成本分析
 - **安全合规**: `http://localhost:3000/security` - 查看安全检查
-- **优化建议**: `http://localhost:3000/optimization` - 查看优化建议
+- **省钱机会**: `http://localhost:3000/optimization` - 框架合同与年化可省机会
 - **报告生成**: `http://localhost:3000/reports` - 生成报告
 - **设置**: `http://localhost:3000/settings` - 配置设置
 
